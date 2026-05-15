@@ -153,6 +153,7 @@ impl SymbolLayoutEditorView {
     const TAKE_OVER_BOTTOM_PADDING: f32 = 8.0;
     const TAKE_OVER_ACTION_BUTTON_WIDTH: f32 = 120.0;
     const TAKE_OVER_ACTION_BUTTON_SPACING: f32 = 12.0;
+    const FIELD_ADD_BUTTON_CORNER_RADIUS: u8 = 8;
     const FIELD_ROW_LEFT_PADDING: f32 = 8.0;
     const FIELD_ROW_ICON_SIZE: f32 = 16.0;
     const FIELD_ROW_ICON_GAP: f32 = 4.0;
@@ -2764,12 +2765,32 @@ impl SymbolLayoutEditorView {
         user_interface: &mut Ui,
         tooltip_text: &str,
     ) -> bool {
+        let button_size = vec2(Self::TAKE_OVER_ACTION_BUTTON_WIDTH, Self::FIELD_ROW_HEIGHT);
+
         user_interface
             .horizontal(|user_interface| {
-                let leading_button_margin = (user_interface.available_width() - Self::ICON_BUTTON_WIDTH).max(0.0) * 0.5;
+                let theme = &self.app_context.theme;
+                let leading_button_margin = (user_interface.available_width() - button_size.x).max(0.0) * 0.5;
                 user_interface.add_space(leading_button_margin);
-                self.render_flat_icon_button(user_interface, &self.app_context.theme.icon_library.icon_handle_common_add, tooltip_text, false)
-                    .clicked()
+
+                let button_response = user_interface.add_sized(
+                    button_size,
+                    ThemeButton::new_from_theme(theme)
+                        .with_tooltip_text(tooltip_text)
+                        .corner_radius(CornerRadius::same(Self::FIELD_ADD_BUTTON_CORNER_RADIUS))
+                        .background_color(theme.background_control_secondary)
+                        .border_color(theme.background_control_secondary_dark)
+                        .border_width(1.0),
+                );
+
+                IconDraw::draw_tinted(
+                    user_interface,
+                    button_response.rect,
+                    &theme.icon_library.icon_handle_common_add,
+                    theme.foreground,
+                );
+
+                button_response.clicked()
             })
             .inner
     }
