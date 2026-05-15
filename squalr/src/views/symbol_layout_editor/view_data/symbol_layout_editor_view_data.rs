@@ -16,7 +16,7 @@ use squalr_engine_api::structures::{
         symbolic_struct_definition::{SymbolicLayoutKind, SymbolicStructDefinition},
     },
 };
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum SymbolLayoutFieldOffsetMode {
@@ -162,6 +162,8 @@ pub struct SymbolLayoutUnassignedContextMenuTarget {
     offset_in_bytes: u64,
     size_in_bytes: u64,
     position: Pos2,
+    merge_above_span: Option<SymbolLayoutUnassignedSelection>,
+    merge_below_span: Option<SymbolLayoutUnassignedSelection>,
 }
 
 impl SymbolLayoutUnassignedContextMenuTarget {
@@ -174,7 +176,19 @@ impl SymbolLayoutUnassignedContextMenuTarget {
             offset_in_bytes,
             size_in_bytes,
             position,
+            merge_above_span: None,
+            merge_below_span: None,
         }
+    }
+
+    pub fn with_merge_spans(
+        mut self,
+        merge_above_span: Option<SymbolLayoutUnassignedSelection>,
+        merge_below_span: Option<SymbolLayoutUnassignedSelection>,
+    ) -> Self {
+        self.merge_above_span = merge_above_span;
+        self.merge_below_span = merge_below_span;
+        self
     }
 
     pub fn get_offset_in_bytes(&self) -> u64 {
@@ -187,6 +201,14 @@ impl SymbolLayoutUnassignedContextMenuTarget {
 
     pub fn get_position(&self) -> Pos2 {
         self.position
+    }
+
+    pub fn get_merge_above_span(&self) -> Option<&SymbolLayoutUnassignedSelection> {
+        self.merge_above_span.as_ref()
+    }
+
+    pub fn get_merge_below_span(&self) -> Option<&SymbolLayoutUnassignedSelection> {
+        self.merge_below_span.as_ref()
     }
 }
 
@@ -202,6 +224,7 @@ pub struct SymbolLayoutEditorViewData {
     define_field_draft: Option<SymbolLayoutFieldEditDraft>,
     field_context_menu_target: Option<SymbolLayoutFieldContextMenuTarget>,
     unassigned_context_menu_target: Option<SymbolLayoutUnassignedContextMenuTarget>,
+    unassigned_split_offsets: BTreeSet<u64>,
 }
 
 impl SymbolLayoutEditorViewData {
@@ -217,6 +240,7 @@ impl SymbolLayoutEditorViewData {
             define_field_draft: None,
             field_context_menu_target: None,
             unassigned_context_menu_target: None,
+            unassigned_split_offsets: BTreeSet::new(),
         }
     }
 
@@ -258,6 +282,10 @@ impl SymbolLayoutEditorViewData {
 
     pub fn get_unassigned_context_menu_target(&self) -> Option<&SymbolLayoutUnassignedContextMenuTarget> {
         self.unassigned_context_menu_target.as_ref()
+    }
+
+    pub fn get_unassigned_split_offsets(&self) -> &BTreeSet<u64> {
+        &self.unassigned_split_offsets
     }
 
     pub fn set_filter_text(
@@ -319,7 +347,72 @@ impl SymbolLayoutEditorViewData {
         {
             self.unassigned_context_menu_target = None;
         }
+        if let Ok(layout_size_in_bytes) = Self::parse_layout_size_text(&draft.size_text, draft.size_format) {
+            self.unassigned_split_offsets
+                .retain(|split_offset| *split_offset > 0 && *split_offset < layout_size_in_bytes);
+        } else {
+            self.unassigned_split_offsets.clear();
+        }
         self.draft = Some(draft);
+    }
+
+    pub fn split_unassigned_span(
+        symbol_layout_editor_view_data: Dependency<Self>,
+        offset_in_bytes: u64,
+        size_in_bytes: u64,
+    ) -> Option<SymbolLayoutUnassignedSelection> {
+        if size_in_bytes < 2 {
+            return None;
+        }
+
+        let split_offset_in_bytes = offset_in_bytes.checked_add(size_in_bytes / 2)?;
+        let mut symbol_layout_editor_view_data = symbol_layout_editor_view_data.write("SymbolLayoutEditor split unassigned span")?;
+
+        symbol_layout_editor_view_data
+            .unassigned_split_offsets
+            .insert(split_offset_in_bytes);
+        symbol_layout_editor_view_data.unassigned_context_menu_target = None;
+        symbol_layout_editor_view_data.selected_field_index = None;
+        symbol_layout_editor_view_data.selected_unassigned_span = Some(SymbolLayoutUnassignedSelection::new(
+            offset_in_bytes,
+            split_offset_in_bytes.saturating_sub(offset_in_bytes),
+        ));
+        symbol_layout_editor_view_data.selected_unassigned_span.clone()
+    }
+
+    pub fn remove_unassigned_split_offset(
+        symbol_layout_editor_view_data: Dependency<Self>,
+        split_offset_in_bytes: u64,
+    ) -> bool {
+        let Some(mut symbol_layout_editor_view_data) = symbol_layout_editor_view_data.write("SymbolLayoutEditor remove unassigned split offset") else {
+            return false;
+        };
+
+        symbol_layout_editor_view_data
+            .unassigned_split_offsets
+            .remove(&split_offset_in_bytes)
+    }
+
+    pub fn move_unassigned_split_offset(
+        symbol_layout_editor_view_data: Dependency<Self>,
+        old_split_offset_in_bytes: u64,
+        new_split_offset_in_bytes: u64,
+    ) -> bool {
+        let Some(mut symbol_layout_editor_view_data) = symbol_layout_editor_view_data.write("SymbolLayoutEditor move unassigned split offset") else {
+            return false;
+        };
+
+        if !symbol_layout_editor_view_data
+            .unassigned_split_offsets
+            .remove(&old_split_offset_in_bytes)
+        {
+            return false;
+        }
+
+        symbol_layout_editor_view_data
+            .unassigned_split_offsets
+            .insert(new_split_offset_in_bytes);
+        true
     }
 
     pub fn select_symbol_layout(
@@ -372,6 +465,7 @@ impl SymbolLayoutEditorViewData {
             symbol_layout_editor_view_data.define_field_draft = None;
             symbol_layout_editor_view_data.field_context_menu_target = None;
             symbol_layout_editor_view_data.unassigned_context_menu_target = None;
+            symbol_layout_editor_view_data.unassigned_split_offsets.clear();
             let baseline_draft = Self::create_default_new_draft(project_symbol_catalog, default_data_type_ref);
             symbol_layout_editor_view_data.baseline_draft = Some(baseline_draft.clone());
             symbol_layout_editor_view_data.draft = Some(baseline_draft);
@@ -393,6 +487,7 @@ impl SymbolLayoutEditorViewData {
             symbol_layout_editor_view_data.define_field_draft = None;
             symbol_layout_editor_view_data.field_context_menu_target = None;
             symbol_layout_editor_view_data.unassigned_context_menu_target = None;
+            symbol_layout_editor_view_data.unassigned_split_offsets.clear();
             symbol_layout_editor_view_data.baseline_draft = project_symbol_catalog
                 .get_struct_layout_descriptors()
                 .iter()
@@ -417,6 +512,7 @@ impl SymbolLayoutEditorViewData {
             symbol_layout_editor_view_data.define_field_draft = None;
             symbol_layout_editor_view_data.field_context_menu_target = None;
             symbol_layout_editor_view_data.unassigned_context_menu_target = None;
+            symbol_layout_editor_view_data.unassigned_split_offsets.clear();
             symbol_layout_editor_view_data.baseline_draft = project_symbol_catalog
                 .get_struct_layout_descriptors()
                 .iter()
@@ -557,10 +653,13 @@ impl SymbolLayoutEditorViewData {
         offset_in_bytes: u64,
         size_in_bytes: u64,
         position: Pos2,
+        merge_above_span: Option<SymbolLayoutUnassignedSelection>,
+        merge_below_span: Option<SymbolLayoutUnassignedSelection>,
     ) {
         if let Some(mut symbol_layout_editor_view_data) = symbol_layout_editor_view_data.write("SymbolLayoutEditor show unassigned context menu") {
-            symbol_layout_editor_view_data.unassigned_context_menu_target =
-                Some(SymbolLayoutUnassignedContextMenuTarget::new(offset_in_bytes, size_in_bytes, position));
+            symbol_layout_editor_view_data.unassigned_context_menu_target = Some(
+                SymbolLayoutUnassignedContextMenuTarget::new(offset_in_bytes, size_in_bytes, position).with_merge_spans(merge_above_span, merge_below_span),
+            );
             symbol_layout_editor_view_data.field_context_menu_target = None;
             symbol_layout_editor_view_data.selected_field_index = None;
             symbol_layout_editor_view_data.selected_unassigned_span = Some(SymbolLayoutUnassignedSelection::new(offset_in_bytes, size_in_bytes));
@@ -615,6 +714,7 @@ impl SymbolLayoutEditorViewData {
             symbol_layout_editor_view_data.define_field_draft = None;
             symbol_layout_editor_view_data.field_context_menu_target = None;
             symbol_layout_editor_view_data.unassigned_context_menu_target = None;
+            symbol_layout_editor_view_data.unassigned_split_offsets.clear();
         }
     }
 
@@ -676,6 +776,7 @@ impl SymbolLayoutEditorViewData {
             symbol_layout_editor_view_data.define_field_draft = None;
             symbol_layout_editor_view_data.field_context_menu_target = None;
             symbol_layout_editor_view_data.unassigned_context_menu_target = None;
+            symbol_layout_editor_view_data.unassigned_split_offsets.clear();
         }
 
         let stale_field_delete_layout_id = match symbol_layout_editor_view_data.take_over_state.as_ref() {
@@ -1363,7 +1464,7 @@ mod tests {
             symbolic_struct_definition::{SymbolicLayoutKind, SymbolicStructDefinition},
         },
     };
-    use std::str::FromStr;
+    use std::{collections::BTreeSet, str::FromStr};
 
     fn create_project_symbol_catalog() -> ProjectSymbolCatalog {
         ProjectSymbolCatalog::new_with_symbol_claims(
@@ -1578,6 +1679,27 @@ mod tests {
         });
 
         assert_eq!(view_data.get_unassigned_context_menu_target(), None);
+    }
+
+    #[test]
+    fn replace_draft_prunes_stale_unassigned_split_offsets() {
+        let mut view_data = SymbolLayoutEditorViewData::new();
+        view_data.unassigned_split_offsets = BTreeSet::from([0, 4, 12, 16]);
+
+        view_data.replace_draft(SymbolLayoutEditDraft {
+            original_layout_id: None,
+            layout_id: String::from("inventory.slot"),
+            layout_kind: SymbolicLayoutKind::Struct,
+            size_text: String::from("16"),
+            size_format: AnonymousValueStringFormat::Decimal,
+            field_drafts: vec![create_field_draft(
+                "item_id",
+                "u32",
+                SymbolLayoutFieldContainerEdit::default(),
+            )],
+        });
+
+        assert_eq!(view_data.get_unassigned_split_offsets(), &BTreeSet::from([4, 12]));
     }
 
     #[test]

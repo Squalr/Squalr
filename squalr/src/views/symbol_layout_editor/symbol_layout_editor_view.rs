@@ -45,7 +45,7 @@ use squalr_engine_api::structures::{
         valued_struct_field::ValuedStructField,
     },
 };
-use std::{str::FromStr, sync::Arc};
+use std::{collections::BTreeSet, str::FromStr, sync::Arc};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum SymbolLayoutFieldRowAction {
@@ -62,6 +62,9 @@ enum SymbolLayoutUnassignedRowAction {
     DefineField,
     MoveUp,
     MoveDown,
+    SplitRange,
+    MergeAbove,
+    MergeBelow,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -98,12 +101,16 @@ struct SymbolLayoutUnassignedAdjacentField {
     size_in_bytes: u64,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct SymbolLayoutUnassignedRowContext {
     offset_in_bytes: u64,
     size_in_bytes: u64,
     move_up_field: Option<SymbolLayoutUnassignedAdjacentField>,
     move_down_field: Option<SymbolLayoutUnassignedAdjacentField>,
+    move_up_unassigned_span: Option<SymbolLayoutUnassignedSelection>,
+    move_down_unassigned_span: Option<SymbolLayoutUnassignedSelection>,
+    merge_above_span: Option<SymbolLayoutUnassignedSelection>,
+    merge_below_span: Option<SymbolLayoutUnassignedSelection>,
 }
 
 #[derive(Clone)]
@@ -453,6 +460,73 @@ impl SymbolLayoutEditorView {
 
         Self::set_field_static_offset(draft, adjacent_field.field_position, row_context.offset_in_bytes)
             .then(|| SymbolLayoutUnassignedSelection::new(moved_unassigned_offset, row_context.size_in_bytes))
+    }
+
+    fn build_unassigned_row_contexts(
+        offset_in_bytes: u64,
+        size_in_bytes: u64,
+        split_offsets: &BTreeSet<u64>,
+        move_up_field: Option<SymbolLayoutUnassignedAdjacentField>,
+        move_down_field: Option<SymbolLayoutUnassignedAdjacentField>,
+    ) -> Vec<SymbolLayoutUnassignedRowContext> {
+        if size_in_bytes == 0 {
+            return Vec::new();
+        }
+
+        let Some(end_offset_in_bytes) = offset_in_bytes.checked_add(size_in_bytes) else {
+            return Vec::new();
+        };
+        let mut row_boundaries = Vec::new();
+
+        row_boundaries.push(offset_in_bytes);
+        row_boundaries.extend(
+            split_offsets
+                .iter()
+                .copied()
+                .filter(|split_offset| *split_offset > offset_in_bytes && *split_offset < end_offset_in_bytes),
+        );
+        row_boundaries.push(end_offset_in_bytes);
+
+        row_boundaries
+            .windows(2)
+            .enumerate()
+            .filter_map(|(segment_position, row_boundary_pair)| {
+                let row_offset = *row_boundary_pair.first()?;
+                let row_end = *row_boundary_pair.get(1)?;
+                let row_size = row_end.checked_sub(row_offset)?;
+                if row_size == 0 {
+                    return None;
+                }
+
+                let previous_span = (segment_position > 0).then(|| {
+                    let previous_offset = row_boundaries[segment_position - 1];
+                    SymbolLayoutUnassignedSelection::new(previous_offset, row_offset.saturating_sub(previous_offset))
+                });
+                let next_span = (segment_position + 2 < row_boundaries.len()).then(|| {
+                    let next_end = row_boundaries[segment_position + 2];
+                    SymbolLayoutUnassignedSelection::new(row_end, next_end.saturating_sub(row_end))
+                });
+                let merge_above_span = previous_span.as_ref().map(|previous_span| {
+                    SymbolLayoutUnassignedSelection::new(previous_span.get_offset_in_bytes(), previous_span.get_size_in_bytes().saturating_add(row_size))
+                });
+                let merge_below_span = next_span
+                    .as_ref()
+                    .map(|next_span| SymbolLayoutUnassignedSelection::new(row_offset, row_size.saturating_add(next_span.get_size_in_bytes())));
+
+                Some(SymbolLayoutUnassignedRowContext {
+                    offset_in_bytes: row_offset,
+                    size_in_bytes: row_size,
+                    move_up_field: (segment_position == 0).then_some(move_up_field).flatten(),
+                    move_down_field: (segment_position + 2 == row_boundaries.len())
+                        .then_some(move_down_field)
+                        .flatten(),
+                    move_up_unassigned_span: previous_span,
+                    move_down_unassigned_span: next_span,
+                    merge_above_span,
+                    merge_below_span,
+                })
+            })
+            .collect()
     }
 
     fn build_symbolic_field_definition_from_draft(field_draft: &SymbolLayoutFieldEditDraft) -> Result<SymbolicFieldDefinition, String> {
@@ -2337,8 +2411,8 @@ impl SymbolLayoutEditorView {
         }
 
         let theme = &self.app_context.theme;
-        let can_move_up = row_context.move_up_field.is_some();
-        let can_move_down = row_context.move_down_field.is_some();
+        let can_move_up = row_context.move_up_field.is_some() || row_context.move_up_unassigned_span.is_some();
+        let can_move_down = row_context.move_down_field.is_some() || row_context.move_down_unassigned_span.is_some();
         let row_sense = if can_define_field || can_move_up || can_move_down {
             Sense::click()
         } else {
@@ -2409,6 +2483,8 @@ impl SymbolLayoutEditorView {
                 row_context.offset_in_bytes,
                 row_context.size_in_bytes,
                 position,
+                row_context.merge_above_span.clone(),
+                row_context.merge_below_span.clone(),
             );
             if pending_unassigned_row_action.is_none() {
                 pending_unassigned_row_action = Some(SymbolLayoutUnassignedRowAction::SelectSpan);
@@ -2481,6 +2557,60 @@ impl SymbolLayoutEditorView {
                     .add(
                         ToolbarMenuItemView::new(
                             self.app_context.clone(),
+                            "Split Range",
+                            "symbol_layout_unassigned_ctx_split_range",
+                            &None,
+                            Self::FIELD_CONTEXT_MENU_WIDTH,
+                        )
+                        .icon(theme.icon_library.icon_handle_common_add.clone())
+                        .disabled(context_menu_target.get_size_in_bytes() < 2),
+                    )
+                    .clicked()
+                {
+                    pending_unassigned_row_action = Some(SymbolLayoutUnassignedRowAction::SplitRange);
+                    *should_close = true;
+                }
+
+                if user_interface
+                    .add(
+                        ToolbarMenuItemView::new(
+                            self.app_context.clone(),
+                            "Merge with Above",
+                            "symbol_layout_unassigned_ctx_merge_above",
+                            &None,
+                            Self::FIELD_CONTEXT_MENU_WIDTH,
+                        )
+                        .disabled(context_menu_target.get_merge_above_span().is_none()),
+                    )
+                    .clicked()
+                {
+                    pending_unassigned_row_action = Some(SymbolLayoutUnassignedRowAction::MergeAbove);
+                    *should_close = true;
+                }
+
+                if user_interface
+                    .add(
+                        ToolbarMenuItemView::new(
+                            self.app_context.clone(),
+                            "Merge with Below",
+                            "symbol_layout_unassigned_ctx_merge_below",
+                            &None,
+                            Self::FIELD_CONTEXT_MENU_WIDTH,
+                        )
+                        .disabled(context_menu_target.get_merge_below_span().is_none()),
+                    )
+                    .clicked()
+                {
+                    pending_unassigned_row_action = Some(SymbolLayoutUnassignedRowAction::MergeBelow);
+                    *should_close = true;
+                }
+
+                user_interface.separator();
+
+                if user_interface
+                    .add(
+                        ToolbarMenuItemView::new(
+                            self.app_context.clone(),
                             "Define Field...",
                             "symbol_layout_unassigned_ctx_define_field_at",
                             &None,
@@ -2528,6 +2658,15 @@ impl SymbolLayoutEditorView {
                     .collect::<std::collections::HashMap<usize, SymbolLayoutFieldSpan>>()
             })
             .unwrap_or_default();
+        let unassigned_split_offsets = self
+            .symbol_layout_editor_view_data
+            .read("SymbolLayoutEditor unassigned split offsets")
+            .map(|symbol_layout_editor_view_data| {
+                symbol_layout_editor_view_data
+                    .get_unassigned_split_offsets()
+                    .clone()
+            })
+            .unwrap_or_default();
         let mut next_visible_offset = 0_u64;
         let mut previous_visible_field = None;
 
@@ -2538,21 +2677,27 @@ impl SymbolLayoutEditorView {
             if let Some(field_span) = field_spans_by_position.get(&field_index) {
                 if !layout_kind.is_union() && field_span.offset_in_bytes > next_visible_offset {
                     let unassigned_size = field_span.offset_in_bytes.saturating_sub(next_visible_offset);
-                    let is_selected = selected_unassigned_span.is_some_and(|selected_unassigned_span| {
-                        selected_unassigned_span.get_offset_in_bytes() == next_visible_offset && selected_unassigned_span.get_size_in_bytes() == unassigned_size
+                    let move_down_field = Some(SymbolLayoutUnassignedAdjacentField {
+                        field_position: field_span.field_position,
+                        offset_in_bytes: field_span.offset_in_bytes,
+                        size_in_bytes: field_span.size_in_bytes,
                     });
-                    let unassigned_row_context = SymbolLayoutUnassignedRowContext {
-                        offset_in_bytes: next_visible_offset,
-                        size_in_bytes: unassigned_size,
-                        move_up_field: previous_visible_field,
-                        move_down_field: Some(SymbolLayoutUnassignedAdjacentField {
-                            field_position: field_span.field_position,
-                            offset_in_bytes: field_span.offset_in_bytes,
-                            size_in_bytes: field_span.size_in_bytes,
-                        }),
-                    };
-                    if let Some(unassigned_row_action) = self.render_unassigned_layout_row(user_interface, unassigned_row_context, true, is_selected) {
-                        pending_unassigned_row_action = Some((unassigned_row_context, unassigned_row_action));
+                    for unassigned_row_context in Self::build_unassigned_row_contexts(
+                        next_visible_offset,
+                        unassigned_size,
+                        &unassigned_split_offsets,
+                        previous_visible_field,
+                        move_down_field,
+                    ) {
+                        let is_selected = selected_unassigned_span.is_some_and(|selected_unassigned_span| {
+                            selected_unassigned_span.get_offset_in_bytes() == unassigned_row_context.offset_in_bytes
+                                && selected_unassigned_span.get_size_in_bytes() == unassigned_row_context.size_in_bytes
+                        });
+                        if let Some(unassigned_row_action) =
+                            self.render_unassigned_layout_row(user_interface, unassigned_row_context.clone(), true, is_selected)
+                        {
+                            pending_unassigned_row_action = Some((unassigned_row_context, unassigned_row_action));
+                        }
                     }
                 }
                 next_visible_offset = next_visible_offset.max(
@@ -2585,18 +2730,19 @@ impl SymbolLayoutEditorView {
             && *layout_size_in_bytes > next_visible_offset
         {
             let unassigned_size = layout_size_in_bytes.saturating_sub(next_visible_offset);
-            let is_selected = selected_unassigned_span.is_some_and(|selected_unassigned_span| {
-                selected_unassigned_span.get_offset_in_bytes() == next_visible_offset && selected_unassigned_span.get_size_in_bytes() == unassigned_size
-            });
-            let unassigned_row_context = SymbolLayoutUnassignedRowContext {
-                offset_in_bytes: next_visible_offset,
-                size_in_bytes: unassigned_size,
-                move_up_field: if layout_kind.is_union() { None } else { previous_visible_field },
-                move_down_field: None,
-            };
-            if let Some(unassigned_row_action) = self.render_unassigned_layout_row(user_interface, unassigned_row_context, !layout_kind.is_union(), is_selected)
+            let move_up_field = if layout_kind.is_union() { None } else { previous_visible_field };
+            for unassigned_row_context in
+                Self::build_unassigned_row_contexts(next_visible_offset, unassigned_size, &unassigned_split_offsets, move_up_field, None)
             {
-                pending_unassigned_row_action = Some((unassigned_row_context, unassigned_row_action));
+                let is_selected = selected_unassigned_span.is_some_and(|selected_unassigned_span| {
+                    selected_unassigned_span.get_offset_in_bytes() == unassigned_row_context.offset_in_bytes
+                        && selected_unassigned_span.get_size_in_bytes() == unassigned_row_context.size_in_bytes
+                });
+                if let Some(unassigned_row_action) =
+                    self.render_unassigned_layout_row(user_interface, unassigned_row_context.clone(), !layout_kind.is_union(), is_selected)
+                {
+                    pending_unassigned_row_action = Some((unassigned_row_context, unassigned_row_action));
+                }
             }
         }
 
@@ -2631,6 +2777,10 @@ impl SymbolLayoutEditorView {
                 size_in_bytes: unassigned_context_menu_target.get_size_in_bytes(),
                 move_up_field: None,
                 move_down_field: None,
+                move_up_unassigned_span: None,
+                move_down_unassigned_span: None,
+                merge_above_span: unassigned_context_menu_target.get_merge_above_span().cloned(),
+                merge_below_span: unassigned_context_menu_target.get_merge_below_span().cloned(),
             };
             pending_unassigned_row_action = Some((unassigned_row_context, unassigned_row_action));
         }
@@ -2664,12 +2814,73 @@ impl SymbolLayoutEditorView {
                     SymbolLayoutEditorViewData::replace_define_field_draft(self.symbol_layout_editor_view_data.clone(), field_draft);
                 }
                 SymbolLayoutUnassignedRowAction::MoveUp => {
-                    if let Some(updated_unassigned_selection) = Self::move_unassigned_span_up(draft, unassigned_row_context) {
+                    if let Some(updated_unassigned_selection) = Self::move_unassigned_span_up(draft, unassigned_row_context.clone()) {
                         SymbolLayoutEditorViewData::select_unassigned_span(
                             self.symbol_layout_editor_view_data.clone(),
                             updated_unassigned_selection.get_offset_in_bytes(),
                             updated_unassigned_selection.get_size_in_bytes(),
                         );
+                        self.focus_unassigned_span_in_struct_viewer(
+                            draft,
+                            updated_unassigned_selection.get_offset_in_bytes(),
+                            updated_unassigned_selection.get_size_in_bytes(),
+                        );
+                    } else if let Some(move_up_unassigned_span) = unassigned_row_context.move_up_unassigned_span.as_ref() {
+                        let old_split_offset = unassigned_row_context.offset_in_bytes;
+                        let new_split_offset = move_up_unassigned_span
+                            .get_offset_in_bytes()
+                            .saturating_add(unassigned_row_context.size_in_bytes);
+                        SymbolLayoutEditorViewData::move_unassigned_split_offset(
+                            self.symbol_layout_editor_view_data.clone(),
+                            old_split_offset,
+                            new_split_offset,
+                        );
+                        SymbolLayoutEditorViewData::select_unassigned_span(
+                            self.symbol_layout_editor_view_data.clone(),
+                            move_up_unassigned_span.get_offset_in_bytes(),
+                            unassigned_row_context.size_in_bytes,
+                        );
+                        self.focus_unassigned_span_in_struct_viewer(draft, move_up_unassigned_span.get_offset_in_bytes(), unassigned_row_context.size_in_bytes);
+                    }
+                }
+                SymbolLayoutUnassignedRowAction::MoveDown => {
+                    if let Some(updated_unassigned_selection) = Self::move_unassigned_span_down(draft, unassigned_row_context.clone()) {
+                        SymbolLayoutEditorViewData::select_unassigned_span(
+                            self.symbol_layout_editor_view_data.clone(),
+                            updated_unassigned_selection.get_offset_in_bytes(),
+                            updated_unassigned_selection.get_size_in_bytes(),
+                        );
+                        self.focus_unassigned_span_in_struct_viewer(
+                            draft,
+                            updated_unassigned_selection.get_offset_in_bytes(),
+                            updated_unassigned_selection.get_size_in_bytes(),
+                        );
+                    } else if let Some(move_down_unassigned_span) = unassigned_row_context.move_down_unassigned_span.as_ref() {
+                        let old_split_offset = unassigned_row_context
+                            .offset_in_bytes
+                            .saturating_add(unassigned_row_context.size_in_bytes);
+                        let new_unassigned_offset = unassigned_row_context
+                            .offset_in_bytes
+                            .saturating_add(move_down_unassigned_span.get_size_in_bytes());
+                        SymbolLayoutEditorViewData::move_unassigned_split_offset(
+                            self.symbol_layout_editor_view_data.clone(),
+                            old_split_offset,
+                            new_unassigned_offset,
+                        );
+                        SymbolLayoutEditorViewData::select_unassigned_span(
+                            self.symbol_layout_editor_view_data.clone(),
+                            new_unassigned_offset,
+                            unassigned_row_context.size_in_bytes,
+                        );
+                        self.focus_unassigned_span_in_struct_viewer(draft, new_unassigned_offset, unassigned_row_context.size_in_bytes);
+                    }
+                }
+                SymbolLayoutUnassignedRowAction::SplitRange => {
+                    if let Some(updated_unassigned_selection) = SymbolLayoutEditorViewData::split_unassigned_span(
+                        self.symbol_layout_editor_view_data.clone(),
+                        unassigned_row_context.offset_in_bytes,
+                        unassigned_row_context.size_in_bytes,
+                    ) {
                         self.focus_unassigned_span_in_struct_viewer(
                             draft,
                             updated_unassigned_selection.get_offset_in_bytes(),
@@ -2677,18 +2888,34 @@ impl SymbolLayoutEditorView {
                         );
                     }
                 }
-                SymbolLayoutUnassignedRowAction::MoveDown => {
-                    if let Some(updated_unassigned_selection) = Self::move_unassigned_span_down(draft, unassigned_row_context) {
+                SymbolLayoutUnassignedRowAction::MergeAbove => {
+                    if let Some(merge_above_span) = unassigned_row_context.merge_above_span.as_ref() {
+                        SymbolLayoutEditorViewData::remove_unassigned_split_offset(
+                            self.symbol_layout_editor_view_data.clone(),
+                            unassigned_row_context.offset_in_bytes,
+                        );
                         SymbolLayoutEditorViewData::select_unassigned_span(
                             self.symbol_layout_editor_view_data.clone(),
-                            updated_unassigned_selection.get_offset_in_bytes(),
-                            updated_unassigned_selection.get_size_in_bytes(),
+                            merge_above_span.get_offset_in_bytes(),
+                            merge_above_span.get_size_in_bytes(),
                         );
-                        self.focus_unassigned_span_in_struct_viewer(
-                            draft,
-                            updated_unassigned_selection.get_offset_in_bytes(),
-                            updated_unassigned_selection.get_size_in_bytes(),
+                        self.focus_unassigned_span_in_struct_viewer(draft, merge_above_span.get_offset_in_bytes(), merge_above_span.get_size_in_bytes());
+                    }
+                }
+                SymbolLayoutUnassignedRowAction::MergeBelow => {
+                    if let Some(merge_below_span) = unassigned_row_context.merge_below_span.as_ref() {
+                        SymbolLayoutEditorViewData::remove_unassigned_split_offset(
+                            self.symbol_layout_editor_view_data.clone(),
+                            unassigned_row_context
+                                .offset_in_bytes
+                                .saturating_add(unassigned_row_context.size_in_bytes),
                         );
+                        SymbolLayoutEditorViewData::select_unassigned_span(
+                            self.symbol_layout_editor_view_data.clone(),
+                            merge_below_span.get_offset_in_bytes(),
+                            merge_below_span.get_size_in_bytes(),
+                        );
+                        self.focus_unassigned_span_in_struct_viewer(draft, merge_below_span.get_offset_in_bytes(), merge_below_span.get_size_in_bytes());
                     }
                 }
             }
@@ -3301,6 +3528,7 @@ mod tests {
         projects::project_symbol_catalog::ProjectSymbolCatalog,
         structs::symbolic_struct_definition::{SymbolicLayoutKind, SymbolicStructDefinition},
     };
+    use std::collections::BTreeSet;
 
     fn create_static_field_draft(
         field_name: &str,
@@ -3364,6 +3592,10 @@ mod tests {
                 size_in_bytes: 4,
             }),
             move_down_field: None,
+            move_up_unassigned_span: None,
+            move_down_unassigned_span: None,
+            merge_above_span: None,
+            merge_below_span: None,
         };
 
         let updated_unassigned_selection = SymbolLayoutEditorView::move_unassigned_span_up(&mut draft, row_context).expect("Expected span to move.");
@@ -3396,6 +3628,10 @@ mod tests {
                 offset_in_bytes: 16,
                 size_in_bytes: 4,
             }),
+            move_up_unassigned_span: None,
+            move_down_unassigned_span: None,
+            merge_above_span: None,
+            merge_below_span: None,
         };
 
         let updated_unassigned_selection = SymbolLayoutEditorView::move_unassigned_span_down(&mut draft, row_context).expect("Expected span to move.");
@@ -3404,6 +3640,34 @@ mod tests {
         assert_eq!(updated_unassigned_selection.get_size_in_bytes(), 12);
         assert_eq!(draft.field_drafts[1].offset_mode, SymbolLayoutFieldOffsetMode::Static);
         assert_eq!(draft.field_drafts[1].static_offset_in_bytes, "4");
+    }
+
+    #[test]
+    fn build_unassigned_row_contexts_splits_contiguous_unassigned_rows() {
+        let split_offsets = BTreeSet::from([4, 12]);
+        let row_contexts = SymbolLayoutEditorView::build_unassigned_row_contexts(0, 16, &split_offsets, None, None);
+
+        assert_eq!(row_contexts.len(), 3);
+        assert_eq!(row_contexts[0].offset_in_bytes, 0);
+        assert_eq!(row_contexts[0].size_in_bytes, 4);
+        assert_eq!(row_contexts[1].offset_in_bytes, 4);
+        assert_eq!(row_contexts[1].size_in_bytes, 8);
+        assert_eq!(row_contexts[2].offset_in_bytes, 12);
+        assert_eq!(row_contexts[2].size_in_bytes, 4);
+        assert_eq!(
+            row_contexts[1]
+                .merge_above_span
+                .as_ref()
+                .map(|span| (span.get_offset_in_bytes(), span.get_size_in_bytes())),
+            Some((0, 12))
+        );
+        assert_eq!(
+            row_contexts[1]
+                .merge_below_span
+                .as_ref()
+                .map(|span| (span.get_offset_in_bytes(), span.get_size_in_bytes())),
+            Some((4, 12))
+        );
     }
 
     #[test]
