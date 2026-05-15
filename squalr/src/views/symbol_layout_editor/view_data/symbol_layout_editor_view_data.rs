@@ -275,6 +275,7 @@ pub struct SymbolLayoutEditorViewData {
     selected_layout_id: Option<String>,
     filter_text: String,
     take_over_state: Option<SymbolLayoutEditorTakeOverState>,
+    baseline_project_symbol_catalog: Option<ProjectSymbolCatalog>,
     baseline_draft: Option<SymbolLayoutEditDraft>,
     draft: Option<SymbolLayoutEditDraft>,
     selected_field_layout_id: Option<String>,
@@ -285,6 +286,7 @@ pub struct SymbolLayoutEditorViewData {
     unassigned_context_menu_target: Option<SymbolLayoutUnassignedContextMenuTarget>,
     unassigned_split_offsets: BTreeSet<u64>,
     unassigned_split_offsets_by_layout: BTreeMap<String, BTreeSet<u64>>,
+    has_take_over_catalog_side_effects: bool,
 }
 
 impl SymbolLayoutEditorViewData {
@@ -293,6 +295,7 @@ impl SymbolLayoutEditorViewData {
             selected_layout_id: None,
             filter_text: String::new(),
             take_over_state: None,
+            baseline_project_symbol_catalog: None,
             baseline_draft: None,
             draft: None,
             selected_field_layout_id: None,
@@ -303,6 +306,7 @@ impl SymbolLayoutEditorViewData {
             unassigned_context_menu_target: None,
             unassigned_split_offsets: BTreeSet::new(),
             unassigned_split_offsets_by_layout: BTreeMap::new(),
+            has_take_over_catalog_side_effects: false,
         }
     }
 
@@ -324,6 +328,22 @@ impl SymbolLayoutEditorViewData {
 
     pub fn get_baseline_draft(&self) -> Option<&SymbolLayoutEditDraft> {
         self.baseline_draft.as_ref()
+    }
+
+    pub fn get_baseline_project_symbol_catalog(&self) -> Option<&ProjectSymbolCatalog> {
+        self.baseline_project_symbol_catalog.as_ref()
+    }
+
+    pub fn has_take_over_catalog_side_effects(&self) -> bool {
+        self.has_take_over_catalog_side_effects
+    }
+
+    pub fn mark_take_over_catalog_side_effect(symbol_layout_editor_view_data: Dependency<Self>) {
+        if let Some(mut symbol_layout_editor_view_data) = symbol_layout_editor_view_data.write("SymbolLayoutEditor mark take over catalog side effect") {
+            if symbol_layout_editor_view_data.take_over_state.is_some() {
+                symbol_layout_editor_view_data.has_take_over_catalog_side_effects = true;
+            }
+        }
     }
 
     pub fn get_selected_field_index(&self) -> Option<usize> {
@@ -582,6 +602,8 @@ impl SymbolLayoutEditorViewData {
             symbol_layout_editor_view_data.field_context_menu_target = None;
             symbol_layout_editor_view_data.unassigned_context_menu_target = None;
             symbol_layout_editor_view_data.clear_unassigned_split_offsets();
+            symbol_layout_editor_view_data.baseline_project_symbol_catalog = Some(project_symbol_catalog.clone());
+            symbol_layout_editor_view_data.has_take_over_catalog_side_effects = false;
             let baseline_draft = Self::create_default_new_draft(project_symbol_catalog, default_data_type_ref);
             symbol_layout_editor_view_data.baseline_draft = Some(baseline_draft.clone());
             symbol_layout_editor_view_data.draft = Some(baseline_draft);
@@ -605,6 +627,8 @@ impl SymbolLayoutEditorViewData {
             symbol_layout_editor_view_data.field_context_menu_target = None;
             symbol_layout_editor_view_data.unassigned_context_menu_target = None;
             symbol_layout_editor_view_data.clear_unassigned_split_offsets();
+            symbol_layout_editor_view_data.baseline_project_symbol_catalog = Some(project_symbol_catalog.clone());
+            symbol_layout_editor_view_data.has_take_over_catalog_side_effects = false;
             symbol_layout_editor_view_data.baseline_draft = project_symbol_catalog
                 .get_struct_layout_descriptors()
                 .iter()
@@ -631,6 +655,8 @@ impl SymbolLayoutEditorViewData {
             symbol_layout_editor_view_data.field_context_menu_target = None;
             symbol_layout_editor_view_data.unassigned_context_menu_target = None;
             symbol_layout_editor_view_data.clear_unassigned_split_offsets();
+            symbol_layout_editor_view_data.baseline_project_symbol_catalog = Some(project_symbol_catalog.clone());
+            symbol_layout_editor_view_data.has_take_over_catalog_side_effects = false;
             symbol_layout_editor_view_data.baseline_draft = project_symbol_catalog
                 .get_struct_layout_descriptors()
                 .iter()
@@ -868,6 +894,7 @@ impl SymbolLayoutEditorViewData {
     pub fn cancel_take_over_state(symbol_layout_editor_view_data: Dependency<Self>) {
         if let Some(mut symbol_layout_editor_view_data) = symbol_layout_editor_view_data.write("SymbolLayoutEditor cancel take over state") {
             symbol_layout_editor_view_data.take_over_state = None;
+            symbol_layout_editor_view_data.baseline_project_symbol_catalog = None;
             symbol_layout_editor_view_data.baseline_draft = None;
             symbol_layout_editor_view_data.draft = None;
             symbol_layout_editor_view_data.selected_field_index = None;
@@ -877,6 +904,7 @@ impl SymbolLayoutEditorViewData {
             symbol_layout_editor_view_data.field_context_menu_target = None;
             symbol_layout_editor_view_data.unassigned_context_menu_target = None;
             symbol_layout_editor_view_data.clear_unassigned_split_offsets();
+            symbol_layout_editor_view_data.has_take_over_catalog_side_effects = false;
         }
     }
 
@@ -931,6 +959,7 @@ impl SymbolLayoutEditorViewData {
 
         if should_clear_take_over_state {
             symbol_layout_editor_view_data.take_over_state = None;
+            symbol_layout_editor_view_data.baseline_project_symbol_catalog = None;
             symbol_layout_editor_view_data.baseline_draft = None;
             symbol_layout_editor_view_data.draft = None;
             symbol_layout_editor_view_data.selected_field_index = None;
@@ -958,6 +987,7 @@ impl SymbolLayoutEditorViewData {
             symbol_layout_editor_view_data.take_over_state = Some(SymbolLayoutEditorTakeOverState::OpenSymbolLayout { layout_id });
             symbol_layout_editor_view_data.field_context_menu_target = None;
             symbol_layout_editor_view_data.unassigned_context_menu_target = None;
+            symbol_layout_editor_view_data.has_take_over_catalog_side_effects = false;
         }
 
         if symbol_layout_editor_view_data

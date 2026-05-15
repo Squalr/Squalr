@@ -50,6 +50,7 @@ Our current task, from `README.md`, is:
 - Investigated intermittent Symbol Layout Editor right-click menu loss. The row did receive the secondary click and selected the row, but the shared `ContextMenu` could immediately treat that same opening secondary click as an outside click and close before painting; the menu now ignores only the same secondary click at its anchor position. Needs human verification in the GUI.
 - Centered Symbol Layout Editor field add buttons for struct layouts and union variant child fields while keeping the union variant header add button left-aligned. Needs human verification in the GUI.
 - Restyled the centered Symbol Layout Editor field add buttons as 120px rounded filled buttons with the add icon centered, matching takeover action button sizing while keeping the final Accept action visually distinct. Needs human verification in the GUI.
+- Made Symbol Layout Editor struct/variant field add buttons disable when there is no tail `UNASSIGNED` space to claim, and made Cancel/Escape restore the pre-edit catalog snapshot when nested union-variant edits had already caused immediate catalog side effects. Needs human verification in the GUI.
 - Audit recommendation: Add `db`/`bytes` next. Raw storage is now cleanly separable as a persisted ownership concept because unowned gaps are explicit synthesized spans.
 
 ## Important Information
@@ -88,3 +89,4 @@ Our current task, from `README.md`, is:
 - ContextMenu opening-click correction reran `cargo fmt --all`, `cargo test -p squalr symbol_layout_editor --lib --locked`, `cargo test -p squalr symbol_explorer --lib --locked`, `cargo test -p squalr struct_viewer --lib --locked`, and `git diff --check`.
 - Symbol Layout Editor field-add alignment correction reran `cargo fmt --all`, `cargo test -p squalr symbol_layout_editor --lib --locked`, and `git diff --check`.
 - Symbol Layout Editor field-add button restyle reran `cargo fmt --all`, `cargo test -p squalr symbol_layout_editor --lib --locked`, and `git diff --check`.
+- Symbol Layout Editor field-add disabled/cancel correction reran `cargo fmt --all`, `cargo test -p squalr symbol_layout_editor --lib --locked`, `cargo test -p squalr struct_viewer --lib --locked`, and `git diff --check`.

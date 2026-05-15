@@ -211,6 +211,16 @@ impl SymbolLayoutEditorView {
         Self::persist_project_symbol_catalog_with_context(&self.app_context, updated_project_symbol_catalog);
     }
 
+    fn restore_baseline_project_symbol_catalog(
+        &self,
+        baseline_project_symbol_catalog: Option<&ProjectSymbolCatalog>,
+        has_catalog_side_effects: bool,
+    ) {
+        if has_catalog_side_effects && let Some(baseline_project_symbol_catalog) = baseline_project_symbol_catalog {
+            self.persist_project_symbol_catalog(baseline_project_symbol_catalog.clone());
+        }
+    }
+
     fn persist_project_symbol_catalog_with_context(
         app_context: &AppContext,
         updated_project_symbol_catalog: ProjectSymbolCatalog,
@@ -682,6 +692,23 @@ impl SymbolLayoutEditorView {
         (next_visible_offset < layout_size_in_bytes).then_some(next_visible_offset)
     }
 
+    fn resolve_tail_unassigned_offset(
+        field_spans: &[SymbolLayoutFieldSpan],
+        layout_size_in_bytes: u64,
+    ) -> Option<u64> {
+        let tail_offset = field_spans
+            .iter()
+            .map(|field_span| {
+                field_span
+                    .offset_in_bytes
+                    .saturating_add(field_span.size_in_bytes)
+            })
+            .max()
+            .unwrap_or(0);
+
+        (tail_offset < layout_size_in_bytes).then_some(tail_offset)
+    }
+
     fn append_field_to_variant_layout(
         &self,
         project_symbol_catalog: &ProjectSymbolCatalog,
@@ -696,7 +723,7 @@ impl SymbolLayoutEditorView {
         let Some((layout_size_in_bytes, field_spans)) = self.resolve_draft_field_spans(project_symbol_catalog, &variant_draft) else {
             return None;
         };
-        let Some(field_offset_in_bytes) = Self::resolve_first_unassigned_offset(&field_spans, layout_size_in_bytes) else {
+        let Some(field_offset_in_bytes) = Self::resolve_tail_unassigned_offset(&field_spans, layout_size_in_bytes) else {
             return None;
         };
 
@@ -718,6 +745,29 @@ impl SymbolLayoutEditorView {
 
         self.persist_variant_layout_draft(project_symbol_catalog, &variant_draft)
             .then_some((variant_draft, field_position))
+    }
+
+    fn resolve_variant_tail_unassigned_offset(
+        &self,
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        union_draft: &SymbolLayoutEditDraft,
+        variant_index: usize,
+        variant_field_draft: &SymbolLayoutFieldEditDraft,
+    ) -> Option<u64> {
+        let variant_draft = Self::create_union_variant_layout_draft(project_symbol_catalog, union_draft, variant_index, variant_field_draft);
+        let (layout_size_in_bytes, field_spans) = self.resolve_draft_field_spans(project_symbol_catalog, &variant_draft)?;
+
+        Self::resolve_tail_unassigned_offset(&field_spans, layout_size_in_bytes)
+    }
+
+    fn resolve_draft_tail_unassigned_offset(
+        &self,
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        draft: &SymbolLayoutEditDraft,
+    ) -> Option<u64> {
+        let (layout_size_in_bytes, field_spans) = self.resolve_draft_field_spans(project_symbol_catalog, draft)?;
+
+        Self::resolve_tail_unassigned_offset(&field_spans, layout_size_in_bytes)
     }
 
     fn create_union_variant_layout_draft(
@@ -819,6 +869,7 @@ impl SymbolLayoutEditorView {
         match SymbolLayoutEditorViewData::apply_draft_to_catalog(project_symbol_catalog, variant_draft) {
             Ok(updated_project_symbol_catalog) => {
                 self.persist_project_symbol_catalog(updated_project_symbol_catalog);
+                SymbolLayoutEditorViewData::mark_take_over_catalog_side_effect(self.symbol_layout_editor_view_data.clone());
                 true
             }
             Err(error) => {
@@ -2081,6 +2132,7 @@ impl SymbolLayoutEditorView {
             };
 
             Self::persist_project_symbol_catalog_with_context(&app_context, updated_project_symbol_catalog.clone());
+            SymbolLayoutEditorViewData::mark_take_over_catalog_side_effect(symbol_layout_editor_view_data.clone());
             SymbolLayoutEditorViewData::select_field_for_layout(symbol_layout_editor_view_data.clone(), Some(variant_layout_id.clone()), field_index);
 
             let details_struct = variant_draft
@@ -2764,6 +2816,7 @@ impl SymbolLayoutEditorView {
         &self,
         user_interface: &mut Ui,
         tooltip_text: &str,
+        is_enabled: bool,
     ) -> bool {
         let button_size = vec2(Self::TAKE_OVER_ACTION_BUTTON_WIDTH, Self::FIELD_ROW_HEIGHT);
 
@@ -2780,17 +2833,18 @@ impl SymbolLayoutEditorView {
                         .corner_radius(CornerRadius::same(Self::FIELD_ADD_BUTTON_CORNER_RADIUS))
                         .background_color(theme.background_control_secondary)
                         .border_color(theme.background_control_secondary_dark)
-                        .border_width(1.0),
+                        .border_width(1.0)
+                        .disabled(!is_enabled),
                 );
 
                 IconDraw::draw_tinted(
                     user_interface,
                     button_response.rect,
                     &theme.icon_library.icon_handle_common_add,
-                    theme.foreground,
+                    if is_enabled { theme.foreground } else { theme.foreground_preview },
                 );
 
-                button_response.clicked()
+                is_enabled && button_response.clicked()
             })
             .inner
     }
@@ -3539,8 +3593,14 @@ impl SymbolLayoutEditorView {
                     }
                 }
 
+                let variant_tail_unassigned_offset =
+                    self.resolve_variant_tail_unassigned_offset(project_symbol_catalog, &union_draft_preview, field_index, &variant_field_preview_draft);
                 if Self::render_union_variant_child_row(user_interface, |user_interface| {
-                    self.render_centered_add_entry_button(user_interface, "Add a new field to this union variant.")
+                    self.render_centered_add_entry_button(
+                        user_interface,
+                        "Add a new field to this union variant.",
+                        variant_tail_unassigned_offset.is_some(),
+                    )
                 }) {
                     pending_field_row_action = Some((field_index, SymbolLayoutFieldRowAction::InsertFieldIntoVariant));
                 }
@@ -3943,6 +4003,8 @@ impl SymbolLayoutEditorView {
         user_interface: &mut Ui,
         project_symbol_catalog: &ProjectSymbolCatalog,
         take_over_title: &str,
+        baseline_project_symbol_catalog: Option<&ProjectSymbolCatalog>,
+        has_catalog_side_effects: bool,
         baseline_draft: Option<&SymbolLayoutEditDraft>,
         draft: Option<&SymbolLayoutEditDraft>,
         selected_field_index: Option<usize>,
@@ -3970,6 +4032,7 @@ impl SymbolLayoutEditorView {
         let mut should_cancel_take_over = false;
         let mut should_save_draft = false;
         let should_append_field = Cell::new(false);
+        let append_field_tail_offset = Cell::new(None);
 
         self.render_take_over_panel(
             user_interface,
@@ -4055,7 +4118,9 @@ impl SymbolLayoutEditorView {
                                 );
                                 if !is_union_layout {
                                     user_interface.add_space(Self::TAKE_OVER_GROUPBOX_SPACING);
-                                    if self.render_centered_add_entry_button(user_interface, "Add a new field entry.") {
+                                    let tail_unassigned_offset = self.resolve_draft_tail_unassigned_offset(project_symbol_catalog, &edited_draft);
+                                    if self.render_centered_add_entry_button(user_interface, "Add a new field entry.", tail_unassigned_offset.is_some()) {
+                                        append_field_tail_offset.set(tail_unassigned_offset);
                                         should_append_field.set(true);
                                     }
                                 }
@@ -4083,7 +4148,9 @@ impl SymbolLayoutEditorView {
                                 );
                                 if !is_union_layout {
                                     user_interface.add_space(Self::TAKE_OVER_GROUPBOX_SPACING);
-                                    if self.render_centered_add_entry_button(user_interface, "Add a new field entry.") {
+                                    let tail_unassigned_offset = self.resolve_draft_tail_unassigned_offset(project_symbol_catalog, &edited_draft);
+                                    if self.render_centered_add_entry_button(user_interface, "Add a new field entry.", tail_unassigned_offset.is_some()) {
+                                        append_field_tail_offset.set(tail_unassigned_offset);
                                         should_append_field.set(true);
                                     }
                                 }
@@ -4114,6 +4181,11 @@ impl SymbolLayoutEditorView {
             let field_index_to_focus = edited_draft.field_drafts.len();
             let mut field_draft =
                 self.create_field_draft_for_layout_kind(project_symbol_catalog, edited_draft.layout_kind, &edited_draft.layout_id, field_index_to_focus);
+            if let Some(field_offset_in_bytes) = append_field_tail_offset.get() {
+                field_draft.field_name = format!("field_{:08X}", field_offset_in_bytes);
+                field_draft.offset_mode = SymbolLayoutFieldOffsetMode::Static;
+                field_draft.static_offset_in_bytes = field_offset_in_bytes.to_string();
+            }
             field_draft.field_name = Self::build_unique_field_name(&edited_draft, &field_draft.field_name);
             edited_draft.field_drafts.push(field_draft);
             SymbolLayoutEditorViewData::select_field(self.symbol_layout_editor_view_data.clone(), field_index_to_focus);
@@ -4121,6 +4193,7 @@ impl SymbolLayoutEditorView {
         }
 
         if should_cancel_take_over {
+            self.restore_baseline_project_symbol_catalog(baseline_project_symbol_catalog, has_catalog_side_effects);
             SymbolLayoutEditorViewData::cancel_take_over_state(self.symbol_layout_editor_view_data.clone());
             self.clear_struct_viewer_if_symbol_layout_focused();
             return;
@@ -4545,6 +4618,43 @@ mod tests {
         ];
 
         assert_eq!(SymbolLayoutEditorView::field_insert_index_for_offset(&field_spans, 2, 8), 1);
+    }
+
+    #[test]
+    fn resolve_tail_unassigned_offset_uses_layout_end_gap_only() {
+        let field_spans = [
+            SymbolLayoutFieldSpan {
+                field_position: 0,
+                offset_in_bytes: 4,
+                size_in_bytes: 4,
+            },
+            SymbolLayoutFieldSpan {
+                field_position: 1,
+                offset_in_bytes: 12,
+                size_in_bytes: 4,
+            },
+        ];
+
+        assert_eq!(SymbolLayoutEditorView::resolve_tail_unassigned_offset(&field_spans, 24), Some(16));
+    }
+
+    #[test]
+    fn resolve_tail_unassigned_offset_rejects_internal_gaps_without_tail_space() {
+        let field_spans = [
+            SymbolLayoutFieldSpan {
+                field_position: 0,
+                offset_in_bytes: 0,
+                size_in_bytes: 4,
+            },
+            SymbolLayoutFieldSpan {
+                field_position: 1,
+                offset_in_bytes: 12,
+                size_in_bytes: 4,
+            },
+        ];
+
+        assert_eq!(SymbolLayoutEditorView::resolve_first_unassigned_offset(&field_spans, 16), Some(4));
+        assert_eq!(SymbolLayoutEditorView::resolve_tail_unassigned_offset(&field_spans, 16), None);
     }
 
     #[test]
@@ -5090,6 +5200,8 @@ impl Widget for SymbolLayoutEditorView {
             selected_layout_id,
             filter_text,
             take_over_state,
+            baseline_project_symbol_catalog,
+            has_catalog_side_effects,
             baseline_draft,
             draft,
             selected_field_index,
@@ -5106,6 +5218,10 @@ impl Widget for SymbolLayoutEditorView {
                         .map(str::to_string),
                     symbol_layout_editor_view_data.get_filter_text().to_string(),
                     symbol_layout_editor_view_data.get_take_over_state().cloned(),
+                    symbol_layout_editor_view_data
+                        .get_baseline_project_symbol_catalog()
+                        .cloned(),
+                    symbol_layout_editor_view_data.has_take_over_catalog_side_effects(),
                     symbol_layout_editor_view_data.get_baseline_draft().cloned(),
                     symbol_layout_editor_view_data.get_draft().cloned(),
                     symbol_layout_editor_view_data.get_selected_field_index(),
@@ -5118,7 +5234,7 @@ impl Widget for SymbolLayoutEditorView {
                     symbol_layout_editor_view_data.get_define_field_draft().cloned(),
                 )
             })
-            .unwrap_or((None, String::new(), None, None, None, None, None, None, None));
+            .unwrap_or((None, String::new(), None, None, false, None, None, None, None, None, None));
         let is_take_over_active = take_over_state.is_some();
         let is_window_focused = self
             .app_context
@@ -5135,6 +5251,7 @@ impl Widget for SymbolLayoutEditorView {
             } else if let Some(SymbolLayoutEditorTakeOverState::DefineFieldFromUnassignedSpan { return_state, .. }) = take_over_state.as_ref() {
                 SymbolLayoutEditorViewData::return_to_define_field_source(self.symbol_layout_editor_view_data.clone(), return_state.clone());
             } else {
+                self.restore_baseline_project_symbol_catalog(baseline_project_symbol_catalog.as_ref(), has_catalog_side_effects);
                 SymbolLayoutEditorViewData::cancel_take_over_state(self.symbol_layout_editor_view_data.clone());
                 self.clear_struct_viewer_if_symbol_layout_focused();
             }
@@ -5184,6 +5301,8 @@ impl Widget for SymbolLayoutEditorView {
                             &mut content_user_interface,
                             &project_symbol_catalog,
                             "",
+                            baseline_project_symbol_catalog.as_ref(),
+                            has_catalog_side_effects,
                             baseline_draft.as_ref(),
                             draft.as_ref(),
                             selected_field_index,
@@ -5197,6 +5316,8 @@ impl Widget for SymbolLayoutEditorView {
                             &mut content_user_interface,
                             &project_symbol_catalog,
                             "Rename Symbol Layout",
+                            baseline_project_symbol_catalog.as_ref(),
+                            has_catalog_side_effects,
                             baseline_draft.as_ref(),
                             draft.as_ref(),
                             selected_field_index,
@@ -5210,6 +5331,8 @@ impl Widget for SymbolLayoutEditorView {
                             &mut content_user_interface,
                             &project_symbol_catalog,
                             "Edit Symbol Layout",
+                            baseline_project_symbol_catalog.as_ref(),
+                            has_catalog_side_effects,
                             baseline_draft.as_ref(),
                             draft.as_ref(),
                             selected_field_index,
