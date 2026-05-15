@@ -1,14 +1,8 @@
 use crate::app_context::AppContext;
-use crate::ui::converters::{data_type_to_icon_converter::DataTypeToIconConverter, data_type_to_string_converter::DataTypeToStringConverter};
 use crate::ui::list_navigation::{ListNavigationDirection, resolve_next_index};
 use crate::ui::widgets::controls::{
     button::Button as ThemeButton,
-    combo_box::combo_box_item_view::ComboBoxItemView,
-    combo_box::combo_box_view::ComboBoxView,
     context_menu::context_menu::{ContextMenu, ContextMenuSizing},
-    data_value_box::data_value_box_view::DataValueBoxView,
-    groupbox::GroupBox,
-    search_box::SearchBoxView,
     toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView,
 };
 use crate::views::{
@@ -18,18 +12,19 @@ use crate::views::{
     struct_viewer::view_data::struct_viewer_focus_target::StructViewerFocusTarget,
     struct_viewer::view_data::struct_viewer_view_data::StructViewerViewData,
     symbol_layout_editor::{symbol_layout_editor_view::SymbolLayoutEditorView, view_data::symbol_layout_editor_view_data::SymbolLayoutEditorViewData},
+    symbol_tree::symbol_tree_define_field_view::{SymbolTreeDefineFieldAction, SymbolTreeDefineFieldView},
+    symbol_tree::symbol_tree_delete_confirmation_view::{SymbolTreeDeleteConfirmationAction, SymbolTreeDeleteConfirmationView},
     symbol_tree::symbol_tree_entry_view::SymbolTreeEntryView,
     symbol_tree::symbol_tree_inline_rename_view::SymbolTreeInlineRenameView,
+    symbol_tree::symbol_tree_module_create_view::{SymbolTreeModuleCreateAction, SymbolTreeModuleCreateView},
     symbol_tree::symbol_tree_toolbar_view::{SymbolTreeToolbarAction, SymbolTreeToolbarView},
     symbol_tree::view_data::{
         symbol_tree_scalar_value::SymbolTreeScalarValue,
-        symbol_tree_view_data::{
-            DefineFieldDraft, ModuleRootCreateDraft, SymbolTreeContextMenuTarget, SymbolTreeSelection, SymbolTreeTakeOverState, SymbolTreeViewData,
-        },
+        symbol_tree_view_data::{SymbolTreeContextMenuTarget, SymbolTreeSelection, SymbolTreeTakeOverState, SymbolTreeViewData},
     },
 };
-use eframe::egui::{Align, Color32, Direction, Grid, Id, Key, Layout, Response, RichText, ScrollArea, Ui, UiBuilder, Widget, vec2};
-use epaint::{Stroke, pos2};
+use eframe::egui::{Align, Color32, Direction, Id, Key, Layout, Response, RichText, ScrollArea, Ui, UiBuilder, Widget};
+use epaint::pos2;
 use squalr_engine_api::commands::{
     memory::{
         read::{memory_read_request::MemoryReadRequest, memory_read_response::MemoryReadResponse},
@@ -52,24 +47,18 @@ use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::plugins::symbol_tree::symbol_tree_action::{SymbolTreeActionContext, SymbolTreeActionSelection};
 use squalr_engine_api::structures::data_types::built_in_types::{string::utf8::data_type_string_utf8::DataTypeStringUtf8, u64::data_type_u64::DataTypeU64};
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
-use squalr_engine_api::structures::data_values::{
-    anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType,
-};
+use squalr_engine_api::structures::data_values::{anonymous_value_string::AnonymousValueString, container_type::ContainerType};
 use squalr_engine_api::structures::memory::{
     pointer::Pointer,
     symbolic_pointer_chain::{SymbolicPointerChain, SymbolicPointerChainLink},
 };
-use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 use squalr_engine_api::structures::projects::{
     project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress,
     project_symbol_catalog::ProjectSymbolCatalog,
     project_symbol_locator::ProjectSymbolLocator,
     symbol_tree::operations::{
         add_symbol_to_project::{AddSymbolToProjectTarget, build_add_symbol_project_item_create_request, build_add_symbol_to_project_target},
-        define_field::{
-            DefineFieldPlan, DefineFieldPlanRequest, build_define_field_plan, build_define_field_symbol_layout_id, filter_registered_pointer_sizes,
-            parse_define_field_relative_offset,
-        },
+        define_field::DefineFieldPlan,
         delete_symbol::{ModuleChildRangeTarget, build_delete_module_range_confirmation_description, build_module_child_range_target},
         edit_symbol_layout::build_symbol_layout_edit_target,
     },
@@ -102,19 +91,6 @@ pub struct SymbolTreeView {
     code_viewer_view_data: Dependency<CodeViewerViewData>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum ModuleFieldTypeOptionKind {
-    BuiltIn,
-    SymbolLayout,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct ModuleFieldTypeOption {
-    data_type_ref: DataTypeRef,
-    label: String,
-    kind: ModuleFieldTypeOptionKind,
-}
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct SymbolTreePluginActionMenuItem {
     plugin_id: String,
@@ -130,30 +106,15 @@ impl SymbolTreeView {
     const POINTER_CHILDREN_REFRESH_INTERVAL: Duration = Duration::from_millis(250);
     const SCALAR_VALUES_REFRESH_INTERVAL: Duration = Duration::from_millis(250);
     const PREVIEW_VALUES_REFRESH_INTERVAL: Duration = Duration::from_millis(250);
-    const TOOLBAR_HEIGHT: f32 = 28.0;
-    const CREATE_DISPLAY_NAME_DATA_VALUE_BOX_ID: &'static str = "symbol_tree_create_display_name";
-    const CREATE_MODULE_SIZE_DATA_VALUE_BOX_ID: &'static str = "symbol_tree_create_module_size";
-    const TAKE_OVER_ACTION_BUTTON_WIDTH: f32 = 120.0;
-    const TAKE_OVER_ACTION_BUTTON_SPACING: f32 = 12.0;
-    const TAKE_OVER_BOTTOM_PADDING: f32 = 8.0;
-    const TAKE_OVER_GROUPBOX_SIDE_PADDING: f32 = 8.0;
     const SYMBOL_TREE_TEXT_PADDING_X: f32 = 8.0;
     const STRUCT_VIEWER_SYMBOL_NAME_FIELD: &'static str = "display_name";
     const STRUCT_VIEWER_SYMBOL_SIZE_FIELD: &'static str = "size";
     const STRUCT_VIEWER_SYMBOL_PATH_FIELD: &'static str = "path";
-    const STRING_DATA_TYPE_ID: &'static str = "string_utf8";
     const INLINE_RENAME_TEXT_STORAGE_ID_PREFIX: &'static str = "symbol_tree_inline_rename_text";
     const INLINE_RENAME_HIGHLIGHT_STORAGE_ID_PREFIX: &'static str = "symbol_tree_inline_rename_highlight";
     const MAX_SYMBOL_PREVIEW_ELEMENT_COUNT: u64 = 4;
     const MAX_SYMBOL_PREVIEW_DISPLAY_ELEMENT_COUNT: usize = 3;
     const MAX_SYMBOL_PREVIEW_ARRAY_CHARACTER_COUNT: usize = 24;
-    const DEFINE_FIELD_BUILT_IN_TYPE_COLUMN_COUNT: usize = 2;
-    const DEFINE_FIELD_BUILT_IN_TYPE_ITEM_WIDTH: f32 = 128.0;
-    const DEFINE_FIELD_BUILT_IN_TYPE_COLUMN_SPACING: f32 = 4.0;
-    const MODULE_FIELD_BUILT_IN_TYPE_IDS: [&'static str; 18] = [
-        "u8", "i8", "i16", "i16be", "i32", "i32be", "i64", "i64be", "u16", "u16be", "u32", "u32be", "u64", "u64be", "f32", "f32be", "f64", "f64be",
-    ];
-    const DEFINE_FIELD_CONTAINER_SELECTOR_WIDTH: f32 = 118.0;
     const SYMBOL_TREE_CTX_OPEN_MEMORY_VIEWER_LABEL: &str = OPEN_IN_MEMORY_VIEWER_LABEL;
     const SYMBOL_TREE_CTX_OPEN_MEMORY_VIEWER_ID: &str = "symbol_tree_ctx_open_memory_viewer";
     const SYMBOL_TREE_CTX_OPEN_CODE_VIEWER_LABEL: &str = OPEN_IN_CODE_VIEWER_LABEL;
@@ -334,83 +295,6 @@ impl SymbolTreeView {
         });
     }
 
-    fn build_module_field_type_options(project_symbol_catalog: &ProjectSymbolCatalog) -> Vec<ModuleFieldTypeOption> {
-        let mut type_options = Self::MODULE_FIELD_BUILT_IN_TYPE_IDS
-            .iter()
-            .map(|data_type_id| ModuleFieldTypeOption {
-                data_type_ref: DataTypeRef::new(data_type_id),
-                label: DataTypeToStringConverter::convert_data_type_to_string(data_type_id),
-                kind: ModuleFieldTypeOptionKind::BuiltIn,
-            })
-            .collect::<Vec<_>>();
-
-        for struct_layout_descriptor in project_symbol_catalog.get_struct_layout_descriptors() {
-            let struct_layout_id = struct_layout_descriptor.get_struct_layout_id();
-            let struct_data_type_ref = DataTypeRef::new(struct_layout_id);
-
-            if !type_options
-                .iter()
-                .any(|type_option| type_option.data_type_ref == struct_data_type_ref)
-            {
-                type_options.push(ModuleFieldTypeOption {
-                    data_type_ref: struct_data_type_ref,
-                    label: struct_layout_id.to_string(),
-                    kind: ModuleFieldTypeOptionKind::SymbolLayout,
-                });
-            }
-        }
-
-        type_options
-    }
-
-    fn filter_module_field_type_options(
-        type_options: &[ModuleFieldTypeOption],
-        search_text: &str,
-    ) -> Vec<ModuleFieldTypeOption> {
-        let normalized_search_text = search_text.trim().to_lowercase();
-
-        if normalized_search_text.is_empty() {
-            return type_options.to_vec();
-        }
-
-        type_options
-            .iter()
-            .filter(|type_option| {
-                type_option
-                    .label
-                    .to_lowercase()
-                    .contains(&normalized_search_text)
-                    || type_option
-                        .data_type_ref
-                        .get_data_type_id()
-                        .to_lowercase()
-                        .contains(&normalized_search_text)
-            })
-            .cloned()
-            .collect()
-    }
-
-    fn module_field_type_option_uses_icon(type_option_kind: ModuleFieldTypeOptionKind) -> bool {
-        matches!(type_option_kind, ModuleFieldTypeOptionKind::BuiltIn)
-    }
-
-    fn define_field_type_popup_width(combo_width: f32) -> f32 {
-        let built_in_grid_width = Self::DEFINE_FIELD_BUILT_IN_TYPE_ITEM_WIDTH * Self::DEFINE_FIELD_BUILT_IN_TYPE_COLUMN_COUNT as f32
-            + Self::DEFINE_FIELD_BUILT_IN_TYPE_COLUMN_SPACING * (Self::DEFINE_FIELD_BUILT_IN_TYPE_COLUMN_COUNT.saturating_sub(1) as f32);
-
-        combo_width.max(built_in_grid_width)
-    }
-
-    fn define_field_builtin_type_item_width(popup_width: f32) -> f32 {
-        let spacing_width = Self::DEFINE_FIELD_BUILT_IN_TYPE_COLUMN_SPACING * (Self::DEFINE_FIELD_BUILT_IN_TYPE_COLUMN_COUNT.saturating_sub(1) as f32);
-
-        ((popup_width - spacing_width) / Self::DEFINE_FIELD_BUILT_IN_TYPE_COLUMN_COUNT as f32).max(1.0)
-    }
-
-    fn module_field_type_search_storage_id(menu_id: &str) -> Id {
-        Id::new(("symbol_tree_module_field_type_search", menu_id))
-    }
-
     fn delete_module_root(
         &self,
         module_name: &str,
@@ -494,90 +378,6 @@ impl SymbolTreeView {
                 create_request_position.saturating_add(1),
             );
         });
-    }
-
-    fn resolve_define_field_symbol_layout_id_size(
-        &self,
-        project_symbol_catalog: &ProjectSymbolCatalog,
-        struct_layout_id: &str,
-    ) -> Option<u64> {
-        let symbolic_field_definition = SymbolicFieldDefinition::from_str(struct_layout_id).ok()?;
-
-        self.resolve_define_field_symbolic_size(project_symbol_catalog, &symbolic_field_definition, &mut HashSet::new())
-    }
-
-    fn resolve_define_field_symbolic_size(
-        &self,
-        project_symbol_catalog: &ProjectSymbolCatalog,
-        symbolic_field_definition: &SymbolicFieldDefinition,
-        visited_type_ids: &mut HashSet<String>,
-    ) -> Option<u64> {
-        if let Some(pointer_size) = symbolic_field_definition
-            .get_container_type()
-            .get_pointer_size()
-        {
-            return Some(pointer_size.get_size_in_bytes());
-        }
-
-        let data_type_id = symbolic_field_definition
-            .get_data_type_ref()
-            .get_data_type_id()
-            .to_string();
-        let unit_size_in_bytes = if let Some(symbolic_struct_definition) = project_symbol_catalog
-            .get_struct_layout_descriptors()
-            .iter()
-            .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == data_type_id)
-            .map(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_definition().clone())
-        {
-            if !visited_type_ids.insert(data_type_id.clone()) {
-                return None;
-            }
-
-            let struct_size_in_bytes = symbolic_struct_definition
-                .get_fields()
-                .iter()
-                .try_fold(0_u64, |accumulated_size, field_definition| {
-                    accumulated_size.checked_add(self.resolve_define_field_symbolic_size(project_symbol_catalog, field_definition, visited_type_ids)?)
-                })?;
-
-            visited_type_ids.remove(&data_type_id);
-            struct_size_in_bytes
-        } else if let Some(default_value) = self
-            .app_context
-            .engine_unprivileged_state
-            .get_default_value(symbolic_field_definition.get_data_type_ref())
-        {
-            default_value.get_size_in_bytes()
-        } else {
-            return None;
-        };
-
-        Some(
-            symbolic_field_definition
-                .get_container_type()
-                .get_total_size_in_bytes(unit_size_in_bytes),
-        )
-    }
-
-    fn build_define_field_plan(
-        define_field_draft: &DefineFieldDraft,
-        module_name: &str,
-        segment_offset: u64,
-        segment_length: u64,
-        resolve_type_size: impl Fn(&str) -> Option<u64>,
-    ) -> Result<DefineFieldPlan, String> {
-        let define_field_plan_request = DefineFieldPlanRequest {
-            display_name: define_field_draft.display_name.clone(),
-            relative_offset_text: define_field_draft.relative_offset_text.clone(),
-            relative_offset_format: define_field_draft.relative_offset_format,
-            container_type: define_field_draft.container_type,
-            data_type_ref: define_field_draft
-                .data_type_selection
-                .visible_data_type()
-                .clone(),
-        };
-
-        build_define_field_plan(&define_field_plan_request, module_name, segment_offset, segment_length, resolve_type_size)
     }
 
     fn inline_rename_text_storage_id(symbol_locator_key: &str) -> Id {
@@ -1954,588 +1754,6 @@ impl SymbolTreeView {
         button_response
     }
 
-    fn draw_sized_action_button(
-        &self,
-        user_interface: &mut Ui,
-        label: &str,
-        button_size: eframe::egui::Vec2,
-        fill_color: Color32,
-        border_color: Color32,
-        click_enabled: bool,
-    ) -> Response {
-        let theme = &self.app_context.theme;
-        let text_color = theme.foreground;
-        let label_galley = user_interface
-            .painter()
-            .layout_no_wrap(label.to_string(), theme.font_library.font_noto_sans.font_normal.clone(), text_color);
-        let button_response = user_interface.add_sized(
-            button_size,
-            ThemeButton::new_from_theme(theme)
-                .disabled(!click_enabled)
-                .background_color(fill_color)
-                .border_width(1.0)
-                .border_color(border_color),
-        );
-        let text_position = pos2(
-            button_response.rect.center().x - label_galley.size().x * 0.5,
-            button_response.rect.center().y - label_galley.size().y * 0.5,
-        );
-
-        user_interface
-            .painter()
-            .galley(text_position, label_galley, text_color);
-
-        button_response
-    }
-
-    fn render_string_data_value_box(
-        &self,
-        user_interface: &mut Ui,
-        value_text: &mut String,
-        preview_text: &str,
-        id: &str,
-        width: f32,
-    ) {
-        let mut anonymous_value_string = AnonymousValueString::new(value_text.clone(), AnonymousValueStringFormat::String, ContainerType::None);
-        let string_data_type = DataTypeRef::new(Self::STRING_DATA_TYPE_ID);
-
-        user_interface.add(
-            DataValueBoxView::new(
-                self.app_context.clone(),
-                &mut anonymous_value_string,
-                &string_data_type,
-                false,
-                true,
-                preview_text,
-                id,
-            )
-            .width(width.max(1.0))
-            .height(Self::TOOLBAR_HEIGHT)
-            .show_format_button(false)
-            .use_format_text_colors(false),
-        );
-
-        let next_value_text = anonymous_value_string.get_anonymous_value_string().to_string();
-        if *value_text != next_value_text {
-            *value_text = next_value_text;
-        }
-    }
-
-    fn render_offset_data_value_box(
-        &self,
-        user_interface: &mut Ui,
-        value_text: &mut String,
-        value_format: &mut AnonymousValueStringFormat,
-        preview_text: &str,
-        id: &str,
-        width: f32,
-    ) {
-        let mut anonymous_value_string = AnonymousValueString::new(value_text.clone(), *value_format, ContainerType::None);
-        let unsigned_integer_data_type = DataTypeRef::new(DataTypeU64::DATA_TYPE_ID);
-
-        user_interface.add(
-            DataValueBoxView::new(
-                self.app_context.clone(),
-                &mut anonymous_value_string,
-                &unsigned_integer_data_type,
-                false,
-                true,
-                preview_text,
-                id,
-            )
-            .width(width.max(1.0))
-            .height(Self::TOOLBAR_HEIGHT)
-            .allowed_anonymous_value_string_formats(vec![
-                AnonymousValueStringFormat::Binary,
-                AnonymousValueStringFormat::Decimal,
-                AnonymousValueStringFormat::Hexadecimal,
-            ])
-            .use_format_text_colors(true),
-        );
-
-        let next_value_text = anonymous_value_string.get_anonymous_value_string().to_string();
-        if *value_text != next_value_text {
-            *value_text = next_value_text;
-        }
-
-        let next_value_format = anonymous_value_string.get_anonymous_value_string_format();
-        if *value_format != next_value_format {
-            *value_format = next_value_format;
-        }
-    }
-
-    fn build_define_field_offset_warning(
-        define_field_draft: &DefineFieldDraft,
-        segment_length: u64,
-        resolve_type_size: impl Fn(&str) -> Option<u64>,
-    ) -> Option<String> {
-        let relative_offset = match parse_define_field_relative_offset(&define_field_draft.relative_offset_text, define_field_draft.relative_offset_format) {
-            Ok(relative_offset) => relative_offset,
-            Err(parse_error) => return Some(parse_error),
-        };
-        let struct_layout_id =
-            build_define_field_symbol_layout_id(define_field_draft.data_type_selection.visible_data_type(), define_field_draft.container_type);
-        let Some(field_size) = resolve_type_size(&struct_layout_id) else {
-            return Some(format!("Cannot resolve byte size for `{}`.", struct_layout_id));
-        };
-
-        if field_size == 0 {
-            return Some(format!("`{}` has no byte size.", struct_layout_id));
-        }
-
-        let relative_field_end = match relative_offset.checked_add(field_size) {
-            Some(relative_field_end) => relative_field_end,
-            None => return Some(String::from("Field range is too large.")),
-        };
-
-        if relative_field_end > segment_length {
-            if field_size > segment_length {
-                return Some(format!(
-                    "`{}` uses {} byte(s); selected span has {}.",
-                    struct_layout_id, field_size, segment_length
-                ));
-            }
-
-            return Some(format!(
-                "`{}` uses {} byte(s); choose 0 to {}.",
-                struct_layout_id,
-                field_size,
-                segment_length.saturating_sub(field_size)
-            ));
-        }
-
-        None
-    }
-
-    fn define_field_container_label(container_type: ContainerType) -> String {
-        match container_type {
-            ContainerType::None => String::from("Value"),
-            _ => container_type
-                .get_pointer_size()
-                .map(|pointer_size| format!("Ptr {}", pointer_size))
-                .unwrap_or_else(|| String::from("Value")),
-        }
-    }
-
-    fn render_define_field_container_selector(
-        &self,
-        user_interface: &mut Ui,
-        container_type: &mut ContainerType,
-        pointer_sizes: &[PointerScanPointerSize],
-        menu_id: &str,
-        width: f32,
-    ) {
-        let mut selected_container_type = None;
-        if let Some(selected_pointer_size) = container_type.get_pointer_size() {
-            if !pointer_sizes.contains(&selected_pointer_size) {
-                *container_type = ContainerType::None;
-            }
-        }
-        let current_label = Self::define_field_container_label(*container_type);
-
-        user_interface.add(
-            ComboBoxView::new(
-                self.app_context.clone(),
-                current_label,
-                menu_id,
-                None,
-                |popup_user_interface: &mut Ui, should_close: &mut bool| {
-                    let value_response = popup_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), "Value", None, width));
-
-                    if value_response.clicked() {
-                        selected_container_type = Some(ContainerType::None);
-                        *should_close = true;
-                    }
-
-                    popup_user_interface.separator();
-
-                    for pointer_size in pointer_sizes {
-                        let pointer_label = format!("Ptr {}", pointer_size);
-                        let pointer_response = popup_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), &pointer_label, None, width));
-
-                        if pointer_response.clicked() {
-                            selected_container_type = Some(ContainerType::Pointer(*pointer_size));
-                            *should_close = true;
-                        }
-                    }
-                },
-            )
-            .width(width)
-            .height(Self::TOOLBAR_HEIGHT),
-        );
-
-        if let Some(selected_container_type) = selected_container_type {
-            *container_type = selected_container_type;
-        }
-    }
-
-    fn render_module_field_type_combo(
-        &self,
-        user_interface: &mut Ui,
-        project_symbol_catalog: &ProjectSymbolCatalog,
-        data_type_selection: &mut crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection,
-        menu_id: &str,
-        width: f32,
-    ) {
-        let type_options = Self::build_module_field_type_options(project_symbol_catalog);
-        let selected_data_type_id = data_type_selection
-            .visible_data_type()
-            .get_data_type_id()
-            .to_string();
-        let selected_type_option = type_options
-            .iter()
-            .find(|type_option| type_option.data_type_ref.get_data_type_id() == selected_data_type_id.as_str());
-        let combo_label = selected_type_option
-            .map(|type_option| type_option.label.clone())
-            .unwrap_or_else(|| DataTypeToStringConverter::convert_data_type_to_string(&selected_data_type_id));
-        let combo_icon = selected_type_option.and_then(|type_option| {
-            Self::module_field_type_option_uses_icon(type_option.kind)
-                .then(|| DataTypeToIconConverter::convert_data_type_to_icon(type_option.data_type_ref.get_data_type_id(), &self.app_context.theme.icon_library))
-        });
-        let search_storage_id = Self::module_field_type_search_storage_id(menu_id);
-        let popup_width = Self::define_field_type_popup_width(width);
-        let built_in_type_item_width = Self::define_field_builtin_type_item_width(popup_width);
-
-        user_interface.add(
-            ComboBoxView::new(
-                self.app_context.clone(),
-                combo_label,
-                menu_id,
-                combo_icon,
-                |popup_user_interface: &mut Ui, should_close: &mut bool| {
-                    let mut search_text = popup_user_interface
-                        .ctx()
-                        .data_mut(|data| data.get_temp::<String>(search_storage_id).unwrap_or_default());
-
-                    popup_user_interface.add_space(4.0);
-                    let search_box_id = format!("symbol_tree_module_field_type_search_{}", menu_id);
-                    popup_user_interface.add(
-                        SearchBoxView::new(self.app_context.clone(), &mut search_text, "Search types", &search_box_id)
-                            .width((popup_width - 8.0).max(1.0))
-                            .height(Self::TOOLBAR_HEIGHT),
-                    );
-                    popup_user_interface.add_space(4.0);
-
-                    popup_user_interface
-                        .ctx()
-                        .data_mut(|data| data.insert_temp(search_storage_id, search_text.clone()));
-
-                    let filtered_type_options = Self::filter_module_field_type_options(&type_options, &search_text);
-
-                    if filtered_type_options.is_empty() {
-                        popup_user_interface.label(RichText::new("No matching types").color(self.app_context.theme.foreground_preview));
-                        return;
-                    }
-
-                    let (built_in_type_options, symbol_layout_type_options): (Vec<_>, Vec<_>) = filtered_type_options
-                        .into_iter()
-                        .partition(|type_option| type_option.kind == ModuleFieldTypeOptionKind::BuiltIn);
-
-                    ScrollArea::vertical()
-                        .max_height(240.0)
-                        .auto_shrink([false, false])
-                        .show(popup_user_interface, |scroll_user_interface| {
-                            if !built_in_type_options.is_empty() {
-                                Grid::new(Id::new(("symbol_tree_define_field_builtin_type_grid", menu_id)))
-                                    .spacing(vec2(Self::DEFINE_FIELD_BUILT_IN_TYPE_COLUMN_SPACING, 0.0))
-                                    .min_col_width(Self::DEFINE_FIELD_BUILT_IN_TYPE_ITEM_WIDTH)
-                                    .show(scroll_user_interface, |grid_user_interface| {
-                                        for (type_option_position, type_option) in built_in_type_options.iter().enumerate() {
-                                            let data_type_id = type_option.data_type_ref.get_data_type_id();
-                                            let row_icon = Some(DataTypeToIconConverter::convert_data_type_to_icon(
-                                                data_type_id,
-                                                &self.app_context.theme.icon_library,
-                                            ));
-                                            let item_response = grid_user_interface.add(ComboBoxItemView::new(
-                                                self.app_context.clone(),
-                                                &type_option.label,
-                                                row_icon,
-                                                built_in_type_item_width,
-                                            ));
-
-                                            if item_response.clicked() {
-                                                data_type_selection.select_single_data_type(type_option.data_type_ref.clone());
-                                                grid_user_interface
-                                                    .ctx()
-                                                    .data_mut(|data| data.insert_temp(search_storage_id, String::new()));
-                                                *should_close = true;
-                                            }
-
-                                            if (type_option_position + 1) % Self::DEFINE_FIELD_BUILT_IN_TYPE_COLUMN_COUNT == 0 {
-                                                grid_user_interface.end_row();
-                                            }
-                                        }
-
-                                        if built_in_type_options.len() % Self::DEFINE_FIELD_BUILT_IN_TYPE_COLUMN_COUNT != 0 {
-                                            grid_user_interface.end_row();
-                                        }
-                                    });
-                            }
-
-                            if !built_in_type_options.is_empty() && !symbol_layout_type_options.is_empty() {
-                                scroll_user_interface.separator();
-                            }
-
-                            for type_option in symbol_layout_type_options {
-                                let item_response =
-                                    scroll_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), &type_option.label, None, popup_width));
-
-                                if item_response.clicked() {
-                                    data_type_selection.select_single_data_type(type_option.data_type_ref);
-                                    scroll_user_interface
-                                        .ctx()
-                                        .data_mut(|data| data.insert_temp(search_storage_id, String::new()));
-                                    *should_close = true;
-                                }
-                            }
-                        });
-                },
-            )
-            .width(width)
-            .popup_width(popup_width)
-            .height(Self::TOOLBAR_HEIGHT),
-        );
-    }
-
-    fn render_delete_confirmation_take_over(
-        &self,
-        user_interface: &mut Ui,
-        title: &str,
-        display_name: &str,
-        description_text: &str,
-        is_description_warning: bool,
-        confirm_button_label: &str,
-    ) -> bool {
-        let theme = &self.app_context.theme;
-        let mut did_confirm_delete = false;
-        let description_color = if is_description_warning { theme.warning } else { theme.foreground_preview };
-
-        user_interface.allocate_ui_with_layout(
-            user_interface.available_size(),
-            Layout::centered_and_justified(Direction::TopDown),
-            |user_interface| {
-                let groupbox_side_padding = 8.0;
-                let panel_width = (user_interface.available_width() - groupbox_side_padding * 2.0).max(0.0);
-
-                user_interface.horizontal(|user_interface| {
-                    user_interface.add_space(groupbox_side_padding);
-                    user_interface.add(
-                        GroupBox::new_from_theme(theme, title, |user_interface| {
-                            user_interface.vertical_centered(|user_interface| {
-                                user_interface.label(
-                                    RichText::new(display_name)
-                                        .font(theme.font_library.font_ubuntu_mono_bold.font_header.clone())
-                                        .color(theme.foreground),
-                                );
-                                user_interface.add_space(6.0);
-                                user_interface.label(RichText::new(description_text).color(description_color));
-                            });
-
-                            user_interface.add_space(12.0);
-                            user_interface.allocate_ui(vec2(user_interface.available_width(), 32.0), |user_interface| {
-                                let button_size = vec2(120.0, 28.0);
-                                let button_spacing = 12.0;
-                                let total_button_row_width = button_size.x * 2.0 + button_spacing;
-                                let side_spacing = ((user_interface.available_width() - total_button_row_width) * 0.5).max(0.0);
-
-                                user_interface.horizontal(|user_interface| {
-                                    user_interface.add_space(side_spacing);
-                                    user_interface.spacing_mut().item_spacing.x = button_spacing;
-
-                                    let button_confirm_delete = user_interface.add_sized(
-                                        button_size,
-                                        eframe::egui::Button::new(RichText::new(confirm_button_label).color(theme.foreground))
-                                            .fill(theme.background_control_danger)
-                                            .stroke(Stroke::new(1.0, theme.background_control_danger_dark)),
-                                    );
-
-                                    if button_confirm_delete.clicked() {
-                                        did_confirm_delete = true;
-                                    }
-
-                                    let button_cancel = self.draw_sized_action_button(
-                                        user_interface,
-                                        "Cancel",
-                                        button_size,
-                                        theme.background_control_secondary,
-                                        theme.background_control_secondary_dark,
-                                        true,
-                                    );
-
-                                    if button_cancel.clicked() {
-                                        SymbolTreeViewData::cancel_take_over_state(self.symbol_tree_view_data.clone());
-                                    }
-                                });
-                            });
-                        })
-                        .desired_width(panel_width),
-                    );
-                });
-            },
-        );
-
-        did_confirm_delete
-    }
-
-    fn render_define_field_take_over(
-        &self,
-        user_interface: &mut Ui,
-        project_symbol_catalog: &ProjectSymbolCatalog,
-        module_name: &str,
-        segment_offset: u64,
-        segment_length: u64,
-        define_field_draft: &DefineFieldDraft,
-    ) {
-        let theme = &self.app_context.theme;
-        let mut edited_define_field_draft = define_field_draft.clone();
-        let mut define_field_plan_result = Err(String::from("Field is not ready."));
-        let mut should_cancel_take_over = false;
-        let mut should_create_field = false;
-
-        user_interface.allocate_ui_with_layout(
-            user_interface.available_size(),
-            Layout::centered_and_justified(Direction::TopDown),
-            |user_interface| {
-                let panel_width = user_interface.available_width();
-
-                user_interface.add(
-                    GroupBox::new_from_theme(theme, "Define Field", |user_interface| {
-                        user_interface.label(RichText::new(format!("{} + 0x{:X}", module_name, segment_offset)).color(theme.foreground_preview));
-                        user_interface.add_space(8.0);
-
-                        user_interface.label(RichText::new("Name").color(theme.foreground));
-                        user_interface.add_space(2.0);
-                        self.render_string_data_value_box(
-                            user_interface,
-                            &mut edited_define_field_draft.display_name,
-                            "field_name",
-                            "symbol_tree_define_field_name",
-                            user_interface.available_width(),
-                        );
-                        user_interface.add_space(8.0);
-
-                        let max_relative_offset = segment_length.saturating_sub(1);
-                        user_interface.label(RichText::new(format!("Offset in UNASSIGNED (0 to {})", max_relative_offset)).color(theme.foreground));
-                        user_interface.add_space(2.0);
-                        self.render_offset_data_value_box(
-                            user_interface,
-                            &mut edited_define_field_draft.relative_offset_text,
-                            &mut edited_define_field_draft.relative_offset_format,
-                            "0",
-                            "symbol_tree_define_field_offset",
-                            user_interface.available_width(),
-                        );
-
-                        if let Some(offset_warning) = Self::build_define_field_offset_warning(&edited_define_field_draft, segment_length, |struct_layout_id| {
-                            self.resolve_define_field_symbol_layout_id_size(project_symbol_catalog, struct_layout_id)
-                        }) {
-                            user_interface.add_space(4.0);
-                            user_interface.label(RichText::new(offset_warning).color(theme.warning));
-                        }
-                        user_interface.add_space(8.0);
-
-                        user_interface.horizontal(|user_interface| {
-                            user_interface.spacing_mut().item_spacing.x = 4.0;
-                            let pointer_sizes = filter_registered_pointer_sizes(
-                                &self
-                                    .app_context
-                                    .engine_unprivileged_state
-                                    .get_registered_data_type_refs(),
-                            );
-                            let selector_width = Self::DEFINE_FIELD_CONTAINER_SELECTOR_WIDTH.min(user_interface.available_width());
-                            self.render_define_field_container_selector(
-                                user_interface,
-                                &mut edited_define_field_draft.container_type,
-                                &pointer_sizes,
-                                &format!("symbol_tree_define_field_container_{}_{}", module_name, segment_offset),
-                                selector_width,
-                            );
-
-                            let type_selector_width = user_interface.available_width();
-                            self.render_module_field_type_combo(
-                                user_interface,
-                                project_symbol_catalog,
-                                &mut edited_define_field_draft.data_type_selection,
-                                &format!("symbol_tree_define_field_type_{}_{}", module_name, segment_offset),
-                                type_selector_width,
-                            );
-                        });
-
-                        define_field_plan_result =
-                            Self::build_define_field_plan(&edited_define_field_draft, module_name, segment_offset, segment_length, |struct_layout_id| {
-                                self.resolve_define_field_symbol_layout_id_size(project_symbol_catalog, struct_layout_id)
-                            });
-
-                        if let Err(validation_error) = define_field_plan_result.as_ref() {
-                            if validation_error == "Field name is required." {
-                                user_interface.add_space(6.0);
-                                user_interface.label(RichText::new(validation_error).color(theme.error_red));
-                            }
-                        }
-
-                        user_interface.add_space(12.0);
-                        user_interface.allocate_ui(vec2(user_interface.available_width(), 32.0), |user_interface| {
-                            let button_size = vec2(120.0, 28.0);
-                            let button_spacing = 12.0;
-                            let total_button_row_width = button_size.x * 2.0 + button_spacing;
-                            let side_spacing = ((user_interface.available_width() - total_button_row_width) * 0.5).max(0.0);
-
-                            user_interface.horizontal(|user_interface| {
-                                user_interface.add_space(side_spacing);
-                                user_interface.spacing_mut().item_spacing.x = button_spacing;
-
-                                let button_cancel = user_interface.add_sized(
-                                    button_size,
-                                    eframe::egui::Button::new(RichText::new("Cancel").color(theme.foreground))
-                                        .fill(theme.background_control_secondary)
-                                        .stroke(Stroke::new(1.0, theme.background_control_secondary_dark)),
-                                );
-
-                                if button_cancel.clicked() {
-                                    should_cancel_take_over = true;
-                                }
-
-                                let can_create_field = define_field_plan_result.is_ok();
-                                let create_fill = if can_create_field {
-                                    theme.background_control_primary
-                                } else {
-                                    theme.background_control_secondary
-                                };
-                                let create_stroke = if can_create_field {
-                                    theme.background_control_primary_dark
-                                } else {
-                                    theme.background_control_secondary_dark
-                                };
-                                let button_create =
-                                    self.draw_sized_action_button(user_interface, "Create", button_size, create_fill, create_stroke, can_create_field);
-
-                                if button_create.clicked() {
-                                    should_create_field = true;
-                                }
-                            });
-                        });
-                    })
-                    .desired_width(panel_width),
-                );
-            },
-        );
-
-        if should_cancel_take_over {
-            SymbolTreeViewData::cancel_take_over_state(self.symbol_tree_view_data.clone());
-            return;
-        }
-
-        if should_create_field {
-            if let Ok(define_field_plan) = define_field_plan_result {
-                SymbolTreeViewData::cancel_take_over_state(self.symbol_tree_view_data.clone());
-                self.create_define_field_from_unassigned_span_edit_target(module_name, define_field_plan);
-                return;
-            }
-        }
-
-        SymbolTreeViewData::set_define_field_draft(self.symbol_tree_view_data.clone(), edited_define_field_draft);
-    }
-
     fn build_symbol_tree_action_context(symbol_tree_entry: &SymbolTreeNode) -> SymbolTreeActionContext {
         match symbol_tree_entry.get_kind() {
             SymbolTreeNodeKind::ModuleSpace { module_name, .. } => SymbolTreeActionContext::new(SymbolTreeActionSelection::ModuleRoot {
@@ -3174,148 +2392,6 @@ impl SymbolTreeView {
             }
         }
     }
-
-    fn render_create_module_root_details(
-        &self,
-        user_interface: &mut Ui,
-        edited_draft: &mut ModuleRootCreateDraft,
-    ) {
-        let theme = &self.app_context.theme;
-
-        user_interface.label(RichText::new("Module Name").color(theme.foreground));
-        user_interface.add_space(2.0);
-        self.render_string_data_value_box(
-            user_interface,
-            &mut edited_draft.module_name,
-            "",
-            Self::CREATE_DISPLAY_NAME_DATA_VALUE_BOX_ID,
-            user_interface.available_width(),
-        );
-        user_interface.add_space(8.0);
-
-        user_interface.label(RichText::new("Initial Module Size").color(theme.foreground));
-        user_interface.add_space(2.0);
-        self.render_offset_data_value_box(
-            user_interface,
-            &mut edited_draft.size_text,
-            &mut edited_draft.size_format,
-            "",
-            Self::CREATE_MODULE_SIZE_DATA_VALUE_BOX_ID,
-            user_interface.available_width(),
-        );
-    }
-
-    fn parse_module_root_size(
-        size_text: &str,
-        size_format: AnonymousValueStringFormat,
-    ) -> Option<u64> {
-        parse_define_field_relative_offset(size_text, size_format).ok()
-    }
-
-    fn build_module_root_create_request_from_draft(edited_draft: &ModuleRootCreateDraft) -> Option<ProjectSymbolsCreateModuleRequest> {
-        let parsed_size = Self::parse_module_root_size(&edited_draft.size_text, edited_draft.size_format);
-
-        if edited_draft.module_name.trim().is_empty() {
-            return None;
-        }
-
-        Some(ProjectSymbolsCreateModuleRequest {
-            module_name: edited_draft.module_name.trim().to_string(),
-            size: parsed_size?,
-        })
-    }
-
-    fn render_create_module_root_take_over(
-        &self,
-        user_interface: &mut Ui,
-        module_root_create_draft: &ModuleRootCreateDraft,
-    ) {
-        let theme = &self.app_context.theme;
-        let original_draft = module_root_create_draft.clone();
-        let mut edited_draft = original_draft.clone();
-        let mut should_cancel_take_over = false;
-        let mut should_create_module = false;
-        let mut create_module_root_request = None;
-
-        user_interface.allocate_ui_with_layout(
-            user_interface.available_size(),
-            Layout::centered_and_justified(Direction::TopDown),
-            |user_interface| {
-                let panel_width = (user_interface.available_width() - Self::TAKE_OVER_GROUPBOX_SIDE_PADDING * 2.0).max(0.0);
-
-                user_interface.horizontal(|user_interface| {
-                    user_interface.add_space(Self::TAKE_OVER_GROUPBOX_SIDE_PADDING);
-                    user_interface.add(
-                        GroupBox::new_from_theme(theme, "New Module", |user_interface| {
-                            self.render_create_module_root_details(user_interface, &mut edited_draft);
-                            create_module_root_request = Self::build_module_root_create_request_from_draft(&edited_draft);
-
-                            user_interface.add_space(12.0);
-                            user_interface.allocate_ui(vec2(user_interface.available_width(), 32.0), |user_interface| {
-                                let button_size = vec2(Self::TAKE_OVER_ACTION_BUTTON_WIDTH, Self::TOOLBAR_HEIGHT);
-                                let total_button_row_width = button_size.x * 2.0 + Self::TAKE_OVER_ACTION_BUTTON_SPACING;
-                                let side_spacing = ((user_interface.available_width() - total_button_row_width) * 0.5).max(0.0);
-
-                                user_interface.horizontal(|user_interface| {
-                                    user_interface.add_space(side_spacing);
-                                    user_interface.spacing_mut().item_spacing.x = Self::TAKE_OVER_ACTION_BUTTON_SPACING;
-
-                                    let button_cancel = self.draw_sized_action_button(
-                                        user_interface,
-                                        "Cancel",
-                                        button_size,
-                                        theme.background_control_secondary,
-                                        theme.background_control_secondary_dark,
-                                        true,
-                                    );
-
-                                    if button_cancel.clicked() {
-                                        should_cancel_take_over = true;
-                                    }
-
-                                    let can_create_module = create_module_root_request.is_some();
-                                    let create_fill = if can_create_module {
-                                        theme.background_control_primary
-                                    } else {
-                                        theme.background_control_secondary
-                                    };
-                                    let create_stroke = if can_create_module {
-                                        theme.background_control_primary_dark
-                                    } else {
-                                        theme.background_control_secondary_dark
-                                    };
-                                    let button_create =
-                                        self.draw_sized_action_button(user_interface, "Create", button_size, create_fill, create_stroke, can_create_module);
-
-                                    if button_create.clicked() {
-                                        should_create_module = true;
-                                    }
-                                });
-                            });
-                            user_interface.add_space(Self::TAKE_OVER_BOTTOM_PADDING);
-                        })
-                        .desired_width(panel_width),
-                    );
-                });
-            },
-        );
-
-        if should_cancel_take_over {
-            SymbolTreeViewData::set_selected_entry(self.symbol_tree_view_data.clone(), None);
-            return;
-        }
-
-        if should_create_module {
-            if let Some(project_symbols_create_module_request) = create_module_root_request {
-                self.create_module_root(project_symbols_create_module_request);
-                return;
-            }
-        }
-
-        if edited_draft != original_draft {
-            SymbolTreeViewData::set_module_root_create_draft(self.symbol_tree_view_data.clone(), edited_draft);
-        }
-    }
 }
 
 impl Widget for SymbolTreeView {
@@ -3495,7 +2571,9 @@ impl Widget for SymbolTreeView {
             })
         });
         let create_module_root_request = match selected_entry.as_ref() {
-            Some(SymbolTreeSelection::CreateModuleRoot) => Self::build_module_root_create_request_from_draft(&current_module_root_create_draft),
+            Some(SymbolTreeSelection::CreateModuleRoot) => {
+                SymbolTreeModuleCreateView::build_module_root_create_request_from_draft(&current_module_root_create_draft)
+            }
             _ => None,
         };
         self.sync_selected_symbol_into_struct_viewer(&project_symbol_catalog, selected_symbol_tree_entry);
@@ -3652,15 +2730,19 @@ impl Widget for SymbolTreeView {
                         let description_text = String::from("This removes the authored symbol from the project.");
 
                         list_user_interface.add_space(8.0);
-                        if self.render_delete_confirmation_take_over(
-                            &mut list_user_interface,
+                        match SymbolTreeDeleteConfirmationView::new(
+                            self.app_context.clone(),
                             "Delete this symbol",
                             display_name,
                             &description_text,
                             false,
                             "Delete",
-                        ) {
-                            self.delete_symbol_claim(symbol_locator_key);
+                        )
+                        .show(&mut list_user_interface)
+                        {
+                            SymbolTreeDeleteConfirmationAction::Confirm => self.delete_symbol_claim(symbol_locator_key),
+                            SymbolTreeDeleteConfirmationAction::Cancel => SymbolTreeViewData::cancel_take_over_state(self.symbol_tree_view_data.clone()),
+                            SymbolTreeDeleteConfirmationAction::None => {}
                         }
 
                         return;
@@ -3669,15 +2751,19 @@ impl Widget for SymbolTreeView {
                         let description_text = String::from("This removes the module root and all symbol claims inside it.");
 
                         list_user_interface.add_space(8.0);
-                        if self.render_delete_confirmation_take_over(
-                            &mut list_user_interface,
+                        match SymbolTreeDeleteConfirmationView::new(
+                            self.app_context.clone(),
                             "Delete this module",
                             module_name,
                             &description_text,
                             false,
                             "Delete",
-                        ) {
-                            self.delete_module_root(module_name);
+                        )
+                        .show(&mut list_user_interface)
+                        {
+                            SymbolTreeDeleteConfirmationAction::Confirm => self.delete_module_root(module_name),
+                            SymbolTreeDeleteConfirmationAction::Cancel => SymbolTreeViewData::cancel_take_over_state(self.symbol_tree_view_data.clone()),
+                            SymbolTreeDeleteConfirmationAction::None => {}
                         }
 
                         return;
@@ -3693,15 +2779,19 @@ impl Widget for SymbolTreeView {
                         let description_text = delete_confirmation_description.text;
 
                         list_user_interface.add_space(8.0);
-                        if self.render_delete_confirmation_take_over(
-                            &mut list_user_interface,
+                        match SymbolTreeDeleteConfirmationView::new(
+                            self.app_context.clone(),
                             "Delete this field",
                             display_name,
                             &description_text,
                             delete_confirmation_description.is_warning,
                             "Delete",
-                        ) {
-                            self.delete_module_range(module_name, *offset, *length, *mode);
+                        )
+                        .show(&mut list_user_interface)
+                        {
+                            SymbolTreeDeleteConfirmationAction::Confirm => self.delete_module_range(module_name, *offset, *length, *mode),
+                            SymbolTreeDeleteConfirmationAction::Cancel => SymbolTreeViewData::cancel_take_over_state(self.symbol_tree_view_data.clone()),
+                            SymbolTreeDeleteConfirmationAction::None => {}
                         }
 
                         return;
@@ -3710,14 +2800,26 @@ impl Widget for SymbolTreeView {
                         module_name, offset, length, ..
                     }) => {
                         list_user_interface.add_space(8.0);
-                        self.render_define_field_take_over(
-                            &mut list_user_interface,
+                        match SymbolTreeDefineFieldView::new(
+                            self.app_context.clone(),
                             &project_symbol_catalog,
                             module_name,
                             *offset,
                             *length,
                             &current_define_field_draft,
-                        );
+                        )
+                        .show(&mut list_user_interface)
+                        {
+                            SymbolTreeDefineFieldAction::Cancel => SymbolTreeViewData::cancel_take_over_state(self.symbol_tree_view_data.clone()),
+                            SymbolTreeDefineFieldAction::Create(define_field_plan) => {
+                                SymbolTreeViewData::cancel_take_over_state(self.symbol_tree_view_data.clone());
+                                self.create_define_field_from_unassigned_span_edit_target(module_name, define_field_plan);
+                            }
+                            SymbolTreeDefineFieldAction::DraftChanged(define_field_draft) => {
+                                SymbolTreeViewData::set_define_field_draft(self.symbol_tree_view_data.clone(), define_field_draft);
+                            }
+                            SymbolTreeDefineFieldAction::None => {}
+                        }
 
                         return;
                     }
@@ -3726,7 +2828,16 @@ impl Widget for SymbolTreeView {
 
                 if matches!(selected_entry.as_ref(), Some(SymbolTreeSelection::CreateModuleRoot)) {
                     list_user_interface.add_space(8.0);
-                    self.render_create_module_root_take_over(&mut list_user_interface, &current_module_root_create_draft);
+                    match SymbolTreeModuleCreateView::new(self.app_context.clone(), &current_module_root_create_draft).show(&mut list_user_interface) {
+                        SymbolTreeModuleCreateAction::Cancel => SymbolTreeViewData::set_selected_entry(self.symbol_tree_view_data.clone(), None),
+                        SymbolTreeModuleCreateAction::Create(project_symbols_create_module_request) => {
+                            self.create_module_root(project_symbols_create_module_request);
+                        }
+                        SymbolTreeModuleCreateAction::DraftChanged(module_root_create_draft) => {
+                            SymbolTreeViewData::set_module_root_create_draft(self.symbol_tree_view_data.clone(), module_root_create_draft);
+                        }
+                        SymbolTreeModuleCreateAction::None => {}
+                    }
 
                     return;
                 }
@@ -3766,9 +2877,11 @@ impl Widget for SymbolTreeView {
 
 #[cfg(test)]
 mod tests {
-    use super::{ModuleFieldTypeOption, ModuleFieldTypeOptionKind, SymbolTreeView};
+    use super::SymbolTreeView;
     use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
     use crate::views::struct_viewer::view_data::{struct_viewer_focus_target::StructViewerFocusTarget, struct_viewer_view_data::StructViewerViewData};
+    use crate::views::symbol_tree::symbol_tree_define_field_view::{ModuleFieldTypeOption, ModuleFieldTypeOptionKind, SymbolTreeDefineFieldView};
+    use crate::views::symbol_tree::symbol_tree_module_create_view::SymbolTreeModuleCreateView;
     use crate::views::symbol_tree::view_data::symbol_tree_view_data::{DefineFieldDraft, ModuleRootCreateDraft};
     use squalr_engine_api::commands::project_symbols::delete::project_symbols_delete_request::ProjectSymbolsDeleteModuleRangeMode;
     use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
@@ -4273,7 +3386,7 @@ mod tests {
                 )],
             ),
         )]);
-        let type_options = SymbolTreeView::build_module_field_type_options(&project_symbol_catalog);
+        let type_options = SymbolTreeDefineFieldView::build_module_field_type_options(&project_symbol_catalog);
 
         assert!(
             type_options
@@ -4304,26 +3417,26 @@ mod tests {
                 kind: ModuleFieldTypeOptionKind::SymbolLayout,
             },
         ];
-        let filtered_type_options = SymbolTreeView::filter_module_field_type_options(&type_options, "stats");
+        let filtered_type_options = SymbolTreeDefineFieldView::filter_module_field_type_options(&type_options, "stats");
 
         assert_eq!(filtered_type_options.len(), 1);
         assert!(
             filtered_type_options
                 .iter()
-                .all(|type_option| { !SymbolTreeView::module_field_type_option_uses_icon(type_option.kind) })
+                .all(|type_option| { !SymbolTreeDefineFieldView::module_field_type_option_uses_icon(type_option.kind) })
         );
     }
 
     #[test]
     fn define_field_type_popup_width_allows_two_builtin_columns() {
-        assert_eq!(SymbolTreeView::define_field_type_popup_width(160.0), 260.0);
-        assert_eq!(SymbolTreeView::define_field_type_popup_width(320.0), 320.0);
+        assert_eq!(SymbolTreeDefineFieldView::define_field_type_popup_width(160.0), 260.0);
+        assert_eq!(SymbolTreeDefineFieldView::define_field_type_popup_width(320.0), 320.0);
     }
 
     #[test]
     fn define_field_builtin_type_item_width_fits_inside_popup() {
-        assert_eq!(SymbolTreeView::define_field_builtin_type_item_width(260.0), 128.0);
-        assert_eq!(SymbolTreeView::define_field_builtin_type_item_width(320.0), 158.0);
+        assert_eq!(SymbolTreeDefineFieldView::define_field_builtin_type_item_width(260.0), 128.0);
+        assert_eq!(SymbolTreeDefineFieldView::define_field_builtin_type_item_width(320.0), 158.0);
     }
 
     #[test]
@@ -4375,7 +3488,7 @@ mod tests {
             container_type: ContainerType::None,
             data_type_selection: DataTypeSelection::new(DataTypeRef::new("i32")),
         };
-        let define_field_plan = SymbolTreeView::build_define_field_plan(&define_field_draft, "game.exe", 0x100, 0x40, |struct_layout_id| {
+        let define_field_plan = SymbolTreeDefineFieldView::build_define_field_plan(&define_field_draft, "game.exe", 0x100, 0x40, |struct_layout_id| {
             (struct_layout_id == "i32").then_some(4)
         })
         .expect("Expected valid define-field request.");
@@ -4400,7 +3513,7 @@ mod tests {
             container_type: ContainerType::Pointer(PointerScanPointerSize::Pointer64),
             data_type_selection: DataTypeSelection::new(DataTypeRef::new("player.stats")),
         };
-        let define_field_plan = SymbolTreeView::build_define_field_plan(&define_field_draft, "game.exe", 0x100, 0x40, |struct_layout_id| {
+        let define_field_plan = SymbolTreeDefineFieldView::build_define_field_plan(&define_field_draft, "game.exe", 0x100, 0x40, |struct_layout_id| {
             (struct_layout_id == "player.stats*(u64)").then_some(8)
         })
         .expect("Expected pointer-to-struct define-field request.");
@@ -4423,7 +3536,7 @@ mod tests {
             container_type: ContainerType::Pointer(PointerScanPointerSize::Pointer32),
             data_type_selection: DataTypeSelection::new(DataTypeRef::new("i32")),
         };
-        let define_field_plan = SymbolTreeView::build_define_field_plan(&define_field_draft, "game.exe", 0x100, 0x40, |struct_layout_id| {
+        let define_field_plan = SymbolTreeDefineFieldView::build_define_field_plan(&define_field_draft, "game.exe", 0x100, 0x40, |struct_layout_id| {
             (struct_layout_id == "i32*(u32)").then_some(4)
         })
         .expect("Expected pointer-to-builtin define-field request.");
@@ -4446,7 +3559,7 @@ mod tests {
             container_type: ContainerType::None,
             data_type_selection: DataTypeSelection::new(DataTypeRef::new("i32")),
         };
-        let define_field_plan = SymbolTreeView::build_define_field_plan(&define_field_draft, "game.exe", 0x100, 0x40, |struct_layout_id| {
+        let define_field_plan = SymbolTreeDefineFieldView::build_define_field_plan(&define_field_draft, "game.exe", 0x100, 0x40, |struct_layout_id| {
             (struct_layout_id == "i32").then_some(4)
         });
 
@@ -4468,7 +3581,7 @@ mod tests {
         assert_eq!(module_root_create_draft.size_text, "1000");
         assert_eq!(module_root_create_draft.size_format, AnonymousValueStringFormat::Hexadecimal);
         assert_eq!(
-            SymbolTreeView::parse_module_root_size(&module_root_create_draft.size_text, module_root_create_draft.size_format),
+            SymbolTreeModuleCreateView::parse_module_root_size(&module_root_create_draft.size_text, module_root_create_draft.size_format),
             Some(0x1000)
         );
     }
@@ -4481,7 +3594,7 @@ mod tests {
             size_format: AnonymousValueStringFormat::Hexadecimal,
         };
         let create_request =
-            SymbolTreeView::build_module_root_create_request_from_draft(&module_root_create_draft).expect("Expected module-root create request.");
+            SymbolTreeModuleCreateView::build_module_root_create_request_from_draft(&module_root_create_draft).expect("Expected module-root create request.");
 
         assert_eq!(create_request.module_name, "game.exe");
         assert_eq!(create_request.size, 0x1000);
