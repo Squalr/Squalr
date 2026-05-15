@@ -1,7 +1,7 @@
 use crate::{
     app_context::AppContext,
     ui::{
-        converters::data_type_to_icon_converter::DataTypeToIconConverter,
+        converters::{data_type_to_icon_converter::DataTypeToIconConverter, scan_compare_type_to_icon_converter::ScanCompareTypeToIconConverter},
         draw::icon_draw::IconDraw,
         widgets::controls::{
             button::Button,
@@ -29,6 +29,7 @@ use squalr_engine_api::{
         data_values::anonymous_value_string::AnonymousValueString,
         pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
         projects::project_symbol_catalog::ProjectSymbolCatalog,
+        scanning::comparisons::{scan_compare_type_delta::ScanCompareTypeDelta, scan_compare_type_immediate::ScanCompareTypeImmediate},
         structs::valued_struct_field::{ValuedStructField, ValuedStructFieldData},
         structs::{
             symbolic_field_definition::SymbolicFieldDefinition, symbolic_resolver_definition::SymbolicResolverBinaryOperator,
@@ -60,7 +61,7 @@ impl<'lifetime> StructViewerEntryView<'lifetime> {
         PointerScanPointerSize::Pointer64,
         PointerScanPointerSize::Pointer64be,
     ];
-    const SYMBOL_RESOLVER_NODE_KIND_LABELS: [&'static str; 8] = [
+    const SYMBOL_RESOLVER_NODE_KIND_LABELS: [&'static str; 9] = [
         "Literal",
         "Local Field",
         "Relative Symbol Field",
@@ -69,6 +70,7 @@ impl<'lifetime> StructViewerEntryView<'lifetime> {
         "Global Pointer Chain",
         "Type Size",
         "Operation",
+        "Conditional",
     ];
     const SYMBOL_LAYOUT_FIELD_ELEMENT_TYPE_LABELS: [&'static str; 2] = ["Data Type", "Symbol Layout"];
     const SYMBOL_LAYOUT_FIELD_CONTAINER_KIND_LABELS: [&'static str; 7] = [
@@ -250,6 +252,81 @@ impl<'lifetime> StructViewerEntryView<'lifetime> {
     ) -> Option<TextureHandle> {
         Self::project_item_pointer_size_data_type_ref(pointer_size_label)
             .map(|data_type_ref| DataTypeToIconConverter::convert_data_type_to_icon(data_type_ref.get_data_type_id(), &app_context.theme.icon_library))
+    }
+
+    fn symbol_resolver_operator_icon(
+        app_context: &Arc<AppContext>,
+        operator: SymbolicResolverBinaryOperator,
+    ) -> Option<TextureHandle> {
+        let icon_library = &app_context.theme.icon_library;
+
+        match operator {
+            SymbolicResolverBinaryOperator::Add => Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_delta_to_icon(
+                &ScanCompareTypeDelta::IncreasedByX,
+                icon_library,
+            )),
+            SymbolicResolverBinaryOperator::Subtract => Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_delta_to_icon(
+                &ScanCompareTypeDelta::DecreasedByX,
+                icon_library,
+            )),
+            SymbolicResolverBinaryOperator::Multiply => Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_delta_to_icon(
+                &ScanCompareTypeDelta::MultipliedByX,
+                icon_library,
+            )),
+            SymbolicResolverBinaryOperator::Divide => Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_delta_to_icon(
+                &ScanCompareTypeDelta::DividedByX,
+                icon_library,
+            )),
+            SymbolicResolverBinaryOperator::Modulo => Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_delta_to_icon(
+                &ScanCompareTypeDelta::ModuloByX,
+                icon_library,
+            )),
+            SymbolicResolverBinaryOperator::BitwiseAnd => Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_delta_to_icon(
+                &ScanCompareTypeDelta::LogicalAndByX,
+                icon_library,
+            )),
+            SymbolicResolverBinaryOperator::BitwiseOr => Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_delta_to_icon(
+                &ScanCompareTypeDelta::LogicalOrByX,
+                icon_library,
+            )),
+            SymbolicResolverBinaryOperator::BitwiseXor => Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_delta_to_icon(
+                &ScanCompareTypeDelta::LogicalXorByX,
+                icon_library,
+            )),
+            SymbolicResolverBinaryOperator::ShiftLeft => Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_delta_to_icon(
+                &ScanCompareTypeDelta::ShiftLeftByX,
+                icon_library,
+            )),
+            SymbolicResolverBinaryOperator::ShiftRight => Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_delta_to_icon(
+                &ScanCompareTypeDelta::ShiftRightByX,
+                icon_library,
+            )),
+            SymbolicResolverBinaryOperator::Equal => Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_immediate_to_icon(
+                &ScanCompareTypeImmediate::Equal,
+                icon_library,
+            )),
+            SymbolicResolverBinaryOperator::NotEqual => Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_immediate_to_icon(
+                &ScanCompareTypeImmediate::NotEqual,
+                icon_library,
+            )),
+            SymbolicResolverBinaryOperator::LessThan => Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_immediate_to_icon(
+                &ScanCompareTypeImmediate::LessThan,
+                icon_library,
+            )),
+            SymbolicResolverBinaryOperator::LessThanOrEqual => Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_immediate_to_icon(
+                &ScanCompareTypeImmediate::LessThanOrEqual,
+                icon_library,
+            )),
+            SymbolicResolverBinaryOperator::GreaterThan => Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_immediate_to_icon(
+                &ScanCompareTypeImmediate::GreaterThan,
+                icon_library,
+            )),
+            SymbolicResolverBinaryOperator::GreaterThanOrEqual => Some(ScanCompareTypeToIconConverter::convert_scan_compare_type_immediate_to_icon(
+                &ScanCompareTypeImmediate::GreaterThanOrEqual,
+                icon_library,
+            )),
+            SymbolicResolverBinaryOperator::Minimum | SymbolicResolverBinaryOperator::Maximum => None,
+        }
     }
 
     fn get_opened_project_symbol_catalog(app_context: &Arc<AppContext>) -> Option<ProjectSymbolCatalog> {
@@ -858,6 +935,11 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                     .map(SymbolicResolverBinaryOperator::label)
                     .find(|candidate_label| *candidate_label == current_operator)
                     .unwrap_or(SymbolicResolverBinaryOperator::Add.label());
+                let current_operator_icon = SymbolicResolverBinaryOperator::ALL
+                    .iter()
+                    .copied()
+                    .find(|candidate_operator| candidate_operator.label() == operator_label)
+                    .and_then(|candidate_operator| Self::symbol_resolver_operator_icon(&self.app_context, candidate_operator));
                 let mut selected_operator_label = None;
                 let trailing_checkbox_space = Self::trailing_action_slot_width(commit_button_width, value_column_padding);
                 let operator_width = (row_max_x - value_box_position_x - trailing_checkbox_space).max(0.0);
@@ -871,12 +953,13 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                         self.app_context.clone(),
                         operator_label,
                         &operator_selector_id,
-                        None,
+                        current_operator_icon,
                         |popup_user_interface: &mut Ui, should_close: &mut bool| {
                             for candidate_operator in SymbolicResolverBinaryOperator::ALL {
                                 let candidate_label = candidate_operator.label();
+                                let candidate_icon = Self::symbol_resolver_operator_icon(&self.app_context, candidate_operator);
                                 let operator_response =
-                                    popup_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), candidate_label, None, operator_width));
+                                    popup_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), candidate_label, candidate_icon, operator_width));
 
                                 if operator_response.clicked() {
                                     selected_operator_label = Some(candidate_label);

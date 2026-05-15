@@ -52,6 +52,7 @@ Our current task, from `README.md`, is:
 - Restyled the centered Symbol Layout Editor field add buttons as 120px rounded filled buttons with the add icon centered, matching takeover action button sizing while keeping the final Accept action visually distinct. Needs human verification in the GUI.
 - Made Symbol Layout Editor struct/variant field add buttons disable when there is no tail `UNASSIGNED` space to claim, and made Cancel/Escape restore the pre-edit catalog snapshot when nested union-variant edits had already caused immediate catalog side effects. Needs human verification in the GUI.
 - Audit recommendation: Add `db`/`bytes` next. Raw storage is now cleanly separable as a persisted ownership concept because unowned gaps are explicit synthesized spans.
+- Expanded symbolic resolvers with bitwise/modulo/shift/min/max/comparison binary operators and a first-class conditional node. The Symbol Resolver Editor can author conditionals as tree nodes, and the operator combo reuses scan comparison icons where available. Needs human verification in the GUI.
 
 ## Important Information
 
@@ -90,3 +91,4 @@ Our current task, from `README.md`, is:
 - Symbol Layout Editor field-add alignment correction reran `cargo fmt --all`, `cargo test -p squalr symbol_layout_editor --lib --locked`, and `git diff --check`.
 - Symbol Layout Editor field-add button restyle reran `cargo fmt --all`, `cargo test -p squalr symbol_layout_editor --lib --locked`, and `git diff --check`.
 - Symbol Layout Editor field-add disabled/cancel correction reran `cargo fmt --all`, `cargo test -p squalr symbol_layout_editor --lib --locked`, `cargo test -p squalr struct_viewer --lib --locked`, and `git diff --check`.
+- Symbolic resolver operator/conditional validation ran `cargo fmt --all`, `cargo test -p squalr-engine-domain symbolic_resolver_definition --lib --locked`, `cargo test -p squalr symbol_resolver_editor --lib --locked`, `cargo test -p squalr struct_viewer --lib --locked`, `cargo test -p squalr-plugin-symbols-pe --locked`, and `git diff --check`.

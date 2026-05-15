@@ -348,6 +348,11 @@ impl SymbolResolverEditorViewData {
                 SymbolicResolverNode::new_literal(0),
                 SymbolicResolverNode::new_literal(0),
             ),
+            SymbolResolverNodeKind::Conditional => SymbolicResolverNode::new_conditional(
+                SymbolicResolverNode::new_literal(1),
+                SymbolicResolverNode::new_literal(0),
+                SymbolicResolverNode::new_literal(0),
+            ),
         }
     }
 
@@ -469,6 +474,7 @@ pub enum SymbolResolverNodeKind {
     GlobalPointerChain,
     TypeSize,
     Operation,
+    Conditional,
 }
 
 #[cfg(test)]

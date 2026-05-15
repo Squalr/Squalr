@@ -38,6 +38,11 @@ pub enum SymbolicResolverNode {
         left_node: Box<SymbolicResolverNode>,
         right_node: Box<SymbolicResolverNode>,
     },
+    Conditional {
+        condition_node: Box<SymbolicResolverNode>,
+        true_node: Box<SymbolicResolverNode>,
+        false_node: Box<SymbolicResolverNode>,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -57,6 +62,20 @@ pub enum SymbolicResolverBinaryOperator {
     Subtract,
     Multiply,
     Divide,
+    Modulo,
+    BitwiseAnd,
+    BitwiseOr,
+    BitwiseXor,
+    ShiftLeft,
+    ShiftRight,
+    Minimum,
+    Maximum,
+    Equal,
+    NotEqual,
+    LessThan,
+    LessThanOrEqual,
+    GreaterThan,
+    GreaterThanOrEqual,
 }
 
 impl SymbolicResolverDefinition {
@@ -224,6 +243,18 @@ impl SymbolicResolverNode {
         }
     }
 
+    pub fn new_conditional(
+        condition_node: SymbolicResolverNode,
+        true_node: SymbolicResolverNode,
+        false_node: SymbolicResolverNode,
+    ) -> Self {
+        Self::Conditional {
+            condition_node: Box::new(condition_node),
+            true_node: Box::new(true_node),
+            false_node: Box::new(false_node),
+        }
+    }
+
     pub fn evaluate<LookupLocalField, ResolveTypeSize>(
         &self,
         lookup_local_field: &LookupLocalField,
@@ -353,6 +384,31 @@ impl SymbolicResolverNode {
 
                 operator.evaluate(left_value, right_value)
             }
+            Self::Conditional {
+                condition_node,
+                true_node,
+                false_node,
+            } => {
+                let condition_value = condition_node.evaluate_with_symbol_fields_and_pointer_chains(
+                    lookup_local_field,
+                    resolve_type_size_in_bytes,
+                    resolve_relative_symbol_field,
+                    resolve_global_symbol_field,
+                    resolve_relative_pointer_chain,
+                    resolve_global_pointer_chain,
+                )?;
+
+                let selected_node = if condition_value != 0 { true_node } else { false_node };
+
+                selected_node.evaluate_with_symbol_fields_and_pointer_chains(
+                    lookup_local_field,
+                    resolve_type_size_in_bytes,
+                    resolve_relative_symbol_field,
+                    resolve_global_symbol_field,
+                    resolve_relative_pointer_chain,
+                    resolve_global_pointer_chain,
+                )
+            }
         }
     }
 
@@ -375,6 +431,15 @@ impl SymbolicResolverNode {
             Self::Binary { left_node, right_node, .. } => {
                 left_node.collect_referenced_local_fields(referenced_local_fields);
                 right_node.collect_referenced_local_fields(referenced_local_fields);
+            }
+            Self::Conditional {
+                condition_node,
+                true_node,
+                false_node,
+            } => {
+                condition_node.collect_referenced_local_fields(referenced_local_fields);
+                true_node.collect_referenced_local_fields(referenced_local_fields);
+                false_node.collect_referenced_local_fields(referenced_local_fields);
             }
             Self::Literal(_)
             | Self::RelativeSymbolField { .. }
@@ -538,7 +603,26 @@ impl fmt::Display for SymbolicResolverRelativeSymbolPath {
 }
 
 impl SymbolicResolverBinaryOperator {
-    pub const ALL: [Self; 4] = [Self::Add, Self::Subtract, Self::Multiply, Self::Divide];
+    pub const ALL: [Self; 18] = [
+        Self::Add,
+        Self::Subtract,
+        Self::Multiply,
+        Self::Divide,
+        Self::Modulo,
+        Self::BitwiseAnd,
+        Self::BitwiseOr,
+        Self::BitwiseXor,
+        Self::ShiftLeft,
+        Self::ShiftRight,
+        Self::Minimum,
+        Self::Maximum,
+        Self::Equal,
+        Self::NotEqual,
+        Self::LessThan,
+        Self::LessThanOrEqual,
+        Self::GreaterThan,
+        Self::GreaterThanOrEqual,
+    ];
 
     pub fn label(self) -> &'static str {
         match self {
@@ -546,6 +630,20 @@ impl SymbolicResolverBinaryOperator {
             Self::Subtract => "-",
             Self::Multiply => "*",
             Self::Divide => "/",
+            Self::Modulo => "%",
+            Self::BitwiseAnd => "&",
+            Self::BitwiseOr => "|",
+            Self::BitwiseXor => "^",
+            Self::ShiftLeft => "<<",
+            Self::ShiftRight => ">>",
+            Self::Minimum => "min",
+            Self::Maximum => "max",
+            Self::Equal => "==",
+            Self::NotEqual => "!=",
+            Self::LessThan => "<",
+            Self::LessThanOrEqual => "<=",
+            Self::GreaterThan => ">",
+            Self::GreaterThanOrEqual => ">=",
         }
     }
 
@@ -573,6 +671,40 @@ impl SymbolicResolverBinaryOperator {
                     .checked_div(right_value)
                     .ok_or(SymbolicResolverEvaluationError::ArithmeticOverflow)
             }
+            Self::Modulo => {
+                if right_value == 0 {
+                    return Err(SymbolicResolverEvaluationError::DivisionByZero);
+                }
+
+                left_value
+                    .checked_rem(right_value)
+                    .ok_or(SymbolicResolverEvaluationError::ArithmeticOverflow)
+            }
+            Self::BitwiseAnd => Ok(left_value & right_value),
+            Self::BitwiseOr => Ok(left_value | right_value),
+            Self::BitwiseXor => Ok(left_value ^ right_value),
+            Self::ShiftLeft => {
+                let shift_amount = u32::try_from(right_value).map_err(|_| SymbolicResolverEvaluationError::InvalidShiftAmount(right_value))?;
+
+                left_value
+                    .checked_shl(shift_amount)
+                    .ok_or(SymbolicResolverEvaluationError::InvalidShiftAmount(right_value))
+            }
+            Self::ShiftRight => {
+                let shift_amount = u32::try_from(right_value).map_err(|_| SymbolicResolverEvaluationError::InvalidShiftAmount(right_value))?;
+
+                left_value
+                    .checked_shr(shift_amount)
+                    .ok_or(SymbolicResolverEvaluationError::InvalidShiftAmount(right_value))
+            }
+            Self::Minimum => Ok(left_value.min(right_value)),
+            Self::Maximum => Ok(left_value.max(right_value)),
+            Self::Equal => Ok(i128::from(left_value == right_value)),
+            Self::NotEqual => Ok(i128::from(left_value != right_value)),
+            Self::LessThan => Ok(i128::from(left_value < right_value)),
+            Self::LessThanOrEqual => Ok(i128::from(left_value <= right_value)),
+            Self::GreaterThan => Ok(i128::from(left_value > right_value)),
+            Self::GreaterThanOrEqual => Ok(i128::from(left_value >= right_value)),
         }
     }
 }
@@ -597,6 +729,7 @@ pub enum SymbolicResolverEvaluationError {
     UnknownTypeSize(String),
     ResolverCycle(String),
     DivisionByZero,
+    InvalidShiftAmount(i128),
     ArithmeticOverflow,
 }
 
@@ -615,6 +748,7 @@ impl fmt::Display for SymbolicResolverEvaluationError {
             Self::UnknownTypeSize(type_id) => write!(formatter, "Unknown size for type `{}`.", type_id),
             Self::ResolverCycle(resolver_id) => write!(formatter, "Resolver cycle detected at `{}`.", resolver_id),
             Self::DivisionByZero => write!(formatter, "Division by zero."),
+            Self::InvalidShiftAmount(shift_amount) => write!(formatter, "Invalid shift amount `{}`.", shift_amount),
             Self::ArithmeticOverflow => write!(formatter, "Arithmetic overflow."),
         }
     }
@@ -655,6 +789,73 @@ mod tests {
         assert_eq!(
             resolver_definition.referenced_local_fields(),
             vec![String::from("capacity"), String::from("count")]
+        );
+    }
+
+    #[test]
+    fn resolver_evaluates_extended_binary_operators() {
+        let cases = [
+            (SymbolicResolverBinaryOperator::Modulo, 23, 5, 3),
+            (SymbolicResolverBinaryOperator::BitwiseAnd, 0b1011, 0b0110, 0b0010),
+            (SymbolicResolverBinaryOperator::BitwiseOr, 0b1011, 0b0110, 0b1111),
+            (SymbolicResolverBinaryOperator::BitwiseXor, 0b1011, 0b0110, 0b1101),
+            (SymbolicResolverBinaryOperator::ShiftLeft, 3, 4, 48),
+            (SymbolicResolverBinaryOperator::ShiftRight, 48, 4, 3),
+            (SymbolicResolverBinaryOperator::Minimum, 12, 7, 7),
+            (SymbolicResolverBinaryOperator::Maximum, 12, 7, 12),
+            (SymbolicResolverBinaryOperator::Equal, 7, 7, 1),
+            (SymbolicResolverBinaryOperator::NotEqual, 7, 8, 1),
+            (SymbolicResolverBinaryOperator::LessThan, 7, 8, 1),
+            (SymbolicResolverBinaryOperator::LessThanOrEqual, 7, 7, 1),
+            (SymbolicResolverBinaryOperator::GreaterThan, 8, 7, 1),
+            (SymbolicResolverBinaryOperator::GreaterThanOrEqual, 7, 7, 1),
+        ];
+
+        for (operator, left_value, right_value, expected_value) in cases {
+            let resolver_definition = SymbolicResolverDefinition::new(SymbolicResolverNode::new_binary(
+                operator,
+                SymbolicResolverNode::new_literal(left_value),
+                SymbolicResolverNode::new_literal(right_value),
+            ));
+
+            let value = resolver_definition
+                .evaluate(&|_| None, &|_| None)
+                .expect("Expected resolver to evaluate.");
+
+            assert_eq!(value, expected_value, "Unexpected value for operator `{}`.", operator.label());
+        }
+    }
+
+    #[test]
+    fn resolver_conditional_evaluates_only_selected_branch() {
+        let resolver_definition = SymbolicResolverDefinition::new(SymbolicResolverNode::new_conditional(
+            SymbolicResolverNode::new_literal(0),
+            SymbolicResolverNode::new_local_field(String::from("missing")),
+            SymbolicResolverNode::new_literal(42),
+        ));
+
+        let value = resolver_definition
+            .evaluate(&|_| None, &|_| None)
+            .expect("Expected resolver to skip the missing true branch.");
+
+        assert_eq!(value, 42);
+    }
+
+    #[test]
+    fn resolver_conditional_reports_referenced_local_fields_from_all_branches() {
+        let resolver_definition = SymbolicResolverDefinition::new(SymbolicResolverNode::new_conditional(
+            SymbolicResolverNode::new_local_field(String::from("tag")),
+            SymbolicResolverNode::new_local_field(String::from("small_count")),
+            SymbolicResolverNode::new_local_field(String::from("large_count")),
+        ));
+
+        assert_eq!(
+            resolver_definition.referenced_local_fields(),
+            vec![
+                String::from("large_count"),
+                String::from("small_count"),
+                String::from("tag")
+            ]
         );
     }
 

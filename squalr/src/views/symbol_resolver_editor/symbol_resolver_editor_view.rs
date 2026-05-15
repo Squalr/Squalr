@@ -865,7 +865,7 @@ impl SymbolResolverEditorView {
         selected_node_path: Option<&[usize]>,
     ) {
         let is_selected = selected_node_path == Some(node_path.as_slice());
-        let is_expanded = matches!(resolver_node, SymbolicResolverNode::Binary { .. });
+        let is_expanded = matches!(resolver_node, SymbolicResolverNode::Binary { .. } | SymbolicResolverNode::Conditional { .. });
         let (label, preview, kind) = Self::node_tree_text(resolver_node);
         let row_response = self.render_tree_entry(user_interface, depth, &label, &preview, kind, is_selected, is_expanded);
 
@@ -887,6 +887,30 @@ impl SymbolResolverEditorView {
             let mut right_path = node_path;
             right_path.push(1);
             self.render_node_tree(user_interface, resolver_id, right_node, right_path, depth.saturating_add(1), selected_node_path);
+        } else if let SymbolicResolverNode::Conditional {
+            condition_node,
+            true_node,
+            false_node,
+        } = resolver_node
+        {
+            let mut condition_path = node_path.clone();
+            condition_path.push(0);
+            self.render_node_tree(
+                user_interface,
+                resolver_id,
+                condition_node,
+                condition_path,
+                depth.saturating_add(1),
+                selected_node_path,
+            );
+
+            let mut true_path = node_path.clone();
+            true_path.push(1);
+            self.render_node_tree(user_interface, resolver_id, true_node, true_path, depth.saturating_add(1), selected_node_path);
+
+            let mut false_path = node_path;
+            false_path.push(2);
+            self.render_node_tree(user_interface, resolver_id, false_node, false_path, depth.saturating_add(1), selected_node_path);
         }
     }
 
@@ -1358,6 +1382,7 @@ impl SymbolResolverEditorView {
                         .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_RESOLVER_OPERATOR.to_string(), false),
                 );
             }
+            SymbolicResolverNode::Conditional { .. } => {}
         }
 
         Some(ValuedStruct::new_anonymous(fields))
@@ -1521,6 +1546,7 @@ impl SymbolResolverEditorView {
             SymbolicResolverNode::GlobalPointerChain { .. } => SymbolResolverNodeKind::GlobalPointerChain,
             SymbolicResolverNode::TypeSize { .. } => SymbolResolverNodeKind::TypeSize,
             SymbolicResolverNode::Binary { .. } => SymbolResolverNodeKind::Operation,
+            SymbolicResolverNode::Conditional { .. } => SymbolResolverNodeKind::Conditional,
         }
     }
 
@@ -1534,6 +1560,7 @@ impl SymbolResolverEditorView {
             SymbolResolverNodeKind::GlobalPointerChain => "Global Pointer Chain",
             SymbolResolverNodeKind::TypeSize => "Type Size",
             SymbolResolverNodeKind::Operation => "Operation",
+            SymbolResolverNodeKind::Conditional => "Conditional",
         }
     }
 
@@ -1547,6 +1574,7 @@ impl SymbolResolverEditorView {
             "Global Pointer Chain" => Some(SymbolResolverNodeKind::GlobalPointerChain),
             "Type Size" => Some(SymbolResolverNodeKind::TypeSize),
             "Operation" => Some(SymbolResolverNodeKind::Operation),
+            "Conditional" => Some(SymbolResolverNodeKind::Conditional),
             _ => None,
         }
     }
@@ -1584,6 +1612,7 @@ impl SymbolResolverEditorView {
             ),
             SymbolicResolverNode::TypeSize { data_type_ref } => (String::from("Type Size"), data_type_ref.to_string(), TreeEntryKind::TypeSize),
             SymbolicResolverNode::Binary { operator, .. } => (format!("Operation {}", operator.label()), String::new(), TreeEntryKind::Operation),
+            SymbolicResolverNode::Conditional { .. } => (String::from("Conditional"), String::new(), TreeEntryKind::Conditional),
         }
     }
 
@@ -1599,6 +1628,16 @@ impl SymbolResolverEditorView {
             SymbolicResolverNode::Binary { left_node, right_node, .. } => match node_path[0] {
                 0 => Self::get_node_mut(left_node, &node_path[1..]),
                 1 => Self::get_node_mut(right_node, &node_path[1..]),
+                _ => None,
+            },
+            SymbolicResolverNode::Conditional {
+                condition_node,
+                true_node,
+                false_node,
+            } => match node_path[0] {
+                0 => Self::get_node_mut(condition_node, &node_path[1..]),
+                1 => Self::get_node_mut(true_node, &node_path[1..]),
+                2 => Self::get_node_mut(false_node, &node_path[1..]),
                 _ => None,
             },
             SymbolicResolverNode::Literal(_)
@@ -1623,6 +1662,16 @@ impl SymbolResolverEditorView {
             SymbolicResolverNode::Binary { left_node, right_node, .. } => match node_path[0] {
                 0 => Self::get_node(left_node, &node_path[1..]),
                 1 => Self::get_node(right_node, &node_path[1..]),
+                _ => None,
+            },
+            SymbolicResolverNode::Conditional {
+                condition_node,
+                true_node,
+                false_node,
+            } => match node_path[0] {
+                0 => Self::get_node(condition_node, &node_path[1..]),
+                1 => Self::get_node(true_node, &node_path[1..]),
+                2 => Self::get_node(false_node, &node_path[1..]),
                 _ => None,
             },
             SymbolicResolverNode::Literal(_)
@@ -1723,11 +1772,12 @@ enum TreeEntryKind {
     GlobalSymbolField,
     TypeSize,
     Operation,
+    Conditional,
 }
 
 impl TreeEntryKind {
     fn has_children(self) -> bool {
-        matches!(self, Self::Operation)
+        matches!(self, Self::Operation | Self::Conditional)
     }
 }
 

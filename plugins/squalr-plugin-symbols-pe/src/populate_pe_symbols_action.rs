@@ -1099,6 +1099,15 @@ mod tests {
                 collect_relative_symbol_paths(left_node, relative_symbol_paths);
                 collect_relative_symbol_paths(right_node, relative_symbol_paths);
             }
+            SymbolicResolverNode::Conditional {
+                condition_node,
+                true_node,
+                false_node,
+            } => {
+                collect_relative_symbol_paths(condition_node, relative_symbol_paths);
+                collect_relative_symbol_paths(true_node, relative_symbol_paths);
+                collect_relative_symbol_paths(false_node, relative_symbol_paths);
+            }
             SymbolicResolverNode::Literal(_)
             | SymbolicResolverNode::LocalField { .. }
             | SymbolicResolverNode::GlobalSymbolField { .. }
@@ -1113,6 +1122,15 @@ mod tests {
             SymbolicResolverNode::GlobalSymbolField { .. } => true,
             SymbolicResolverNode::Binary { left_node, right_node, .. } => {
                 resolver_contains_global_symbol_field(left_node) || resolver_contains_global_symbol_field(right_node)
+            }
+            SymbolicResolverNode::Conditional {
+                condition_node,
+                true_node,
+                false_node,
+            } => {
+                resolver_contains_global_symbol_field(condition_node)
+                    || resolver_contains_global_symbol_field(true_node)
+                    || resolver_contains_global_symbol_field(false_node)
             }
             SymbolicResolverNode::Literal(_)
             | SymbolicResolverNode::LocalField { .. }
