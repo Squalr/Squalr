@@ -39,6 +39,7 @@ Our current task, from `README.md`, is:
 - Corrected Symbol Layout Editor field sorting so static struct field arrows move fields through the rendered layout by updating offsets instead of swapping draft order; new fields now receive explicit unique names up front and blank/duplicate field names are rejected on save. Needs human verification in the GUI.
 - Corrected split-gap field sorting so static field arrows cross only the next visible `UNASSIGNED[n]` row, respecting editor-only split boundaries instead of jumping to the next assigned field. Needs human verification in the GUI.
 - Removed the remaining struct field vector-swap fallback from Symbol Layout Editor sorting. Struct field arrows now require resolved spans and always move by offset, converting sequential fields to static offsets when needed; union variants remain vector-sorted. Needs human verification in the GUI.
+- Removed the extra Symbol Layout Editor size `Commit` button so layout edits use the existing Cancel/Accept takeover actions only. Needs human verification in the GUI.
 - Audit recommendation: Add `db`/`bytes` next. Raw storage is now cleanly separable as a persisted ownership concept because unowned gaps are explicit synthesized spans.
 
 ## Important Information
@@ -66,3 +67,4 @@ Our current task, from `README.md`, is:
 - Field sorting/name validation reran `cargo fmt --all`, `cargo test -p squalr symbol_layout_editor --lib --locked`, `cargo test -p squalr struct_viewer --lib --locked`, and `git diff --check`.
 - Split-gap field sorting validation reran `cargo fmt --all`, `cargo test -p squalr symbol_layout_editor --lib --locked`, `cargo test -p squalr struct_viewer --lib --locked`, and `git diff --check`.
 - Sequential-field sorting fallback validation reran `cargo fmt --all`, `cargo test -p squalr symbol_layout_editor --lib --locked`, `cargo test -p squalr struct_viewer --lib --locked`, and `git diff --check`.
+- Size commit button removal validation reran `cargo fmt --all`, `cargo test -p squalr symbol_layout_editor --lib --locked`, `cargo test -p squalr struct_viewer --lib --locked`, and `git diff --check`.

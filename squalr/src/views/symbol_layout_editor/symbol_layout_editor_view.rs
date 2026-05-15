@@ -2504,55 +2504,16 @@ impl SymbolLayoutEditorView {
         &self,
         user_interface: &mut Ui,
         draft: &mut SymbolLayoutEditDraft,
-        can_commit: bool,
-    ) -> bool {
-        let theme = &self.app_context.theme;
-        let preferred_commit_button_width = 88.0_f32;
-        let spacing = 8.0;
-        let available_width = user_interface.available_width();
-        let commit_button_width = preferred_commit_button_width.min((available_width * 0.4).max(0.0));
-        let value_box_width = (available_width - commit_button_width - spacing).max(0.0);
-        let mut should_commit = false;
-
-        user_interface
-            .horizontal(|user_interface| {
-                self.render_u64_data_value_box(
-                    user_interface,
-                    &mut draft.size_text,
-                    &mut draft.size_format,
-                    "size",
-                    "symbol_layout_editor_layout_size",
-                    value_box_width,
-                    Self::FIELD_ROW_HEIGHT,
-                );
-                user_interface.add_space(spacing);
-
-                let commit_button = EguiButton::new(RichText::new("Commit").color(if can_commit { theme.foreground } else { theme.foreground_preview }))
-                    .fill(if can_commit {
-                        theme.background_control_primary
-                    } else {
-                        theme.background_control_secondary
-                    })
-                    .stroke(Stroke::new(
-                        1.0,
-                        if can_commit {
-                            theme.background_control_primary_dark
-                        } else {
-                            theme.background_control_secondary_dark
-                        },
-                    ));
-                let commit_response = user_interface
-                    .add_enabled_ui(can_commit, |user_interface| {
-                        user_interface.add_sized(vec2(commit_button_width, Self::FIELD_ROW_HEIGHT), commit_button)
-                    })
-                    .inner;
-                if commit_response.clicked() {
-                    should_commit = true;
-                }
-            })
-            .inner;
-
-        should_commit
+    ) {
+        self.render_u64_data_value_box(
+            user_interface,
+            &mut draft.size_text,
+            &mut draft.size_format,
+            "size",
+            "symbol_layout_editor_layout_size",
+            user_interface.available_width().max(1.0),
+            Self::FIELD_ROW_HEIGHT,
+        );
     }
 
     fn resolve_draft_field_spans(
@@ -3257,9 +3218,7 @@ impl SymbolLayoutEditorView {
                 if show_layout_name_editor {
                     user_interface.add(
                         GroupBox::new_from_theme(&self.app_context.theme, "Size", |user_interface| {
-                            if self.render_layout_size_editor(user_interface, &mut edited_draft, can_save) {
-                                should_save_draft = true;
-                            }
+                            self.render_layout_size_editor(user_interface, &mut edited_draft);
                         })
                         .desired_width(user_interface.available_width()),
                     );
@@ -3333,9 +3292,7 @@ impl SymbolLayoutEditorView {
                             theme,
                             if is_union_layout { "Edit Union Variants" } else { "Edit Symbol Layout" },
                             |user_interface| {
-                                if self.render_layout_size_editor(user_interface, &mut edited_draft, can_save) {
-                                    should_save_draft = true;
-                                }
+                                self.render_layout_size_editor(user_interface, &mut edited_draft);
                                 user_interface.add_space(Self::TAKE_OVER_GROUPBOX_SPACING);
                                 self.render_field_rows(
                                     user_interface,
