@@ -158,6 +158,7 @@ impl SymbolLayoutEditorView {
     const FIELD_ROW_ICON_GAP: f32 = 4.0;
     const FIELD_ROW_PREVIEW_GAP: f32 = 12.0;
     const FIELD_CONTEXT_MENU_WIDTH: f32 = 184.0;
+    const UNION_VARIANT_CHILD_INDENT: f32 = 20.0;
     const DEFINE_FIELD_BUILT_IN_TYPE_COLUMN_COUNT: usize = 2;
     const DEFINE_FIELD_BUILT_IN_TYPE_ITEM_WIDTH: f32 = 128.0;
     const DEFINE_FIELD_BUILT_IN_TYPE_COLUMN_SPACING: f32 = 4.0;
@@ -2670,7 +2671,8 @@ impl SymbolLayoutEditorView {
             pending_field_row_action = Some(SymbolLayoutFieldRowAction::MoveDown);
         }
 
-        if can_show_context_menu && row_response.secondary_clicked() {
+        let row_was_secondary_clicked = can_show_context_menu && row_response.secondary_clicked();
+        if row_was_secondary_clicked {
             let context_menu_position = row_response
                 .interact_pointer_pos()
                 .unwrap_or_else(|| row_rect.left_bottom());
@@ -2680,9 +2682,7 @@ impl SymbolLayoutEditorView {
                 field_index,
                 context_menu_position,
             );
-        }
-
-        if row_response.clicked() {
+        } else if row_response.clicked() {
             SymbolLayoutEditorViewData::hide_field_context_menu(self.symbol_layout_editor_view_data.clone());
         }
 
@@ -2739,7 +2739,7 @@ impl SymbolLayoutEditorView {
             );
         }
 
-        if row_response.clicked() && pending_field_row_action.is_none() {
+        if row_response.clicked() && !row_was_secondary_clicked && pending_field_row_action.is_none() {
             pending_field_row_action = Some(SymbolLayoutFieldRowAction::SelectField);
         }
 
@@ -2798,6 +2798,21 @@ impl SymbolLayoutEditorView {
         );
     }
 
+    fn render_union_variant_child_row<R>(
+        user_interface: &mut Ui,
+        add_contents: impl FnOnce(&mut Ui) -> R,
+    ) -> R {
+        user_interface
+            .horizontal(|user_interface| {
+                user_interface.spacing_mut().item_spacing.x = 0.0;
+                user_interface.add_space(Self::UNION_VARIANT_CHILD_INDENT);
+                user_interface
+                    .allocate_ui_with_layout(vec2(user_interface.available_width().max(1.0), 0.0), Layout::top_down(Align::Min), add_contents)
+                    .inner
+            })
+            .inner
+    }
+
     fn render_union_variant_layout_rows(
         &self,
         user_interface: &mut Ui,
@@ -2813,7 +2828,9 @@ impl SymbolLayoutEditorView {
         let variant_layout_id = variant_draft.layout_id.clone();
 
         let Some((layout_size_in_bytes, mut field_spans)) = self.resolve_draft_field_spans(project_symbol_catalog, &variant_draft) else {
-            self.render_union_variant_preview_row(user_interface, "UNASSIGNED", "variant layout unresolved");
+            Self::render_union_variant_child_row(user_interface, |user_interface| {
+                self.render_union_variant_preview_row(user_interface, "UNASSIGNED", "variant layout unresolved");
+            });
             return None;
         };
         let unassigned_split_offsets = self
@@ -2849,14 +2866,17 @@ impl SymbolLayoutEditorView {
                             unassigned_row_context.size_in_bytes,
                         )
                     });
-                    if let Some(unassigned_row_action) = self.render_unassigned_layout_row(
-                        user_interface,
-                        Some(variant_layout_id.as_str()),
-                        unassigned_row_context.clone(),
-                        true,
-                        false,
-                        is_selected,
-                    ) {
+                    let unassigned_row_action = Self::render_union_variant_child_row(user_interface, |user_interface| {
+                        self.render_unassigned_layout_row(
+                            user_interface,
+                            Some(variant_layout_id.as_str()),
+                            unassigned_row_context.clone(),
+                            true,
+                            false,
+                            is_selected,
+                        )
+                    });
+                    if let Some(unassigned_row_action) = unassigned_row_action {
                         pending_variant_layout_action = Some(SymbolLayoutVariantLayoutRowAction::Unassigned {
                             variant_layout_id: variant_layout_id.clone(),
                             row_context: unassigned_row_context,
@@ -2869,24 +2889,27 @@ impl SymbolLayoutEditorView {
             let can_move_up = Self::can_move_struct_field_up(&field_spans, &unassigned_split_offsets, field_span.field_position);
             let can_move_down = Self::can_move_struct_field_down(&field_spans, layout_size_in_bytes, &unassigned_split_offsets, field_span.field_position);
             let is_selected = selected_field_layout_id == Some(variant_layout_id.as_str()) && selected_field_index == Some(field_span.field_position);
-            if let Some(field_draft) = variant_draft.field_drafts.get_mut(field_span.field_position)
-                && let Some(field_row_action) = self.render_field_editor_section(
-                    user_interface,
-                    SymbolicLayoutKind::Struct,
-                    field_draft,
-                    field_span.field_position,
-                    is_selected,
-                    can_move_up,
-                    can_move_down,
-                    Some(variant_layout_id.as_str()),
-                    true,
-                )
-            {
-                pending_variant_layout_action = Some(SymbolLayoutVariantLayoutRowAction::Field {
-                    variant_layout_id: variant_layout_id.clone(),
-                    field_index: field_span.field_position,
-                    field_row_action,
+            if let Some(field_draft) = variant_draft.field_drafts.get_mut(field_span.field_position) {
+                let field_row_action = Self::render_union_variant_child_row(user_interface, |user_interface| {
+                    self.render_field_editor_section(
+                        user_interface,
+                        SymbolicLayoutKind::Struct,
+                        field_draft,
+                        field_span.field_position,
+                        is_selected,
+                        can_move_up,
+                        can_move_down,
+                        Some(variant_layout_id.as_str()),
+                        true,
+                    )
                 });
+                if let Some(field_row_action) = field_row_action {
+                    pending_variant_layout_action = Some(SymbolLayoutVariantLayoutRowAction::Field {
+                        variant_layout_id: variant_layout_id.clone(),
+                        field_index: field_span.field_position,
+                        field_row_action,
+                    });
+                }
             }
 
             next_visible_offset = next_visible_offset.max(
@@ -2913,14 +2936,17 @@ impl SymbolLayoutEditorView {
                         unassigned_row_context.size_in_bytes,
                     )
                 });
-                if let Some(unassigned_row_action) = self.render_unassigned_layout_row(
-                    user_interface,
-                    Some(variant_layout_id.as_str()),
-                    unassigned_row_context.clone(),
-                    true,
-                    false,
-                    is_selected,
-                ) {
+                let unassigned_row_action = Self::render_union_variant_child_row(user_interface, |user_interface| {
+                    self.render_unassigned_layout_row(
+                        user_interface,
+                        Some(variant_layout_id.as_str()),
+                        unassigned_row_context.clone(),
+                        true,
+                        false,
+                        is_selected,
+                    )
+                });
+                if let Some(unassigned_row_action) = unassigned_row_action {
                     pending_variant_layout_action = Some(SymbolLayoutVariantLayoutRowAction::Unassigned {
                         variant_layout_id: variant_layout_id.clone(),
                         row_context: unassigned_row_context,
@@ -3429,74 +3455,59 @@ impl SymbolLayoutEditorView {
 
         if layout_kind.is_union() {
             for field_index in 0..field_count {
-                let variant_title = draft
-                    .field_drafts
-                    .get(field_index)
-                    .map(|field_draft| {
-                        let trimmed_field_name = field_draft.field_name.trim();
-                        if trimmed_field_name.is_empty() {
-                            format!("Variant {}", field_index + 1)
-                        } else {
-                            trimmed_field_name.to_string()
-                        }
-                    })
-                    .unwrap_or_else(|| format!("Variant {}", field_index + 1));
                 let union_draft_preview = draft.clone();
+                let Some(field_draft) = draft.field_drafts.get_mut(field_index) else {
+                    continue;
+                };
 
-                user_interface.add(
-                    GroupBox::new_from_theme(&self.app_context.theme, &variant_title, |user_interface| {
-                        let Some(field_draft) = draft.field_drafts.get_mut(field_index) else {
-                            return;
-                        };
-                        if let Some(field_row_action) = self.render_field_editor_section(
-                            user_interface,
-                            layout_kind,
-                            field_draft,
+                if let Some(field_row_action) = self.render_field_editor_section(
+                    user_interface,
+                    layout_kind,
+                    field_draft,
+                    field_index,
+                    selected_field_layout_id.is_none() && selected_field_index == Some(field_index),
+                    field_index > 0,
+                    field_index + 1 < field_count,
+                    None,
+                    true,
+                ) {
+                    pending_field_row_action = Some((field_index, field_row_action));
+                }
+
+                let variant_field_preview_draft = field_draft.clone();
+                if let Some(variant_layout_action) = self.render_union_variant_layout_rows(
+                    user_interface,
+                    project_symbol_catalog,
+                    &union_draft_preview,
+                    field_index,
+                    &variant_field_preview_draft,
+                    selected_field_layout_id,
+                    selected_field_index,
+                    selected_unassigned_span,
+                ) {
+                    match variant_layout_action {
+                        SymbolLayoutVariantLayoutRowAction::Field {
+                            variant_layout_id,
                             field_index,
-                            selected_field_layout_id.is_none() && selected_field_index == Some(field_index),
-                            field_index > 0,
-                            field_index + 1 < field_count,
-                            None,
-                            true,
-                        ) {
-                            pending_field_row_action = Some((field_index, field_row_action));
+                            field_row_action,
+                        } => {
+                            pending_variant_field_row_action = Some((variant_layout_id, field_index, field_row_action));
                         }
-                        let variant_field_preview_draft = field_draft.clone();
-                        user_interface.add_space(Self::TAKE_OVER_GROUPBOX_SPACING);
-                        if let Some(variant_layout_action) = self.render_union_variant_layout_rows(
-                            user_interface,
-                            project_symbol_catalog,
-                            &union_draft_preview,
-                            field_index,
-                            &variant_field_preview_draft,
-                            selected_field_layout_id,
-                            selected_field_index,
-                            selected_unassigned_span,
-                        ) {
-                            match variant_layout_action {
-                                SymbolLayoutVariantLayoutRowAction::Field {
-                                    variant_layout_id,
-                                    field_index,
-                                    field_row_action,
-                                } => {
-                                    pending_variant_field_row_action = Some((variant_layout_id, field_index, field_row_action));
-                                }
-                                SymbolLayoutVariantLayoutRowAction::Unassigned {
-                                    variant_layout_id,
-                                    row_context,
-                                    row_action,
-                                } => {
-                                    pending_unassigned_row_action = Some((Some(variant_layout_id), row_context, row_action));
-                                }
-                            }
+                        SymbolLayoutVariantLayoutRowAction::Unassigned {
+                            variant_layout_id,
+                            row_context,
+                            row_action,
+                        } => {
+                            pending_unassigned_row_action = Some((Some(variant_layout_id), row_context, row_action));
                         }
-                        user_interface.add_space(Self::TAKE_OVER_GROUPBOX_SPACING);
-                        if self.render_add_entry_button(user_interface, "Add a new field to this union variant.") {
-                            pending_field_row_action = Some((field_index, SymbolLayoutFieldRowAction::InsertFieldIntoVariant));
-                        }
-                    })
-                    .desired_width(user_interface.available_width()),
-                );
+                    }
+                }
+
+                if Self::render_union_variant_child_row(user_interface, |user_interface| {
+                    self.render_add_entry_button(user_interface, "Add a new field to this union variant.")
+                }) {
+                    pending_field_row_action = Some((field_index, SymbolLayoutFieldRowAction::InsertFieldIntoVariant));
+                }
 
                 if field_index + 1 < field_count {
                     user_interface.add_space(Self::TAKE_OVER_GROUPBOX_SPACING);

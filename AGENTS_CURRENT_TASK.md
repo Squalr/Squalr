@@ -46,6 +46,7 @@ Our current task, from `README.md`, is:
 - Corrected union variants that do not yet point at a real struct layout by giving them an on-demand backing struct-layout draft. Their `UNASSIGNED[n]` rows render interactively, and the per-variant add button materializes the backing layout and points the union variant at it. Needs human verification in the GUI.
 - Replaced union variant field preview rows with the normal struct field row editor path scoped to the variant backing layout. Newly added variant fields now select/focus through variant-scoped field state, and variant field arrows persist against the backing struct layout. Needs human verification in the GUI.
 - Enabled variant-scoped context menus for union variant fields and made nested field delete mutate the backing variant layout directly. Deleting the last field now leaves the variant as a valid all-`UNASSIGNED` layout instead of removing or recreating a placeholder field. Needs human verification in the GUI.
+- Flattened the Symbol Layout Editor union authoring UI into a tree inside the single outer editor groupbox. Variant root rows own variant move/delete/context-menu actions, while indented child field/unassigned rows own backing-layout field actions. Needs human verification in the GUI.
 - Audit recommendation: Add `db`/`bytes` next. Raw storage is now cleanly separable as a persisted ownership concept because unowned gaps are explicit synthesized spans.
 
 ## Important Information
@@ -80,3 +81,4 @@ Our current task, from `README.md`, is:
 - Union variant backing-layout correction reran `cargo fmt --all`, `cargo test -p squalr symbol_layout_editor --lib --locked`, `cargo test -p squalr struct_viewer --lib --locked`, and `git diff --check`.
 - Union variant field-row correction reran `cargo fmt --all`, `cargo test -p squalr symbol_layout_editor --lib --locked`, `cargo test -p squalr struct_viewer --lib --locked`, and `git diff --check`.
 - Union variant context-menu/delete correction reran `cargo fmt --all`, `cargo test -p squalr symbol_layout_editor --lib --locked`, `cargo test -p squalr struct_viewer --lib --locked`, and `git diff --check`.
+- Union variant tree UI correction reran `cargo fmt --all`, `cargo test -p squalr symbol_layout_editor --lib --locked`, `cargo test -p squalr struct_viewer --lib --locked`, and `git diff --check`.
