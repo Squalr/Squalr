@@ -209,12 +209,23 @@ mod tests {
             .get_project_symbol_catalog()
             .find_symbol_module("game.exe")
             .expect("Expected module to remain in catalog.");
+        let project_symbol_catalog = loaded_project.get_project_info().get_project_symbol_catalog();
+        let pe_headers_descriptor = project_symbol_catalog
+            .get_struct_layout_descriptors()
+            .iter()
+            .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == "win.pe.PE_HEADERS32")
+            .expect("Expected PE headers layout descriptor.");
+        let pe_header_field_names = pe_headers_descriptor
+            .get_struct_layout_definition()
+            .get_fields()
+            .iter()
+            .map(|field_definition| field_definition.get_field_name())
+            .collect::<Vec<_>>();
 
-        assert_eq!(symbol_module.get_fields()[0].get_display_name(), "DOS Header");
-        assert_eq!(symbol_module.get_fields()[0].get_struct_layout_id(), "win.pe.IMAGE_DOS_HEADER");
-        assert_eq!(symbol_module.get_fields()[1].get_display_name(), "DOS Stub");
-        assert_eq!(symbol_module.get_fields()[2].get_display_name(), "NT Headers");
-        assert_eq!(symbol_module.get_fields()[3].get_display_name(), "Section Headers");
+        assert_eq!(symbol_module.get_fields().len(), 1);
+        assert_eq!(symbol_module.get_fields()[0].get_display_name(), "PE Headers");
+        assert_eq!(symbol_module.get_fields()[0].get_struct_layout_id(), "win.pe.PE_HEADERS32");
+        assert_eq!(pe_header_field_names, vec!["DOSHeader", "DOSStub", "NTHeaders", "SectionHeaders"]);
     }
 
     fn create_test_pe_memory_read_response(memory_read_request: &MemoryReadRequest) -> MemoryReadResponse {
