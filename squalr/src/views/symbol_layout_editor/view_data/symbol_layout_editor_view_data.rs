@@ -1596,10 +1596,10 @@ impl SymbolLayoutFieldEditDraft {
             SymbolLayoutFieldOffsetMode::Static => {
                 let trimmed_offset = self.static_offset_in_bytes.trim();
                 if trimmed_offset.is_empty() {
-                    return Err(String::from("Static offset is required."));
+                    return Err(String::from("Byte offset is required."));
                 }
 
-                let offset_in_bytes = Self::parse_static_offset_text(trimmed_offset).ok_or_else(|| format!("Invalid static offset: {}.", trimmed_offset))?;
+                let offset_in_bytes = Self::parse_static_offset_text(trimmed_offset).ok_or_else(|| format!("Invalid byte offset: {}.", trimmed_offset))?;
 
                 Ok(SymbolicFieldOffsetResolution::new_static(offset_in_bytes))
             }

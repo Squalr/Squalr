@@ -1940,8 +1940,6 @@ impl SymbolLayoutEditorView {
                 .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_ELEMENT_TYPE.to_string(), false),
             DataTypeStringUtf8::get_value_from_primitive_string(field_draft.container_edit.kind.label())
                 .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_CONTAINER_KIND.to_string(), false),
-            DataTypeStringUtf8::get_value_from_primitive_string(if field_draft.is_hidden { "true" } else { "false" })
-                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_HIDDEN.to_string(), false),
         ];
 
         let element_type_field_name = match element_type {
@@ -2048,6 +2046,7 @@ impl SymbolLayoutEditorView {
 
                 let project_symbol_catalog = Self::get_opened_project_symbol_catalog_from_context(&app_context).unwrap_or_default();
                 Self::apply_field_details_edit(&project_symbol_catalog, field_draft, &edited_field);
+                Self::grow_draft_size_to_fit_fields(&project_symbol_catalog, &mut draft);
                 view_data.replace_draft(draft.clone());
                 draft
             };
@@ -2097,6 +2096,7 @@ impl SymbolLayoutEditorView {
             };
 
             Self::apply_field_details_edit(&project_symbol_catalog, field_draft, &edited_field);
+            Self::grow_draft_size_to_fit_fields(&project_symbol_catalog, &mut variant_draft);
             let Ok(updated_project_symbol_catalog) = SymbolLayoutEditorViewData::apply_draft_to_catalog(&project_symbol_catalog, &variant_draft) else {
                 return;
             };
@@ -2160,9 +2160,6 @@ impl SymbolLayoutEditorView {
                     field_draft.container_edit.kind = container_kind;
                 }
             }
-            StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_HIDDEN => {
-                field_draft.is_hidden = Self::parse_bool_text(&edited_text).unwrap_or(field_draft.is_hidden);
-            }
             StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_FIXED_ARRAY_LENGTH => {
                 if let Some(length) = Self::read_u64_field_value(edited_field) {
                     field_draft.container_edit.fixed_array_length = length.max(1).to_string();
@@ -2196,6 +2193,49 @@ impl SymbolLayoutEditorView {
                 field_draft.offset_resolver_id = edited_text;
             }
             _ => {}
+        }
+    }
+
+    fn grow_draft_size_to_fit_fields(
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        draft: &mut SymbolLayoutEditDraft,
+    ) {
+        let Ok(declared_size_in_bytes) = SymbolLayoutEditorViewData::parse_layout_size_text(&draft.size_text, draft.size_format) else {
+            return;
+        };
+        let mut next_sequential_offset = 0_u64;
+
+        for field_draft in &draft.field_drafts {
+            let Ok(symbolic_field_definition) = Self::build_symbolic_field_definition_from_draft(field_draft) else {
+                continue;
+            };
+            let field_offset = match symbolic_field_definition.get_offset_resolution() {
+                SymbolicFieldOffsetResolution::Static(offset_in_bytes) => *offset_in_bytes,
+                SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_) if draft.layout_kind.is_union() => 0,
+                SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_) => next_sequential_offset,
+            };
+            let field_size_in_bytes = SymbolLayoutEditorViewData::resolve_symbolic_field_size_in_bytes(
+                project_symbol_catalog,
+                &symbolic_field_definition,
+                &mut std::collections::HashSet::new(),
+            );
+
+            next_sequential_offset = next_sequential_offset.max(field_offset.saturating_add(field_size_in_bytes));
+        }
+
+        if next_sequential_offset > declared_size_in_bytes {
+            draft.size_text = Self::format_layout_size(next_sequential_offset, draft.size_format);
+        }
+    }
+
+    fn format_layout_size(
+        size_in_bytes: u64,
+        size_format: AnonymousValueStringFormat,
+    ) -> String {
+        match size_format {
+            AnonymousValueStringFormat::Binary => format!("{:b}", size_in_bytes),
+            AnonymousValueStringFormat::Hexadecimal | AnonymousValueStringFormat::Address => format!("{:X}", size_in_bytes),
+            _ => size_in_bytes.to_string(),
         }
     }
 
@@ -2241,14 +2281,6 @@ impl SymbolLayoutEditorView {
             .iter()
             .copied()
             .find(|offset_mode| offset_mode.label() == label)
-    }
-
-    fn parse_bool_text(text: &str) -> Option<bool> {
-        match text.trim().to_ascii_lowercase().as_str() {
-            "true" | "yes" | "1" | "hidden" => Some(true),
-            "false" | "no" | "0" | "visible" => Some(false),
-            _ => None,
-        }
     }
 
     fn read_u64_field_value(valued_struct_field: &ValuedStructField) -> Option<u64> {
@@ -4573,6 +4605,36 @@ mod tests {
         field_draft.container_edit.fixed_array_length = String::from("4");
 
         assert_eq!(SymbolLayoutEditorView::format_field_data_type_preview(&field_draft), "u16[4]");
+    }
+
+    #[test]
+    fn build_field_details_struct_omits_hidden_field() {
+        let mut field_draft = create_static_field_draft("health", 0);
+        field_draft.is_hidden = true;
+        let details_struct = SymbolLayoutEditorView::build_field_details_struct(&ProjectSymbolCatalog::default(), SymbolicLayoutKind::Struct, &field_draft);
+
+        assert!(
+            !details_struct
+                .get_fields()
+                .iter()
+                .any(|field| field.get_name() == "__symbol_layout_field_hidden")
+        );
+    }
+
+    #[test]
+    fn grow_draft_size_to_fit_fields_expands_declared_size_for_static_offsets() {
+        let mut draft = SymbolLayoutEditDraft {
+            original_layout_id: None,
+            layout_id: String::from("player"),
+            layout_kind: SymbolicLayoutKind::Struct,
+            size_text: String::from("4"),
+            size_format: AnonymousValueStringFormat::Decimal,
+            field_drafts: vec![create_static_field_draft("health", 8)],
+        };
+
+        SymbolLayoutEditorView::grow_draft_size_to_fit_fields(&ProjectSymbolCatalog::default(), &mut draft);
+
+        assert_eq!(draft.size_text, "12");
     }
 
     #[test]
