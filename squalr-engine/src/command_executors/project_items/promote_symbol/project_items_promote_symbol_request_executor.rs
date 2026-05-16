@@ -1,8 +1,8 @@
 use crate::command_executors::project::project_symbol_sync::sync_project_symbol_catalog;
-use crate::command_executors::project_items::project_item_symbol_resolution::{
+use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
+use crate::services::projects::project_item_symbol_resolution::{
     is_promotable_project_item, resolve_project_item_locator, resolve_project_item_struct_layout_id, resolve_project_item_type_id,
 };
-use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
 use crate::services::projects::project_symbol_name_scope::ProjectSymbolNameScope;
 use squalr_engine_api::commands::memory::query::memory_query_request::MemoryQueryRequest;
 use squalr_engine_api::commands::memory::query::memory_query_response::MemoryQueryResponse;
