@@ -59,6 +59,11 @@ impl UnprivilegedCommandExecutor for ProjectSymbolsCommand {
             } => project_symbols_update_request
                 .execute(engine_unprivileged_state)
                 .to_engine_response(),
+            ProjectSymbolsCommand::WriteValue {
+                project_symbols_write_value_request,
+            } => project_symbols_write_value_request
+                .execute(engine_unprivileged_state)
+                .to_engine_response(),
         }
     }
 }

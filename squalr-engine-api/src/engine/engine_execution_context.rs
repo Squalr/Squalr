@@ -31,6 +31,13 @@ pub trait EngineExecutionContext: Send + Sync {
         anonymous_value_string_format: AnonymousValueStringFormat,
     ) -> Result<AnonymousValueString, SymbolRegistryError>;
 
+    /// Parses an anonymous string value into a typed data value.
+    fn deanonymize_value_string(
+        &self,
+        data_type_ref: &DataTypeRef,
+        anonymous_value_string: &AnonymousValueString,
+    ) -> Result<DataValue, SymbolRegistryError>;
+
     /// Creates the default value for a data type.
     fn get_default_value(
         &self,

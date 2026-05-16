@@ -14,3 +14,4 @@ pub mod set_catalog;
 #[cfg(test)]
 pub mod test_support;
 pub mod update;
+pub mod write_value;

@@ -161,7 +161,9 @@ impl Cli {
 #[cfg(test)]
 mod tests {
     use super::{Cli, ParsedInput};
+    use squalr_engine_api::commands::project_symbols::project_symbols_command::ProjectSymbolsCommand;
     use squalr_engine_api::commands::unprivileged_command::UnprivilegedCommand;
+    use squalr_engine_api::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
 
     #[test]
     fn parse_input_returns_help_for_top_level_help_flag() {
@@ -182,6 +184,29 @@ mod tests {
         let parsed_input = Cli::parse_input("project_symbols list").expect("Expected project_symbols list command to parse successfully");
 
         assert!(matches!(parsed_input, ParsedInput::UnprivilegedCommand(UnprivilegedCommand::ProjectSymbols(_))));
+    }
+
+    #[test]
+    fn parse_input_returns_unprivileged_command_for_project_symbols_write_value_command() {
+        let parsed_input = Cli::parse_input("project_symbols write-value --address 4660 --type u32 --field value -v '255;decimal;'")
+            .expect("Expected project_symbols write-value command to parse successfully");
+
+        let ParsedInput::UnprivilegedCommand(UnprivilegedCommand::ProjectSymbols(ProjectSymbolsCommand::WriteValue {
+            project_symbols_write_value_request,
+        })) = parsed_input
+        else {
+            panic!("Expected project_symbols write-value command.");
+        };
+
+        assert_eq!(project_symbols_write_value_request.address, 4660);
+        assert_eq!(project_symbols_write_value_request.symbol_type_id, "u32");
+        assert_eq!(project_symbols_write_value_request.field_name, "value");
+        assert_eq!(
+            project_symbols_write_value_request
+                .anonymous_value_string
+                .get_anonymous_value_string_format(),
+            AnonymousValueStringFormat::Decimal
+        );
     }
 
     #[test]

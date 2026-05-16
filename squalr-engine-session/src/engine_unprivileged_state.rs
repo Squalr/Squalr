@@ -90,6 +90,14 @@ impl EngineExecutionContext for EngineUnprivilegedState {
         EngineUnprivilegedState::anonymize_value(self, data_value, anonymous_value_string_format)
     }
 
+    fn deanonymize_value_string(
+        &self,
+        data_type_ref: &DataTypeRef,
+        anonymous_value_string: &AnonymousValueString,
+    ) -> Result<DataValue, SymbolRegistryError> {
+        EngineUnprivilegedState::deanonymize_value_string(self, data_type_ref, anonymous_value_string)
+    }
+
     fn get_default_value(
         &self,
         data_type_ref: &DataTypeRef,

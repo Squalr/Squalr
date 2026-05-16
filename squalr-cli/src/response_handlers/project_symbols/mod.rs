@@ -134,5 +134,20 @@ pub fn handle_project_symbols_response(project_symbols_response: ProjectSymbolsR
                 );
             }
         }
+        ProjectSymbolsResponse::WriteValue {
+            project_symbols_write_value_response,
+        } => {
+            if project_symbols_write_value_response.success {
+                log::info!("wrote project symbol value: success=true");
+            } else {
+                log::error!(
+                    "wrote project symbol value: success=false, error={}",
+                    project_symbols_write_value_response
+                        .error
+                        .as_deref()
+                        .unwrap_or("unknown error")
+                );
+            }
+        }
     }
 }

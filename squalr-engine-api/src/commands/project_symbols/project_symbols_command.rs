@@ -6,6 +6,7 @@ use crate::commands::project_symbols::{
     list::project_symbols_list_request::ProjectSymbolsListRequest, rename::project_symbols_rename_request::ProjectSymbolsRenameRequest,
     rename_module::project_symbols_rename_module_request::ProjectSymbolsRenameModuleRequest,
     set_catalog::project_symbols_set_catalog_request::ProjectSymbolsSetCatalogRequest, update::project_symbols_update_request::ProjectSymbolsUpdateRequest,
+    write_value::project_symbols_write_value_request::ProjectSymbolsWriteValueRequest,
 };
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
@@ -56,5 +57,10 @@ pub enum ProjectSymbolsCommand {
     Update {
         #[structopt(flatten)]
         project_symbols_update_request: ProjectSymbolsUpdateRequest,
+    },
+    /// Writes an edited project symbol runtime value to process memory.
+    WriteValue {
+        #[structopt(flatten)]
+        project_symbols_write_value_request: ProjectSymbolsWriteValueRequest,
     },
 }

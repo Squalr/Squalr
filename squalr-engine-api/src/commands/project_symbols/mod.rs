@@ -9,3 +9,4 @@ pub mod rename;
 pub mod rename_module;
 pub mod set_catalog;
 pub mod update;
+pub mod write_value;

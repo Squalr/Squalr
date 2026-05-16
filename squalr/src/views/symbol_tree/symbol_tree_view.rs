@@ -24,10 +24,7 @@ use crate::views::{
 };
 use eframe::egui::{Align, Direction, Id, Key, Layout, Response, RichText, ScrollArea, Ui, UiBuilder, Widget};
 use squalr_engine_api::commands::{
-    memory::{
-        read::{memory_read_request::MemoryReadRequest, memory_read_response::MemoryReadResponse},
-        write::memory_write_request::MemoryWriteRequest,
-    },
+    memory::read::{memory_read_request::MemoryReadRequest, memory_read_response::MemoryReadResponse},
     privileged_command_request::PrivilegedCommandRequest,
     privileged_command_response::TypedPrivilegedCommandResponse,
     project_symbols::{
@@ -37,6 +34,7 @@ use squalr_engine_api::commands::{
         execute_plugin_action::project_symbols_execute_plugin_action_request::ProjectSymbolsExecutePluginActionRequest,
         rename::project_symbols_rename_request::ProjectSymbolsRenameRequest,
         rename_module::project_symbols_rename_module_request::ProjectSymbolsRenameModuleRequest,
+        write_value::project_symbols_write_value_request::ProjectSymbolsWriteValueRequest,
     },
     unprivileged_command_request::UnprivilegedCommandRequest,
 };
@@ -559,7 +557,7 @@ impl SymbolTreeView {
         selected_symbol_tree_entry: &SymbolTreeNode,
     ) {
         let symbol_layout = self.build_symbol_layout_for_tree_entry(project_symbol_catalog, selected_symbol_tree_entry);
-        let struct_viewer_edit_callback = self.build_struct_viewer_edit_callback(project_symbol_catalog, selected_symbol_tree_entry);
+        let struct_viewer_edit_callback = self.build_struct_viewer_edit_callback(selected_symbol_tree_entry);
         let focus_target = Self::build_struct_viewer_focus_target(Some(selected_symbol_tree_entry));
 
         StructViewerViewData::focus_valued_struct_with_focus_target(
@@ -604,7 +602,6 @@ impl SymbolTreeView {
 
     fn build_struct_viewer_edit_callback(
         &self,
-        project_symbol_catalog: &ProjectSymbolCatalog,
         selected_symbol_tree_entry: &SymbolTreeNode,
     ) -> Arc<dyn Fn(ValuedStructField) + Send + Sync> {
         let symbol_claim_locator_key = match selected_symbol_tree_entry.get_kind() {
@@ -612,9 +609,7 @@ impl SymbolTreeView {
             _ => None,
         };
         let selected_symbol_tree_entry = selected_symbol_tree_entry.clone();
-        let project_symbol_catalog = project_symbol_catalog.clone();
         let engine_unprivileged_state = self.app_context.engine_unprivileged_state.clone();
-        let engine_execution_context: Arc<dyn EngineExecutionContext> = engine_unprivileged_state.clone();
 
         Arc::new(move |edited_field: ValuedStructField| {
             if edited_field.get_name() == Self::STRUCT_VIEWER_SYMBOL_NAME_FIELD {
@@ -636,89 +631,41 @@ impl SymbolTreeView {
                 return;
             }
 
-            let Some(memory_write_request) = Self::build_memory_write_request_for_symbol_value_edit(
-                &engine_execution_context,
-                &project_symbol_catalog,
-                &selected_symbol_tree_entry,
-                &edited_field,
-            ) else {
+            let Some(edited_data_value) = edited_field.get_data_value() else {
                 return;
             };
+            let default_edit_format = engine_unprivileged_state.get_default_anonymous_value_string_format(edited_data_value.get_data_type_ref());
+            let anonymous_value_string = match engine_unprivileged_state.anonymize_value(edited_data_value, default_edit_format) {
+                Ok(anonymous_value_string) => anonymous_value_string,
+                Err(error) => {
+                    log::warn!("Failed to format Symbol Tree struct-viewer edit: {}", error);
+                    return;
+                }
+            };
 
-            memory_write_request.send(&engine_unprivileged_state, |memory_write_response| {
-                if !memory_write_response.success {
-                    log::warn!("Symbol Tree struct-viewer memory write command failed.");
+            ProjectSymbolsWriteValueRequest {
+                address: selected_symbol_tree_entry.get_locator().get_focus_address(),
+                module_name: selected_symbol_tree_entry
+                    .get_locator()
+                    .get_focus_module_name()
+                    .to_string(),
+                symbol_type_id: selected_symbol_tree_entry.get_symbol_type_id().to_string(),
+                container_type: selected_symbol_tree_entry.get_container_type(),
+                field_name: edited_field.get_name().to_string(),
+                anonymous_value_string,
+            }
+            .send(&engine_unprivileged_state, |project_symbols_write_value_response| {
+                if !project_symbols_write_value_response.success {
+                    log::warn!(
+                        "Symbol Tree struct-viewer value write command failed: {}",
+                        project_symbols_write_value_response
+                            .error
+                            .as_deref()
+                            .unwrap_or("unknown error")
+                    );
                 }
             });
         })
-    }
-
-    fn build_memory_write_request_for_symbol_value_edit(
-        engine_execution_context: &Arc<dyn EngineExecutionContext>,
-        project_symbol_catalog: &ProjectSymbolCatalog,
-        selected_symbol_tree_entry: &SymbolTreeNode,
-        edited_field: &ValuedStructField,
-    ) -> Option<MemoryWriteRequest> {
-        let edited_data_value = edited_field.get_data_value()?;
-        let symbolic_struct_definition =
-            Self::build_named_symbolic_struct_definition_for_value_edit(engine_execution_context, project_symbol_catalog, selected_symbol_tree_entry)?;
-        let field_offset = Self::resolve_symbol_layout_field_offset(engine_execution_context, &symbolic_struct_definition, edited_field.get_name())?;
-        let address = selected_symbol_tree_entry
-            .get_locator()
-            .get_focus_address()
-            .checked_add(field_offset)?;
-
-        Some(MemoryWriteRequest {
-            address,
-            module_name: selected_symbol_tree_entry
-                .get_locator()
-                .get_focus_module_name()
-                .to_string(),
-            value: edited_data_value.get_value_bytes().clone(),
-        })
-    }
-
-    fn build_named_symbolic_struct_definition_for_value_edit(
-        engine_execution_context: &Arc<dyn EngineExecutionContext>,
-        project_symbol_catalog: &ProjectSymbolCatalog,
-        symbol_tree_entry: &SymbolTreeNode,
-    ) -> Option<SymbolicStructDefinition> {
-        let symbolic_struct_definition = Self::build_symbolic_struct_definition_for_symbol_type_for_context(
-            engine_execution_context,
-            project_symbol_catalog,
-            symbol_tree_entry.get_symbol_type_id(),
-        )?;
-
-        if !symbolic_struct_definition.get_fields().is_empty() {
-            return Some(symbolic_struct_definition);
-        }
-
-        Some(SymbolicStructDefinition::new_anonymous(vec![SymbolicFieldDefinition::new(
-            DataTypeRef::new(symbol_tree_entry.get_symbol_type_id()),
-            symbol_tree_entry.get_container_type(),
-        )]))
-    }
-
-    fn resolve_symbol_layout_field_offset(
-        engine_execution_context: &Arc<dyn EngineExecutionContext>,
-        symbolic_struct_definition: &SymbolicStructDefinition,
-        edited_field_name: &str,
-    ) -> Option<u64> {
-        let mut cumulative_field_offset = 0_u64;
-
-        for (field_index, symbolic_field_definition) in symbolic_struct_definition.get_fields().iter().enumerate() {
-            if Self::normalize_symbol_value_field_name(symbolic_field_definition.get_field_name(), field_index) == edited_field_name {
-                return Some(cumulative_field_offset);
-            }
-
-            cumulative_field_offset = cumulative_field_offset.checked_add(Self::resolve_symbolic_field_size_in_bytes(
-                engine_execution_context,
-                symbolic_field_definition,
-                &mut HashSet::new(),
-            )?)?;
-        }
-
-        None
     }
 
     fn resolve_symbolic_field_size_in_bytes(

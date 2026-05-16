@@ -1,6 +1,9 @@
 use crossbeam_channel::{Receiver, unbounded};
 use squalr_engine_api::commands::{
-    memory::{memory_command::MemoryCommand, read::memory_read_request::MemoryReadRequest, read::memory_read_response::MemoryReadResponse},
+    memory::{
+        memory_command::MemoryCommand, read::memory_read_request::MemoryReadRequest, read::memory_read_response::MemoryReadResponse,
+        write::memory_write_request::MemoryWriteRequest, write::memory_write_response::MemoryWriteResponse,
+    },
     privileged_command::PrivilegedCommand,
     privileged_command_response::{PrivilegedCommandResponse, TypedPrivilegedCommandResponse},
     registry::{registry_command::RegistryCommand, set_project_symbols::registry_set_project_symbols_response::RegistrySetProjectSymbolsResponse},
@@ -25,6 +28,7 @@ use std::{
 
 pub struct MockProjectSymbolsBindings {
     captured_project_symbol_catalogs: Arc<Mutex<Vec<ProjectSymbolCatalog>>>,
+    captured_memory_write_requests: Arc<Mutex<Vec<MemoryWriteRequest>>>,
     memory_read_response_factory: Option<Arc<dyn Fn(&MemoryReadRequest) -> MemoryReadResponse + Send + Sync>>,
 }
 
@@ -32,6 +36,7 @@ impl MockProjectSymbolsBindings {
     pub fn new() -> Self {
         Self {
             captured_project_symbol_catalogs: Arc::new(Mutex::new(Vec::new())),
+            captured_memory_write_requests: Arc::new(Mutex::new(Vec::new())),
             memory_read_response_factory: None,
         }
     }
@@ -41,12 +46,17 @@ impl MockProjectSymbolsBindings {
     ) -> Self {
         Self {
             captured_project_symbol_catalogs: Arc::new(Mutex::new(Vec::new())),
+            captured_memory_write_requests: Arc::new(Mutex::new(Vec::new())),
             memory_read_response_factory: Some(Arc::new(memory_read_response_factory)),
         }
     }
 
     pub fn captured_project_symbol_catalogs(&self) -> Arc<Mutex<Vec<ProjectSymbolCatalog>>> {
         self.captured_project_symbol_catalogs.clone()
+    }
+
+    pub fn captured_memory_write_requests(&self) -> Arc<Mutex<Vec<MemoryWriteRequest>>> {
+        self.captured_memory_write_requests.clone()
     }
 }
 
@@ -78,6 +88,19 @@ impl EngineApiUnprivilegedBindings for MockProjectSymbolsBindings {
                 };
 
                 callback(memory_read_response_factory(&memory_read_request).to_engine_response());
+
+                Ok(())
+            }
+            PrivilegedCommand::Memory(MemoryCommand::Write { memory_write_request }) => {
+                let mut captured_memory_write_requests = self
+                    .captured_memory_write_requests
+                    .lock()
+                    .map_err(|error| EngineBindingError::lock_failure("capturing memory write request in tests", error.to_string()))?;
+
+                captured_memory_write_requests.push(memory_write_request);
+                drop(captured_memory_write_requests);
+
+                callback(MemoryWriteResponse { success: true }.to_engine_response());
 
                 Ok(())
             }
