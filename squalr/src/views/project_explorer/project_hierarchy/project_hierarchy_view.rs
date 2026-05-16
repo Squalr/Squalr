@@ -41,8 +41,9 @@ use squalr_engine_api::commands::settings::scan::list::scan_settings_list_reques
 use squalr_engine_api::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
-use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
+use squalr_engine_api::structures::data_types::{built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8, data_type_ref::DataTypeRef};
 use squalr_engine_api::structures::data_values::anonymous_value_string::AnonymousValueString;
+use squalr_engine_api::structures::details::{DetailsEdit, DetailsFieldId, DetailsValue};
 use squalr_engine_api::structures::memory::address_display::try_resolve_virtual_module_address;
 use squalr_engine_api::structures::memory::pointer::Pointer;
 use squalr_engine_api::structures::projects::project::Project;
@@ -50,7 +51,9 @@ use squalr_engine_api::structures::projects::project_info::ProjectInfo;
 use squalr_engine_api::structures::projects::project_items::built_in_types::{
     project_item_type_address::ProjectItemTypeAddress, project_item_type_directory::ProjectItemTypeDirectory, project_item_type_pointer::ProjectItemTypePointer,
 };
-use squalr_engine_api::structures::projects::project_items::{project_item::ProjectItem, project_item_ref::ProjectItemRef};
+use squalr_engine_api::structures::projects::project_items::{
+    details::ProjectItemDetailsProjection, project_item::ProjectItem, project_item_ref::ProjectItemRef,
+};
 use squalr_engine_api::structures::structs::valued_struct_field::{ValuedStructField, ValuedStructFieldData};
 use squalr_engine_session::virtual_snapshots::virtual_snapshot_query::VirtualSnapshotQuery;
 use std::collections::{HashMap, HashSet};
@@ -2968,24 +2971,31 @@ impl ProjectHierarchyView {
             return;
         }
 
-        let callback = Self::build_project_item_details_edit_callback(
-            app_context.clone(),
-            project_hierarchy_view_data.clone(),
-            struct_viewer_view_data.clone(),
-            project_item_paths.clone(),
-        );
-
         if selected_project_items.len() == 1 {
             if let Some(selected_project_item) = selected_project_items.into_iter().next() {
-                StructViewerViewData::focus_valued_struct_with_focus_target(
+                let details_edit_callback = Self::build_project_item_details_projection_edit_callback(
+                    app_context.clone(),
+                    project_hierarchy_view_data.clone(),
+                    struct_viewer_view_data.clone(),
+                    project_item_paths.clone(),
+                );
+                let details_projection = ProjectItemDetailsProjection::build(&selected_project_item, project_item_paths[0].to_string_lossy().to_string());
+
+                StructViewerViewData::focus_details_projection_with_focus_target(
                     struct_viewer_view_data,
                     app_context.engine_unprivileged_state.clone(),
-                    ProjectItemDetails::build_struct_view_properties(&selected_project_item),
-                    callback,
+                    details_projection,
+                    details_edit_callback,
                     Some(StructViewerFocusTarget::ProjectHierarchy { project_item_paths }),
                 );
             }
         } else {
+            let callback = Self::build_project_item_details_edit_callback(
+                app_context.clone(),
+                project_hierarchy_view_data.clone(),
+                struct_viewer_view_data.clone(),
+                project_item_paths.clone(),
+            );
             let selected_project_item_properties = selected_project_items
                 .into_iter()
                 .map(|selected_project_item| ProjectItemDetails::build_struct_view_properties(&selected_project_item))
@@ -2997,6 +3007,69 @@ impl ProjectHierarchyView {
                 callback,
                 Some(StructViewerFocusTarget::ProjectHierarchy { project_item_paths }),
             );
+        }
+    }
+
+    fn build_project_item_details_projection_edit_callback(
+        app_context: Arc<AppContext>,
+        project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
+        struct_viewer_view_data: Dependency<StructViewerViewData>,
+        project_item_paths: Vec<PathBuf>,
+    ) -> Arc<dyn Fn(DetailsEdit) + Send + Sync> {
+        Arc::new(move |details_edit: DetailsEdit| {
+            let should_refocus_details = details_edit.get_field_id().get_field_id() == ProjectItemDetailsProjection::FIELD_ID_ADDRESS_TARGET_POINTER_SIZE;
+            let Some(edited_field) = Self::project_item_details_edit_to_legacy_field(&details_edit) else {
+                log::warn!("Failed to convert project item details edit to legacy field: {:?}", details_edit);
+                return;
+            };
+
+            Self::apply_project_item_edits(app_context.clone(), project_item_paths.clone(), edited_field);
+
+            if should_refocus_details {
+                Self::focus_project_item_paths_in_struct_viewer(
+                    app_context.clone(),
+                    project_hierarchy_view_data.clone(),
+                    struct_viewer_view_data.clone(),
+                    project_item_paths.clone(),
+                );
+            }
+        })
+    }
+
+    fn project_item_details_edit_to_legacy_field(details_edit: &DetailsEdit) -> Option<ValuedStructField> {
+        let legacy_field_name = Self::project_item_details_field_id_to_legacy_field_name(details_edit.get_field_id())?;
+        let field_data = Self::details_value_to_legacy_field_data(details_edit.get_value());
+
+        Some(ValuedStructField::new(legacy_field_name, field_data, false))
+    }
+
+    fn project_item_details_field_id_to_legacy_field_name(details_field_id: &DetailsFieldId) -> Option<String> {
+        let field_id = details_field_id.get_field_id();
+
+        if field_id == ProjectItemDetailsProjection::FIELD_ID_ADDRESS_TARGET_POINTER_SIZE {
+            return Some(ProjectItemDetails::TARGET_FIELD_POINTER_SIZE.to_string());
+        }
+
+        if field_id == ProjectItemDetailsProjection::FIELD_ID_ADDRESS_TARGET_POINTER_OFFSETS {
+            return Some(ProjectItemDetails::TARGET_FIELD_POINTER_OFFSETS.to_string());
+        }
+
+        field_id
+            .strip_prefix("property.")
+            .map(|property_name| property_name.to_string())
+    }
+
+    fn details_value_to_legacy_field_data(details_value: &DetailsValue) -> ValuedStructFieldData {
+        match details_value {
+            DetailsValue::DataValue(data_value) => ValuedStructFieldData::Value(data_value.clone()),
+            DetailsValue::Text(text) => ValuedStructFieldData::Value(DataTypeStringUtf8::get_value_from_primitive_string(text)),
+            DetailsValue::Boolean(value) => ValuedStructFieldData::Value(DataTypeStringUtf8::get_value_from_primitive_string(&value.to_string())),
+            DetailsValue::UnsignedInteger(value) => ValuedStructFieldData::Value(DataTypeStringUtf8::get_value_from_primitive_string(&value.to_string())),
+            DetailsValue::SignedInteger(value) => ValuedStructFieldData::Value(DataTypeStringUtf8::get_value_from_primitive_string(&value.to_string())),
+            DetailsValue::AnonymousValue(anonymous_value_string) => ValuedStructFieldData::Value(DataTypeStringUtf8::get_value_from_primitive_string(
+                anonymous_value_string.get_anonymous_value_string(),
+            )),
+            DetailsValue::Empty => ValuedStructFieldData::Value(DataTypeStringUtf8::get_value_from_primitive_string("")),
         }
     }
 

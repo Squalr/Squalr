@@ -86,7 +86,9 @@ Our current task, from `README.md`, is:
    - API projector currently covers stored project item fields for Directory, Script, Address, and Pointer items.
    - API projector models address target pointer size/offsets, projected module metadata, symbolic data type, and runtime value as semantic `DetailsField`s.
    - Existing field-shape tests for address target fields, pointer preview hiding, projected module, and runtime editability were mirrored into the API projector.
-   - Remaining target: migrate `ProjectItemDetails::build_struct_view_properties` and `resolve_project_item_icon_data_type_id` callers to shared projection.
+   - Single-selection Project Hierarchy details focus now uses `ProjectItemDetailsProjection` plus `StructViewerViewData::focus_details_projection_with_focus_target`.
+   - Multi-selection Project Hierarchy details focus still uses legacy `ProjectItemDetails::build_struct_view_properties` until a multi-projection strategy exists.
+   - Remaining target: migrate `resolve_project_item_icon_data_type_id` callers and remove legacy single-selection `ProjectItemDetails::build_struct_view_properties` dependency after edit planning moves off legacy fields.
 
 5. Add project item edit planning.
    - A project item detail edit should produce explicit operations such as:
@@ -152,4 +154,5 @@ Our current task, from `README.md`, is:
 - Details architecture audit used source inspection only.
 - Previous implementation pass added the shared `DetailsProjection`/field/edit/plan model only.
 - Current Struct Viewer pass added a compatibility adapter and focus API for `DetailsProjection`; no Project Hierarchy or Symbol Tree callers have migrated yet.
-- Current project item pass added a pure API-side `ProjectItemDetailsProjection`; no Project Hierarchy callers have migrated yet.
+- Current project item pass added a pure API-side `ProjectItemDetailsProjection`.
+- Current Project Hierarchy pass migrated single-selection details focus to `DetailsProjection`; multi-selection and legacy edit application still use `ProjectItemDetails`.
