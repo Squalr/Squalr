@@ -429,6 +429,11 @@ where
         .iter()
         .zip(variant_activations)
     {
+        if field_definition.is_unassigned() {
+            next_sequential_offset = next_sequential_offset.saturating_add(field_definition.get_unassigned_size_in_bytes().unwrap_or(0));
+            continue;
+        }
+
         let field_offset_result = resolve_field_offset(
             symbolic_struct_definition,
             field_definition,
@@ -1024,6 +1029,11 @@ where
     let mut next_sequential_offset = 0_u64;
 
     for field_definition in current_struct_definition.get_fields() {
+        if field_definition.is_unassigned() {
+            next_sequential_offset = next_sequential_offset.saturating_add(field_definition.get_unassigned_size_in_bytes().unwrap_or(0));
+            continue;
+        }
+
         let field_offset = resolve_field_offset(
             current_struct_definition,
             field_definition,
@@ -1269,6 +1279,32 @@ mod tests {
         assert_eq!(resolved_fields[0].get_size_in_bytes(), Some(96));
         assert_eq!(resolved_fields[0].get_status(), &ResolvedSymbolicFieldStatus::Ready);
         assert_eq!(resolved_fields[1].get_offset_in_bytes(), Some(4));
+    }
+
+    #[test]
+    fn resolver_uses_unassigned_entries_as_sequential_space() {
+        let symbolic_struct_definition = SymbolicStructDefinition::new(
+            String::from("Items"),
+            vec![
+                SymbolicFieldDefinition::from_str("unassigned[0x20]").expect("Expected unassigned entry to parse."),
+                SymbolicFieldDefinition::from_str("health:u32").expect("Expected health field to parse."),
+            ],
+        );
+
+        let resolved_struct = resolve_symbolic_struct_definition(
+            &symbolic_struct_definition,
+            |data_type_ref| match data_type_ref.get_data_type_id() {
+                "u32" => Some(4),
+                _ => None,
+            },
+            |_field_definition, _, _| Ok(None),
+            &SymbolicStructResolverOptions::default(),
+        );
+        let resolved_fields = resolved_struct.get_fields();
+
+        assert_eq!(resolved_fields.len(), 1);
+        assert_eq!(resolved_fields[0].get_field_name(), "health");
+        assert_eq!(resolved_fields[0].get_offset_in_bytes(), Some(0x20));
     }
 
     #[test]

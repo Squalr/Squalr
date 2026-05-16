@@ -475,6 +475,11 @@ fn collect_symbolic_field_spans(
     let mut next_sequential_offset = 0_u64;
 
     for (field_index, field_definition) in struct_layout_definition.get_fields().iter().enumerate() {
+        if field_definition.is_unassigned() {
+            next_sequential_offset = next_sequential_offset.saturating_add(field_definition.get_unassigned_size_in_bytes().unwrap_or(0));
+            continue;
+        }
+
         let field_offset = match field_definition.get_offset_resolution() {
             SymbolicFieldOffsetResolution::Static(offset_in_bytes) => *offset_in_bytes,
             SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_) if struct_layout_definition.get_layout_kind().is_union() => {

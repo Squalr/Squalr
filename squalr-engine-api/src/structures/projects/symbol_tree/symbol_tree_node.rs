@@ -620,6 +620,7 @@ fn append_struct_field_nodes<ResolvePrimitiveSize, ReadScalarField, ResolveRelat
     for (field_index, (field_definition, resolved_symbolic_field)) in struct_layout_definition
         .get_fields()
         .iter()
+        .filter(|field_definition| !field_definition.is_unassigned())
         .zip(resolved_symbolic_struct.get_fields())
         .enumerate()
     {
@@ -1003,7 +1004,12 @@ fn data_type_ref_can_expand(
             }
 
             let can_expand = resolve_struct_layout_definition(project_symbol_catalog, data_type_id)
-                .map(|struct_layout_definition| !struct_layout_definition.get_fields().is_empty())
+                .map(|struct_layout_definition| {
+                    struct_layout_definition
+                        .get_fields()
+                        .iter()
+                        .any(|field_definition| !field_definition.is_unassigned())
+                })
                 .unwrap_or(false);
 
             visited_struct_layout_ids.remove(data_type_id);
@@ -1098,6 +1104,11 @@ where
     let mut next_sequential_offset = 0_u64;
 
     for field_definition in struct_layout_definition.get_fields() {
+        if field_definition.is_unassigned() {
+            next_sequential_offset = next_sequential_offset.saturating_add(field_definition.get_unassigned_size_in_bytes().unwrap_or(0));
+            continue;
+        }
+
         let field_offset = match field_definition.get_offset_resolution() {
             SymbolicFieldOffsetResolution::Static(offset_in_bytes) => *offset_in_bytes,
             SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_) if struct_layout_definition.get_layout_kind().is_union() => {

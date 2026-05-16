@@ -137,6 +137,7 @@ impl SymbolicStructDefinition {
         let fields = self
             .fields
             .iter()
+            .filter(|field| !field.is_unassigned())
             .map(|field| field.get_valued_struct_field(symbol_registry, false))
             .collect();
         ValuedStruct::new_with_layout_kind(SymbolicStructRef::new(self.symbol_namespace.clone()), self.layout_kind, fields)
@@ -228,5 +229,19 @@ mod tests {
 
         assert_eq!(symbolic_struct_definition.get_size_in_bytes(&symbol_registry), 32);
         assert_eq!(symbolic_struct_definition.get_declared_size_in_bytes(), Some(32));
+    }
+
+    #[test]
+    fn unassigned_entries_advance_sequential_layout_size() {
+        let symbol_registry = SymbolRegistry::new();
+        let symbolic_struct_definition = SymbolicStructDefinition::new(
+            String::from("Sparse"),
+            vec![
+                SymbolicFieldDefinition::from_str("unassigned[0x20]").expect("Expected unassigned entry to parse."),
+                SymbolicFieldDefinition::from_str("value:u32").expect("Expected value field to parse."),
+            ],
+        );
+
+        assert_eq!(symbolic_struct_definition.get_size_in_bytes(&symbol_registry), 0x24);
     }
 }

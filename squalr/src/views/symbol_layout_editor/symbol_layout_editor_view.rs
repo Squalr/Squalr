@@ -637,6 +637,7 @@ impl SymbolLayoutEditorView {
             || next_field_span.is_some()
     }
 
+    #[cfg(test)]
     fn resolve_first_unassigned_offset(
         field_spans: &[SymbolLayoutFieldSpan],
         layout_size_in_bytes: u64,
@@ -3238,8 +3239,18 @@ impl SymbolLayoutEditorView {
             });
         let mut next_sequential_offset = 0_u64;
         let mut field_spans = Vec::with_capacity(symbolic_struct_definition.get_fields().len());
+        let mut visible_field_position = 0_usize;
 
-        for (field_position, symbolic_field_definition) in symbolic_struct_definition.get_fields().iter().enumerate() {
+        for symbolic_field_definition in symbolic_struct_definition.get_fields() {
+            if symbolic_field_definition.is_unassigned() {
+                next_sequential_offset = next_sequential_offset.saturating_add(
+                    symbolic_field_definition
+                        .get_unassigned_size_in_bytes()
+                        .unwrap_or(0),
+                );
+                continue;
+            }
+
             let field_offset = match symbolic_field_definition.get_offset_resolution() {
                 SymbolicFieldOffsetResolution::Static(offset_in_bytes) => *offset_in_bytes,
                 SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_)
@@ -3257,10 +3268,11 @@ impl SymbolLayoutEditorView {
 
             next_sequential_offset = next_sequential_offset.max(field_offset.saturating_add(field_size_in_bytes));
             field_spans.push(SymbolLayoutFieldSpan {
-                field_position,
+                field_position: visible_field_position,
                 offset_in_bytes: field_offset,
                 size_in_bytes: field_size_in_bytes,
             });
+            visible_field_position = visible_field_position.saturating_add(1);
         }
 
         Some((layout_size_in_bytes, field_spans))

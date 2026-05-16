@@ -1173,7 +1173,41 @@ impl SymbolLayoutEditorViewData {
                 .get_struct_layout_definition()
                 .get_fields()
                 .iter()
-                .map(SymbolLayoutFieldEditDraft::from_symbolic_field_definition)
+                .scan(0_u64, |next_sequential_offset, symbolic_field_definition| {
+                    if symbolic_field_definition.is_unassigned() {
+                        *next_sequential_offset = next_sequential_offset.saturating_add(
+                            symbolic_field_definition
+                                .get_unassigned_size_in_bytes()
+                                .unwrap_or(0),
+                        );
+                        return Some(None);
+                    }
+
+                    let field_offset = match symbolic_field_definition.get_offset_resolution() {
+                        SymbolicFieldOffsetResolution::Static(offset_in_bytes) => *offset_in_bytes,
+                        SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_)
+                            if struct_layout_descriptor
+                                .get_struct_layout_definition()
+                                .get_layout_kind()
+                                .is_union() =>
+                        {
+                            0
+                        }
+                        SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_) => *next_sequential_offset,
+                    };
+                    let field_size_in_bytes =
+                        Self::resolve_symbolic_field_size_in_bytes(project_symbol_catalog, symbolic_field_definition, &mut HashSet::new());
+                    *next_sequential_offset = (*next_sequential_offset).max(field_offset.saturating_add(field_size_in_bytes));
+
+                    let mut field_draft = SymbolLayoutFieldEditDraft::from_symbolic_field_definition(symbolic_field_definition);
+                    if field_draft.offset_mode == SymbolLayoutFieldOffsetMode::Sequential && field_offset > 0 {
+                        field_draft.offset_mode = SymbolLayoutFieldOffsetMode::Static;
+                        field_draft.static_offset_in_bytes = format!("0x{:X}", field_offset);
+                    }
+
+                    Some(Some(field_draft))
+                })
+                .flatten()
                 .collect(),
         }
     }
@@ -1229,6 +1263,7 @@ impl SymbolLayoutEditorViewData {
 
         let mut symbolic_field_definitions = Vec::with_capacity(draft.field_drafts.len());
         let mut field_names = HashSet::new();
+        let mut next_sequential_offset = 0_u64;
         for field_draft in &draft.field_drafts {
             let trimmed_data_type_id = field_draft
                 .data_type_selection
@@ -1264,6 +1299,26 @@ impl SymbolLayoutEditorViewData {
             .with_active_when_resolver(field_draft.to_active_when_resolver())
             .with_hidden(field_draft.is_hidden);
 
+            let (field_offset, symbolic_field_definition) = match symbolic_field_definition.get_offset_resolution() {
+                SymbolicFieldOffsetResolution::Static(offset_in_bytes) if !draft.layout_kind.is_union() && *offset_in_bytes >= next_sequential_offset => {
+                    if *offset_in_bytes > next_sequential_offset {
+                        symbolic_field_definitions.push(SymbolicFieldDefinition::new_unassigned(offset_in_bytes.saturating_sub(next_sequential_offset)));
+                    }
+
+                    (
+                        *offset_in_bytes,
+                        symbolic_field_definition.with_offset_resolution(SymbolicFieldOffsetResolution::Sequential),
+                    )
+                }
+                SymbolicFieldOffsetResolution::Static(offset_in_bytes) => (*offset_in_bytes, symbolic_field_definition),
+                SymbolicFieldOffsetResolution::Sequential if draft.layout_kind.is_union() => (0, symbolic_field_definition),
+                SymbolicFieldOffsetResolution::Sequential => (next_sequential_offset, symbolic_field_definition),
+                SymbolicFieldOffsetResolution::Resolver(_) if draft.layout_kind.is_union() => (0, symbolic_field_definition),
+                SymbolicFieldOffsetResolution::Resolver(_) => (next_sequential_offset, symbolic_field_definition),
+            };
+            let field_size_in_bytes = Self::resolve_symbolic_field_size_in_bytes(project_symbol_catalog, &symbolic_field_definition, &mut HashSet::new());
+
+            next_sequential_offset = next_sequential_offset.max(field_offset.saturating_add(field_size_in_bytes));
             symbolic_field_definitions.push(symbolic_field_definition);
         }
 
@@ -1342,6 +1397,15 @@ impl SymbolLayoutEditorViewData {
         let mut next_sequential_offset = 0_u64;
 
         for symbolic_field_definition in symbolic_struct_definition.get_fields() {
+            if symbolic_field_definition.is_unassigned() {
+                next_sequential_offset = next_sequential_offset.saturating_add(
+                    symbolic_field_definition
+                        .get_unassigned_size_in_bytes()
+                        .unwrap_or(0),
+                );
+                continue;
+            }
+
             let field_offset = match symbolic_field_definition.get_offset_resolution() {
                 SymbolicFieldOffsetResolution::Static(offset_in_bytes) => *offset_in_bytes,
                 SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_)
@@ -2173,7 +2237,7 @@ mod tests {
     }
 
     #[test]
-    fn draft_round_trips_static_offsets() {
+    fn draft_materializes_static_offsets_as_unassigned_entries() {
         let struct_layout_descriptor = StructLayoutDescriptor::new(
             String::from("image.headers"),
             SymbolicStructDefinition::new(
@@ -2198,14 +2262,12 @@ mod tests {
         let project_symbol_catalog = ProjectSymbolCatalog::default();
         let round_tripped_descriptor =
             SymbolLayoutEditorViewData::build_symbol_layout_descriptor(&project_symbol_catalog, &draft).expect("Expected static offset draft to build.");
+        let round_tripped_fields = round_tripped_descriptor
+            .get_struct_layout_definition()
+            .get_fields();
 
-        assert_eq!(
-            round_tripped_descriptor
-                .get_struct_layout_definition()
-                .get_fields()[1]
-                .to_string(),
-            "sections:win.Section[resolver(pe.section_count)] @ +4"
-        );
+        assert_eq!(round_tripped_fields[1].to_string(), "unassigned[1]");
+        assert_eq!(round_tripped_fields[2].to_string(), "sections:win.Section[resolver(pe.section_count)]");
     }
 
     #[test]

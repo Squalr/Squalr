@@ -12,7 +12,14 @@ use std::fmt;
 use std::str::FromStr;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SymbolicFieldDefinition {
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum SymbolicFieldDefinition {
+    Field(SymbolicDefinedField),
+    Unassigned(SymbolicUnassignedField),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SymbolicDefinedField {
     #[serde(default)]
     field_name: String,
     data_type_ref: DataTypeRef,
@@ -28,6 +35,16 @@ pub struct SymbolicFieldDefinition {
     #[serde(default, skip_serializing_if = "is_false")]
     is_hidden: bool,
 }
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SymbolicUnassignedField {
+    size_in_bytes: u64,
+    #[serde(default = "default_unassigned_data_type_ref", skip)]
+    data_type_ref: DataTypeRef,
+}
+
+static INFERRED_FIELD_COUNT_RESOLUTION: SymbolicFieldCountResolution = SymbolicFieldCountResolution::Inferred;
+static SEQUENTIAL_FIELD_OFFSET_RESOLUTION: SymbolicFieldOffsetResolution = SymbolicFieldOffsetResolution::Sequential;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SymbolicFieldCountResolution {
@@ -87,7 +104,7 @@ impl SymbolicFieldDefinition {
         data_type_ref: DataTypeRef,
         container_type: ContainerType,
     ) -> Self {
-        SymbolicFieldDefinition {
+        SymbolicFieldDefinition::Field(SymbolicDefinedField {
             field_name: String::new(),
             data_type_ref,
             container_type,
@@ -96,7 +113,7 @@ impl SymbolicFieldDefinition {
             offset_resolution: SymbolicFieldOffsetResolution::Sequential,
             active_when_resolver: None,
             is_hidden: false,
-        }
+        })
     }
 
     pub fn new_named(
@@ -104,7 +121,7 @@ impl SymbolicFieldDefinition {
         data_type_ref: DataTypeRef,
         container_type: ContainerType,
     ) -> Self {
-        SymbolicFieldDefinition {
+        SymbolicFieldDefinition::Field(SymbolicDefinedField {
             field_name,
             data_type_ref,
             container_type,
@@ -113,7 +130,7 @@ impl SymbolicFieldDefinition {
             offset_resolution: SymbolicFieldOffsetResolution::Sequential,
             active_when_resolver: None,
             is_hidden: false,
-        }
+        })
     }
 
     pub fn new_named_with_resolutions(
@@ -123,7 +140,7 @@ impl SymbolicFieldDefinition {
         count_resolution: SymbolicFieldCountResolution,
         offset_resolution: SymbolicFieldOffsetResolution,
     ) -> Self {
-        SymbolicFieldDefinition {
+        SymbolicFieldDefinition::Field(SymbolicDefinedField {
             field_name,
             data_type_ref,
             container_type,
@@ -132,7 +149,7 @@ impl SymbolicFieldDefinition {
             offset_resolution,
             active_when_resolver: None,
             is_hidden: false,
-        }
+        })
     }
 
     pub fn new_named_with_resolutions_and_display_count(
@@ -143,7 +160,7 @@ impl SymbolicFieldDefinition {
         display_count_resolution: SymbolicFieldCountResolution,
         offset_resolution: SymbolicFieldOffsetResolution,
     ) -> Self {
-        SymbolicFieldDefinition {
+        SymbolicFieldDefinition::Field(SymbolicDefinedField {
             field_name,
             data_type_ref,
             container_type,
@@ -152,14 +169,24 @@ impl SymbolicFieldDefinition {
             offset_resolution,
             active_when_resolver: None,
             is_hidden: false,
-        }
+        })
+    }
+
+    pub fn new_unassigned(size_in_bytes: u64) -> Self {
+        SymbolicFieldDefinition::Unassigned(SymbolicUnassignedField {
+            size_in_bytes,
+            data_type_ref: default_unassigned_data_type_ref(),
+        })
     }
 
     pub fn with_active_when_resolver(
         mut self,
         active_when_resolver: Option<SymbolicResolverRef>,
     ) -> Self {
-        self.active_when_resolver = active_when_resolver;
+        if let SymbolicFieldDefinition::Field(field_definition) = &mut self {
+            field_definition.active_when_resolver = active_when_resolver;
+        }
+
         self
     }
 
@@ -167,7 +194,21 @@ impl SymbolicFieldDefinition {
         mut self,
         is_hidden: bool,
     ) -> Self {
-        self.is_hidden = is_hidden;
+        if let SymbolicFieldDefinition::Field(field_definition) = &mut self {
+            field_definition.is_hidden = is_hidden;
+        }
+
+        self
+    }
+
+    pub fn with_offset_resolution(
+        mut self,
+        offset_resolution: SymbolicFieldOffsetResolution,
+    ) -> Self {
+        if let SymbolicFieldDefinition::Field(field_definition) = &mut self {
+            field_definition.offset_resolution = offset_resolution;
+        }
+
         self
     }
 
@@ -176,18 +217,20 @@ impl SymbolicFieldDefinition {
         symbol_registry: &impl SymbolResolver,
         is_read_only: bool,
     ) -> ValuedStructField {
-        let field_data = if let Some(pointer_size) = self.container_type.get_pointer_size() {
+        let container_type = self.get_container_type();
+        let data_type_ref = self.get_data_type_ref();
+        let field_data = if let Some(pointer_size) = container_type.get_pointer_size() {
             let default_value = symbol_registry
                 .get_default_value(&pointer_size.to_data_type_ref())
                 .unwrap_or_default();
 
             ValuedStructFieldData::Value(default_value)
         } else {
-            match self.container_type {
+            match container_type {
                 ContainerType::None => {
-                    if let Some(default_value) = symbol_registry.get_default_value(&self.data_type_ref) {
+                    if let Some(default_value) = symbol_registry.get_default_value(data_type_ref) {
                         ValuedStructFieldData::Value(default_value)
-                    } else if let Some(nested_struct_layout) = symbol_registry.get_struct_layout(self.data_type_ref.get_data_type_id()) {
+                    } else if let Some(nested_struct_layout) = symbol_registry.get_struct_layout(data_type_ref.get_data_type_id()) {
                         ValuedStructFieldData::NestedStruct(Box::new(nested_struct_layout.get_default_valued_struct(symbol_registry)))
                     } else {
                         ValuedStructFieldData::Value(DataValue::default())
@@ -229,7 +272,7 @@ impl SymbolicFieldDefinition {
             }
         };
 
-        ValuedStructField::new(self.field_name.clone(), field_data, is_read_only)
+        ValuedStructField::new(self.get_field_name().to_string(), field_data, is_read_only)
     }
 
     fn build_default_value_or_struct_bytes(
@@ -237,16 +280,15 @@ impl SymbolicFieldDefinition {
         symbol_registry: &impl SymbolResolver,
         element_count: u64,
     ) -> Option<DataValue> {
-        let mut array_value = symbol_registry
-            .get_default_value(&self.data_type_ref)
-            .or_else(|| {
-                let nested_struct_layout = symbol_registry.get_struct_layout(self.data_type_ref.get_data_type_id())?;
-                let nested_struct_bytes = nested_struct_layout
-                    .get_default_valued_struct(symbol_registry)
-                    .get_bytes();
+        let data_type_ref = self.get_data_type_ref();
+        let mut array_value = symbol_registry.get_default_value(data_type_ref).or_else(|| {
+            let nested_struct_layout = symbol_registry.get_struct_layout(data_type_ref.get_data_type_id())?;
+            let nested_struct_bytes = nested_struct_layout
+                .get_default_valued_struct(symbol_registry)
+                .get_bytes();
 
-                Some(DataValue::new(self.data_type_ref.clone(), nested_struct_bytes))
-            })?;
+            Some(DataValue::new(data_type_ref.clone(), nested_struct_bytes))
+        })?;
         let repeated_element_count = usize::try_from(element_count).ok()?;
         let repeated_bytes = array_value.get_value_bytes().repeat(repeated_element_count);
 
@@ -259,49 +301,89 @@ impl SymbolicFieldDefinition {
         &self,
         symbol_registry: &impl SymbolResolver,
     ) -> u64 {
+        if let SymbolicFieldDefinition::Unassigned(unassigned_field) = self {
+            return unassigned_field.size_in_bytes;
+        }
+
         let unit_size_in_bytes = symbol_registry
-            .get_default_value(&self.data_type_ref)
+            .get_default_value(self.get_data_type_ref())
             .map(|default_value| default_value.get_size_in_bytes())
             .or_else(|| {
                 symbol_registry
-                    .get_struct_layout(self.data_type_ref.get_data_type_id())
+                    .get_struct_layout(self.get_data_type_ref().get_data_type_id())
                     .map(|nested_struct_layout| nested_struct_layout.get_size_in_bytes(symbol_registry))
             })
-            .unwrap_or_else(|| symbol_registry.get_unit_size_in_bytes(&self.data_type_ref));
+            .unwrap_or_else(|| symbol_registry.get_unit_size_in_bytes(self.get_data_type_ref()));
 
-        self.container_type.get_total_size_in_bytes(unit_size_in_bytes)
+        self.get_container_type()
+            .get_total_size_in_bytes(unit_size_in_bytes)
     }
 
     pub fn get_data_type_ref(&self) -> &DataTypeRef {
-        &self.data_type_ref
+        match self {
+            SymbolicFieldDefinition::Field(field_definition) => &field_definition.data_type_ref,
+            SymbolicFieldDefinition::Unassigned(unassigned_field) => &unassigned_field.data_type_ref,
+        }
     }
 
     pub fn get_field_name(&self) -> &str {
-        &self.field_name
+        match self {
+            SymbolicFieldDefinition::Field(field_definition) => &field_definition.field_name,
+            SymbolicFieldDefinition::Unassigned(_) => "",
+        }
     }
 
     pub fn get_container_type(&self) -> ContainerType {
-        self.container_type
+        match self {
+            SymbolicFieldDefinition::Field(field_definition) => field_definition.container_type,
+            SymbolicFieldDefinition::Unassigned(unassigned_field) => ContainerType::ArrayFixed(unassigned_field.size_in_bytes),
+        }
     }
 
     pub fn get_count_resolution(&self) -> &SymbolicFieldCountResolution {
-        &self.count_resolution
+        match self {
+            SymbolicFieldDefinition::Field(field_definition) => &field_definition.count_resolution,
+            SymbolicFieldDefinition::Unassigned(_) => &INFERRED_FIELD_COUNT_RESOLUTION,
+        }
     }
 
     pub fn get_display_count_resolution(&self) -> &SymbolicFieldCountResolution {
-        &self.display_count_resolution
+        match self {
+            SymbolicFieldDefinition::Field(field_definition) => &field_definition.display_count_resolution,
+            SymbolicFieldDefinition::Unassigned(_) => &INFERRED_FIELD_COUNT_RESOLUTION,
+        }
     }
 
     pub fn get_offset_resolution(&self) -> &SymbolicFieldOffsetResolution {
-        &self.offset_resolution
+        match self {
+            SymbolicFieldDefinition::Field(field_definition) => &field_definition.offset_resolution,
+            SymbolicFieldDefinition::Unassigned(_) => &SEQUENTIAL_FIELD_OFFSET_RESOLUTION,
+        }
     }
 
     pub fn get_active_when_resolver(&self) -> Option<&SymbolicResolverRef> {
-        self.active_when_resolver.as_ref()
+        match self {
+            SymbolicFieldDefinition::Field(field_definition) => field_definition.active_when_resolver.as_ref(),
+            SymbolicFieldDefinition::Unassigned(_) => None,
+        }
     }
 
     pub fn is_hidden(&self) -> bool {
-        self.is_hidden
+        match self {
+            SymbolicFieldDefinition::Field(field_definition) => field_definition.is_hidden,
+            SymbolicFieldDefinition::Unassigned(_) => true,
+        }
+    }
+
+    pub fn is_unassigned(&self) -> bool {
+        matches!(self, SymbolicFieldDefinition::Unassigned(_))
+    }
+
+    pub fn get_unassigned_size_in_bytes(&self) -> Option<u64> {
+        match self {
+            SymbolicFieldDefinition::Unassigned(unassigned_field) => Some(unassigned_field.size_in_bytes),
+            SymbolicFieldDefinition::Field(_) => None,
+        }
     }
 }
 
@@ -310,6 +392,10 @@ impl FromStr for SymbolicFieldDefinition {
 
     fn from_str(string: &str) -> Result<Self, Self::Err> {
         let trimmed_string = string.trim();
+        if let Some(unassigned_size_in_bytes) = parse_unassigned_field(trimmed_string)? {
+            return Ok(SymbolicFieldDefinition::new_unassigned(unassigned_size_in_bytes));
+        }
+
         let (field_definition_string, offset_resolution) = if let Some((field_definition_string, offset_resolution_string)) = trimmed_string.split_once('@') {
             (field_definition_string.trim(), parse_offset_resolution(offset_resolution_string.trim())?)
         } else {
@@ -385,7 +471,7 @@ impl FromStr for SymbolicFieldDefinition {
         let data_type = DataTypeRef::from_str(type_str.trim())?;
 
         if field_name.is_empty() {
-            Ok(SymbolicFieldDefinition {
+            Ok(SymbolicFieldDefinition::Field(SymbolicDefinedField {
                 field_name,
                 data_type_ref: data_type,
                 container_type,
@@ -394,7 +480,7 @@ impl FromStr for SymbolicFieldDefinition {
                 offset_resolution,
                 active_when_resolver,
                 is_hidden,
-            })
+            }))
         } else {
             Ok(SymbolicFieldDefinition::new_named_with_resolutions_and_display_count(
                 field_name,
@@ -415,32 +501,39 @@ impl fmt::Display for SymbolicFieldDefinition {
         &self,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        let container_text = match &self.count_resolution {
-            SymbolicFieldCountResolution::Inferred => self.container_type.to_string(),
+        let SymbolicFieldDefinition::Field(field_definition) = self else {
+            let Some(size_in_bytes) = self.get_unassigned_size_in_bytes() else {
+                return write!(formatter, "unassigned[0]");
+            };
+
+            return write!(formatter, "unassigned[{}]", size_in_bytes);
+        };
+        let container_text = match &field_definition.count_resolution {
+            SymbolicFieldCountResolution::Inferred => field_definition.container_type.to_string(),
             SymbolicFieldCountResolution::Resolver(resolver_id) => self.format_container_text_with_count(&format!("resolver({})", resolver_id)),
         };
-        let mut field_text = if self.field_name.is_empty() {
-            format!("{}{}", self.data_type_ref, container_text)
+        let mut field_text = if field_definition.field_name.is_empty() {
+            format!("{}{}", field_definition.data_type_ref, container_text)
         } else {
-            format!("{}:{}{}", self.field_name, self.data_type_ref, container_text)
+            format!("{}:{}{}", field_definition.field_name, field_definition.data_type_ref, container_text)
         };
 
-        match &self.display_count_resolution {
+        match &field_definition.display_count_resolution {
             SymbolicFieldCountResolution::Inferred => {}
             SymbolicFieldCountResolution::Resolver(resolver_id) => {
                 field_text = format!("{} display resolver({})", field_text, resolver_id);
             }
         }
 
-        if let Some(active_when_resolver) = self.active_when_resolver.as_ref() {
+        if let Some(active_when_resolver) = field_definition.active_when_resolver.as_ref() {
             field_text = format!("{} active resolver({})", field_text, active_when_resolver.get_resolver_id());
         }
 
-        if self.is_hidden {
+        if field_definition.is_hidden {
             field_text = format!("{} hidden", field_text);
         }
 
-        match &self.offset_resolution {
+        match &field_definition.offset_resolution {
             SymbolicFieldOffsetResolution::Static(offset_in_bytes) => return write!(formatter, "{} @ +{}", field_text, offset_in_bytes),
             SymbolicFieldOffsetResolution::Resolver(resolver_id) => return write!(formatter, "{} @ resolver({})", field_text, resolver_id),
             SymbolicFieldOffsetResolution::Sequential => {}
@@ -455,7 +548,7 @@ impl SymbolicFieldDefinition {
         &self,
         count_text: &str,
     ) -> String {
-        match self.container_type {
+        match self.get_container_type() {
             ContainerType::PointerArray(pointer_size) | ContainerType::PointerArrayFixed(pointer_size, _) => {
                 format!("*({})[{}]", pointer_size, count_text)
             }
@@ -479,6 +572,23 @@ fn split_pointer_suffix(type_part: &str) -> Result<(&str, Option<PointerScanPoin
     }
 
     Ok((type_part, None))
+}
+
+fn default_unassigned_data_type_ref() -> DataTypeRef {
+    DataTypeRef::new("u8")
+}
+
+fn parse_unassigned_field(field_definition_string: &str) -> Result<Option<u64>, String> {
+    let Some(size_text) = field_definition_string
+        .strip_prefix("unassigned[")
+        .and_then(|remaining_text| remaining_text.strip_suffix(']'))
+    else {
+        return Ok(None);
+    };
+
+    parse_static_offset(size_text)
+        .map(Some)
+        .map_err(|_| format!("Invalid unassigned size: {}.", size_text.trim()))
 }
 
 fn parse_hidden_flag(field_definition_string: &str) -> (&str, bool) {
@@ -603,6 +713,15 @@ mod tests {
         assert_eq!(symbolic_field_definition.get_data_type_ref(), &DataTypeRef::new("u32"));
         assert_eq!(symbolic_field_definition.get_container_type(), ContainerType::None);
         assert_eq!(symbolic_field_definition.to_string(), "health:u32");
+    }
+
+    #[test]
+    fn unassigned_field_round_trips_as_layout_entry() {
+        let symbolic_field_definition = SymbolicFieldDefinition::from_str("unassigned[0x20]").expect("Expected unassigned layout entry to parse.");
+
+        assert!(symbolic_field_definition.is_unassigned());
+        assert_eq!(symbolic_field_definition.get_unassigned_size_in_bytes(), Some(0x20));
+        assert_eq!(symbolic_field_definition.to_string(), "unassigned[32]");
     }
 
     #[test]

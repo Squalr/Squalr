@@ -374,6 +374,11 @@ impl ProjectSymbolLayoutMutation {
         let mut next_sequential_offset = 0_u64;
 
         for symbolic_field_definition in symbolic_struct_definition.get_fields() {
+            if symbolic_field_definition.is_unassigned() {
+                next_sequential_offset = next_sequential_offset.saturating_add(symbolic_field_definition.get_unassigned_size_in_bytes()?);
+                continue;
+            }
+
             let field_offset = match symbolic_field_definition.get_offset_resolution() {
                 SymbolicFieldOffsetResolution::Static(offset_in_bytes) => *offset_in_bytes,
                 SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_)

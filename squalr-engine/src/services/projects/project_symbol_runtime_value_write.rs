@@ -138,8 +138,14 @@ fn resolve_symbol_layout_field_write_target(
     edited_field_name: &str,
 ) -> Option<ResolvedSymbolicFieldWriteTarget> {
     let mut next_sequential_offset = 0_u64;
+    let mut value_field_index = 0_usize;
 
-    for (field_index, symbolic_field_definition) in symbolic_struct_definition.get_fields().iter().enumerate() {
+    for symbolic_field_definition in symbolic_struct_definition.get_fields() {
+        if symbolic_field_definition.is_unassigned() {
+            next_sequential_offset = next_sequential_offset.saturating_add(symbolic_field_definition.get_unassigned_size_in_bytes()?);
+            continue;
+        }
+
         let field_offset = match symbolic_field_definition.get_offset_resolution() {
             SymbolicFieldOffsetResolution::Static(offset_in_bytes) => *offset_in_bytes,
             SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_)
@@ -150,7 +156,7 @@ fn resolve_symbol_layout_field_write_target(
             SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_) => next_sequential_offset,
         };
 
-        if normalize_symbol_value_field_name(symbolic_field_definition.get_field_name(), field_index) == edited_field_name {
+        if normalize_symbol_value_field_name(symbolic_field_definition.get_field_name(), value_field_index) == edited_field_name {
             return Some(ResolvedSymbolicFieldWriteTarget {
                 symbolic_field_definition: symbolic_field_definition.clone(),
                 offset: field_offset,
@@ -159,6 +165,7 @@ fn resolve_symbol_layout_field_write_target(
 
         let field_size_in_bytes = resolve_symbolic_field_size_in_bytes(engine_execution_context, symbolic_field_definition, &mut HashSet::new())?;
         next_sequential_offset = next_sequential_offset.max(field_offset.checked_add(field_size_in_bytes)?);
+        value_field_index = value_field_index.saturating_add(1);
     }
 
     None
@@ -226,6 +233,11 @@ fn resolve_symbolic_struct_size_in_bytes(
     let mut next_sequential_offset = 0_u64;
 
     for symbolic_field_definition in symbolic_struct_definition.get_fields() {
+        if symbolic_field_definition.is_unassigned() {
+            next_sequential_offset = next_sequential_offset.saturating_add(symbolic_field_definition.get_unassigned_size_in_bytes()?);
+            continue;
+        }
+
         let field_offset = match symbolic_field_definition.get_offset_resolution() {
             SymbolicFieldOffsetResolution::Static(offset_in_bytes) => *offset_in_bytes,
             SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_)

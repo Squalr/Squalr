@@ -316,6 +316,7 @@ impl<'lifetime> DataTypeSelectorView<'lifetime> {
         (registered_selectable_data_types, extra_selectable_data_types)
     }
 
+    #[cfg(test)]
     fn ordered_selectable_data_types(available_data_types: Option<&[DataTypeRef]>) -> Vec<DataTypeRef> {
         let (mut built_in_selectable_data_types, mut extra_selectable_data_types) = Self::selectable_data_type_groups(available_data_types, |_| false);
 
