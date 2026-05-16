@@ -585,7 +585,7 @@ fn append_module_root_layout_field_node<ResolvePrimitiveSize, ReadScalarField, R
     ResolveRelativePointerChain: Fn(&ProjectSymbolLocator, &SymbolicPointerChain) -> Result<i128, SymbolicResolverEvaluationError> + Copy,
     ResolveGlobalPointerChain: Fn(&SymbolicPointerChain) -> Result<i128, SymbolicResolverEvaluationError> + Copy,
 {
-    if field_definition.is_hidden() {
+    if field_definition.is_unassigned() {
         return;
     }
 
@@ -869,10 +869,6 @@ fn append_struct_field_nodes<ResolvePrimitiveSize, ReadScalarField, ResolveRelat
                 ResolvedSymbolicFieldVariantActivation::Inactive
             )
         {
-            continue;
-        }
-
-        if field_definition.is_hidden() {
             continue;
         }
 
@@ -2278,14 +2274,14 @@ mod tests {
     }
 
     #[test]
-    fn build_symbol_tree_nodes_omits_hidden_storage_fields_but_preserves_offsets() {
+    fn build_symbol_tree_nodes_omits_unassigned_storage_fields_but_preserves_offsets() {
         let project_symbol_catalog = ProjectSymbolCatalog::new_with_symbol_claims(
             vec![StructLayoutDescriptor::new(
                 String::from("header"),
                 SymbolicStructDefinition::new(
                     String::from("header"),
                     vec![
-                        SymbolicFieldDefinition::from_str("reserved:u8[12] hidden").expect("Expected hidden field to parse."),
+                        SymbolicFieldDefinition::new_unassigned(12),
                         SymbolicFieldDefinition::from_str("value:u32").expect("Expected value field to parse."),
                     ],
                 ),

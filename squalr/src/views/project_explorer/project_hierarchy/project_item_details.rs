@@ -1,4 +1,3 @@
-use crate::views::struct_viewer::view_data::struct_viewer_view_data::StructViewerViewData;
 use squalr_engine_api::commands::memory::query::memory_query_request::MemoryQueryRequest;
 use squalr_engine_api::commands::memory::query::memory_query_response::MemoryQueryResponse;
 use squalr_engine_api::commands::memory::read::memory_read_request::MemoryReadRequest;
@@ -7,7 +6,6 @@ use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRe
 use squalr_engine_api::commands::privileged_command_response::TypedPrivilegedCommandResponse;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::plugins::instruction_set::normalize_instruction_data_type_id;
-use squalr_engine_api::structures::data_types::built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::{
     anonymous_value_string::AnonymousValueString,
@@ -15,16 +13,14 @@ use squalr_engine_api::structures::data_values::{
     data_value_preview_formatter::{DataValuePreviewFormatOptions, DataValuePreviewFormatter},
 };
 use squalr_engine_api::structures::memory::normalized_module::NormalizedModule;
-use squalr_engine_api::structures::memory::{pointer::Pointer, pointer_chain_segment::PointerChainSegment};
+use squalr_engine_api::structures::memory::pointer::Pointer;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 use squalr_engine_api::structures::projects::project_info::ProjectInfo;
 use squalr_engine_api::structures::projects::project_items::built_in_types::{
     project_item_type_address::ProjectItemTypeAddress, project_item_type_address_target::ProjectItemAddressTarget,
-    project_item_type_directory::ProjectItemTypeDirectory, project_item_type_pointer::ProjectItemTypePointer,
+    project_item_type_pointer::ProjectItemTypePointer,
 };
 use squalr_engine_api::structures::projects::project_items::project_item::ProjectItem;
-use squalr_engine_api::structures::structs::valued_struct::ValuedStruct;
-use squalr_engine_api::structures::structs::valued_struct_field::{ValuedStructField, ValuedStructFieldData};
 use squalr_engine_api::structures::structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition};
 use squalr_engine_session::{
     engine_unprivileged_state::EngineUnprivilegedState,
@@ -47,48 +43,12 @@ pub struct ProjectItemValueEditContext {
 pub struct ProjectItemDetails;
 
 impl ProjectItemDetails {
-    pub const TARGET_FIELD_POINTER_OFFSETS: &'static str = StructViewerViewData::VIRTUAL_FIELD_PROJECT_ITEM_POINTER_OFFSETS;
-    pub const TARGET_FIELD_POINTER_SIZE: &'static str = StructViewerViewData::VIRTUAL_FIELD_PROJECT_ITEM_POINTER_SIZE;
-
     const PROJECT_ITEM_PREVIEW_FORMAT_OPTIONS: DataValuePreviewFormatOptions = DataValuePreviewFormatOptions::new(4, 96);
 
     pub fn can_open_project_item_in_memory_viewer(project_item: &ProjectItem) -> bool {
         let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
 
         project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID || project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID
-    }
-
-    pub fn build_struct_view_properties(project_item: &ProjectItem) -> ValuedStruct {
-        let mut fields = project_item
-            .get_properties()
-            .get_fields()
-            .iter()
-            .filter(|valued_struct_field| Self::should_show_project_item_detail_field(project_item, valued_struct_field.get_name()))
-            .map(|valued_struct_field| {
-                let is_runtime_value_field = Self::is_runtime_value_field(valued_struct_field.get_name());
-                let projected_field_data = Self::project_address_item_target_detail_field_data(project_item, valued_struct_field)
-                    .unwrap_or_else(|| valued_struct_field.get_field_data().clone());
-
-                ValuedStructField::new(
-                    valued_struct_field.get_name().to_string(),
-                    projected_field_data,
-                    if is_runtime_value_field {
-                        false
-                    } else {
-                        valued_struct_field.get_is_read_only()
-                    },
-                )
-            })
-            .collect::<Vec<_>>();
-
-        if project_item.get_item_type().get_project_item_type_id() == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
-            let mut project_item = project_item.clone();
-            let address_target = ProjectItemTypeAddress::get_address_target(&mut project_item);
-
-            Self::append_project_item_address_target_fields(&mut fields, &address_target);
-        }
-
-        ValuedStruct::new_anonymous(fields)
     }
 
     pub fn copy_project_item_preview_fields(
@@ -102,58 +62,6 @@ impl ProjectItemDetails {
             ProjectItemTypeAddress::set_field_freeze_data_value_interpreter(target_project_item, &preview_value);
         } else if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
             ProjectItemTypePointer::set_field_freeze_data_value_interpreter(target_project_item, &preview_value);
-        }
-    }
-
-    pub fn apply_project_item_address_target_edit(
-        project_item: &mut ProjectItem,
-        edited_field: &ValuedStructField,
-    ) -> bool {
-        if project_item.get_item_type().get_project_item_type_id() != ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
-            return false;
-        }
-
-        let edited_field_name = edited_field.get_name();
-
-        let mut updated_address_target = ProjectItemTypeAddress::get_address_target(project_item);
-        let did_update_address_target = match edited_field_name {
-            ProjectItemTypeAddress::PROPERTY_MODULE => {
-                let Some(edited_module_name) = Self::extract_string_value_from_edited_field_allow_empty(edited_field) else {
-                    return false;
-                };
-
-                updated_address_target.set_module_name(edited_module_name);
-                true
-            }
-            Self::TARGET_FIELD_POINTER_SIZE => {
-                let Some(pointer_size_text) = Self::extract_string_value_from_edited_field(edited_field) else {
-                    return false;
-                };
-
-                if let Ok(pointer_size) = PointerScanPointerSize::from_str(&pointer_size_text) {
-                    updated_address_target.set_pointer_size(pointer_size);
-                    true
-                } else {
-                    log::warn!("Ignoring unknown project address pointer size: {}", pointer_size_text);
-                    false
-                }
-            }
-            Self::TARGET_FIELD_POINTER_OFFSETS => {
-                let Some(pointer_offsets) = Self::extract_pointer_offsets_from_edited_field(edited_field) else {
-                    return false;
-                };
-
-                updated_address_target.set_pointer_offsets(Self::ensure_minimum_pointer_offsets(pointer_offsets));
-                true
-            }
-            _ => false,
-        };
-
-        if did_update_address_target {
-            ProjectItemTypeAddress::set_address_target(project_item, updated_address_target);
-            true
-        } else {
-            false
         }
     }
 
@@ -437,82 +345,6 @@ impl ProjectItemDetails {
         )
     }
 
-    pub fn is_runtime_value_field(field_name: &str) -> bool {
-        field_name == ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE || field_name == ProjectItemTypePointer::PROPERTY_FREEZE_DISPLAY_VALUE
-    }
-
-    pub fn should_apply_struct_field_edit_to_project_item(
-        project_item_type_id: &str,
-        edited_field_name: &str,
-    ) -> bool {
-        if Self::is_runtime_value_field(edited_field_name) {
-            return false;
-        }
-
-        !(edited_field_name == ProjectItem::PROPERTY_NAME && project_item_type_id == ProjectItemTypeDirectory::PROJECT_ITEM_TYPE_ID)
-    }
-
-    fn should_show_project_item_detail_field(
-        project_item: &ProjectItem,
-        field_name: &str,
-    ) -> bool {
-        if field_name == ProjectItemTypeAddress::PROPERTY_TARGET {
-            return false;
-        }
-
-        if project_item.get_item_type().get_project_item_type_id() == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID
-            && field_name == ProjectItemTypeAddress::PROPERTY_ADDRESS
-        {
-            return false;
-        }
-
-        if project_item.get_item_type().get_project_item_type_id() == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
-            return field_name != ProjectItemTypePointer::PROPERTY_EVALUATED_POINTER_PATH;
-        }
-
-        true
-    }
-
-    fn project_address_item_target_detail_field_data(
-        project_item: &ProjectItem,
-        valued_struct_field: &ValuedStructField,
-    ) -> Option<ValuedStructFieldData> {
-        if project_item.get_item_type().get_project_item_type_id() != ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
-            return None;
-        }
-
-        let mut project_item = project_item.clone();
-        let address_target = ProjectItemTypeAddress::get_address_target(&mut project_item);
-
-        match valued_struct_field.get_name() {
-            ProjectItemTypeAddress::PROPERTY_MODULE => Some(ValuedStructFieldData::Value(DataTypeStringUtf8::get_value_from_primitive_string(
-                address_target.get_module_name(),
-            ))),
-            _ => None,
-        }
-    }
-
-    fn append_project_item_address_target_fields(
-        fields: &mut Vec<ValuedStructField>,
-        address_target: &ProjectItemAddressTarget,
-    ) {
-        fields.push(
-            DataTypeStringUtf8::get_value_from_primitive_string(
-                address_target
-                    .get_pointer_size()
-                    .to_data_type_ref()
-                    .get_data_type_id(),
-            )
-            .to_named_valued_struct_field(Self::TARGET_FIELD_POINTER_SIZE.to_string(), false),
-        );
-        fields.push(
-            DataTypeStringUtf8::get_value_from_primitive_string(&Self::format_pointer_offsets(&Self::ensure_minimum_pointer_offsets(
-                address_target.get_pointer_offsets().to_vec(),
-            )))
-            .to_named_valued_struct_field(Self::TARGET_FIELD_POINTER_OFFSETS.to_string(), true),
-        );
-    }
-
     fn read_project_item_preview_value(project_item: &ProjectItem) -> String {
         let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
 
@@ -525,25 +357,6 @@ impl ProjectItemDetails {
         } else {
             String::new()
         }
-    }
-
-    fn ensure_minimum_pointer_offsets(mut pointer_offsets: Vec<PointerChainSegment>) -> Vec<PointerChainSegment> {
-        if pointer_offsets.is_empty() {
-            pointer_offsets.push(PointerChainSegment::new_offset(0));
-        }
-
-        pointer_offsets
-    }
-
-    fn extract_pointer_offsets_from_edited_field(edited_field: &ValuedStructField) -> Option<Vec<PointerChainSegment>> {
-        let offsets_text = Self::extract_string_value_from_edited_field(edited_field)?;
-        let pointer_offsets = PointerChainSegment::parse_text_list(&offsets_text);
-
-        if pointer_offsets.is_empty() { None } else { Some(pointer_offsets) }
-    }
-
-    fn format_pointer_offsets(pointer_offsets: &[PointerChainSegment]) -> String {
-        PointerChainSegment::display_text_list(pointer_offsets)
     }
 
     fn read_pointer_value(
@@ -727,18 +540,5 @@ impl ProjectItemDetails {
         };
 
         DataValuePreviewFormatter::array_preview_was_truncated(symbolic_field_definition.get_container_type())
-    }
-
-    fn extract_string_value_from_edited_field(edited_field: &ValuedStructField) -> Option<String> {
-        let edited_text = Self::extract_string_value_from_edited_field_allow_empty(edited_field)?;
-        let edited_text = edited_text.trim();
-
-        if edited_text.is_empty() { None } else { Some(edited_text.to_string()) }
-    }
-
-    fn extract_string_value_from_edited_field_allow_empty(edited_field: &ValuedStructField) -> Option<String> {
-        let data_value = edited_field.get_data_value()?;
-
-        String::from_utf8(data_value.get_value_bytes().clone()).ok()
     }
 }

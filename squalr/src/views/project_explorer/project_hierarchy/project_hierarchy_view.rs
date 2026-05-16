@@ -60,7 +60,6 @@ use squalr_engine_api::structures::projects::project_items::{
     project_item::ProjectItem,
     project_item_ref::ProjectItemRef,
 };
-use squalr_engine_api::structures::structs::valued_struct_field::{ValuedStructField, ValuedStructFieldData};
 use squalr_engine_session::virtual_snapshots::virtual_snapshot_query::VirtualSnapshotQuery;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -170,7 +169,6 @@ mod tests {
         app_context::AppContext,
         models::docking::{docking_manager::DockingManager, hierarchy::dock_node::DockNode},
         ui::theme::Theme,
-        views::struct_viewer::view_data::struct_viewer_view_data::StructViewerViewData,
     };
     use crossbeam_channel::{Receiver, unbounded};
     use eframe::egui::Context;
@@ -184,7 +182,7 @@ mod tests {
     use squalr_engine_api::engine::engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings;
     use squalr_engine_api::engine::engine_binding_error::EngineBindingError;
     use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
-    use squalr_engine_api::structures::data_types::built_in_types::{string::utf8::data_type_string_utf8::DataTypeStringUtf8, u64::data_type_u64::DataTypeU64};
+    use squalr_engine_api::structures::data_types::built_in_types::u64::data_type_u64::DataTypeU64;
     use squalr_engine_api::structures::data_types::built_in_types::{
         u16::data_type_u16::DataTypeU16, u32::data_type_u32::DataTypeU32, u64::data_type_u64::DataTypeU64 as DataTypeU64Pointer,
     };
@@ -205,7 +203,6 @@ mod tests {
         project_symbol_module::ProjectSymbolModule, project_symbol_module_field::ProjectSymbolModuleField,
     };
     use squalr_engine_api::structures::structs::valued_struct::ValuedStruct;
-    use squalr_engine_api::structures::structs::valued_struct_field::{ValuedStructField, ValuedStructFieldData};
     use squalr_engine_session::engine_unprivileged_state::{EngineUnprivilegedState, EngineUnprivilegedStateOptions};
     use std::collections::HashMap;
     use std::path::{Path, PathBuf};
@@ -431,39 +428,6 @@ mod tests {
     }
 
     #[test]
-    fn apply_project_item_address_target_edit_updates_root_offset() {
-        let mut project_item = ProjectItemTypeAddress::new_project_item("player_health", 0x1234, "game.exe", "", DataTypeU64::get_value_from_primitive(0));
-        let edited_field = DataTypeStringUtf8::get_value_from_primitive_string("0xABCD")
-            .to_named_valued_struct_field(ProjectItemDetails::TARGET_FIELD_POINTER_OFFSETS.to_string(), true);
-
-        let did_apply_edit = ProjectItemDetails::apply_project_item_address_target_edit(&mut project_item, &edited_field);
-
-        assert!(did_apply_edit);
-        assert_eq!(
-            ProjectItemTypeAddress::get_address_target(&mut project_item),
-            ProjectItemAddressTarget::new_address(0xABCD, String::from("game.exe"))
-        );
-    }
-
-    #[test]
-    fn apply_project_item_address_target_edit_updates_raw_module() {
-        let mut project_item = ProjectItemTypeAddress::new_project_item("player_health", 0x1234, "game.exe", "", DataTypeU64::get_value_from_primitive(0));
-        let edited_field = ValuedStructField::new(
-            ProjectItemTypeAddress::PROPERTY_MODULE.to_string(),
-            ValuedStructFieldData::Value(DataTypeStringUtf8::get_value_from_primitive_string("new_module.exe")),
-            false,
-        );
-
-        let did_apply_edit = ProjectItemDetails::apply_project_item_address_target_edit(&mut project_item, &edited_field);
-
-        assert!(did_apply_edit);
-        assert_eq!(
-            ProjectItemTypeAddress::get_address_target(&mut project_item),
-            ProjectItemAddressTarget::new_address(0x1234, String::from("new_module.exe"))
-        );
-    }
-
-    #[test]
     fn build_project_item_rename_request_for_directory_uses_edited_name_without_extension() {
         let project_item_path = Path::new("C:/Projects/TestProject/project_items/Folder");
         let rename_request =
@@ -526,66 +490,6 @@ mod tests {
                 .get_anonymous_value_string_format(),
             AnonymousValueStringFormat::Decimal
         );
-    }
-
-    #[test]
-    fn build_project_item_write_value_request_from_legacy_field_uses_value_field() {
-        let app_context = create_test_app_context();
-        let project_item_path = PathBuf::from("C:/Projects/TestProject/project_items/health.json");
-        let edited_field = ValuedStructField::new(
-            ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE.to_string(),
-            ValuedStructFieldData::Value(DataTypeU16::get_value_from_primitive(0xBEEF)),
-            false,
-        );
-
-        let write_value_request =
-            ProjectHierarchyView::build_project_item_write_value_request_from_legacy_field(app_context, &project_item_path, &edited_field)
-                .expect("Expected legacy field write-value request.");
-
-        assert_eq!(write_value_request.project_item_path, project_item_path);
-        assert_eq!(write_value_request.field_name, "value");
-        assert_eq!(
-            write_value_request
-                .anonymous_value_string
-                .get_anonymous_value_string(),
-            "48879"
-        );
-        assert_eq!(
-            write_value_request
-                .anonymous_value_string
-                .get_anonymous_value_string_format(),
-            AnonymousValueStringFormat::Decimal
-        );
-    }
-
-    #[test]
-    fn should_apply_struct_field_edit_to_project_item_returns_false_for_directory_name_edits() {
-        let should_apply_struct_field_edit = ProjectItemDetails::should_apply_struct_field_edit_to_project_item(
-            ProjectItemTypeDirectory::PROJECT_ITEM_TYPE_ID,
-            squalr_engine_api::structures::projects::project_items::project_item::ProjectItem::PROPERTY_NAME,
-        );
-
-        assert!(!should_apply_struct_field_edit);
-    }
-
-    #[test]
-    fn should_apply_struct_field_edit_to_project_item_returns_true_for_file_name_edits() {
-        let should_apply_struct_field_edit = ProjectItemDetails::should_apply_struct_field_edit_to_project_item(
-            ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID,
-            squalr_engine_api::structures::projects::project_items::project_item::ProjectItem::PROPERTY_NAME,
-        );
-
-        assert!(should_apply_struct_field_edit);
-    }
-
-    #[test]
-    fn should_apply_struct_field_edit_to_project_item_returns_true_for_non_name_edits() {
-        let should_apply_struct_field_edit = ProjectItemDetails::should_apply_struct_field_edit_to_project_item(
-            ProjectItemTypeDirectory::PROJECT_ITEM_TYPE_ID,
-            ProjectItemTypeAddress::PROPERTY_MODULE,
-        );
-
-        assert!(should_apply_struct_field_edit);
     }
 
     #[test]
@@ -740,248 +644,6 @@ mod tests {
                 .icon_library
                 .icon_handle_data_type_purple_blocks_1
                 .id()
-        );
-    }
-
-    #[test]
-    fn build_struct_view_properties_exposes_runtime_value_field_as_editable() {
-        let project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU64::get_value_from_primitive(0));
-
-        let struct_view_properties = ProjectItemDetails::build_struct_view_properties(&project_item);
-        let runtime_value_field = struct_view_properties
-            .get_field(ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE)
-            .expect("Expected runtime value field in struct view properties.");
-
-        assert!(!runtime_value_field.get_is_read_only());
-    }
-
-    #[test]
-    fn build_struct_view_properties_exposes_address_item_pointer_chain_editor() {
-        let project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU64::get_value_from_primitive(0));
-
-        let struct_view_properties = ProjectItemDetails::build_struct_view_properties(&project_item);
-        let pointer_size_field = struct_view_properties
-            .get_field(ProjectItemDetails::TARGET_FIELD_POINTER_SIZE)
-            .expect("Expected pointer size field.");
-        let pointer_offsets_field = struct_view_properties
-            .get_field(ProjectItemDetails::TARGET_FIELD_POINTER_OFFSETS)
-            .expect("Expected pointer offsets field.");
-        let module_field = struct_view_properties
-            .get_field(ProjectItemTypeAddress::PROPERTY_MODULE)
-            .expect("Expected module field.");
-
-        assert_eq!(StructViewerViewData::read_utf8_field_text(pointer_size_field), "u64");
-        assert_eq!(StructViewerViewData::read_utf8_field_text(pointer_offsets_field), "0x1234");
-        assert!(
-            struct_view_properties
-                .get_field(ProjectItemTypeAddress::PROPERTY_ADDRESS)
-                .is_none()
-        );
-        assert_eq!(StructViewerViewData::read_utf8_field_text(module_field), "game.exe");
-    }
-
-    #[test]
-    fn build_struct_view_properties_uses_module_and_offsets_for_pointer_target_root() {
-        let mut project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU64::get_value_from_primitive(0));
-        ProjectItemTypeAddress::set_address_target(
-            &mut project_item,
-            ProjectItemAddressTarget::new_pointer_path(Pointer::new_with_size(
-                0x4567,
-                vec![0x10, 0x20],
-                String::from("pointer_root.exe"),
-                PointerScanPointerSize::Pointer64,
-            )),
-        );
-
-        let struct_view_properties = ProjectItemDetails::build_struct_view_properties(&project_item);
-        let module_field = struct_view_properties
-            .get_field(ProjectItemTypeAddress::PROPERTY_MODULE)
-            .expect("Expected module field.");
-        let pointer_offsets_field = struct_view_properties
-            .get_field(ProjectItemDetails::TARGET_FIELD_POINTER_OFFSETS)
-            .expect("Expected pointer offsets field.");
-
-        assert_eq!(StructViewerViewData::read_utf8_field_text(module_field), "pointer_root.exe");
-        assert_eq!(StructViewerViewData::read_utf8_field_text(pointer_offsets_field), "0x4567, 0x10, 0x20");
-        assert!(
-            struct_view_properties
-                .get_field(ProjectItemDetails::TARGET_FIELD_POINTER_OFFSETS)
-                .map(|pointer_offsets_field| pointer_offsets_field.get_is_read_only())
-                .unwrap_or(false)
-        );
-        assert!(
-            struct_view_properties
-                .get_field(ProjectItemDetails::TARGET_FIELD_POINTER_SIZE)
-                .is_some()
-        );
-    }
-
-    #[test]
-    fn build_struct_view_properties_displays_minimum_pointer_offset_for_pointer_target() {
-        let mut project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU64::get_value_from_primitive(0));
-        ProjectItemTypeAddress::set_address_target(
-            &mut project_item,
-            ProjectItemAddressTarget::new_pointer_path(Pointer::new_with_size(
-                0x4567,
-                Vec::new(),
-                String::from("pointer_root.exe"),
-                PointerScanPointerSize::Pointer64,
-            )),
-        );
-
-        let struct_view_properties = ProjectItemDetails::build_struct_view_properties(&project_item);
-        let pointer_offsets_field = struct_view_properties
-            .get_field(ProjectItemDetails::TARGET_FIELD_POINTER_OFFSETS)
-            .expect("Expected pointer offsets field.");
-
-        assert_eq!(StructViewerViewData::read_utf8_field_text(pointer_offsets_field), "0x4567");
-    }
-
-    #[test]
-    fn build_struct_view_properties_hides_pointer_item_preview_path() {
-        let pointer = Pointer::new_with_size(0x4567, vec![0x10, 0x20], String::from("game.exe"), PointerScanPointerSize::Pointer64);
-        let mut project_item = ProjectItemTypePointer::new_project_item("Ammo Pointer", &pointer, "", "u16");
-        ProjectItemTypePointer::set_field_evaluated_pointer_path(&mut project_item, "game.exe+0x4567 -> 0x5000 -> 0x6000");
-
-        let struct_view_properties = ProjectItemDetails::build_struct_view_properties(&project_item);
-
-        assert!(
-            struct_view_properties
-                .get_field(ProjectItemTypePointer::PROPERTY_OFFSET)
-                .is_some()
-        );
-        assert!(
-            struct_view_properties
-                .get_field(ProjectItemTypePointer::PROPERTY_MODULE)
-                .is_some()
-        );
-        assert!(
-            struct_view_properties
-                .get_field(ProjectItemTypePointer::PROPERTY_POINTER_OFFSETS)
-                .is_some()
-        );
-        assert!(
-            struct_view_properties
-                .get_field(ProjectItemTypePointer::PROPERTY_POINTER_SIZE)
-                .is_some()
-        );
-        assert!(
-            struct_view_properties
-                .get_field(ProjectItemTypePointer::PROPERTY_EVALUATED_POINTER_PATH)
-                .is_none()
-        );
-    }
-
-    #[test]
-    fn apply_project_item_address_target_edit_pointer_size_updates_chain_pointer_size() {
-        let mut project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU64::get_value_from_primitive(0));
-        let edited_field = DataTypeStringUtf8::get_value_from_primitive_string("u64")
-            .to_named_valued_struct_field(ProjectItemDetails::TARGET_FIELD_POINTER_SIZE.to_string(), false);
-
-        let did_apply_edit = ProjectItemDetails::apply_project_item_address_target_edit(&mut project_item, &edited_field);
-
-        assert!(did_apply_edit);
-        assert_eq!(
-            ProjectItemTypeAddress::get_address_target(&mut project_item),
-            ProjectItemAddressTarget::new(String::from("game.exe"), vec![0x1234], PointerScanPointerSize::Pointer64)
-        );
-    }
-
-    #[test]
-    fn apply_project_item_address_target_edit_pointer_size_preserves_offsets() {
-        let mut project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU64::get_value_from_primitive(0));
-        ProjectItemTypeAddress::set_address_target(
-            &mut project_item,
-            ProjectItemAddressTarget::new_address_with_pointer_offsets(0x4567, String::from("pointer_root.exe"), vec![0x10, 0x20]),
-        );
-        let edited_field = DataTypeStringUtf8::get_value_from_primitive_string("u64")
-            .to_named_valued_struct_field(ProjectItemDetails::TARGET_FIELD_POINTER_SIZE.to_string(), false);
-
-        let did_apply_edit = ProjectItemDetails::apply_project_item_address_target_edit(&mut project_item, &edited_field);
-
-        assert!(did_apply_edit);
-        assert_eq!(
-            ProjectItemTypeAddress::get_address_target(&mut project_item),
-            ProjectItemAddressTarget::new(String::from("pointer_root.exe"), vec![0x4567, 0x10, 0x20], PointerScanPointerSize::Pointer64,)
-        );
-    }
-
-    #[test]
-    fn apply_project_item_address_target_edit_updates_pointer_offsets() {
-        let mut project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU64::get_value_from_primitive(0));
-        ProjectItemTypeAddress::set_address_target(
-            &mut project_item,
-            ProjectItemAddressTarget::new_pointer_path(Pointer::new_with_size(
-                0x4567,
-                vec![0x10],
-                String::from("pointer_root.exe"),
-                PointerScanPointerSize::Pointer64,
-            )),
-        );
-        let edited_field = DataTypeStringUtf8::get_value_from_primitive_string("[32,-16]")
-            .to_named_valued_struct_field(ProjectItemDetails::TARGET_FIELD_POINTER_OFFSETS.to_string(), true);
-
-        let did_apply_edit = ProjectItemDetails::apply_project_item_address_target_edit(&mut project_item, &edited_field);
-
-        assert!(did_apply_edit);
-        assert_eq!(
-            ProjectItemTypeAddress::get_address_target(&mut project_item),
-            ProjectItemAddressTarget::new(String::from("pointer_root.exe"), vec![0x20, -0x10], PointerScanPointerSize::Pointer64)
-        );
-    }
-
-    #[test]
-    fn build_struct_view_properties_displays_symbolic_pointer_offsets() {
-        let mut project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU64::get_value_from_primitive(0));
-        ProjectItemTypeAddress::set_address_target(
-            &mut project_item,
-            ProjectItemAddressTarget::new_pointer_path(Pointer::new_with_size_and_segments(
-                0x4567,
-                vec![
-                    PointerChainSegment::new_offset(0x20),
-                    PointerChainSegment::Symbol(String::from("health")),
-                ],
-                String::from("pointer_root.exe"),
-                PointerScanPointerSize::Pointer64,
-            )),
-        );
-
-        let struct_view_properties = ProjectItemDetails::build_struct_view_properties(&project_item);
-        let pointer_offsets_field = struct_view_properties
-            .get_field(ProjectItemDetails::TARGET_FIELD_POINTER_OFFSETS)
-            .expect("Expected pointer offsets field.");
-
-        assert_eq!(StructViewerViewData::read_utf8_field_text(pointer_offsets_field), "0x4567, 0x20, health");
-    }
-
-    #[test]
-    fn apply_project_item_address_target_edit_accepts_symbolic_pointer_offsets() {
-        let mut project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU64::get_value_from_primitive(0));
-        ProjectItemTypeAddress::set_address_target(
-            &mut project_item,
-            ProjectItemAddressTarget::new_pointer_path(Pointer::new_with_size(
-                0x4567,
-                vec![0x10],
-                String::from("pointer_root.exe"),
-                PointerScanPointerSize::Pointer64,
-            )),
-        );
-        let edited_field = DataTypeStringUtf8::get_value_from_primitive_string(r#"[32,"health"]"#)
-            .to_named_valued_struct_field(ProjectItemDetails::TARGET_FIELD_POINTER_OFFSETS.to_string(), true);
-
-        let did_apply_edit = ProjectItemDetails::apply_project_item_address_target_edit(&mut project_item, &edited_field);
-
-        assert!(did_apply_edit);
-        assert_eq!(
-            ProjectItemTypeAddress::get_address_target(&mut project_item),
-            ProjectItemAddressTarget::new(
-                String::from("pointer_root.exe"),
-                vec![
-                    PointerChainSegment::new_offset(0x20),
-                    PointerChainSegment::Symbol(String::from("health"))
-                ],
-                PointerScanPointerSize::Pointer64,
-            )
         );
     }
 
@@ -1203,14 +865,6 @@ mod tests {
         let value_edit_context = ProjectItemDetails::build_project_item_value_edit_context(&engine_unprivileged_state, None, &project_item);
 
         assert!(value_edit_context.is_none());
-    }
-
-    #[test]
-    fn should_apply_struct_field_edit_to_project_item_ignores_runtime_value_field() {
-        assert!(!ProjectItemDetails::should_apply_struct_field_edit_to_project_item(
-            ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID,
-            ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE,
-        ));
     }
 }
 
@@ -2247,10 +1901,17 @@ impl Widget for ProjectHierarchyView {
                 .engine_unprivileged_state
                 .deanonymize_value_string(&validation_data_type_ref, &value_edit)
             {
-                Ok(edited_data_value) => {
-                    let edited_field = ValuedStructField::new(value_field_name, ValuedStructFieldData::Value(edited_data_value), false);
-
-                    Self::apply_project_item_edits(self.app_context.clone(), vec![project_item_path.clone()], edited_field);
+                Ok(_) => {
+                    ProjectItemsWriteValueRequest {
+                        project_item_path: project_item_path.clone(),
+                        field_name: value_field_name,
+                        anonymous_value_string: value_edit,
+                    }
+                    .send(&self.app_context.engine_unprivileged_state, |project_items_write_value_response| {
+                        if !project_items_write_value_response.success {
+                            log::warn!("Project item write-value command failed while committing value edit takeover.");
+                        }
+                    });
                     Self::clear_project_item_value_edit_state(user_interface, &project_item_path);
                     ProjectHierarchyViewData::cancel_take_over(self.project_hierarchy_view_data.clone());
                 }
@@ -3014,21 +2675,24 @@ impl ProjectHierarchyView {
                 );
             }
         } else {
-            let callback = Self::build_project_item_details_edit_callback(
+            let details_edit_callback = Self::build_project_item_details_projection_edit_callback(
                 app_context.clone(),
                 project_hierarchy_view_data.clone(),
                 struct_viewer_view_data.clone(),
                 project_item_paths.clone(),
             );
-            let selected_project_item_properties = selected_project_items
+            let selected_project_item_details_projections = selected_project_items
                 .into_iter()
-                .map(|selected_project_item| ProjectItemDetails::build_struct_view_properties(&selected_project_item))
+                .zip(project_item_paths.iter())
+                .map(|(selected_project_item, project_item_path)| {
+                    ProjectItemDetailsProjection::build(&selected_project_item, project_item_path.to_string_lossy().to_string())
+                })
                 .collect::<Vec<_>>();
-            StructViewerViewData::focus_valued_structs_with_focus_target(
+            StructViewerViewData::focus_details_projections_with_focus_target(
                 struct_viewer_view_data,
                 app_context.engine_unprivileged_state.clone(),
-                selected_project_item_properties,
-                callback,
+                selected_project_item_details_projections,
+                details_edit_callback,
                 Some(StructViewerFocusTarget::ProjectHierarchy { project_item_paths }),
             );
         }
@@ -3213,9 +2877,6 @@ impl ProjectHierarchyView {
         project_item_paths: &[PathBuf],
         edited_name: &str,
     ) {
-        let Some(project_item_path) = project_item_paths.first() else {
-            return;
-        };
         let project_manager = app_context.engine_unprivileged_state.get_project_manager();
         let opened_project_lock = project_manager.get_opened_project();
         let opened_project_guard = match opened_project_lock.read() {
@@ -3229,19 +2890,25 @@ impl ProjectHierarchyView {
             log::warn!("Cannot rename project item from details without an opened project.");
             return;
         };
-        let project_item_ref = ProjectItemRef::new(project_item_path.clone());
-        let Some(project_item) = opened_project.get_project_items().get(&project_item_ref) else {
-            log::warn!("Cannot rename project item from details, project item was not found: {:?}", project_item_path);
-            return;
-        };
-        let project_item_type_id = project_item
-            .get_item_type()
-            .get_project_item_type_id()
-            .to_string();
-        let project_items_rename_request = Self::build_project_item_rename_request(project_item_path, &project_item_type_id, edited_name);
+        let project_items_rename_requests = project_item_paths
+            .iter()
+            .filter_map(|project_item_path| {
+                let project_item_ref = ProjectItemRef::new(project_item_path.clone());
+                let Some(project_item) = opened_project.get_project_items().get(&project_item_ref) else {
+                    log::warn!("Cannot rename project item from details, project item was not found: {:?}", project_item_path);
+                    return None;
+                };
+                let project_item_type_id = project_item
+                    .get_item_type()
+                    .get_project_item_type_id()
+                    .to_string();
+
+                Self::build_project_item_rename_request(project_item_path, &project_item_type_id, edited_name)
+            })
+            .collect::<Vec<_>>();
         drop(opened_project_guard);
 
-        if let Some(project_items_rename_request) = project_items_rename_request {
+        for project_items_rename_request in project_items_rename_requests {
             project_items_rename_request.send(&app_context.engine_unprivileged_state, |project_items_rename_response| {
                 if !project_items_rename_response.success {
                     log::warn!("Project item rename command failed while committing details edit.");
@@ -3281,25 +2948,6 @@ impl ProjectHierarchyView {
         }
     }
 
-    fn build_project_item_write_value_request_from_legacy_field(
-        app_context: Arc<AppContext>,
-        project_item_path: &Path,
-        edited_field: &ValuedStructField,
-    ) -> Option<ProjectItemsWriteValueRequest> {
-        if !ProjectItemDetails::is_runtime_value_field(edited_field.get_name()) {
-            return None;
-        }
-
-        let edited_data_value = edited_field.get_data_value()?;
-        let anonymous_value_string = Self::data_value_to_anonymous_value_string(&app_context, edited_data_value)?;
-
-        Some(ProjectItemsWriteValueRequest {
-            project_item_path: project_item_path.to_path_buf(),
-            field_name: String::from("value"),
-            anonymous_value_string,
-        })
-    }
-
     fn data_value_to_anonymous_value_string(
         app_context: &Arc<AppContext>,
         data_value: &DataValue,
@@ -3316,28 +2964,6 @@ impl ProjectHierarchyView {
                 error
             })
             .ok()
-    }
-
-    fn build_project_item_details_edit_callback(
-        app_context: Arc<AppContext>,
-        project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
-        struct_viewer_view_data: Dependency<StructViewerViewData>,
-        project_item_paths: Vec<PathBuf>,
-    ) -> Arc<dyn Fn(ValuedStructField) + Send + Sync> {
-        Arc::new(move |edited_field: ValuedStructField| {
-            let should_refocus_details = edited_field.get_name() == ProjectItemDetails::TARGET_FIELD_POINTER_SIZE;
-
-            Self::apply_project_item_edits(app_context.clone(), project_item_paths.clone(), edited_field);
-
-            if should_refocus_details {
-                Self::focus_project_item_paths_in_struct_viewer(
-                    app_context.clone(),
-                    project_hierarchy_view_data.clone(),
-                    struct_viewer_view_data.clone(),
-                    project_item_paths.clone(),
-                );
-            }
-        })
     }
 
     fn strip_symbol_information_from_project_items(
@@ -3423,137 +3049,6 @@ impl ProjectHierarchyView {
 
         if let Some(details_refresh_callback) = details_refresh_callback {
             details_refresh_callback();
-        }
-    }
-
-    fn apply_project_item_edits(
-        app_context: Arc<AppContext>,
-        project_item_paths: Vec<PathBuf>,
-        edited_field: ValuedStructField,
-    ) {
-        if project_item_paths.is_empty() {
-            return;
-        }
-
-        let project_manager = app_context.engine_unprivileged_state.get_project_manager();
-        let opened_project_lock = project_manager.get_opened_project();
-        let mut write_value_requests = Vec::new();
-        let mut rename_requests = Vec::new();
-        let mut has_persisted_property_edits = false;
-        let edited_field_name = edited_field.get_name().to_string();
-        let edited_name = if edited_field_name == ProjectItem::PROPERTY_NAME {
-            Self::extract_string_value_from_edited_field(&edited_field)
-        } else {
-            None
-        };
-
-        let mut opened_project_guard = match opened_project_lock.write() {
-            Ok(opened_project_guard) => opened_project_guard,
-            Err(error) => {
-                log::error!("Failed to acquire opened project lock for struct viewer edit: {}", error);
-                return;
-            }
-        };
-        let opened_project = match opened_project_guard.as_mut() {
-            Some(opened_project) => opened_project,
-            None => {
-                log::warn!("Cannot apply struct viewer edit without an opened project.");
-                return;
-            }
-        };
-        let root_project_item_path = opened_project
-            .get_project_root_ref()
-            .get_project_item_path()
-            .clone();
-
-        for project_item_path in &project_item_paths {
-            if edited_field.get_name() == ProjectItem::PROPERTY_NAME && project_item_path == &root_project_item_path {
-                log::debug!("Ignoring root project directory name edit in project hierarchy.");
-                continue;
-            }
-
-            let project_item_ref = ProjectItemRef::new(project_item_path.clone());
-            let project_item = match opened_project.get_project_item_mut(&project_item_ref) {
-                Some(project_item) => project_item,
-                None => {
-                    log::warn!("Cannot apply struct viewer edit, project item was not found: {:?}", project_item_path);
-                    continue;
-                }
-            };
-            let project_item_type_id = project_item
-                .get_item_type()
-                .get_project_item_type_id()
-                .to_string();
-            if ProjectItemDetails::apply_project_item_address_target_edit(project_item, &edited_field) {
-                project_item.set_has_unsaved_changes(true);
-                has_persisted_property_edits = true;
-                continue;
-            }
-
-            let should_apply_field_edit = ProjectItemDetails::should_apply_struct_field_edit_to_project_item(&project_item_type_id, &edited_field_name);
-
-            if should_apply_field_edit {
-                project_item.get_properties_mut().set_field_data(
-                    edited_field.get_name(),
-                    edited_field.get_field_data().clone(),
-                    edited_field.get_is_read_only(),
-                );
-                project_item.set_has_unsaved_changes(true);
-                has_persisted_property_edits = true;
-            }
-
-            if let Some(edited_name) = &edited_name {
-                if let Some(project_items_rename_request) = Self::build_project_item_rename_request(project_item_path, &project_item_type_id, edited_name) {
-                    rename_requests.push(project_items_rename_request);
-                }
-            }
-
-            if let Some(write_value_request) =
-                Self::build_project_item_write_value_request_from_legacy_field(app_context.clone(), project_item_path, &edited_field)
-            {
-                write_value_requests.push(write_value_request);
-            }
-        }
-
-        if !has_persisted_property_edits && rename_requests.is_empty() && write_value_requests.is_empty() {
-            return;
-        }
-
-        drop(opened_project_guard);
-
-        if has_persisted_property_edits {
-            if let Ok(mut opened_project_guard) = opened_project_lock.write() {
-                if let Some(opened_project) = opened_project_guard.as_mut() {
-                    opened_project
-                        .get_project_info_mut()
-                        .set_has_unsaved_changes(true);
-                }
-            }
-
-            let project_save_request = ProjectSaveRequest {};
-
-            project_save_request.send(&app_context.engine_unprivileged_state, |project_save_response| {
-                if !project_save_response.success {
-                    log::error!("Failed to persist project item edit through project save command.");
-                }
-            });
-            project_manager.notify_project_items_changed();
-        }
-
-        for rename_request in rename_requests {
-            rename_request.send(&app_context.engine_unprivileged_state, |project_items_rename_response| {
-                if !project_items_rename_response.success {
-                    log::warn!("Project item rename command failed while committing name edit.");
-                }
-            });
-        }
-
-        for write_value_request in write_value_requests {
-            write_value_request.send(&app_context.engine_unprivileged_state, |project_items_write_value_response| {
-                if !project_items_write_value_response.success {
-                    log::warn!("Project item write-value command failed while committing legacy details edit.");
-                }
-            });
         }
     }
 
@@ -3850,19 +3345,6 @@ impl ProjectHierarchyView {
                 )
             })
             .collect()
-    }
-
-    fn extract_string_value_from_edited_field(edited_field: &ValuedStructField) -> Option<String> {
-        let edited_text = Self::extract_string_value_from_edited_field_allow_empty(edited_field)?;
-        let edited_text = edited_text.trim();
-
-        if edited_text.is_empty() { None } else { Some(edited_text.to_string()) }
-    }
-
-    fn extract_string_value_from_edited_field_allow_empty(edited_field: &ValuedStructField) -> Option<String> {
-        let data_value = edited_field.get_data_value()?;
-
-        String::from_utf8(data_value.get_value_bytes().clone()).ok()
     }
 
     fn project_item_rename_text_storage_id(project_item_path: &Path) -> Id {

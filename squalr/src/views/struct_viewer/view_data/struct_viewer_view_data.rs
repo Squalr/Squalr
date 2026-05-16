@@ -75,8 +75,6 @@ impl StructViewerViewData {
     pub const VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_DISPLAY_COUNT_RESOLVER: &'static str = "__symbol_layout_field_display_count_resolver";
     pub const VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_ACTIVE_WHEN_RESOLVER: &'static str = "__symbol_layout_field_active_when_resolver";
     pub const VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_POINTER_SIZE: &'static str = "__symbol_layout_field_pointer_size";
-    pub const VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_OFFSET_MODE: &'static str = "__symbol_layout_field_offset_mode";
-    pub const VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_STATIC_OFFSET: &'static str = "__symbol_layout_field_static_offset";
     pub const VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_OFFSET_RESOLVER: &'static str = "__symbol_layout_field_offset_resolver";
 
     pub fn new() -> Self {
@@ -238,6 +236,49 @@ impl StructViewerViewData {
             Some(struct_viewer_view_data) => struct_viewer_view_data,
             None => return,
         };
+
+        struct_viewer_view_data.set_valued_struct_and_callback(
+            engine_unprivileged_state,
+            Some(valued_struct),
+            Some(valued_struct_field_edited_callback),
+            focus_target,
+            Some(details_projection_adapter_state),
+        );
+    }
+
+    pub fn focus_details_projections_with_focus_target(
+        struct_viewer_view_data: Dependency<Self>,
+        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
+        details_projections: Vec<DetailsProjection>,
+        details_edit_callback: Arc<dyn Fn(DetailsEdit) + Send + Sync>,
+        focus_target: Option<StructViewerFocusTarget>,
+    ) {
+        let mut valued_structs = Vec::with_capacity(details_projections.len());
+        let mut adapter_states = Vec::with_capacity(details_projections.len());
+
+        for details_projection in details_projections {
+            let details_projection_adapter = DetailsProjectionAdapter::adapt_projection(&engine_unprivileged_state, &details_projection);
+            let (valued_struct, adapter_state) = details_projection_adapter.into_parts();
+
+            valued_structs.push(valued_struct);
+            adapter_states.push(adapter_state);
+        }
+
+        let Some(details_projection_adapter_state) = adapter_states.into_iter().next() else {
+            Self::clear_focus(struct_viewer_view_data);
+            return;
+        };
+        let details_projection_adapter_state_for_callback = details_projection_adapter_state.clone();
+        let valued_struct_field_edited_callback = Arc::new(move |edited_field: ValuedStructField| {
+            if let Some(details_edit) = details_projection_adapter_state_for_callback.build_details_edit(&edited_field) {
+                details_edit_callback(details_edit);
+            }
+        });
+        let mut struct_viewer_view_data = match struct_viewer_view_data.write("Focus details projections") {
+            Some(struct_viewer_view_data) => struct_viewer_view_data,
+            None => return,
+        };
+        let valued_struct = ValuedStruct::combine_exclusive(&valued_structs);
 
         struct_viewer_view_data.set_valued_struct_and_callback(
             engine_unprivileged_state,

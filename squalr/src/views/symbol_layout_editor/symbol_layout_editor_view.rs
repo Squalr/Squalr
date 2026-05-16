@@ -1121,8 +1121,7 @@ impl SymbolLayoutEditorView {
             field_draft.container_edit.to_display_count_resolution()?,
             field_draft.to_offset_resolution()?,
         )
-        .with_active_when_resolver(field_draft.to_active_when_resolver())
-        .with_hidden(field_draft.is_hidden))
+        .with_active_when_resolver(field_draft.to_active_when_resolver()))
     }
 
     fn validate_define_field_draft(
@@ -1300,9 +1299,7 @@ impl SymbolLayoutEditorView {
             }
         };
 
-        let visibility_suffix = if field_draft.is_hidden { " hidden" } else { "" };
-
-        format!("{}{}{}", data_type_id, container_suffix, visibility_suffix)
+        format!("{}{}", data_type_id, container_suffix)
     }
 
     fn render_flat_icon_button_at(
@@ -4707,33 +4704,15 @@ mod tests {
     }
 
     #[test]
-    fn build_field_details_struct_omits_hidden_field() {
-        let mut field_draft = create_static_field_draft("health", 0);
-        field_draft.is_hidden = true;
+    fn build_field_details_struct_hides_static_offset_authoring_rows() {
+        let field_draft = create_static_field_draft("health", 16);
         let details_struct = SymbolLayoutEditorView::build_field_details_struct(&ProjectSymbolCatalog::default(), SymbolicLayoutKind::Struct, &field_draft);
 
         assert!(
             !details_struct
                 .get_fields()
                 .iter()
-                .any(|field| field.get_name() == "__symbol_layout_field_hidden")
-        );
-    }
-
-    #[test]
-    fn build_field_details_struct_hides_static_offset_authoring_rows() {
-        let field_draft = create_static_field_draft("health", 16);
-        let details_struct = SymbolLayoutEditorView::build_field_details_struct(&ProjectSymbolCatalog::default(), SymbolicLayoutKind::Struct, &field_draft);
-
-        assert!(
-            details_struct
-                .get_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_OFFSET_MODE)
-                .is_none()
-        );
-        assert!(
-            details_struct
-                .get_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_STATIC_OFFSET)
-                .is_none()
+                .any(|field| field.get_name().contains("offset"))
         );
     }
 
@@ -5292,17 +5271,6 @@ mod tests {
     }
 
     #[test]
-    fn format_field_data_type_preview_includes_hidden_marker() {
-        let mut field_draft = SymbolLayoutFieldEditDraft::new(DataTypeRef::new("u8"));
-
-        field_draft.container_edit.kind = SymbolLayoutFieldContainerKind::FixedArray;
-        field_draft.container_edit.fixed_array_length = String::from("12");
-        field_draft.is_hidden = true;
-
-        assert_eq!(SymbolLayoutEditorView::format_field_data_type_preview(&field_draft), "u8[12] hidden");
-    }
-
-    #[test]
     fn format_field_data_type_preview_includes_fixed_array_display_resolver() {
         let mut field_draft = SymbolLayoutFieldEditDraft::new(DataTypeRef::new("u64"));
 
@@ -5411,9 +5379,10 @@ mod tests {
                 .is_none()
         );
         assert!(
-            details_struct
-                .get_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_OFFSET_MODE)
-                .is_none()
+            !details_struct
+                .get_fields()
+                .iter()
+                .any(|field| field.get_name().contains("offset"))
         );
     }
 }

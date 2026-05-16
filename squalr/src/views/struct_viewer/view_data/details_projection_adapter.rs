@@ -146,6 +146,11 @@ impl DetailsProjectionAdapter {
     ) -> String {
         let preferred_field_name = match details_field.get_source() {
             DetailsFieldSource::ProjectItemProperty { property_name } => Some(property_name.clone()),
+            DetailsFieldSource::ProjectSymbolRuntimeValue { .. }
+                if matches!(details_field.get_container_type(), ContainerType::Array | ContainerType::ArrayFixed(_)) =>
+            {
+                Some(ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE.to_string())
+            }
             DetailsFieldSource::SymbolLayoutMetadata { metadata_name } if metadata_name == "type" => {
                 Some(ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE.to_string())
             }
@@ -234,13 +239,10 @@ impl DetailsProjectionAdapter {
             DetailsEditorHint::Value | DetailsEditorHint::Address | DetailsEditorHint::Text | DetailsEditorHint::Boolean => {
                 StructViewerFieldEditorKind::ValueBox
             }
-            DetailsEditorHint::Code => StructViewerFieldEditorKind::CodeViewerButton,
             DetailsEditorHint::DataType if details_field.get_is_read_only() => StructViewerFieldEditorKind::ValueBox,
             DetailsEditorHint::DataType => StructViewerFieldEditorKind::DataTypeSelector,
-            DetailsEditorHint::ContainerType => StructViewerFieldEditorKind::ContainerTypeSelector,
             DetailsEditorHint::PointerOffsets => StructViewerFieldEditorKind::ProjectItemPointerOffsetsEditor,
             DetailsEditorHint::PointerSize => StructViewerFieldEditorKind::ProjectItemPointerSizeSelector,
-            DetailsEditorHint::SymbolResolver | DetailsEditorHint::SymbolLayout => StructViewerFieldEditorKind::ValueBox,
         }
     }
 }
@@ -382,5 +384,43 @@ mod tests {
 
         assert_eq!(rendered_field.get_name(), ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE);
         assert_eq!(field_presentation.editor_kind(), &StructViewerFieldEditorKind::ValueBox);
+    }
+
+    #[test]
+    fn details_projection_adapter_renders_external_symbol_arrays_as_live_value_field() {
+        let details_projection = DetailsProjection::new(
+            DetailsTarget::new("symbol_tree", "claim:absolute:1234"),
+            "Buffer",
+            vec![DetailsField::new(
+                DetailsFieldId::new("value.value"),
+                "Value",
+                DetailsValue::Text(String::new()),
+                true,
+                DetailsEditorHint::Value,
+                Some(DataTypeRef::new("u8")),
+                ContainerType::ArrayFixed(16),
+                DetailsFieldSource::ProjectSymbolRuntimeValue {
+                    field_path: vec![String::from("value")],
+                },
+            )],
+        );
+        let engine_unprivileged_state = create_test_engine_unprivileged_state();
+        let adapter = DetailsProjectionAdapter::adapt_projection(&engine_unprivileged_state, &details_projection);
+        let (valued_struct, adapter_state) = adapter.into_parts();
+        let rendered_field = valued_struct
+            .get_fields()
+            .first()
+            .expect("Expected external symbol array value field.");
+        let details_edit = adapter_state
+            .build_details_edit(rendered_field)
+            .expect("Expected external symbol array field to route edits.");
+
+        assert_eq!(rendered_field.get_name(), ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE);
+        assert_eq!(
+            details_edit.get_source(),
+            &DetailsFieldSource::ProjectSymbolRuntimeValue {
+                field_path: vec![String::from("value")]
+            }
+        );
     }
 }

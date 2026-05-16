@@ -76,6 +76,30 @@ impl SymbolTreeDetailsProjection {
         Self::build_metadata_fields_with_type_id(symbol_tree_node, include_symbol_claim_metadata, symbol_size_in_bytes, None)
     }
 
+    pub fn build_external_value(
+        symbol_tree_node: &SymbolTreeNode,
+        include_symbol_claim_metadata: bool,
+        symbol_size_in_bytes: Option<u64>,
+    ) -> DetailsProjection {
+        let target = DetailsTarget::new(Self::TARGET_KIND_SYMBOL_TREE, symbol_tree_node.get_node_key());
+        let mut fields = Self::build_metadata_fields(symbol_tree_node, include_symbol_claim_metadata, symbol_size_in_bytes);
+
+        fields.push(DetailsField::new(
+            DetailsFieldId::new(format!("{}value", Self::FIELD_ID_VALUE_PREFIX)),
+            "Value",
+            DetailsValue::Text(String::new()),
+            true,
+            DetailsEditorHint::Value,
+            Some(DataTypeRef::new(&symbol_tree_node.get_display_type_id())),
+            symbol_tree_node.get_container_type(),
+            DetailsFieldSource::ProjectSymbolRuntimeValue {
+                field_path: vec![String::from("value")],
+            },
+        ));
+
+        DetailsProjection::new(target, symbol_tree_node.get_display_name(), fields)
+    }
+
     fn build_metadata_fields_with_type_id(
         symbol_tree_node: &SymbolTreeNode,
         include_symbol_claim_metadata: bool,
@@ -334,6 +358,40 @@ mod tests {
                 .expect("Expected data type field.")
                 .get_value(),
             &DetailsValue::Text(String::from("winmine.exe"))
+        );
+    }
+
+    #[test]
+    fn build_external_value_uses_details_runtime_source_for_arrays() {
+        let symbol_tree_node = SymbolTreeNode::new(
+            String::from("claim:absolute:1234"),
+            SymbolTreeNodeKind::SymbolClaim {
+                symbol_locator_key: String::from("absolute:1234"),
+            },
+            0,
+            String::from("Buffer"),
+            String::from("Buffer"),
+            String::from("absolute:1234"),
+            ProjectSymbolLocator::new_absolute_address(0x1234),
+            String::from("u8"),
+            ContainerType::ArrayFixed(16),
+            false,
+            false,
+        );
+        let details_projection = SymbolTreeDetailsProjection::build_external_value(&symbol_tree_node, true, Some(16));
+        let value_field = details_projection
+            .get_field(&DetailsFieldId::new("value.value"))
+            .expect("Expected external value field.");
+
+        assert_eq!(value_field.get_label(), "Value");
+        assert!(value_field.get_is_read_only());
+        assert_eq!(value_field.get_editor_hint(), &DetailsEditorHint::Value);
+        assert_eq!(value_field.get_container_type(), ContainerType::ArrayFixed(16));
+        assert_eq!(
+            value_field.get_source(),
+            &DetailsFieldSource::ProjectSymbolRuntimeValue {
+                field_path: vec![String::from("value")]
+            }
         );
     }
 

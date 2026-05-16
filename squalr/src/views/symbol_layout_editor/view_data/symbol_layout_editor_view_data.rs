@@ -62,7 +62,6 @@ pub struct SymbolLayoutFieldEditDraft {
     pub field_name: String,
     pub data_type_selection: DataTypeSelection,
     pub container_edit: SymbolLayoutFieldContainerEdit,
-    pub is_hidden: bool,
     pub active_when_resolver_id: String,
     pub offset_mode: SymbolLayoutFieldOffsetMode,
     pub static_offset_in_bytes: String,
@@ -1377,8 +1376,7 @@ impl SymbolLayoutEditorViewData {
                 display_count_resolution,
                 offset_resolution,
             )
-            .with_active_when_resolver(field_draft.to_active_when_resolver())
-            .with_hidden(field_draft.is_hidden);
+            .with_active_when_resolver(field_draft.to_active_when_resolver());
 
             let (field_offset, symbolic_field_definition) = match symbolic_field_definition.get_offset_resolution() {
                 SymbolicFieldOffsetResolution::Static(offset_in_bytes) if !draft.layout_kind.is_union() && *offset_in_bytes >= next_sequential_offset => {
@@ -1689,7 +1687,6 @@ impl SymbolLayoutEditorViewData {
             symbolic_field_definition.get_offset_resolution().clone(),
         )
         .with_active_when_resolver(symbolic_field_definition.get_active_when_resolver().cloned())
-        .with_hidden(symbolic_field_definition.is_hidden())
     }
 
     pub fn apply_draft_to_catalog(
@@ -1765,7 +1762,6 @@ impl SymbolLayoutFieldEditDraft {
             field_name: String::new(),
             data_type_selection: DataTypeSelection::new(default_data_type_ref),
             container_edit: SymbolLayoutFieldContainerEdit::default(),
-            is_hidden: false,
             active_when_resolver_id: String::new(),
             offset_mode: SymbolLayoutFieldOffsetMode::Sequential,
             static_offset_in_bytes: String::new(),
@@ -1784,7 +1780,6 @@ impl SymbolLayoutFieldEditDraft {
             field_name: symbolic_field_definition.get_field_name().to_string(),
             data_type_selection: DataTypeSelection::new(symbolic_field_definition.get_data_type_ref().clone()),
             container_edit: SymbolLayoutFieldContainerEdit::from_symbolic_field_definition(symbolic_field_definition),
-            is_hidden: symbolic_field_definition.is_hidden(),
             active_when_resolver_id: symbolic_field_definition
                 .get_active_when_resolver()
                 .map(|resolver_ref| resolver_ref.get_resolver_id().to_string())
@@ -2554,33 +2549,6 @@ mod tests {
         assert_eq!(
             round_tripped_field_text,
             "sections:win.Section[resolver(pe.section_count)] @ resolver(pe.section_table)"
-        );
-    }
-
-    #[test]
-    fn draft_round_trips_hidden_fields() {
-        let struct_layout_descriptor = StructLayoutDescriptor::new(
-            String::from("header"),
-            SymbolicStructDefinition::new(
-                String::from("header"),
-                vec![SymbolicFieldDefinition::from_str("reserved:u8[12] hidden").expect("Expected hidden field to parse.")],
-            ),
-        );
-
-        let draft = SymbolLayoutEditorViewData::create_draft_from_descriptor(&struct_layout_descriptor);
-        let field_draft = draft.field_drafts.first().expect("Expected field draft.");
-
-        assert!(field_draft.is_hidden);
-
-        let project_symbol_catalog = ProjectSymbolCatalog::default();
-        let round_tripped_descriptor =
-            SymbolLayoutEditorViewData::build_symbol_layout_descriptor(&project_symbol_catalog, &draft).expect("Expected hidden draft to build.");
-
-        assert!(
-            round_tripped_descriptor
-                .get_struct_layout_definition()
-                .get_fields()[0]
-                .is_hidden()
         );
     }
 

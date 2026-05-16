@@ -54,20 +54,21 @@ Our current task, from `README.md`, is:
 
 ## Vestigial Code Audit
 
-- `StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_OFFSET_MODE` and `VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_STATIC_OFFSET` look like removable fossils. Symbol Layout editor no longer renders or applies those rows; remaining references are constants plus tests asserting the rows are absent.
-- `SymbolLayoutFieldEditDraft::is_hidden`, `SymbolicFieldDefinition::is_hidden`, `with_hidden`, and `" hidden"` parsing remain after explicit `unassigned[...]` was introduced. PE symbol population no longer emits hidden fields. Hidden currently behaves like a second mechanism for non-rendered layout bytes, while `unassigned[...]` is the preferred explicit data variant. Audit before removal because union inactive/ambiguous filtering uses a separate activation model, not the hidden flag.
-- `DetailsEditorHint::{Code, ContainerType, SymbolResolver, SymbolLayout}` and `DetailsFieldSource::SymbolResolverMetadata` are currently unproduced by project item and symbol tree Details projectors. They may be future vocabulary, but today they are speculative API surface.
-- `ProjectItemDetails` remains reachable only as a GUI bridge for multi-selection Details, preview/value display helpers, and context actions. It is not dead yet, but its single-selection stored edit/value-write responsibilities have moved to `ProjectItemDetailsProjection`, `ProjectItemDetailsEditPlanner`, `ProjectItemDetailsEditApplier`, and `project_items write-value`.
-- `SymbolTreeView::build_symbol_layout_for_tree_entry`, `build_symbol_layout_metadata_fields`, `build_symbol_layout_location_fields`, and the view-owned memory-read dispatcher remain reachable through the external array/value-viewer path only. Normal symbol Details moved to `SymbolTreeDetailsProjection`.
+- Removed `StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_OFFSET_MODE` and `VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_STATIC_OFFSET`; Symbol Layout Details no longer exposes offset/static authoring rows.
+- Removed `SymbolLayoutFieldEditDraft::is_hidden`, `SymbolicFieldDefinition::is_hidden`, `with_hidden`, and `" hidden"` parsing/storage. Non-rendered layout space is now represented by explicit `unassigned[...]` entries, while union visibility remains handled by resolver activation.
+- Removed unproduced Details vocabulary: `DetailsEditorHint::{Code, ContainerType, SymbolResolver, SymbolLayout}` and `DetailsFieldSource::SymbolResolverMetadata`.
+- `ProjectItemDetails` remains reachable for preview/value display helpers, memory/code context actions, runtime target resolution, and memory-read helpers. It is no longer the Project Hierarchy persisted-property Details bridge.
+- Symbol Tree normal selections and external array/value-viewer selections now focus `SymbolTreeDetailsProjection`; the old view-owned `build_symbol_layout_*` / `ValuedStruct` external projection path was deleted.
+- `SymbolTreeView::dispatch_memory_read_request` and `build_symbol_preview_snapshot_queries` remain live for preview refreshes; they are not part of the deleted Details bridge.
 - `plugins/squalr-plugin-symbols-pe/src/populate_pe_symbols_action.rs::resolve_primitive_data_type_size` is a local size table used only by PE layout placement. It is not dead, but it duplicates data-type sizing knowledge and should eventually use a shared symbolic layout sizing service if one is introduced.
 
 ## Vestigial Cleanup Action Items
 
-1. Remove the two dead Symbol Layout offset/static Struct Viewer virtual field constants and update tests to assert absence by user-visible labels or field count instead of obsolete ids.
-2. Decide whether hidden symbolic fields still exist as a domain concept. If not, remove `" hidden"` parsing/storage/draft state/tests and represent reserved bytes exclusively with `unassigned[...]`.
-3. Tighten the Details model by removing unproduced editor/source variants, or add the actual projectors that produce them. Avoid carrying pretend vocabulary with no caller.
-4. Finish migrating Project Hierarchy multi-selection off `ProjectItemDetails::build_struct_view_properties`; then delete legacy persisted-property edit parsing from `ProjectHierarchyView::apply_project_item_edits`.
-5. Move Symbol Tree external array/value-viewer projection to Details; then delete the remaining legacy `build_symbol_layout_*` path and view-owned memory-read dispatcher.
+1. Done: removed the two dead Symbol Layout offset/static Struct Viewer virtual field constants and updated tests to assert absence without obsolete ids.
+2. Done: removed hidden symbolic fields as a domain concept and kept reserved bytes as explicit `unassigned[...]`.
+3. Done: tightened the Details model by removing unproduced editor/source variants.
+4. Done: migrated Project Hierarchy multi-selection off `ProjectItemDetails::build_struct_view_properties` and removed the legacy persisted-property edit parser from `ProjectHierarchyView`.
+5. Done: moved Symbol Tree external array/value-viewer projection to Details and deleted the remaining legacy `build_symbol_layout_*` path.
 6. Consider extracting shared symbolic layout size estimation once PE placement and runtime/tree sizing need the same behavior.
 
 ## Detailed Action Items
@@ -107,8 +108,8 @@ Our current task, from `README.md`, is:
    - Existing field-shape tests for address target fields, pointer preview hiding, projected module, and runtime editability were mirrored into the API projector.
    - Single-selection Project Hierarchy details focus now uses `ProjectItemDetailsProjection` plus `StructViewerViewData::focus_details_projection_with_focus_target`.
    - Project Hierarchy icon data type resolution now uses `ProjectItemDetailsProjection::resolve_project_item_icon_data_type_id`.
-   - Multi-selection Project Hierarchy details focus still uses legacy `ProjectItemDetails::build_struct_view_properties` until a multi-projection strategy exists.
-   - Remaining target: remove legacy single-selection `ProjectItemDetails::build_struct_view_properties` dependency after stored-field edit application moves off legacy fields.
+   - Multi-selection Project Hierarchy details focus now adapts multiple `DetailsProjection`s and combines the rendered rows through the Struct Viewer compatibility layer.
+   - Done: removed legacy `ProjectItemDetails::build_struct_view_properties`.
 
 5. In progress: add project item edit planning.
    - Added `ProjectItemDetailsEditPlanner` in `squalr-engine-api/src/structures/projects/project_items/details/`.
@@ -127,8 +128,7 @@ Our current task, from `README.md`, is:
    - Single-selection runtime value edits now dispatch `ProjectItemsWriteValueRequest` instead of building memory writes in GUI code.
    - Single-selection stored-field edits now apply through `ProjectItemDetailsEditApplier`; rename operations dispatch `ProjectItemsRenameRequest`.
    - Multi-selection legacy fallback now also dispatches `ProjectItemsWriteValueRequest` for runtime value edits instead of building `MemoryWriteRequest` in GUI code.
-   - The GUI still keeps legacy `apply_project_item_edits` for multi-selection persisted property edits.
-   - Remaining target: remove or shrink `ProjectHierarchyView::apply_project_item_edits` after multi-selection moves off legacy fields.
+   - Done: removed the legacy `ProjectHierarchyView::apply_project_item_edits` fallback after multi-selection moved to Details.
 
 6. Done: add `project_items write-value`.
    - Added request/response/command enum variants under `squalr-engine-api/src/commands/project_items/write_value/`.
@@ -144,7 +144,7 @@ Our current task, from `README.md`, is:
    - Single-selection Details focus/edit now uses `DetailsEdit` and dispatches `project_items write-value` for runtime edits.
    - Single-selection stored-field edits now use `ProjectItemDetailsEditApplier` instead of converting operations back to `ValuedStructField`.
    - Runtime value edits no longer build raw `MemoryWriteRequest`s in Project Hierarchy.
-   - Remaining target: remove direct parsing of edited `ValuedStructField` names from multi-selection persisted property fallback.
+   - Done: removed direct parsing of edited `ValuedStructField` names from the Project Hierarchy persisted-property fallback.
    - Keep tree rendering, selection, drag/drop, and context menus in the view until a separate reason exists to move them.
 
 8. Migrate Symbol Tree to Details.
@@ -153,8 +153,8 @@ Our current task, from `README.md`, is:
    - Normal readable Symbol Tree selections now focus `DetailsProjection` through `StructViewerViewData::focus_details_projection_with_focus_target`.
    - Symbol Tree Details metadata is read-only; symbol layout/name edits stay in the struct layout editor, symbol resolver tools, and inline rename paths.
    - Normal Details runtime value edits dispatch existing `ProjectSymbolsWriteValueRequest`.
-   - Remaining target: move external array/value-viewer rows off the old `ValuedStruct` path.
-   - Remaining target: remove legacy metadata/location/value field construction from `build_symbol_layout_*` after the external path is migrated.
+   - External array/value-viewer rows now use `SymbolTreeDetailsProjection::build_external_value`, with the GUI adapter mapping array runtime values to the existing live-value row presentation.
+   - Done: removed legacy metadata/location/value field construction from the old `build_symbol_layout_*` path.
    - Keep symbol tree rendering, expansion state, and selection in the GUI view.
 
 9. Drain old virtual fields from Struct Viewer.
@@ -216,3 +216,4 @@ Our current task, from `README.md`, is:
 - Current module-root unassigned/save repair pass makes Symbol Layout editor split offsets part of dirty detection and descriptor persistence, restores persisted adjacent `unassigned[...]` split boundaries when reopening a layout, and passes active split offsets into save. Symbol Tree module-root expansion now uses the module-root layout descriptor as the rendered child source when present, preserving explicit split `UNASSIGNED` ranges and mapping mirrored promoted fields back to existing symbol claims at the same module offset to avoid duplicates. Validated with `cargo fmt --all`, `cargo check -p squalr --locked`, `cargo test -p squalr-engine-api symbol_tree --lib --locked`, `cargo test -p squalr symbol_layout_editor --lib --locked`, `cargo test -p squalr symbol_tree --lib --locked`, `cargo test -p squalr struct_viewer --lib --locked`, and `git diff --check`. Needs human verification in the GUI with the `winmine.exe+579C -> promote to symbol -> edit winmine.exe layout` flow.
 - Current PE symbol population repair pass keeps the plugin's legacy module-field write but also updates the module-root layout descriptor, so populating PE headers after a promoted/split module root inserts `PE Headers` at offset `0`, rebuilds the following explicit `unassigned[...]` gap, and preserves existing later fields such as `winmine.exe+579C`. Validated with `cargo fmt --all`, `cargo test -p squalr-plugin-symbols-pe --locked`, `cargo test -p squalr-engine execute_plugin_action_populates_pe_symbols --lib --locked`, `cargo test -p squalr-engine-api symbol_tree --lib --locked`, `cargo check -p squalr --locked`, and `git diff --check`. Needs human verification in the GUI with `winmine.exe+579C -> promote to symbol -> populate PE headers`.
 - Current Symbol Layout field move repair pass treats tail gaps after fields as explicit `unassigned[...]` rows and preserves the split boundary when a field moves across one unassigned row into another, preventing adjacent explicit unassigned rows from silently merging/disappearing. Variant layout persistence now also uses scoped unassigned split offsets. Validated with `cargo fmt --all`, `cargo test -p squalr symbol_layout_editor --lib --locked`, `cargo test -p squalr symbol_tree --lib --locked`, `cargo test -p squalr struct_viewer --lib --locked`, `cargo test -p squalr-engine-api symbol_tree --lib --locked`, `cargo check -p squalr --locked`, and `git diff --check`. Needs human verification in the GUI with `unassigned -> field -> unassigned`, then moving the field up/down.
+- Current vestigial cleanup pass removed dead Symbol Layout offset/static virtual field constants, removed hidden symbolic-field parsing/storage/draft state, removed unproduced Details editor/source variants, migrated Project Hierarchy multi-selection Details off the legacy `ProjectItemDetails::build_struct_view_properties` bridge, removed `ProjectHierarchyView::apply_project_item_edits`, and moved Symbol Tree external array/value-viewer focus to `SymbolTreeDetailsProjection::build_external_value`. Added regression tests for external symbol array Details projection and adapter rendering. Validated with `cargo fmt --all`, `cargo test -p squalr-engine-domain symbolic_field --lib --locked`, `cargo test -p squalr-engine-api symbol_tree --lib --locked`, `cargo test -p squalr-engine-api details --lib --locked`, `cargo test -p squalr-engine-api project_item_details --lib --locked`, `cargo test -p squalr struct_viewer --lib --locked`, `cargo test -p squalr project_hierarchy --lib --locked`, `cargo test -p squalr symbol_tree --lib --locked`, `cargo test -p squalr symbol_layout_editor --lib --locked`, `cargo check -p squalr --locked`, and `git diff --check`. Needs human verification in the GUI.

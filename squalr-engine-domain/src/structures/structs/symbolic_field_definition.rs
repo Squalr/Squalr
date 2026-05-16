@@ -32,8 +32,6 @@ pub struct SymbolicDefinedField {
     offset_resolution: SymbolicFieldOffsetResolution,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     active_when_resolver: Option<SymbolicResolverRef>,
-    #[serde(default, skip_serializing_if = "is_false")]
-    is_hidden: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -112,7 +110,6 @@ impl SymbolicFieldDefinition {
             display_count_resolution: SymbolicFieldCountResolution::Inferred,
             offset_resolution: SymbolicFieldOffsetResolution::Sequential,
             active_when_resolver: None,
-            is_hidden: false,
         })
     }
 
@@ -129,7 +126,6 @@ impl SymbolicFieldDefinition {
             display_count_resolution: SymbolicFieldCountResolution::Inferred,
             offset_resolution: SymbolicFieldOffsetResolution::Sequential,
             active_when_resolver: None,
-            is_hidden: false,
         })
     }
 
@@ -148,7 +144,6 @@ impl SymbolicFieldDefinition {
             display_count_resolution: SymbolicFieldCountResolution::Inferred,
             offset_resolution,
             active_when_resolver: None,
-            is_hidden: false,
         })
     }
 
@@ -168,7 +163,6 @@ impl SymbolicFieldDefinition {
             display_count_resolution,
             offset_resolution,
             active_when_resolver: None,
-            is_hidden: false,
         })
     }
 
@@ -185,17 +179,6 @@ impl SymbolicFieldDefinition {
     ) -> Self {
         if let SymbolicFieldDefinition::Field(field_definition) = &mut self {
             field_definition.active_when_resolver = active_when_resolver;
-        }
-
-        self
-    }
-
-    pub fn with_hidden(
-        mut self,
-        is_hidden: bool,
-    ) -> Self {
-        if let SymbolicFieldDefinition::Field(field_definition) = &mut self {
-            field_definition.is_hidden = is_hidden;
         }
 
         self
@@ -368,13 +351,6 @@ impl SymbolicFieldDefinition {
         }
     }
 
-    pub fn is_hidden(&self) -> bool {
-        match self {
-            SymbolicFieldDefinition::Field(field_definition) => field_definition.is_hidden,
-            SymbolicFieldDefinition::Unassigned(_) => true,
-        }
-    }
-
     pub fn is_unassigned(&self) -> bool {
         matches!(self, SymbolicFieldDefinition::Unassigned(_))
     }
@@ -401,7 +377,6 @@ impl FromStr for SymbolicFieldDefinition {
         } else {
             (trimmed_string, SymbolicFieldOffsetResolution::Sequential)
         };
-        let (field_definition_string, is_hidden) = parse_hidden_flag(field_definition_string);
         let (field_definition_string, active_when_resolver) = parse_active_when_resolver(field_definition_string)?;
         let (field_definition_string, display_count_resolution) = parse_display_count_resolution(field_definition_string)?;
         let (field_name, type_and_container_string) = if let Some((field_name, type_and_container_string)) = field_definition_string.split_once(':') {
@@ -479,7 +454,6 @@ impl FromStr for SymbolicFieldDefinition {
                 display_count_resolution,
                 offset_resolution,
                 active_when_resolver,
-                is_hidden,
             }))
         } else {
             Ok(SymbolicFieldDefinition::new_named_with_resolutions_and_display_count(
@@ -490,8 +464,7 @@ impl FromStr for SymbolicFieldDefinition {
                 display_count_resolution,
                 offset_resolution,
             )
-            .with_active_when_resolver(active_when_resolver)
-            .with_hidden(is_hidden))
+            .with_active_when_resolver(active_when_resolver))
         }
     }
 }
@@ -527,10 +500,6 @@ impl fmt::Display for SymbolicFieldDefinition {
 
         if let Some(active_when_resolver) = field_definition.active_when_resolver.as_ref() {
             field_text = format!("{} active resolver({})", field_text, active_when_resolver.get_resolver_id());
-        }
-
-        if field_definition.is_hidden {
-            field_text = format!("{} hidden", field_text);
         }
 
         match &field_definition.offset_resolution {
@@ -591,15 +560,6 @@ fn parse_unassigned_field(field_definition_string: &str) -> Result<Option<u64>, 
         .map_err(|_| format!("Invalid unassigned size: {}.", size_text.trim()))
 }
 
-fn parse_hidden_flag(field_definition_string: &str) -> (&str, bool) {
-    let trimmed_field_definition_string = field_definition_string.trim();
-    let Some(field_definition_without_hidden) = trimmed_field_definition_string.strip_suffix(" hidden") else {
-        return (trimmed_field_definition_string, false);
-    };
-
-    (field_definition_without_hidden.trim(), true)
-}
-
 fn parse_active_when_resolver(field_definition_string: &str) -> Result<(&str, Option<SymbolicResolverRef>), String> {
     let trimmed_field_definition_string = field_definition_string.trim();
     let Some((field_definition_string, resolver_reference)) = trimmed_field_definition_string.rsplit_once(" active ") else {
@@ -611,10 +571,6 @@ fn parse_active_when_resolver(field_definition_string: &str) -> Result<(&str, Op
         .ok_or_else(|| String::from("Active variant resolver must use resolver(...)."))?;
 
     Ok((field_definition_string.trim(), Some(active_when_resolver)))
-}
-
-fn is_false(value: &bool) -> bool {
-    !*value
 }
 
 fn parse_count_resolution(length_part: &str) -> Result<SymbolicFieldCountResolution, String> {
@@ -836,16 +792,6 @@ mod tests {
     }
 
     #[test]
-    fn parse_hidden_field_round_trips() {
-        let symbolic_field_definition = SymbolicFieldDefinition::from_str("reserved:u8[12] hidden").expect("Expected hidden field definition to parse.");
-
-        assert_eq!(symbolic_field_definition.get_field_name(), "reserved");
-        assert_eq!(symbolic_field_definition.get_container_type(), ContainerType::ArrayFixed(12));
-        assert!(symbolic_field_definition.is_hidden());
-        assert_eq!(symbolic_field_definition.to_string(), "reserved:u8[12] hidden");
-    }
-
-    #[test]
     fn parse_active_when_resolver_round_trips() {
         let symbolic_field_definition =
             SymbolicFieldDefinition::from_str("alive:actor.state.alive active resolver(actor.is_alive)").expect("Expected active resolver to parse.");
@@ -920,8 +866,9 @@ mod tests {
     }
 
     #[test]
-    fn serialized_field_without_name_deserializes_as_anonymous_field() {
+    fn serialized_current_field_without_name_deserializes_as_anonymous_field() {
         let serialized_value = json!({
+            "kind": "field",
             "data_type_ref": { "data_type_id": "u32" },
             "container_type": "None"
         });

@@ -34,13 +34,9 @@ pub enum DetailsEditorHint {
     #[default]
     Value,
     Address,
-    Code,
     DataType,
-    ContainerType,
     PointerOffsets,
     PointerSize,
-    SymbolResolver,
-    SymbolLayout,
     Text,
     Boolean,
 }
@@ -63,9 +59,6 @@ pub enum DetailsFieldSource {
         field_path: Vec<String>,
     },
     SymbolLayoutMetadata {
-        metadata_name: String,
-    },
-    SymbolResolverMetadata {
         metadata_name: String,
     },
 }
