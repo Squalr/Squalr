@@ -235,6 +235,7 @@ impl DetailsProjectionAdapter {
                 StructViewerFieldEditorKind::ValueBox
             }
             DetailsEditorHint::Code => StructViewerFieldEditorKind::CodeViewerButton,
+            DetailsEditorHint::DataType if details_field.get_is_read_only() => StructViewerFieldEditorKind::ValueBox,
             DetailsEditorHint::DataType => StructViewerFieldEditorKind::DataTypeSelector,
             DetailsEditorHint::ContainerType => StructViewerFieldEditorKind::ContainerTypeSelector,
             DetailsEditorHint::PointerOffsets => StructViewerFieldEditorKind::ProjectItemPointerOffsetsEditor,
@@ -350,7 +351,7 @@ mod tests {
     }
 
     #[test]
-    fn details_projection_adapter_renders_symbol_tree_type_metadata_as_data_type_field() {
+    fn details_projection_adapter_renders_read_only_symbol_tree_type_metadata_as_value_field() {
         let details_projection = DetailsProjection::new(
             DetailsTarget::new("symbol_tree", "claim:absolute:1234"),
             "Health",
@@ -380,6 +381,6 @@ mod tests {
             .expect("Expected symbol tree type presentation.");
 
         assert_eq!(rendered_field.get_name(), ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE);
-        assert_eq!(field_presentation.editor_kind(), &StructViewerFieldEditorKind::DataTypeSelector);
+        assert_eq!(field_presentation.editor_kind(), &StructViewerFieldEditorKind::ValueBox);
     }
 }

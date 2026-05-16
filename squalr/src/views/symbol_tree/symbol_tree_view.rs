@@ -594,70 +594,46 @@ impl SymbolTreeView {
         &self,
         selected_symbol_tree_entry: &SymbolTreeNode,
     ) -> Arc<dyn Fn(DetailsEdit) + Send + Sync> {
-        let symbol_claim_locator_key = match selected_symbol_tree_entry.get_kind() {
-            SymbolTreeNodeKind::SymbolClaim { symbol_locator_key } => Some(symbol_locator_key.to_string()),
-            _ => None,
-        };
         let selected_symbol_tree_entry = selected_symbol_tree_entry.clone();
         let engine_unprivileged_state = self.app_context.engine_unprivileged_state.clone();
 
         Arc::new(move |details_edit: DetailsEdit| match details_edit.get_value() {
             DetailsValue::Empty => {}
-            details_value => match details_edit.get_field_id().get_field_id() {
-                "metadata.display_name" => {
-                    let Some(symbol_locator_key) = symbol_claim_locator_key.as_ref() else {
-                        return;
-                    };
-                    let Some(next_display_name) = Self::details_value_to_text(details_value) else {
-                        return;
-                    };
-                    let next_display_name = next_display_name.trim().to_string();
-                    if next_display_name.is_empty() || next_display_name == selected_symbol_tree_entry.get_display_name() {
-                        return;
-                    }
+            details_value => {
+                let DetailsFieldSource::ProjectSymbolRuntimeValue { field_path } = details_edit.get_source() else {
+                    return;
+                };
+                let field_name = field_path
+                    .last()
+                    .cloned()
+                    .unwrap_or_else(|| String::from("value"));
+                let Some(anonymous_value_string) = Self::details_value_to_anonymous_value_string(engine_unprivileged_state.as_ref(), details_value) else {
+                    return;
+                };
 
-                    ProjectSymbolsRenameRequest {
-                        symbol_locator_key: symbol_locator_key.clone(),
-                        display_name: next_display_name,
-                    }
-                    .send(&engine_unprivileged_state, |_project_symbols_rename_response| {});
+                ProjectSymbolsWriteValueRequest {
+                    address: selected_symbol_tree_entry.get_locator().get_focus_address(),
+                    module_name: selected_symbol_tree_entry
+                        .get_locator()
+                        .get_focus_module_name()
+                        .to_string(),
+                    symbol_type_id: selected_symbol_tree_entry.get_symbol_type_id().to_string(),
+                    container_type: selected_symbol_tree_entry.get_container_type(),
+                    field_name,
+                    anonymous_value_string,
                 }
-                _ => {
-                    let DetailsFieldSource::ProjectSymbolRuntimeValue { field_path } = details_edit.get_source() else {
-                        return;
-                    };
-                    let field_name = field_path
-                        .last()
-                        .cloned()
-                        .unwrap_or_else(|| String::from("value"));
-                    let Some(anonymous_value_string) = Self::details_value_to_anonymous_value_string(engine_unprivileged_state.as_ref(), details_value) else {
-                        return;
-                    };
-
-                    ProjectSymbolsWriteValueRequest {
-                        address: selected_symbol_tree_entry.get_locator().get_focus_address(),
-                        module_name: selected_symbol_tree_entry
-                            .get_locator()
-                            .get_focus_module_name()
-                            .to_string(),
-                        symbol_type_id: selected_symbol_tree_entry.get_symbol_type_id().to_string(),
-                        container_type: selected_symbol_tree_entry.get_container_type(),
-                        field_name,
-                        anonymous_value_string,
+                .send(&engine_unprivileged_state, |project_symbols_write_value_response| {
+                    if !project_symbols_write_value_response.success {
+                        log::warn!(
+                            "Symbol Tree details value write command failed: {}",
+                            project_symbols_write_value_response
+                                .error
+                                .as_deref()
+                                .unwrap_or("unknown error")
+                        );
                     }
-                    .send(&engine_unprivileged_state, |project_symbols_write_value_response| {
-                        if !project_symbols_write_value_response.success {
-                            log::warn!(
-                                "Symbol Tree details value write command failed: {}",
-                                project_symbols_write_value_response
-                                    .error
-                                    .as_deref()
-                                    .unwrap_or("unknown error")
-                            );
-                        }
-                    });
-                }
-            },
+                });
+            }
         })
     }
 
@@ -756,18 +732,6 @@ impl SymbolTreeView {
                 }
             });
         })
-    }
-
-    fn details_value_to_text(details_value: &DetailsValue) -> Option<String> {
-        match details_value {
-            DetailsValue::Text(text) => Some(text.clone()),
-            DetailsValue::DataValue(data_value) => String::from_utf8(data_value.get_value_bytes().clone()).ok(),
-            DetailsValue::AnonymousValue(anonymous_value_string) => Some(anonymous_value_string.get_anonymous_value_string().to_string()),
-            DetailsValue::Boolean(value) => Some(value.to_string()),
-            DetailsValue::UnsignedInteger(value) => Some(value.to_string()),
-            DetailsValue::SignedInteger(value) => Some(value.to_string()),
-            DetailsValue::Empty => Some(String::new()),
-        }
     }
 
     fn details_value_to_anonymous_value_string(
@@ -1044,8 +1008,21 @@ impl SymbolTreeView {
         let engine_execution_context: Arc<dyn EngineExecutionContext> = self.app_context.engine_unprivileged_state.clone();
         let symbol_size_in_bytes = Self::resolve_symbol_tree_entry_size_for_struct_viewer(&engine_execution_context, symbol_tree_entry);
 
-        if matches!(symbol_tree_entry.get_kind(), SymbolTreeNodeKind::ModuleSpace { .. }) {
-            return SymbolTreeDetailsProjection::build(symbol_tree_entry, include_symbol_claim_metadata, symbol_size_in_bytes, None, None);
+        if let SymbolTreeNodeKind::ModuleSpace { module_name, .. } = symbol_tree_entry.get_kind() {
+            let metadata_type_id = project_symbol_catalog
+                .get_struct_layout_descriptors()
+                .iter()
+                .any(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == module_name)
+                .then_some(module_name.as_str());
+
+            return SymbolTreeDetailsProjection::build_with_metadata_type_id(
+                symbol_tree_entry,
+                include_symbol_claim_metadata,
+                symbol_size_in_bytes,
+                None,
+                None,
+                metadata_type_id,
+            );
         }
 
         let Some(symbolic_struct_definition) = self.build_named_symbolic_struct_definition_for_symbol_tree_entry(project_symbol_catalog, symbol_tree_entry)

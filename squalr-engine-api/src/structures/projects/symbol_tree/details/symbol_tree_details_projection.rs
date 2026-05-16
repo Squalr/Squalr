@@ -30,8 +30,26 @@ impl SymbolTreeDetailsProjection {
         runtime_value_struct: Option<&ValuedStruct>,
         status_text: Option<&str>,
     ) -> DetailsProjection {
+        Self::build_with_metadata_type_id(
+            symbol_tree_node,
+            include_symbol_claim_metadata,
+            symbol_size_in_bytes,
+            runtime_value_struct,
+            status_text,
+            None,
+        )
+    }
+
+    pub fn build_with_metadata_type_id(
+        symbol_tree_node: &SymbolTreeNode,
+        include_symbol_claim_metadata: bool,
+        symbol_size_in_bytes: Option<u64>,
+        runtime_value_struct: Option<&ValuedStruct>,
+        status_text: Option<&str>,
+        metadata_type_id: Option<&str>,
+    ) -> DetailsProjection {
         let target = DetailsTarget::new(Self::TARGET_KIND_SYMBOL_TREE, symbol_tree_node.get_node_key());
-        let mut fields = Self::build_metadata_fields(symbol_tree_node, include_symbol_claim_metadata, symbol_size_in_bytes);
+        let mut fields = Self::build_metadata_fields_with_type_id(symbol_tree_node, include_symbol_claim_metadata, symbol_size_in_bytes, metadata_type_id);
 
         if let Some(runtime_value_struct) = runtime_value_struct {
             fields.extend(Self::build_runtime_value_fields(runtime_value_struct));
@@ -55,6 +73,15 @@ impl SymbolTreeDetailsProjection {
         include_symbol_claim_metadata: bool,
         symbol_size_in_bytes: Option<u64>,
     ) -> Vec<DetailsField> {
+        Self::build_metadata_fields_with_type_id(symbol_tree_node, include_symbol_claim_metadata, symbol_size_in_bytes, None)
+    }
+
+    fn build_metadata_fields_with_type_id(
+        symbol_tree_node: &SymbolTreeNode,
+        include_symbol_claim_metadata: bool,
+        symbol_size_in_bytes: Option<u64>,
+        metadata_type_id: Option<&str>,
+    ) -> Vec<DetailsField> {
         let mut metadata_fields = Vec::new();
 
         if include_symbol_claim_metadata {
@@ -62,14 +89,18 @@ impl SymbolTreeDetailsProjection {
                 Self::METADATA_DISPLAY_NAME,
                 "Display Name",
                 symbol_tree_node.get_display_name(),
-                false,
+                true,
             ));
         }
 
         metadata_fields.push(DetailsField::new(
             DetailsFieldId::new(format!("{}{}", Self::FIELD_ID_METADATA_PREFIX, Self::METADATA_TYPE)),
             "Data Type",
-            DetailsValue::Text(symbol_tree_node.get_display_type_id()),
+            DetailsValue::Text(
+                metadata_type_id
+                    .map(str::to_string)
+                    .unwrap_or_else(|| symbol_tree_node.get_display_type_id()),
+            ),
             true,
             DetailsEditorHint::DataType,
             Some(DataTypeRef::new(DataTypeStringUtf8::DATA_TYPE_ID)),
@@ -206,6 +237,7 @@ mod tests {
     use super::SymbolTreeDetailsProjection;
     use crate::structures::{
         data_types::built_in_types::u32::data_type_u32::DataTypeU32,
+        data_values::container_type::ContainerType,
         details::{DetailsEditorHint, DetailsFieldId, DetailsFieldSource, DetailsValue},
         projects::{
             project_symbol_locator::ProjectSymbolLocator,
@@ -253,6 +285,12 @@ mod tests {
                 metadata_name: String::from("display_name")
             }
         );
+        assert!(
+            details_projection
+                .get_field(&DetailsFieldId::new("metadata.display_name"))
+                .expect("Expected display name field.")
+                .get_is_read_only()
+        );
         assert_eq!(
             details_projection
                 .get_field(&DetailsFieldId::new("metadata.address"))
@@ -266,6 +304,36 @@ mod tests {
                 .expect("Expected size field.")
                 .get_value(),
             &DetailsValue::UnsignedInteger(4)
+        );
+    }
+
+    #[test]
+    fn build_uses_metadata_type_override_for_module_roots() {
+        let symbol_tree_node = SymbolTreeNode::new(
+            String::from("module:winmine.exe"),
+            SymbolTreeNodeKind::ModuleSpace {
+                module_name: String::from("winmine.exe"),
+                size: 0x2000,
+            },
+            0,
+            String::from("winmine.exe"),
+            String::from("winmine.exe"),
+            String::from("winmine.exe"),
+            ProjectSymbolLocator::new_module_offset(String::from("winmine.exe"), 0),
+            String::from("u8"),
+            ContainerType::ArrayFixed(0x2000),
+            false,
+            false,
+        );
+        let details_projection =
+            SymbolTreeDetailsProjection::build_with_metadata_type_id(&symbol_tree_node, false, Some(0x2000), None, None, Some("winmine.exe"));
+
+        assert_eq!(
+            details_projection
+                .get_field(&DetailsFieldId::new("metadata.type"))
+                .expect("Expected data type field.")
+                .get_value(),
+            &DetailsValue::Text(String::from("winmine.exe"))
         );
     }
 
