@@ -7,11 +7,12 @@ use crate::{app_context::AppContext, ui::converters::data_type_to_icon_converter
 use eframe::egui::{Grid, Id, Response, Ui, Widget, vec2};
 use squalr_engine_api::structures::data_types::{
     built_in_types::{
-        f32::data_type_f32::DataTypeF32, f32be::data_type_f32be::DataTypeF32be, f64::data_type_f64::DataTypeF64, f64be::data_type_f64be::DataTypeF64be,
-        i8::data_type_i8::DataTypeI8, i16::data_type_i16::DataTypeI16, i16be::data_type_i16be::DataTypeI16be, i32::data_type_i32::DataTypeI32,
-        i32be::data_type_i32be::DataTypeI32be, i64::data_type_i64::DataTypeI64, i64be::data_type_i64be::DataTypeI64be, u8::data_type_u8::DataTypeU8,
-        u16::data_type_u16::DataTypeU16, u16be::data_type_u16be::DataTypeU16be, u32::data_type_u32::DataTypeU32, u32be::data_type_u32be::DataTypeU32be,
-        u64::data_type_u64::DataTypeU64, u64be::data_type_u64be::DataTypeU64be,
+        bool8::data_type_bool8::DataTypeBool8, bool32::data_type_bool32::DataTypeBool32, f32::data_type_f32::DataTypeF32,
+        f32be::data_type_f32be::DataTypeF32be, f64::data_type_f64::DataTypeF64, f64be::data_type_f64be::DataTypeF64be, i8::data_type_i8::DataTypeI8,
+        i16::data_type_i16::DataTypeI16, i16be::data_type_i16be::DataTypeI16be, i32::data_type_i32::DataTypeI32, i32be::data_type_i32be::DataTypeI32be,
+        i64::data_type_i64::DataTypeI64, i64be::data_type_i64be::DataTypeI64be, string::utf8::data_type_string_utf8::DataTypeStringUtf8,
+        u8::data_type_u8::DataTypeU8, u16::data_type_u16::DataTypeU16, u16be::data_type_u16be::DataTypeU16be, u32::data_type_u32::DataTypeU32,
+        u32be::data_type_u32be::DataTypeU32be, u64::data_type_u64::DataTypeU64, u64be::data_type_u64be::DataTypeU64be,
     },
     data_type_ref::DataTypeRef,
 };
@@ -45,7 +46,8 @@ impl<'lifetime> DataTypeSelectorView<'lifetime> {
     const SELECTABLE_DATA_TYPE_COLUMN_COUNT: usize = 2;
     const SELECTABLE_DATA_TYPE_ITEM_WIDTH: f32 = 128.0;
     const SELECTABLE_DATA_TYPE_COLUMN_SPACING: f32 = 4.0;
-    const SELECTABLE_DATA_TYPE_ROWS: [[&'static str; 2]; 9] = [
+    const SELECTABLE_DATA_TYPE_ROWS: [[&'static str; 2]; 11] = [
+        [DataTypeBool8::DATA_TYPE_ID, DataTypeBool32::DATA_TYPE_ID],
         [DataTypeU8::DATA_TYPE_ID, DataTypeI8::DATA_TYPE_ID],
         [DataTypeI16::DATA_TYPE_ID, DataTypeI16be::DATA_TYPE_ID],
         [DataTypeI32::DATA_TYPE_ID, DataTypeI32be::DATA_TYPE_ID],
@@ -55,6 +57,7 @@ impl<'lifetime> DataTypeSelectorView<'lifetime> {
         [DataTypeU64::DATA_TYPE_ID, DataTypeU64be::DATA_TYPE_ID],
         [DataTypeF32::DATA_TYPE_ID, DataTypeF32be::DATA_TYPE_ID],
         [DataTypeF64::DATA_TYPE_ID, DataTypeF64be::DATA_TYPE_ID],
+        [DataTypeStringUtf8::DATA_TYPE_ID, ""],
     ];
 
     pub fn new(
@@ -275,33 +278,46 @@ impl<'lifetime> DataTypeSelectorView<'lifetime> {
         Self::SELECTABLE_DATA_TYPE_ROWS
             .iter()
             .flatten()
+            .filter(|data_type_id| !data_type_id.is_empty())
             .map(|data_type_id| DataTypeRef::new(data_type_id))
             .collect()
     }
 
-    fn selectable_data_type_groups(available_data_types: Option<&[DataTypeRef]>) -> (Vec<DataTypeRef>, Vec<DataTypeRef>) {
+    fn selectable_data_type_groups(
+        available_data_types: Option<&[DataTypeRef]>,
+        is_registered_data_type_ref: impl Fn(&DataTypeRef) -> bool,
+    ) -> (Vec<DataTypeRef>, Vec<DataTypeRef>) {
         let default_selectable_data_types = Self::default_selectable_data_types();
 
         let Some(available_data_types) = available_data_types else {
             return (default_selectable_data_types, Vec::new());
         };
 
-        let built_in_selectable_data_types = default_selectable_data_types
+        let mut registered_selectable_data_types = default_selectable_data_types
             .iter()
             .filter(|default_selectable_data_type| available_data_types.contains(default_selectable_data_type))
             .cloned()
             .collect::<Vec<_>>();
+
+        for available_data_type in available_data_types {
+            if registered_selectable_data_types.contains(available_data_type) || !is_registered_data_type_ref(available_data_type) {
+                continue;
+            }
+
+            registered_selectable_data_types.push(available_data_type.clone());
+        }
+
         let extra_selectable_data_types = available_data_types
             .iter()
-            .filter(|available_data_type| !default_selectable_data_types.contains(available_data_type))
+            .filter(|available_data_type| !registered_selectable_data_types.contains(available_data_type))
             .cloned()
             .collect::<Vec<_>>();
 
-        (built_in_selectable_data_types, extra_selectable_data_types)
+        (registered_selectable_data_types, extra_selectable_data_types)
     }
 
     fn ordered_selectable_data_types(available_data_types: Option<&[DataTypeRef]>) -> Vec<DataTypeRef> {
-        let (mut built_in_selectable_data_types, mut extra_selectable_data_types) = Self::selectable_data_type_groups(available_data_types);
+        let (mut built_in_selectable_data_types, mut extra_selectable_data_types) = Self::selectable_data_type_groups(available_data_types, |_| false);
 
         built_in_selectable_data_types.append(&mut extra_selectable_data_types);
         built_in_selectable_data_types
@@ -386,7 +402,12 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
             None
         };
         let combo_label = Self::combo_label(data_type_selection, label_mode, show_preview_text);
-        let (built_in_selectable_data_types, extra_selectable_data_types) = Self::selectable_data_type_groups(available_data_types.as_deref());
+        let (built_in_selectable_data_types, extra_selectable_data_types) =
+            Self::selectable_data_type_groups(available_data_types.as_deref(), |data_type_ref| {
+                app_context
+                    .engine_unprivileged_state
+                    .is_registered_data_type_ref(data_type_ref)
+            });
 
         let combo_box = ComboBoxView::new(
             app_context.clone(),
@@ -577,14 +598,25 @@ mod tests {
     }
 
     #[test]
-    fn selectable_data_type_groups_puts_custom_layouts_after_builtins() {
-        let (built_in_data_types, extra_data_types) = DataTypeSelectorView::selectable_data_type_groups(Some(&[
-            DataTypeRef::new("player.stats"),
-            DataTypeRef::new("u32"),
-            DataTypeRef::new("i8"),
-        ]));
+    fn selectable_data_type_groups_puts_custom_layouts_after_registered_data_types() {
+        let (built_in_data_types, extra_data_types) = DataTypeSelectorView::selectable_data_type_groups(
+            Some(&[
+                DataTypeRef::new("player.stats"),
+                DataTypeRef::new("bool8"),
+                DataTypeRef::new("u32"),
+                DataTypeRef::new("i8"),
+            ]),
+            |data_type_ref| matches!(data_type_ref.get_data_type_id(), "bool8" | "u32" | "i8"),
+        );
 
-        assert_eq!(built_in_data_types, vec![DataTypeRef::new("i8"), DataTypeRef::new("u32")]);
+        assert_eq!(
+            built_in_data_types,
+            vec![
+                DataTypeRef::new("bool8"),
+                DataTypeRef::new("i8"),
+                DataTypeRef::new("u32")
+            ]
+        );
         assert_eq!(extra_data_types, vec![DataTypeRef::new("player.stats")]);
     }
 
