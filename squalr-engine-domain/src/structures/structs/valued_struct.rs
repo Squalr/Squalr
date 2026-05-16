@@ -14,6 +14,7 @@ use std::fmt;
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ValuedStruct {
     symbolic_struct_ref: SymbolicStructRef,
+    #[serde(default)]
     layout_kind: SymbolicLayoutKind,
     fields: Vec<ValuedStructField>,
 }
@@ -282,6 +283,20 @@ mod tests {
         data_types::{built_in_types::u8::data_type_u8::DataTypeU8, built_in_types::u32::data_type_u32::DataTypeU32},
         structs::symbolic_struct_definition::SymbolicLayoutKind,
     };
+
+    #[test]
+    fn deserializes_legacy_valued_struct_without_layout_kind() {
+        let valued_struct: ValuedStruct = serde_json::from_str(r#"{"symbolic_struct_ref":{"symbolic_struct_namespace":"legacy.value"},"fields":[]}"#)
+            .expect("Expected legacy valued struct to deserialize.");
+
+        assert_eq!(
+            valued_struct
+                .get_symbolic_struct_ref()
+                .get_symbolic_struct_namespace(),
+            "legacy.value"
+        );
+        assert_eq!(valued_struct.get_layout_kind(), SymbolicLayoutKind::Struct);
+    }
 
     #[test]
     fn combine_exclusive_keeps_common_field_names_when_values_differ() {

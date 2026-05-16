@@ -11,9 +11,13 @@ use std::collections::{HashMap, HashSet};
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ProjectSymbolCatalog {
+    #[serde(default)]
     symbol_modules: Vec<ProjectSymbolModule>,
+    #[serde(default)]
     struct_layout_descriptors: Vec<StructLayoutDescriptor>,
+    #[serde(default)]
     symbolic_resolver_descriptors: Vec<SymbolicResolverDescriptor>,
+    #[serde(default)]
     symbol_claims: Vec<ProjectSymbolClaim>,
 }
 
@@ -533,6 +537,25 @@ mod tests {
             .expect("Expected resolver descriptor.");
 
         assert_eq!(found_resolver_descriptor.get_resolver_id(), "inventory.count");
+    }
+
+    #[test]
+    fn deserializes_legacy_catalog_with_missing_additive_fields() {
+        let project_symbol_catalog: ProjectSymbolCatalog =
+            serde_json::from_str(r#"{"struct_layout_descriptors":[]}"#).expect("Expected legacy project symbol catalog to deserialize.");
+
+        assert!(project_symbol_catalog.get_symbol_modules().is_empty());
+        assert!(
+            project_symbol_catalog
+                .get_struct_layout_descriptors()
+                .is_empty()
+        );
+        assert!(
+            project_symbol_catalog
+                .get_symbolic_resolver_descriptors()
+                .is_empty()
+        );
+        assert!(project_symbol_catalog.get_symbol_claims().is_empty());
     }
 
     #[test]

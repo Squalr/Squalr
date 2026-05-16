@@ -32,6 +32,7 @@ impl SymbolicLayoutKind {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SymbolicStructDefinition {
     symbol_namespace: String,
+    #[serde(default)]
     layout_kind: SymbolicLayoutKind,
     size_in_bytes: Option<u64>,
     fields: Vec<SymbolicFieldDefinition>,
@@ -181,7 +182,17 @@ mod tests {
     use super::SymbolicStructDefinition;
     use crate::registries::symbols::symbol_registry::SymbolRegistry;
     use crate::structures::structs::symbolic_field_definition::SymbolicFieldDefinition;
+    use crate::structures::structs::symbolic_struct_definition::SymbolicLayoutKind;
     use std::str::FromStr;
+
+    #[test]
+    fn deserializes_legacy_struct_definition_without_layout_kind() {
+        let symbolic_struct_definition: SymbolicStructDefinition =
+            serde_json::from_str(r#"{"symbol_namespace":"legacy.layout","fields":[]}"#).expect("Expected legacy struct definition to deserialize.");
+
+        assert_eq!(symbolic_struct_definition.get_symbol_namespace(), "legacy.layout");
+        assert_eq!(symbolic_struct_definition.get_layout_kind(), SymbolicLayoutKind::Struct);
+    }
 
     #[test]
     fn get_size_in_bytes_uses_static_field_span_for_overlapping_layouts() {
