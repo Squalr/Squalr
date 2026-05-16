@@ -37,13 +37,18 @@ impl ProjectItemDetailsEditPlanner {
         };
 
         if Self::is_runtime_value_property(project_item_type_id, property_name) {
+            let runtime_value_source = match details_edit.get_source() {
+                DetailsFieldSource::ProjectItemRuntimeValue { .. } => details_edit.get_source().clone(),
+                _ => DetailsFieldSource::ProjectItemRuntimeValue {
+                    field_path: vec!["value".to_string()],
+                },
+            };
+
             return DetailsEditPlan::new(vec![
                 DetailsEditOperation::WriteRuntimeValue {
                     target: details_edit.get_target().clone(),
                     field_id: details_edit.get_field_id().clone(),
-                    source: DetailsFieldSource::ProjectItemRuntimeValue {
-                        field_path: vec!["value".to_string()],
-                    },
+                    source: runtime_value_source,
                     value: details_edit.get_value().clone(),
                 },
                 DetailsEditOperation::RefreshProjection {
@@ -159,6 +164,32 @@ mod tests {
         assert!(matches!(
             edit_plan.get_operations().first(),
             Some(DetailsEditOperation::WriteRuntimeValue { .. })
+        ));
+    }
+
+    #[test]
+    fn plan_edit_preserves_runtime_value_source_path() {
+        let project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU64::get_value_from_primitive(0));
+        let details_edit = DetailsEdit::new_with_source(
+            DetailsTarget::new(ProjectItemDetailsProjection::TARGET_KIND_PROJECT_ITEM, "/Health"),
+            DetailsFieldId::new(format!(
+                "{}{}",
+                ProjectItemDetailsProjection::FIELD_ID_PROPERTY_PREFIX,
+                ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE
+            )),
+            DetailsFieldSource::ProjectItemRuntimeValue {
+                field_path: vec![String::from("nested"), String::from("health")],
+            },
+            DetailsValue::DataValue(DataTypeU64::get_value_from_primitive(500)),
+        );
+        let edit_plan = ProjectItemDetailsEditPlanner::plan_edit(&project_item, &details_edit);
+
+        assert!(matches!(
+            edit_plan.get_operations().first(),
+            Some(DetailsEditOperation::WriteRuntimeValue {
+                source: DetailsFieldSource::ProjectItemRuntimeValue { field_path },
+                ..
+            }) if field_path == &vec![String::from("nested"), String::from("health")]
         ));
     }
 

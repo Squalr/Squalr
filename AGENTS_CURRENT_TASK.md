@@ -104,6 +104,7 @@ Our current task, from `README.md`, is:
      - no-op/error.
    - Single-selection Project Hierarchy Details edits now run through `ProjectItemDetailsEditPlanner`.
    - `WriteRuntimeValue` operations now carry `DetailsFieldSource::ProjectItemRuntimeValue` so callers do not need to infer runtime field paths from rendered ids.
+   - Project item runtime edit planning preserves the source path carried by `DetailsEdit`, with a scalar `value` fallback for older/default edits.
    - Stored-field application now has shared logic for regular properties, address target pointer size/offsets, address target module updates, and pointer item pointer size/offset serialization.
    - Single-selection runtime value edits now dispatch `ProjectItemsWriteValueRequest` instead of building memory writes in GUI code.
    - Single-selection stored-field edits now apply through `ProjectItemDetailsEditApplier`; rename operations dispatch `ProjectItemsRenameRequest`.
@@ -183,3 +184,4 @@ Our current task, from `README.md`, is:
 - Current Symbol Tree projector pass added `SymbolTreeDetailsProjection` for metadata, fallback status, and runtime value fields. Validated with `cargo test -p squalr-engine-api symbol_tree_details --lib --locked`.
 - Current Symbol Tree focus pass routed normal readable Symbol Tree selections through `SymbolTreeDetailsProjection` and Details edit callbacks, leaving the external array/value-viewer path legacy. Validated with `cargo test -p squalr symbol_tree --lib --locked`.
 - Current Details edit-source pass preserved `DetailsFieldSource` on `DetailsEdit` and routed Symbol Tree runtime edits from source metadata instead of field-id inference. Validated with `cargo test -p squalr-engine-api details --lib --locked`, `cargo test -p squalr struct_viewer --lib --locked`, and `cargo test -p squalr symbol_tree --lib --locked`.
+- Current project item source-preservation pass changed `ProjectItemDetailsEditPlanner` to preserve runtime source paths from `DetailsEdit`. Validated with `cargo test -p squalr-engine-api project_item_details --lib --locked`.
