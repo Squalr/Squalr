@@ -18,6 +18,7 @@ use crate::{
         project_explorer_view::ProjectExplorerView,
         project_hierarchy::{
             project_hierarchy_toolbar_view::ProjectHierarchyToolbarView,
+            project_item_details::ProjectItemDetails,
             project_item_entry_view::ProjectItemEntryView,
             project_item_inline_rename_view::ProjectItemInlineRenameView,
             project_item_value_edit_take_over_view::ProjectItemValueEditTakeOverView,
@@ -33,51 +34,28 @@ use crate::{
 };
 use eframe::egui::{Align, CursorIcon, Direction, Id, Key, Layout, Pos2, Rect, Response, RichText, ScrollArea, TextureHandle, Ui, Widget, vec2};
 use epaint::{CornerRadius, Stroke, StrokeKind};
-use squalr_engine_api::commands::memory::query::memory_query_request::MemoryQueryRequest;
-use squalr_engine_api::commands::memory::query::memory_query_response::MemoryQueryResponse;
-use squalr_engine_api::commands::memory::read::memory_read_request::MemoryReadRequest;
-use squalr_engine_api::commands::memory::read::memory_read_response::MemoryReadResponse;
-use squalr_engine_api::commands::memory::write::memory_write_request::MemoryWriteRequest;
 use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRequest;
-use squalr_engine_api::commands::privileged_command_response::TypedPrivilegedCommandResponse;
 use squalr_engine_api::commands::project::save::project_save_request::ProjectSaveRequest;
 use squalr_engine_api::commands::project_items::rename::project_items_rename_request::ProjectItemsRenameRequest;
 use squalr_engine_api::commands::settings::scan::list::scan_settings_list_request::ScanSettingsListRequest;
 use squalr_engine_api::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
-use squalr_engine_api::plugins::instruction_set::normalize_instruction_data_type_id;
-use squalr_engine_api::structures::data_types::built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
-use squalr_engine_api::structures::data_values::{
-    anonymous_value_string::AnonymousValueString,
-    container_type::ContainerType,
-    data_value_preview_formatter::{DataValuePreviewFormatOptions, DataValuePreviewFormatter},
-};
+use squalr_engine_api::structures::data_values::anonymous_value_string::AnonymousValueString;
 use squalr_engine_api::structures::memory::address_display::try_resolve_virtual_module_address;
-use squalr_engine_api::structures::memory::normalized_module::NormalizedModule;
-use squalr_engine_api::structures::memory::{pointer::Pointer, pointer_chain_segment::PointerChainSegment};
-use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
+use squalr_engine_api::structures::memory::pointer::Pointer;
 use squalr_engine_api::structures::projects::project::Project;
 use squalr_engine_api::structures::projects::project_info::ProjectInfo;
 use squalr_engine_api::structures::projects::project_items::built_in_types::{
-    project_item_type_address::ProjectItemTypeAddress, project_item_type_address_target::ProjectItemAddressTarget,
-    project_item_type_directory::ProjectItemTypeDirectory, project_item_type_pointer::ProjectItemTypePointer,
+    project_item_type_address::ProjectItemTypeAddress, project_item_type_directory::ProjectItemTypeDirectory, project_item_type_pointer::ProjectItemTypePointer,
 };
 use squalr_engine_api::structures::projects::project_items::{project_item::ProjectItem, project_item_ref::ProjectItemRef};
 use squalr_engine_api::structures::structs::valued_struct_field::{ValuedStructField, ValuedStructFieldData};
-use squalr_engine_api::structures::structs::{
-    symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition, valued_struct::ValuedStruct,
-};
-use squalr_engine_session::{
-    engine_unprivileged_state::EngineUnprivilegedState,
-    virtual_snapshots::{virtual_snapshot_query::VirtualSnapshotQuery, virtual_snapshot_query_result::VirtualSnapshotQueryResult},
-};
+use squalr_engine_session::virtual_snapshots::virtual_snapshot_query::VirtualSnapshotQuery;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::str::FromStr;
 use std::sync::Arc;
-use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 #[derive(Clone)]
@@ -122,14 +100,6 @@ impl PointerScannerContextAction {
     }
 }
 
-#[derive(Clone)]
-struct ProjectItemValueEditContext {
-    project_item_name: String,
-    value_field_name: String,
-    validation_data_type_ref: DataTypeRef,
-    initial_value_edit: AnonymousValueString,
-}
-
 impl ProjectHierarchyView {
     const STRIP_SYMBOL_INFORMATION_LABEL: &str = "Strip Symbol Information";
     const PROJECT_ITEM_CTX_OPEN_MEMORY_VIEWER_LABEL: &str = OPEN_IN_MEMORY_VIEWER_LABEL;
@@ -150,8 +120,6 @@ impl ProjectHierarchyView {
     const PROJECT_ITEM_CTX_PASTE_ID: &str = "project_hierarchy_ctx_paste";
     const PROJECT_ITEM_CTX_DELETE_LABEL: &str = "Delete";
     const PROJECT_ITEM_CTX_DELETE_ID: &str = "project_hierarchy_ctx_delete";
-    const TARGET_FIELD_POINTER_OFFSETS: &str = StructViewerViewData::VIRTUAL_FIELD_PROJECT_ITEM_POINTER_OFFSETS;
-    const TARGET_FIELD_POINTER_SIZE: &str = StructViewerViewData::VIRTUAL_FIELD_PROJECT_ITEM_POINTER_SIZE;
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let project_hierarchy_view_data = app_context
@@ -187,6 +155,7 @@ impl ProjectHierarchyView {
 #[cfg(test)]
 mod tests {
     use super::ProjectHierarchyView;
+    use crate::views::project_explorer::project_hierarchy::project_item_details::ProjectItemDetails;
     use crate::views::project_explorer::project_hierarchy::view_data::project_hierarchy_view_data::ProjectHierarchyViewData;
     use crate::{
         app_context::AppContext,
@@ -435,7 +404,7 @@ mod tests {
             NormalizedModule::new("Torchlight2.exe", 0x400000, 0x100000),
         ];
 
-        let resolved_absolute_address = ProjectHierarchyView::resolve_module_relative_address(&modules, 0x30, "Torchlight2.exe");
+        let resolved_absolute_address = ProjectItemDetails::resolve_module_relative_address(&modules, 0x30, "Torchlight2.exe");
 
         assert_eq!(resolved_absolute_address, Some(0x400030));
     }
@@ -444,7 +413,7 @@ mod tests {
     fn resolve_module_relative_address_matches_module_name_case_insensitively() {
         let modules = vec![NormalizedModule::new("Torchlight2.exe", 0x400000, 0x100000)];
 
-        let resolved_absolute_address = ProjectHierarchyView::resolve_module_relative_address(&modules, 0x30, "torchlight2.exe");
+        let resolved_absolute_address = ProjectItemDetails::resolve_module_relative_address(&modules, 0x30, "torchlight2.exe");
 
         assert_eq!(resolved_absolute_address, Some(0x400030));
     }
@@ -453,9 +422,9 @@ mod tests {
     fn apply_project_item_address_target_edit_updates_root_offset() {
         let mut project_item = ProjectItemTypeAddress::new_project_item("player_health", 0x1234, "game.exe", "", DataTypeU64::get_value_from_primitive(0));
         let edited_field = DataTypeStringUtf8::get_value_from_primitive_string("0xABCD")
-            .to_named_valued_struct_field(ProjectHierarchyView::TARGET_FIELD_POINTER_OFFSETS.to_string(), true);
+            .to_named_valued_struct_field(ProjectItemDetails::TARGET_FIELD_POINTER_OFFSETS.to_string(), true);
 
-        let did_apply_edit = ProjectHierarchyView::apply_project_item_address_target_edit(&mut project_item, &edited_field);
+        let did_apply_edit = ProjectItemDetails::apply_project_item_address_target_edit(&mut project_item, &edited_field);
 
         assert!(did_apply_edit);
         assert_eq!(
@@ -473,7 +442,7 @@ mod tests {
             false,
         );
 
-        let did_apply_edit = ProjectHierarchyView::apply_project_item_address_target_edit(&mut project_item, &edited_field);
+        let did_apply_edit = ProjectItemDetails::apply_project_item_address_target_edit(&mut project_item, &edited_field);
 
         assert!(did_apply_edit);
         assert_eq!(
@@ -515,7 +484,7 @@ mod tests {
 
     #[test]
     fn should_apply_struct_field_edit_to_project_item_returns_false_for_directory_name_edits() {
-        let should_apply_struct_field_edit = ProjectHierarchyView::should_apply_struct_field_edit_to_project_item(
+        let should_apply_struct_field_edit = ProjectItemDetails::should_apply_struct_field_edit_to_project_item(
             ProjectItemTypeDirectory::PROJECT_ITEM_TYPE_ID,
             squalr_engine_api::structures::projects::project_items::project_item::ProjectItem::PROPERTY_NAME,
         );
@@ -525,7 +494,7 @@ mod tests {
 
     #[test]
     fn should_apply_struct_field_edit_to_project_item_returns_true_for_file_name_edits() {
-        let should_apply_struct_field_edit = ProjectHierarchyView::should_apply_struct_field_edit_to_project_item(
+        let should_apply_struct_field_edit = ProjectItemDetails::should_apply_struct_field_edit_to_project_item(
             ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID,
             squalr_engine_api::structures::projects::project_items::project_item::ProjectItem::PROPERTY_NAME,
         );
@@ -535,7 +504,7 @@ mod tests {
 
     #[test]
     fn should_apply_struct_field_edit_to_project_item_returns_true_for_non_name_edits() {
-        let should_apply_struct_field_edit = ProjectHierarchyView::should_apply_struct_field_edit_to_project_item(
+        let should_apply_struct_field_edit = ProjectItemDetails::should_apply_struct_field_edit_to_project_item(
             ProjectItemTypeDirectory::PROJECT_ITEM_TYPE_ID,
             ProjectItemTypeAddress::PROPERTY_MODULE,
         );
@@ -649,14 +618,14 @@ mod tests {
         let project_item =
             ProjectItemTypeAddress::new_project_item("Patch", 0x1234, "game.exe", "", DataValue::new(DataTypeRef::new("i_x86[2]"), vec![0x90, 0x90]));
 
-        assert!(ProjectHierarchyView::should_open_project_item_in_code_viewer(None, &project_item));
+        assert!(ProjectItemDetails::should_open_project_item_in_code_viewer(&project_item));
     }
 
     #[test]
     fn should_open_project_item_in_code_viewer_returns_false_for_plain_numeric_data_type() {
         let project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU64::get_value_from_primitive(0));
 
-        assert!(!ProjectHierarchyView::should_open_project_item_in_code_viewer(None, &project_item));
+        assert!(!ProjectItemDetails::should_open_project_item_in_code_viewer(&project_item));
     }
 
     #[test]
@@ -702,7 +671,7 @@ mod tests {
     fn build_struct_view_properties_exposes_runtime_value_field_as_editable() {
         let project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU64::get_value_from_primitive(0));
 
-        let struct_view_properties = ProjectHierarchyView::build_struct_view_properties(None, &project_item);
+        let struct_view_properties = ProjectItemDetails::build_struct_view_properties(&project_item);
         let runtime_value_field = struct_view_properties
             .get_field(ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE)
             .expect("Expected runtime value field in struct view properties.");
@@ -714,12 +683,12 @@ mod tests {
     fn build_struct_view_properties_exposes_address_item_pointer_chain_editor() {
         let project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU64::get_value_from_primitive(0));
 
-        let struct_view_properties = ProjectHierarchyView::build_struct_view_properties(None, &project_item);
+        let struct_view_properties = ProjectItemDetails::build_struct_view_properties(&project_item);
         let pointer_size_field = struct_view_properties
-            .get_field(ProjectHierarchyView::TARGET_FIELD_POINTER_SIZE)
+            .get_field(ProjectItemDetails::TARGET_FIELD_POINTER_SIZE)
             .expect("Expected pointer size field.");
         let pointer_offsets_field = struct_view_properties
-            .get_field(ProjectHierarchyView::TARGET_FIELD_POINTER_OFFSETS)
+            .get_field(ProjectItemDetails::TARGET_FIELD_POINTER_OFFSETS)
             .expect("Expected pointer offsets field.");
         let module_field = struct_view_properties
             .get_field(ProjectItemTypeAddress::PROPERTY_MODULE)
@@ -748,25 +717,25 @@ mod tests {
             )),
         );
 
-        let struct_view_properties = ProjectHierarchyView::build_struct_view_properties(None, &project_item);
+        let struct_view_properties = ProjectItemDetails::build_struct_view_properties(&project_item);
         let module_field = struct_view_properties
             .get_field(ProjectItemTypeAddress::PROPERTY_MODULE)
             .expect("Expected module field.");
         let pointer_offsets_field = struct_view_properties
-            .get_field(ProjectHierarchyView::TARGET_FIELD_POINTER_OFFSETS)
+            .get_field(ProjectItemDetails::TARGET_FIELD_POINTER_OFFSETS)
             .expect("Expected pointer offsets field.");
 
         assert_eq!(StructViewerViewData::read_utf8_field_text(module_field), "pointer_root.exe");
         assert_eq!(StructViewerViewData::read_utf8_field_text(pointer_offsets_field), "0x4567, 0x10, 0x20");
         assert!(
             struct_view_properties
-                .get_field(ProjectHierarchyView::TARGET_FIELD_POINTER_OFFSETS)
+                .get_field(ProjectItemDetails::TARGET_FIELD_POINTER_OFFSETS)
                 .map(|pointer_offsets_field| pointer_offsets_field.get_is_read_only())
                 .unwrap_or(false)
         );
         assert!(
             struct_view_properties
-                .get_field(ProjectHierarchyView::TARGET_FIELD_POINTER_SIZE)
+                .get_field(ProjectItemDetails::TARGET_FIELD_POINTER_SIZE)
                 .is_some()
         );
     }
@@ -784,9 +753,9 @@ mod tests {
             )),
         );
 
-        let struct_view_properties = ProjectHierarchyView::build_struct_view_properties(None, &project_item);
+        let struct_view_properties = ProjectItemDetails::build_struct_view_properties(&project_item);
         let pointer_offsets_field = struct_view_properties
-            .get_field(ProjectHierarchyView::TARGET_FIELD_POINTER_OFFSETS)
+            .get_field(ProjectItemDetails::TARGET_FIELD_POINTER_OFFSETS)
             .expect("Expected pointer offsets field.");
 
         assert_eq!(StructViewerViewData::read_utf8_field_text(pointer_offsets_field), "0x4567");
@@ -798,7 +767,7 @@ mod tests {
         let mut project_item = ProjectItemTypePointer::new_project_item("Ammo Pointer", &pointer, "", "u16");
         ProjectItemTypePointer::set_field_evaluated_pointer_path(&mut project_item, "game.exe+0x4567 -> 0x5000 -> 0x6000");
 
-        let struct_view_properties = ProjectHierarchyView::build_struct_view_properties(None, &project_item);
+        let struct_view_properties = ProjectItemDetails::build_struct_view_properties(&project_item);
 
         assert!(
             struct_view_properties
@@ -831,9 +800,9 @@ mod tests {
     fn apply_project_item_address_target_edit_pointer_size_updates_chain_pointer_size() {
         let mut project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU64::get_value_from_primitive(0));
         let edited_field = DataTypeStringUtf8::get_value_from_primitive_string("u64")
-            .to_named_valued_struct_field(ProjectHierarchyView::TARGET_FIELD_POINTER_SIZE.to_string(), false);
+            .to_named_valued_struct_field(ProjectItemDetails::TARGET_FIELD_POINTER_SIZE.to_string(), false);
 
-        let did_apply_edit = ProjectHierarchyView::apply_project_item_address_target_edit(&mut project_item, &edited_field);
+        let did_apply_edit = ProjectItemDetails::apply_project_item_address_target_edit(&mut project_item, &edited_field);
 
         assert!(did_apply_edit);
         assert_eq!(
@@ -850,9 +819,9 @@ mod tests {
             ProjectItemAddressTarget::new_address_with_pointer_offsets(0x4567, String::from("pointer_root.exe"), vec![0x10, 0x20]),
         );
         let edited_field = DataTypeStringUtf8::get_value_from_primitive_string("u64")
-            .to_named_valued_struct_field(ProjectHierarchyView::TARGET_FIELD_POINTER_SIZE.to_string(), false);
+            .to_named_valued_struct_field(ProjectItemDetails::TARGET_FIELD_POINTER_SIZE.to_string(), false);
 
-        let did_apply_edit = ProjectHierarchyView::apply_project_item_address_target_edit(&mut project_item, &edited_field);
+        let did_apply_edit = ProjectItemDetails::apply_project_item_address_target_edit(&mut project_item, &edited_field);
 
         assert!(did_apply_edit);
         assert_eq!(
@@ -874,9 +843,9 @@ mod tests {
             )),
         );
         let edited_field = DataTypeStringUtf8::get_value_from_primitive_string("[32,-16]")
-            .to_named_valued_struct_field(ProjectHierarchyView::TARGET_FIELD_POINTER_OFFSETS.to_string(), true);
+            .to_named_valued_struct_field(ProjectItemDetails::TARGET_FIELD_POINTER_OFFSETS.to_string(), true);
 
-        let did_apply_edit = ProjectHierarchyView::apply_project_item_address_target_edit(&mut project_item, &edited_field);
+        let did_apply_edit = ProjectItemDetails::apply_project_item_address_target_edit(&mut project_item, &edited_field);
 
         assert!(did_apply_edit);
         assert_eq!(
@@ -901,9 +870,9 @@ mod tests {
             )),
         );
 
-        let struct_view_properties = ProjectHierarchyView::build_struct_view_properties(None, &project_item);
+        let struct_view_properties = ProjectItemDetails::build_struct_view_properties(&project_item);
         let pointer_offsets_field = struct_view_properties
-            .get_field(ProjectHierarchyView::TARGET_FIELD_POINTER_OFFSETS)
+            .get_field(ProjectItemDetails::TARGET_FIELD_POINTER_OFFSETS)
             .expect("Expected pointer offsets field.");
 
         assert_eq!(StructViewerViewData::read_utf8_field_text(pointer_offsets_field), "0x4567, 0x20, health");
@@ -922,9 +891,9 @@ mod tests {
             )),
         );
         let edited_field = DataTypeStringUtf8::get_value_from_primitive_string(r#"[32,"health"]"#)
-            .to_named_valued_struct_field(ProjectHierarchyView::TARGET_FIELD_POINTER_OFFSETS.to_string(), true);
+            .to_named_valued_struct_field(ProjectItemDetails::TARGET_FIELD_POINTER_OFFSETS.to_string(), true);
 
-        let did_apply_edit = ProjectHierarchyView::apply_project_item_address_target_edit(&mut project_item, &edited_field);
+        let did_apply_edit = ProjectItemDetails::apply_project_item_address_target_edit(&mut project_item, &edited_field);
 
         assert!(did_apply_edit);
         assert_eq!(
@@ -953,7 +922,7 @@ mod tests {
         );
 
         let memory_write_request =
-            ProjectHierarchyView::build_memory_write_request_for_runtime_value_edit(&engine_execution_context, None, &address_project_item, &edited_field);
+            ProjectItemDetails::build_memory_write_request_for_runtime_value_edit(&engine_execution_context, None, &address_project_item, &edited_field);
 
         assert!(memory_write_request.is_some());
         let memory_write_request = memory_write_request.unwrap_or_else(|| panic!("Expected runtime value memory write request for address project item."));
@@ -980,7 +949,7 @@ mod tests {
         );
 
         let memory_write_request =
-            ProjectHierarchyView::build_memory_write_request_for_runtime_value_edit(&engine_execution_context, None, &pointer_project_item, &edited_field);
+            ProjectItemDetails::build_memory_write_request_for_runtime_value_edit(&engine_execution_context, None, &pointer_project_item, &edited_field);
 
         assert!(memory_write_request.is_some());
         let memory_write_request = memory_write_request.unwrap_or_else(|| panic!("Expected runtime value memory write request for pointer project item."));
@@ -1000,7 +969,7 @@ mod tests {
         let mut project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU16::get_value_from_primitive(0));
         ProjectItemTypeAddress::set_field_freeze_data_value_interpreter(&mut project_item, "4660");
 
-        let value_edit_context = ProjectHierarchyView::build_project_item_value_edit_context(&engine_unprivileged_state, None, &project_item)
+        let value_edit_context = ProjectItemDetails::build_project_item_value_edit_context(&engine_unprivileged_state, None, &project_item)
             .expect("Expected value edit context for address project item.");
 
         assert_eq!(value_edit_context.project_item_name, "Health");
@@ -1038,7 +1007,7 @@ mod tests {
         );
         ProjectItemTypeAddress::set_field_freeze_data_value_interpreter(&mut project_item, "");
 
-        let value_edit_context = ProjectHierarchyView::build_project_item_value_edit_context(&engine_unprivileged_state, Some(&project_info), &project_item)
+        let value_edit_context = ProjectItemDetails::build_project_item_value_edit_context(&engine_unprivileged_state, Some(&project_info), &project_item)
             .expect("Expected value edit context for symbolic address project item.");
 
         assert_eq!(
@@ -1064,7 +1033,7 @@ mod tests {
             ),
         );
 
-        let virtual_snapshot_query = ProjectHierarchyView::build_project_item_virtual_snapshot_query(
+        let virtual_snapshot_query = ProjectItemDetails::build_project_item_virtual_snapshot_query(
             Some(&project_info),
             Path::new(r"C:\Project\project_items\Health.json"),
             &project_item,
@@ -1174,7 +1143,7 @@ mod tests {
         let mut project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU16::get_value_from_primitive(0));
         ProjectItemTypeAddress::set_field_freeze_data_value_interpreter(&mut project_item, "4660");
 
-        let value_edit_context = ProjectHierarchyView::build_project_item_value_edit_context(&engine_unprivileged_state, None, &project_item)
+        let value_edit_context = ProjectItemDetails::build_project_item_value_edit_context(&engine_unprivileged_state, None, &project_item)
             .expect("Expected value edit context fallback for address project item.");
 
         assert_eq!(
@@ -1192,7 +1161,7 @@ mod tests {
         let mut project_item = ProjectItemTypePointer::new_project_item("Ammo", &pointer, "", "u16[2]");
         ProjectItemTypePointer::set_field_freeze_data_value_interpreter(&mut project_item, "1, 2");
 
-        let value_edit_context = ProjectHierarchyView::build_project_item_value_edit_context(&engine_unprivileged_state, None, &project_item)
+        let value_edit_context = ProjectItemDetails::build_project_item_value_edit_context(&engine_unprivileged_state, None, &project_item)
             .expect("Expected value edit context for pointer project item.");
 
         assert_eq!(value_edit_context.initial_value_edit.get_container_type(), ContainerType::ArrayFixed(2));
@@ -1204,14 +1173,14 @@ mod tests {
         let project_item_ref = ProjectItemRef::new(PathBuf::from("project/folder"));
         let project_item = ProjectItemTypeDirectory::new_project_item(&project_item_ref);
 
-        let value_edit_context = ProjectHierarchyView::build_project_item_value_edit_context(&engine_unprivileged_state, None, &project_item);
+        let value_edit_context = ProjectItemDetails::build_project_item_value_edit_context(&engine_unprivileged_state, None, &project_item);
 
         assert!(value_edit_context.is_none());
     }
 
     #[test]
     fn should_apply_struct_field_edit_to_project_item_ignores_runtime_value_field() {
-        assert!(!ProjectHierarchyView::should_apply_struct_field_edit_to_project_item(
+        assert!(!ProjectItemDetails::should_apply_struct_field_edit_to_project_item(
             ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID,
             ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE,
         ));
@@ -1430,7 +1399,7 @@ impl Widget for ProjectHierarchyView {
                                     let pointer_scanner_context_actions =
                                         Self::build_pointer_scanner_context_actions(project_hierarchy_view_data.opened_project_info.as_ref(), &tree_entry.project_item);
                                     let can_open_in_memory_viewer =
-                                        Self::can_open_project_item_in_memory_viewer(project_hierarchy_view_data.opened_project_info.as_ref(), &tree_entry.project_item);
+                                        ProjectItemDetails::can_open_project_item_in_memory_viewer(&tree_entry.project_item);
                                     let is_context_menu_visible =
                                         matches!(menu_target.as_ref(), Some(ProjectHierarchyMenuTarget::ProjectItem(menu_project_item_path)) if menu_project_item_path == &tree_entry.project_item_path);
                                     let default_context_menu_position = row_response.rect.left_bottom();
@@ -1477,10 +1446,8 @@ impl Widget for ProjectHierarchyView {
                                             self.project_hierarchy_view_data.clone(),
                                             &tree_entry_project_item_path,
                                         );
-                                        let runtime_viewer_label = if Self::should_open_project_item_in_code_viewer(
-                                            project_hierarchy_view_data.opened_project_info.as_ref(),
-                                            &tree_entry.project_item,
-                                        ) {
+                                        let should_open_in_code_viewer = ProjectItemDetails::should_open_project_item_in_code_viewer(&tree_entry.project_item);
+                                        let runtime_viewer_label = if should_open_in_code_viewer {
                                             Self::PROJECT_ITEM_CTX_OPEN_CODE_VIEWER_LABEL
                                         } else {
                                             Self::PROJECT_ITEM_CTX_OPEN_MEMORY_VIEWER_LABEL
@@ -1575,10 +1542,7 @@ impl Widget for ProjectHierarchyView {
                                                                 project_item_menu_width,
                                                             )
                                                             .icon(
-                                                                if Self::should_open_project_item_in_code_viewer(
-                                                                    project_hierarchy_view_data.opened_project_info.as_ref(),
-                                                                    &tree_entry.project_item,
-                                                                ) {
+                                                                if should_open_in_code_viewer {
                                                                     self.app_context.theme.icon_library.icon_handle_project_cpu_instruction.clone()
                                                                 } else {
                                                                     self.app_context.theme.icon_library.icon_handle_scan_collect_values.clone()
@@ -1591,24 +1555,20 @@ impl Widget for ProjectHierarchyView {
                                                             self.app_context.engine_unprivileged_state.clone();
 
                                                         if let Some((address, module_name)) =
-                                                            Self::resolve_project_item_runtime_value_target(
+                                                            ProjectItemDetails::resolve_project_item_runtime_value_target(
                                                                 &engine_execution_context,
                                                                 project_hierarchy_view_data.opened_project_info.as_ref(),
                                                                 &tree_entry.project_item,
                                                             )
                                                         {
-                                                            project_hierarchy_frame_action = if Self::should_open_project_item_in_code_viewer(
-                                                                project_hierarchy_view_data.opened_project_info.as_ref(),
-                                                                &tree_entry.project_item,
-                                                            ) {
+                                                            project_hierarchy_frame_action = if should_open_in_code_viewer {
                                                                 ProjectHierarchyFrameAction::OpenCodeViewerForAddress { address, module_name }
                                                             } else {
                                                                 ProjectHierarchyFrameAction::OpenMemoryViewerForAddress {
                                                                     address,
                                                                     module_name,
-                                                                    selection_byte_count: Self::resolve_project_item_runtime_value_byte_count(
+                                                                    selection_byte_count: ProjectItemDetails::resolve_project_item_runtime_value_byte_count(
                                                                         &self.app_context.engine_unprivileged_state,
-                                                                        project_hierarchy_view_data.opened_project_info.as_ref(),
                                                                         &tree_entry.project_item,
                                                                     )
                                                                     .unwrap_or(1),
@@ -1805,7 +1765,7 @@ impl Widget for ProjectHierarchyView {
                             should_cancel_take_over = true;
                             return;
                         };
-                        let Some(value_edit_context) = Self::build_project_item_value_edit_context(
+                        let Some(value_edit_context) = ProjectItemDetails::build_project_item_value_edit_context(
                             &self.app_context.engine_unprivileged_state,
                             project_hierarchy_view_data.opened_project_info.as_ref(),
                             &project_item,
@@ -1819,7 +1779,7 @@ impl Widget for ProjectHierarchyView {
                             .ctx()
                             .data_mut(|data| data.get_temp::<AnonymousValueString>(value_edit_storage_id))
                             .unwrap_or_else(|| value_edit_context.initial_value_edit.clone());
-                        let value_edit_display_values = Self::build_project_item_value_edit_display_values(
+                        let value_edit_display_values = ProjectItemDetails::build_project_item_value_edit_display_values(
                             &self.app_context.engine_unprivileged_state,
                             &value_edit_context.validation_data_type_ref,
                             &value_edit,
@@ -2514,7 +2474,6 @@ impl ProjectHierarchyView {
     const DROP_INSERTION_BAND_HEIGHT: f32 = 7.0;
     const PROJECT_ITEM_ROW_HEIGHT: f32 = 28.0;
     const PROJECT_ITEM_PREVIEW_VIRTUAL_SNAPSHOT_ID: &str = "project_hierarchy_preview";
-    const PROJECT_ITEM_PREVIEW_FORMAT_OPTIONS: DataValuePreviewFormatOptions = DataValuePreviewFormatOptions::new(4, 96);
 
     fn show_toolbar_add_menu(
         &self,
@@ -2825,7 +2784,7 @@ impl ProjectHierarchyView {
                             .iter()
                             .find(|(project_item_ref, _)| project_item_ref.get_project_item_path() == &project_item_path)
                             .and_then(|(_, project_item)| {
-                                Self::build_project_item_virtual_snapshot_query(
+                                ProjectItemDetails::build_project_item_virtual_snapshot_query(
                                     project_hierarchy_view_data.opened_project_info.as_ref(),
                                     &project_item_path,
                                     project_item,
@@ -2865,7 +2824,7 @@ impl ProjectHierarchyView {
                         let project_item_path = project_item_ref.get_project_item_path();
                         let query_id = project_item_path.to_string_lossy().to_string();
                         let query_result = virtual_snapshot.get_query_results().get(&query_id)?;
-                        let preview_value = Self::build_project_item_preview_value_from_virtual_snapshot_result(
+                        let preview_value = ProjectItemDetails::build_project_item_preview_value_from_virtual_snapshot_result(
                             &self.app_context.engine_unprivileged_state,
                             project_hierarchy_view_data.opened_project_info.as_ref(),
                             project_item,
@@ -2978,7 +2937,6 @@ impl ProjectHierarchyView {
             StructViewerViewData::clear_focus(struct_viewer_view_data);
             return;
         };
-        let opened_project_info = opened_project.get_project_info().clone();
         let preview_project_item_map = project_hierarchy_view_data
             .read("Project hierarchy details preview project items")
             .map(|project_hierarchy_view_data| {
@@ -2998,7 +2956,7 @@ impl ProjectHierarchyView {
                     .cloned()?;
 
                 if let Some(preview_project_item) = preview_project_item_map.get(project_item_path) {
-                    Self::copy_project_item_preview_fields(preview_project_item, &mut selected_project_item);
+                    ProjectItemDetails::copy_project_item_preview_fields(preview_project_item, &mut selected_project_item);
                 }
 
                 Some(selected_project_item)
@@ -3022,7 +2980,7 @@ impl ProjectHierarchyView {
                 StructViewerViewData::focus_valued_struct_with_focus_target(
                     struct_viewer_view_data,
                     app_context.engine_unprivileged_state.clone(),
-                    Self::build_struct_view_properties(Some(&opened_project_info), &selected_project_item),
+                    ProjectItemDetails::build_struct_view_properties(&selected_project_item),
                     callback,
                     Some(StructViewerFocusTarget::ProjectHierarchy { project_item_paths }),
                 );
@@ -3030,7 +2988,7 @@ impl ProjectHierarchyView {
         } else {
             let selected_project_item_properties = selected_project_items
                 .into_iter()
-                .map(|selected_project_item| Self::build_struct_view_properties(Some(&opened_project_info), &selected_project_item))
+                .map(|selected_project_item| ProjectItemDetails::build_struct_view_properties(&selected_project_item))
                 .collect::<Vec<_>>();
             StructViewerViewData::focus_valued_structs_with_focus_target(
                 struct_viewer_view_data,
@@ -3049,7 +3007,7 @@ impl ProjectHierarchyView {
         project_item_paths: Vec<PathBuf>,
     ) -> Arc<dyn Fn(ValuedStructField) + Send + Sync> {
         Arc::new(move |edited_field: ValuedStructField| {
-            let should_refocus_details = edited_field.get_name() == Self::TARGET_FIELD_POINTER_SIZE;
+            let should_refocus_details = edited_field.get_name() == ProjectItemDetails::TARGET_FIELD_POINTER_SIZE;
 
             Self::apply_project_item_edits(app_context.clone(), project_item_paths.clone(), edited_field);
 
@@ -3210,13 +3168,13 @@ impl ProjectHierarchyView {
                 .get_item_type()
                 .get_project_item_type_id()
                 .to_string();
-            if Self::apply_project_item_address_target_edit(project_item, &edited_field) {
+            if ProjectItemDetails::apply_project_item_address_target_edit(project_item, &edited_field) {
                 project_item.set_has_unsaved_changes(true);
                 has_persisted_property_edits = true;
                 continue;
             }
 
-            let should_apply_field_edit = Self::should_apply_struct_field_edit_to_project_item(&project_item_type_id, &edited_field_name);
+            let should_apply_field_edit = ProjectItemDetails::should_apply_struct_field_edit_to_project_item(&project_item_type_id, &edited_field_name);
 
             if should_apply_field_edit {
                 project_item.get_properties_mut().set_field_data(
@@ -3234,9 +3192,12 @@ impl ProjectHierarchyView {
                 }
             }
 
-            if let Some(memory_write_request) =
-                Self::build_memory_write_request_for_runtime_value_edit(&engine_execution_context, Some(&opened_project_info), project_item, &edited_field)
-            {
+            if let Some(memory_write_request) = ProjectItemDetails::build_memory_write_request_for_runtime_value_edit(
+                &engine_execution_context,
+                Some(&opened_project_info),
+                project_item,
+                &edited_field,
+            ) {
                 memory_write_requests.push(memory_write_request);
             }
         }
@@ -3283,43 +3244,6 @@ impl ProjectHierarchyView {
         }
     }
 
-    fn build_memory_write_request_for_runtime_value_edit(
-        engine_execution_context: &Arc<dyn EngineExecutionContext>,
-        opened_project_info: Option<&ProjectInfo>,
-        project_item: &ProjectItem,
-        edited_field: &ValuedStructField,
-    ) -> Option<MemoryWriteRequest> {
-        if !Self::is_runtime_value_field(edited_field.get_name()) {
-            return None;
-        }
-
-        let edited_data_value = edited_field.get_data_value()?;
-        let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
-
-        if project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
-            let (address, module_name) = Self::resolve_project_item_runtime_value_target(engine_execution_context, opened_project_info, project_item)?;
-
-            return Some(MemoryWriteRequest {
-                address,
-                module_name,
-                value: edited_data_value.get_value_bytes().clone(),
-            });
-        }
-
-        if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
-            let pointer = ProjectItemTypePointer::get_field_pointer(project_item);
-            let (address, module_name) = Self::resolve_pointer_write_target(engine_execution_context, &pointer)?;
-
-            return Some(MemoryWriteRequest {
-                address,
-                module_name,
-                value: edited_data_value.get_value_bytes().clone(),
-            });
-        }
-
-        None
-    }
-
     fn build_pointer_scanner_context_actions(
         opened_project_info: Option<&ProjectInfo>,
         project_item: &ProjectItem,
@@ -3337,7 +3261,7 @@ impl ProjectHierarchyView {
                 .unwrap_or_default();
 
             let address_target = ProjectItemTypeAddress::get_address_target(&mut project_item);
-            let Some(runtime_pointer) = Self::resolve_address_target_runtime_pointer(opened_project_info, &address_target) else {
+            let Some(runtime_pointer) = ProjectItemDetails::resolve_address_target_runtime_pointer(opened_project_info, &address_target) else {
                 return Vec::new();
             };
 
@@ -3393,15 +3317,6 @@ impl ProjectHierarchyView {
         Vec::new()
     }
 
-    fn can_open_project_item_in_memory_viewer(
-        _opened_project_info: Option<&ProjectInfo>,
-        project_item: &ProjectItem,
-    ) -> bool {
-        let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
-
-        project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID || project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID
-    }
-
     fn resolve_pointer_scanner_context_action(
         engine_execution_context: &Arc<dyn EngineExecutionContext>,
         pointer_scanner_context_action: &PointerScannerContextAction,
@@ -3414,366 +3329,11 @@ impl ProjectHierarchyView {
                 ..
             } => Some((*address, module_name.clone(), data_type_id.clone())),
             PointerScannerContextAction::ResolvedPointer { pointer, data_type_id, .. } => {
-                let (address, module_name) = Self::resolve_pointer_write_target(engine_execution_context, pointer)?;
+                let (address, module_name) = ProjectItemDetails::resolve_pointer_write_target(engine_execution_context, pointer)?;
 
                 Some((address, module_name, data_type_id.clone()))
             }
         }
-    }
-
-    fn build_struct_view_properties(
-        _opened_project_info: Option<&ProjectInfo>,
-        project_item: &ProjectItem,
-    ) -> ValuedStruct {
-        let mut fields = project_item
-            .get_properties()
-            .get_fields()
-            .iter()
-            .filter(|valued_struct_field| Self::should_show_project_item_detail_field(project_item, valued_struct_field.get_name()))
-            .map(|valued_struct_field| {
-                let is_runtime_value_field = Self::is_runtime_value_field(valued_struct_field.get_name());
-                let projected_field_data = Self::project_address_item_target_detail_field_data(project_item, valued_struct_field)
-                    .unwrap_or_else(|| valued_struct_field.get_field_data().clone());
-
-                ValuedStructField::new(
-                    valued_struct_field.get_name().to_string(),
-                    projected_field_data,
-                    if is_runtime_value_field {
-                        false
-                    } else {
-                        valued_struct_field.get_is_read_only()
-                    },
-                )
-            })
-            .collect::<Vec<_>>();
-
-        if project_item.get_item_type().get_project_item_type_id() == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
-            let mut project_item = project_item.clone();
-            let address_target = ProjectItemTypeAddress::get_address_target(&mut project_item);
-
-            Self::append_project_item_address_target_fields(&mut fields, &address_target);
-        }
-
-        ValuedStruct::new_anonymous(fields)
-    }
-
-    fn should_show_project_item_detail_field(
-        project_item: &ProjectItem,
-        field_name: &str,
-    ) -> bool {
-        if field_name == ProjectItemTypeAddress::PROPERTY_TARGET {
-            return false;
-        }
-
-        if project_item.get_item_type().get_project_item_type_id() == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID
-            && field_name == ProjectItemTypeAddress::PROPERTY_ADDRESS
-        {
-            return false;
-        }
-
-        if project_item.get_item_type().get_project_item_type_id() == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
-            return field_name != ProjectItemTypePointer::PROPERTY_EVALUATED_POINTER_PATH;
-        }
-
-        true
-    }
-
-    fn project_address_item_target_detail_field_data(
-        project_item: &ProjectItem,
-        valued_struct_field: &ValuedStructField,
-    ) -> Option<ValuedStructFieldData> {
-        if project_item.get_item_type().get_project_item_type_id() != ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
-            return None;
-        }
-
-        let mut project_item = project_item.clone();
-        let address_target = ProjectItemTypeAddress::get_address_target(&mut project_item);
-
-        match valued_struct_field.get_name() {
-            ProjectItemTypeAddress::PROPERTY_MODULE => Some(ValuedStructFieldData::Value(DataTypeStringUtf8::get_value_from_primitive_string(
-                address_target.get_module_name(),
-            ))),
-            _ => None,
-        }
-    }
-
-    fn append_project_item_address_target_fields(
-        fields: &mut Vec<ValuedStructField>,
-        address_target: &ProjectItemAddressTarget,
-    ) {
-        fields.push(
-            DataTypeStringUtf8::get_value_from_primitive_string(
-                address_target
-                    .get_pointer_size()
-                    .to_data_type_ref()
-                    .get_data_type_id(),
-            )
-            .to_named_valued_struct_field(Self::TARGET_FIELD_POINTER_SIZE.to_string(), false),
-        );
-        fields.push(
-            DataTypeStringUtf8::get_value_from_primitive_string(&Self::format_pointer_offsets(&Self::ensure_minimum_pointer_offsets(
-                address_target.get_pointer_offsets().to_vec(),
-            )))
-            .to_named_valued_struct_field(Self::TARGET_FIELD_POINTER_OFFSETS.to_string(), true),
-        );
-    }
-
-    fn is_runtime_value_field(field_name: &str) -> bool {
-        field_name == ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE || field_name == ProjectItemTypePointer::PROPERTY_FREEZE_DISPLAY_VALUE
-    }
-
-    fn copy_project_item_preview_fields(
-        source_project_item: &ProjectItem,
-        target_project_item: &mut ProjectItem,
-    ) {
-        let preview_value = Self::read_project_item_preview_value(source_project_item);
-        let project_item_type_id = target_project_item.get_item_type().get_project_item_type_id();
-
-        if project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
-            ProjectItemTypeAddress::set_field_freeze_data_value_interpreter(target_project_item, &preview_value);
-        } else if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
-            ProjectItemTypePointer::set_field_freeze_data_value_interpreter(target_project_item, &preview_value);
-        }
-    }
-
-    fn read_project_item_preview_value(project_item: &ProjectItem) -> String {
-        let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
-
-        if project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
-            let mut project_item = project_item.clone();
-
-            ProjectItemTypeAddress::get_field_freeze_data_value_interpreter(&mut project_item)
-        } else if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
-            ProjectItemTypePointer::get_field_freeze_data_value_interpreter(project_item)
-        } else {
-            String::new()
-        }
-    }
-
-    fn apply_project_item_address_target_edit(
-        project_item: &mut ProjectItem,
-        edited_field: &ValuedStructField,
-    ) -> bool {
-        if project_item.get_item_type().get_project_item_type_id() != ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
-            return false;
-        }
-
-        let edited_field_name = edited_field.get_name();
-
-        let mut updated_address_target = ProjectItemTypeAddress::get_address_target(project_item);
-        let did_update_address_target = match edited_field_name {
-            ProjectItemTypeAddress::PROPERTY_MODULE => {
-                let Some(edited_module_name) = Self::extract_string_value_from_edited_field_allow_empty(edited_field) else {
-                    return false;
-                };
-
-                updated_address_target.set_module_name(edited_module_name);
-                true
-            }
-            Self::TARGET_FIELD_POINTER_SIZE => {
-                let Some(pointer_size_text) = Self::extract_string_value_from_edited_field(edited_field) else {
-                    return false;
-                };
-
-                if let Ok(pointer_size) = PointerScanPointerSize::from_str(&pointer_size_text) {
-                    updated_address_target.set_pointer_size(pointer_size);
-                    true
-                } else {
-                    log::warn!("Ignoring unknown project address pointer size: {}", pointer_size_text);
-                    false
-                }
-            }
-            Self::TARGET_FIELD_POINTER_OFFSETS => {
-                let Some(pointer_offsets) = Self::extract_pointer_offsets_from_edited_field(edited_field) else {
-                    return false;
-                };
-
-                updated_address_target.set_pointer_offsets(Self::ensure_minimum_pointer_offsets(pointer_offsets));
-                true
-            }
-            _ => false,
-        };
-
-        if did_update_address_target {
-            ProjectItemTypeAddress::set_address_target(project_item, updated_address_target);
-            true
-        } else {
-            false
-        }
-    }
-
-    fn ensure_minimum_pointer_offsets(mut pointer_offsets: Vec<PointerChainSegment>) -> Vec<PointerChainSegment> {
-        if pointer_offsets.is_empty() {
-            pointer_offsets.push(PointerChainSegment::new_offset(0));
-        }
-
-        pointer_offsets
-    }
-
-    fn extract_pointer_offsets_from_edited_field(edited_field: &ValuedStructField) -> Option<Vec<PointerChainSegment>> {
-        let offsets_text = Self::extract_string_value_from_edited_field(edited_field)?;
-        let pointer_offsets = PointerChainSegment::parse_text_list(&offsets_text);
-
-        if pointer_offsets.is_empty() { None } else { Some(pointer_offsets) }
-    }
-
-    fn format_pointer_offsets(pointer_offsets: &[PointerChainSegment]) -> String {
-        PointerChainSegment::display_text_list(pointer_offsets)
-    }
-
-    fn resolve_pointer_write_target(
-        engine_execution_context: &Arc<dyn EngineExecutionContext>,
-        pointer: &Pointer,
-    ) -> Option<(u64, String)> {
-        let mut current_address = pointer.get_address();
-        let mut current_module_name = pointer.get_module_name().to_string();
-
-        for pointer_chain_segment in pointer.get_offset_segments() {
-            let pointer_offset = pointer_chain_segment.as_offset()?;
-            let pointer_value = Self::read_pointer_value(engine_execution_context, current_address, &current_module_name, pointer.get_pointer_size())?;
-            current_address = Pointer::apply_pointer_offset(pointer_value, pointer_offset)?;
-            current_module_name.clear();
-        }
-
-        Some((current_address, current_module_name))
-    }
-
-    fn read_pointer_value(
-        engine_execution_context: &Arc<dyn EngineExecutionContext>,
-        address: u64,
-        module_name: &str,
-        pointer_size: PointerScanPointerSize,
-    ) -> Option<u64> {
-        let symbolic_struct_definition = squalr_engine_api::structures::structs::symbolic_struct_definition::SymbolicStructDefinition::new_anonymous(vec![
-            squalr_engine_api::structures::structs::symbolic_field_definition::SymbolicFieldDefinition::new(
-                pointer_size.to_data_type_ref(),
-                ContainerType::None,
-            ),
-        ]);
-        let memory_read_response = Self::dispatch_memory_read_request(engine_execution_context, address, module_name, &symbolic_struct_definition)?;
-
-        if !memory_read_response.success {
-            return None;
-        }
-
-        let data_value = memory_read_response
-            .valued_struct
-            .get_fields()
-            .first()
-            .and_then(|valued_struct_field| valued_struct_field.get_data_value())?;
-
-        pointer_size.read_address_value(data_value)
-    }
-
-    fn dispatch_memory_read_request(
-        engine_execution_context: &Arc<dyn EngineExecutionContext>,
-        address: u64,
-        module_name: &str,
-        symbolic_struct_definition: &squalr_engine_api::structures::structs::symbolic_struct_definition::SymbolicStructDefinition,
-    ) -> Option<MemoryReadResponse> {
-        let memory_read_request = MemoryReadRequest {
-            address,
-            module_name: module_name.to_string(),
-            symbolic_struct_definition: symbolic_struct_definition.clone(),
-            suppress_logging: true,
-        };
-        let memory_read_command = memory_read_request.to_engine_command();
-        let (memory_read_response_sender, memory_read_response_receiver) = mpsc::channel();
-
-        let dispatch_result = match engine_execution_context.get_bindings().read() {
-            Ok(engine_bindings) => engine_bindings.dispatch_privileged_command(
-                memory_read_command,
-                Box::new(move |engine_response| {
-                    let conversion_result = match MemoryReadResponse::from_engine_response(engine_response) {
-                        Ok(memory_read_response) => Ok(memory_read_response),
-                        Err(unexpected_response) => Err(format!(
-                            "Unexpected response variant for project hierarchy memory read request: {:?}",
-                            unexpected_response
-                        )),
-                    };
-                    let _ = memory_read_response_sender.send(conversion_result);
-                }),
-            ),
-            Err(error) => {
-                log::error!("Failed to acquire engine bindings lock for project hierarchy memory read request: {}", error);
-                return None;
-            }
-        };
-
-        if let Err(error) = dispatch_result {
-            log::error!("Failed to dispatch project hierarchy memory read request: {}", error);
-            return None;
-        }
-
-        match memory_read_response_receiver.recv_timeout(Duration::from_secs(2)) {
-            Ok(Ok(memory_read_response)) => Some(memory_read_response),
-            Ok(Err(error)) => {
-                log::error!("Failed to convert project hierarchy memory read response: {}", error);
-                None
-            }
-            Err(error) => {
-                log::error!("Timed out waiting for project hierarchy memory read response: {}", error);
-                None
-            }
-        }
-    }
-
-    fn dispatch_memory_query_request(engine_unprivileged_state: &Arc<EngineUnprivilegedState>) -> Option<MemoryQueryResponse> {
-        let memory_query_request = MemoryQueryRequest::default();
-        let memory_query_command = memory_query_request.to_engine_command();
-        let (memory_query_response_sender, memory_query_response_receiver) = mpsc::channel();
-
-        let dispatch_result = match engine_unprivileged_state.get_bindings().read() {
-            Ok(engine_bindings) => engine_bindings.dispatch_privileged_command(
-                memory_query_command,
-                Box::new(move |engine_response| {
-                    let conversion_result = match MemoryQueryResponse::from_engine_response(engine_response) {
-                        Ok(memory_query_response) => Ok(memory_query_response),
-                        Err(unexpected_response) => Err(format!(
-                            "Unexpected response variant for project hierarchy memory query request: {:?}",
-                            unexpected_response
-                        )),
-                    };
-                    let _ = memory_query_response_sender.send(conversion_result);
-                }),
-            ),
-            Err(error) => {
-                log::error!("Failed to acquire engine bindings lock for project hierarchy memory query request: {}", error);
-                return None;
-            }
-        };
-
-        if let Err(error) = dispatch_result {
-            log::error!("Failed to dispatch project hierarchy memory query request: {}", error);
-            return None;
-        }
-
-        match memory_query_response_receiver.recv_timeout(Duration::from_secs(2)) {
-            Ok(Ok(memory_query_response)) => Some(memory_query_response),
-            Ok(Err(error)) => {
-                log::error!("Failed to convert project hierarchy memory query response: {}", error);
-                None
-            }
-            Err(error) => {
-                log::error!("Timed out waiting for project hierarchy memory query response: {}", error);
-                None
-            }
-        }
-    }
-
-    fn resolve_module_relative_address(
-        modules: &[NormalizedModule],
-        address: u64,
-        module_name: &str,
-    ) -> Option<u64> {
-        modules
-            .iter()
-            .find(|normalized_module| {
-                normalized_module
-                    .get_module_name()
-                    .eq_ignore_ascii_case(module_name)
-            })
-            .and_then(|normalized_module| normalized_module.get_base_address().checked_add(address))
     }
 
     fn focus_pointer_scanner_for_address(
@@ -3786,8 +3346,8 @@ impl ProjectHierarchyView {
             (address, String::new())
         } else if try_resolve_virtual_module_address(module_name, address).is_some() {
             (address, module_name.to_string())
-        } else if let Some(resolved_absolute_address) = Self::dispatch_memory_query_request(&self.app_context.engine_unprivileged_state)
-            .and_then(|memory_query_response| Self::resolve_module_relative_address(&memory_query_response.modules, address, module_name))
+        } else if let Some(resolved_absolute_address) = ProjectItemDetails::dispatch_memory_query_request(&self.app_context.engine_unprivileged_state)
+            .and_then(|memory_query_response| ProjectItemDetails::resolve_module_relative_address(&memory_query_response.modules, address, module_name))
         {
             (resolved_absolute_address, String::new())
         } else {
@@ -3865,19 +3425,9 @@ impl ProjectHierarchyView {
         }
     }
 
-    fn should_open_project_item_in_code_viewer(
-        opened_project_info: Option<&ProjectInfo>,
-        project_item: &ProjectItem,
-    ) -> bool {
-        Self::resolve_project_item_symbolic_struct_namespace(opened_project_info, project_item)
-            .and_then(|symbolic_struct_namespace| normalize_instruction_data_type_id(&symbolic_struct_namespace))
-            .map(|data_type_id| matches!(data_type_id.as_str(), "i_x86" | "i_x64"))
-            .unwrap_or(false)
-    }
-
     fn resolve_tree_entry_icon(
         app_context: Arc<AppContext>,
-        opened_project_info: Option<&ProjectInfo>,
+        _opened_project_info: Option<&ProjectInfo>,
         project_item: &ProjectItem,
     ) -> Option<TextureHandle> {
         let icon_library = &app_context.theme.icon_library;
@@ -3886,37 +3436,10 @@ impl ProjectHierarchyView {
         if project_item_type_id == ProjectItemTypeDirectory::PROJECT_ITEM_TYPE_ID {
             Some(icon_library.icon_handle_file_system_open_folder.clone())
         } else {
-            let icon_data_type_id = Self::resolve_project_item_icon_data_type_id(opened_project_info, project_item).unwrap_or_default();
+            let icon_data_type_id = ProjectItemDetails::resolve_project_item_icon_data_type_id(project_item).unwrap_or_default();
 
             Some(DataTypeToIconConverter::convert_data_type_to_icon(&icon_data_type_id, icon_library))
         }
-    }
-
-    fn resolve_project_item_icon_data_type_id(
-        _opened_project_info: Option<&ProjectInfo>,
-        project_item: &ProjectItem,
-    ) -> Option<String> {
-        let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
-
-        if project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
-            let mut address_project_item = project_item.clone();
-
-            return ProjectItemTypeAddress::get_field_symbolic_struct_definition_reference(&mut address_project_item).map(|symbolic_struct_reference| {
-                symbolic_struct_reference
-                    .get_symbolic_struct_namespace()
-                    .to_string()
-            });
-        }
-
-        if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
-            return ProjectItemTypePointer::get_field_symbolic_struct_definition_reference(project_item).map(|symbolic_struct_reference| {
-                symbolic_struct_reference
-                    .get_symbolic_struct_namespace()
-                    .to_string()
-            });
-        }
-
-        None
     }
 
     fn refresh_if_project_changed(&self) {
@@ -4081,319 +3604,6 @@ impl ProjectHierarchyView {
         });
     }
 
-    fn build_project_item_value_edit_context(
-        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
-        opened_project_info: Option<&ProjectInfo>,
-        project_item: &ProjectItem,
-    ) -> Option<ProjectItemValueEditContext> {
-        let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
-        let value_field_name = if project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
-            ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE
-        } else if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
-            ProjectItemTypePointer::PROPERTY_FREEZE_DISPLAY_VALUE
-        } else {
-            return None;
-        };
-        let value_field = project_item.get_properties().get_field(value_field_name)?;
-        let value_data_value = value_field.get_data_value()?;
-        let symbolic_struct_namespace = Self::resolve_project_item_symbolic_struct_namespace(opened_project_info, project_item);
-        let symbolic_field_definition = symbolic_struct_namespace
-            .as_deref()
-            .and_then(|symbolic_struct_namespace| SymbolicFieldDefinition::from_str(symbolic_struct_namespace).ok());
-        let validation_data_type_ref = symbolic_field_definition
-            .as_ref()
-            .map(|symbolic_field_definition| symbolic_field_definition.get_data_type_ref().clone())
-            .unwrap_or_else(|| value_data_value.get_data_type_ref().clone());
-        let container_type = symbolic_field_definition
-            .map(|symbolic_field_definition| symbolic_field_definition.get_container_type())
-            .unwrap_or(ContainerType::None);
-        let default_format = engine_unprivileged_state.get_default_anonymous_value_string_format(&validation_data_type_ref);
-        let engine_execution_context: Arc<dyn EngineExecutionContext> = engine_unprivileged_state.clone();
-        let initial_value_edit = symbolic_struct_namespace
-            .as_deref()
-            .and_then(|symbolic_struct_namespace| {
-                Self::read_project_item_runtime_value_from_memory(&engine_execution_context, opened_project_info, project_item, symbolic_struct_namespace)
-            })
-            .unwrap_or_else(|| {
-                let raw_display_value = String::from_utf8(value_data_value.get_value_bytes().clone()).unwrap_or_default();
-
-                AnonymousValueString::new(raw_display_value, default_format, container_type)
-            });
-
-        Some(ProjectItemValueEditContext {
-            project_item_name: project_item.get_field_name(),
-            value_field_name: value_field_name.to_string(),
-            validation_data_type_ref,
-            initial_value_edit,
-        })
-    }
-
-    fn read_project_item_runtime_value_from_memory(
-        engine_execution_context: &Arc<dyn EngineExecutionContext>,
-        opened_project_info: Option<&ProjectInfo>,
-        project_item: &ProjectItem,
-        symbolic_struct_namespace: &str,
-    ) -> Option<AnonymousValueString> {
-        let (address, module_name) = Self::resolve_project_item_runtime_value_target(engine_execution_context, opened_project_info, project_item)?;
-        let symbolic_struct_definition = engine_execution_context.resolve_struct_layout_definition(symbolic_struct_namespace)?;
-        let memory_read_response = Self::dispatch_memory_read_request(engine_execution_context, address, &module_name, &symbolic_struct_definition)?;
-
-        if !memory_read_response.success {
-            return None;
-        }
-
-        let read_data_value = memory_read_response
-            .valued_struct
-            .get_fields()
-            .first()
-            .and_then(|valued_struct_field| valued_struct_field.get_data_value())?;
-        let default_format = engine_execution_context.get_default_anonymous_value_string_format(read_data_value.get_data_type_ref());
-
-        engine_execution_context
-            .anonymize_value(read_data_value, default_format)
-            .ok()
-    }
-
-    fn resolve_project_item_runtime_value_target(
-        engine_execution_context: &Arc<dyn EngineExecutionContext>,
-        opened_project_info: Option<&ProjectInfo>,
-        project_item: &ProjectItem,
-    ) -> Option<(u64, String)> {
-        let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
-
-        if project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
-            let mut project_item = project_item.clone();
-            let address_target = ProjectItemTypeAddress::get_address_target(&mut project_item);
-
-            return Self::resolve_project_item_address_target(engine_execution_context, opened_project_info, &address_target);
-        }
-
-        if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
-            let pointer = ProjectItemTypePointer::get_field_pointer(project_item);
-
-            return Self::resolve_pointer_write_target(engine_execution_context, &pointer);
-        }
-
-        None
-    }
-
-    fn resolve_project_item_address_target(
-        engine_execution_context: &Arc<dyn EngineExecutionContext>,
-        opened_project_info: Option<&ProjectInfo>,
-        address_target: &ProjectItemAddressTarget,
-    ) -> Option<(u64, String)> {
-        let runtime_pointer = Self::resolve_address_target_runtime_pointer(opened_project_info, address_target)?;
-
-        if runtime_pointer.get_offset_segments().is_empty() {
-            Some((runtime_pointer.get_address(), runtime_pointer.get_module_name().to_string()))
-        } else {
-            Self::resolve_pointer_write_target(engine_execution_context, &runtime_pointer)
-        }
-    }
-
-    fn resolve_address_target_runtime_pointer(
-        opened_project_info: Option<&ProjectInfo>,
-        address_target: &ProjectItemAddressTarget,
-    ) -> Option<Pointer> {
-        if let Some(opened_project_info) = opened_project_info {
-            address_target.to_runtime_pointer_resolving_symbols(opened_project_info.get_project_symbol_catalog())
-        } else {
-            address_target.to_runtime_pointer()
-        }
-    }
-
-    fn build_project_item_value_edit_display_values(
-        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
-        validation_data_type_ref: &DataTypeRef,
-        value_edit: &AnonymousValueString,
-    ) -> Vec<AnonymousValueString> {
-        let Ok(data_value) = engine_unprivileged_state.deanonymize_value_string(validation_data_type_ref, value_edit) else {
-            return Vec::new();
-        };
-
-        engine_unprivileged_state
-            .anonymize_value_to_supported_formats(&data_value)
-            .unwrap_or_else(|_| vec![value_edit.clone()])
-    }
-
-    fn build_project_item_virtual_snapshot_query(
-        opened_project_info: Option<&ProjectInfo>,
-        project_item_path: &Path,
-        project_item: &ProjectItem,
-        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
-    ) -> Option<VirtualSnapshotQuery> {
-        let query_id = project_item_path.to_string_lossy().to_string();
-        let symbolic_struct_namespace = Self::resolve_project_item_symbolic_struct_namespace(opened_project_info, project_item)?;
-        let symbolic_struct_definition = Self::build_project_item_preview_symbolic_struct_definition(engine_unprivileged_state, &symbolic_struct_namespace)?;
-        let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
-
-        if project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
-            let mut project_item = project_item.clone();
-            let address_target = ProjectItemTypeAddress::get_address_target(&mut project_item);
-
-            let runtime_pointer = Self::resolve_address_target_runtime_pointer(opened_project_info, &address_target)?;
-
-            return if runtime_pointer.get_offset_segments().is_empty() {
-                Some(VirtualSnapshotQuery::Address {
-                    query_id,
-                    address: runtime_pointer.get_address(),
-                    module_name: runtime_pointer.get_module_name().to_string(),
-                    symbolic_struct_definition,
-                })
-            } else {
-                Some(VirtualSnapshotQuery::Pointer {
-                    query_id,
-                    pointer: runtime_pointer,
-                    symbolic_struct_definition,
-                })
-            };
-        }
-
-        if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
-            return Some(VirtualSnapshotQuery::Pointer {
-                query_id,
-                pointer: ProjectItemTypePointer::get_field_pointer(project_item),
-                symbolic_struct_definition,
-            });
-        }
-
-        None
-    }
-
-    fn build_project_item_preview_symbolic_struct_definition(
-        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
-        symbolic_struct_namespace: &str,
-    ) -> Option<SymbolicStructDefinition> {
-        let symbolic_struct_definition = engine_unprivileged_state.resolve_struct_layout_definition(symbolic_struct_namespace)?;
-        let preview_field_definition = SymbolicFieldDefinition::from_str(symbolic_struct_namespace).ok();
-
-        let Some(preview_field_definition) = preview_field_definition else {
-            return Some(symbolic_struct_definition);
-        };
-
-        let preview_container_type = DataValuePreviewFormatter::limit_array_container_type(preview_field_definition.get_container_type());
-
-        if preview_container_type == preview_field_definition.get_container_type() {
-            Some(symbolic_struct_definition)
-        } else {
-            Some(SymbolicStructDefinition::new_anonymous(vec![SymbolicFieldDefinition::new(
-                preview_field_definition.get_data_type_ref().clone(),
-                preview_container_type,
-            )]))
-        }
-    }
-
-    fn build_project_item_preview_value_from_virtual_snapshot_result(
-        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
-        opened_project_info: Option<&ProjectInfo>,
-        project_item: &ProjectItem,
-        virtual_snapshot_query_result: &VirtualSnapshotQueryResult,
-    ) -> String {
-        let Some(memory_read_response) = virtual_snapshot_query_result.memory_read_response.as_ref() else {
-            return String::new();
-        };
-
-        if !memory_read_response.success {
-            return String::new();
-        }
-
-        let first_read_field_data_value = memory_read_response
-            .valued_struct
-            .get_fields()
-            .first()
-            .and_then(|valued_struct_field| valued_struct_field.get_data_value());
-        let Some(first_read_field_data_value) = first_read_field_data_value else {
-            return String::new();
-        };
-
-        let default_anonymous_value_string_format =
-            engine_unprivileged_state.get_default_anonymous_value_string_format(first_read_field_data_value.get_data_type_ref());
-        let symbolic_field_container_type = Self::resolve_project_item_symbolic_container_type(opened_project_info, project_item);
-        let preview_was_truncated = Self::project_item_preview_was_truncated(opened_project_info, project_item);
-
-        engine_unprivileged_state
-            .anonymize_value(first_read_field_data_value, default_anonymous_value_string_format)
-            .map(|anonymous_value_string| {
-                DataValuePreviewFormatter::format_anonymous_value_preview(
-                    &anonymous_value_string,
-                    symbolic_field_container_type,
-                    preview_was_truncated,
-                    Self::PROJECT_ITEM_PREVIEW_FORMAT_OPTIONS,
-                )
-            })
-            .unwrap_or_default()
-    }
-
-    fn resolve_project_item_symbolic_struct_namespace(
-        _opened_project_info: Option<&ProjectInfo>,
-        project_item: &ProjectItem,
-    ) -> Option<String> {
-        let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
-
-        if project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
-            let mut project_item = project_item.clone();
-
-            return ProjectItemTypeAddress::get_field_symbolic_struct_definition_reference(&mut project_item).map(|symbolic_struct_reference| {
-                symbolic_struct_reference
-                    .get_symbolic_struct_namespace()
-                    .to_string()
-            });
-        }
-
-        if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
-            return ProjectItemTypePointer::get_field_symbolic_struct_definition_reference(project_item).map(|symbolic_struct_reference| {
-                symbolic_struct_reference
-                    .get_symbolic_struct_namespace()
-                    .to_string()
-            });
-        }
-
-        None
-    }
-
-    fn resolve_project_item_symbolic_container_type(
-        opened_project_info: Option<&ProjectInfo>,
-        project_item: &ProjectItem,
-    ) -> ContainerType {
-        Self::resolve_project_item_symbolic_struct_namespace(opened_project_info, project_item)
-            .and_then(|symbolic_struct_namespace| SymbolicFieldDefinition::from_str(&symbolic_struct_namespace).ok())
-            .map(|symbolic_field_definition| symbolic_field_definition.get_container_type())
-            .unwrap_or(ContainerType::None)
-    }
-
-    fn project_item_preview_was_truncated(
-        opened_project_info: Option<&ProjectInfo>,
-        project_item: &ProjectItem,
-    ) -> bool {
-        let Some(symbolic_struct_namespace) = Self::resolve_project_item_symbolic_struct_namespace(opened_project_info, project_item) else {
-            return false;
-        };
-        let Some(symbolic_field_definition) = SymbolicFieldDefinition::from_str(&symbolic_struct_namespace).ok() else {
-            return false;
-        };
-
-        DataValuePreviewFormatter::array_preview_was_truncated(symbolic_field_definition.get_container_type())
-    }
-
-    fn resolve_project_item_runtime_value_byte_count(
-        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
-        opened_project_info: Option<&ProjectInfo>,
-        project_item: &ProjectItem,
-    ) -> Option<u64> {
-        let symbolic_struct_namespace = Self::resolve_project_item_symbolic_struct_namespace(opened_project_info, project_item)?;
-        let symbolic_field_definition = SymbolicFieldDefinition::from_str(&symbolic_struct_namespace).ok()?;
-        let unit_size_in_bytes = engine_unprivileged_state
-            .get_default_value(symbolic_field_definition.get_data_type_ref())
-            .map(|default_value| default_value.get_size_in_bytes())
-            .unwrap_or(1);
-
-        Some(
-            symbolic_field_definition
-                .get_container_type()
-                .get_total_size_in_bytes(unit_size_in_bytes),
-        )
-    }
-
     fn build_project_item_rename_request(
         project_item_path: &Path,
         project_item_type_id: &str,
@@ -4437,16 +3647,5 @@ impl ProjectHierarchyView {
             project_item_path: project_item_path.to_path_buf(),
             project_item_name: renamed_project_item_name,
         })
-    }
-
-    fn should_apply_struct_field_edit_to_project_item(
-        project_item_type_id: &str,
-        edited_field_name: &str,
-    ) -> bool {
-        if Self::is_runtime_value_field(edited_field_name) {
-            return false;
-        }
-
-        !(edited_field_name == ProjectItem::PROPERTY_NAME && project_item_type_id == ProjectItemTypeDirectory::PROJECT_ITEM_TYPE_ID)
     }
 }
