@@ -13,6 +13,7 @@ pub struct ProjectItemDetailsProjection;
 
 impl ProjectItemDetailsProjection {
     pub const TARGET_KIND_PROJECT_ITEM: &'static str = "project_item";
+    pub const FIELD_ID_PROPERTY_PREFIX: &'static str = "property.";
     pub const FIELD_ID_ADDRESS_TARGET_POINTER_SIZE: &'static str = "address_target.pointer_size";
     pub const FIELD_ID_ADDRESS_TARGET_POINTER_OFFSETS: &'static str = "address_target.pointer_offsets";
 
@@ -88,7 +89,7 @@ impl ProjectItemDetailsProjection {
         let is_runtime_value_field = Self::is_runtime_value_field(project_item_type_id, field_name);
 
         DetailsField::new(
-            DetailsFieldId::new(format!("property.{}", field_name)),
+            DetailsFieldId::new(format!("{}{}", Self::FIELD_ID_PROPERTY_PREFIX, field_name)),
             Self::field_label(field_name),
             details_value,
             if is_runtime_value_field {

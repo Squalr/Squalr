@@ -90,17 +90,17 @@ Our current task, from `README.md`, is:
    - Multi-selection Project Hierarchy details focus still uses legacy `ProjectItemDetails::build_struct_view_properties` until a multi-projection strategy exists.
    - Remaining target: migrate `resolve_project_item_icon_data_type_id` callers and remove legacy single-selection `ProjectItemDetails::build_struct_view_properties` dependency after edit planning moves off legacy fields.
 
-5. Add project item edit planning.
-   - A project item detail edit should produce explicit operations such as:
+5. In progress: add project item edit planning.
+   - Added `ProjectItemDetailsEditPlanner` in `squalr-engine-api/src/structures/projects/project_items/details/`.
+   - A project item detail edit now produces explicit operations such as:
      - rename project item,
      - update persisted property,
      - update address target pointer size/offsets,
      - write runtime value,
-     - save project,
      - refresh details,
      - no-op/error.
-   - Use existing command boundaries where possible, including `ProjectItemsRenameRequest`, property mutation plus save, and the future runtime write command.
-   - Replace `ProjectHierarchyView::apply_project_item_edits` only after the planner can describe every existing edit path.
+   - Remaining target: wire Project Hierarchy through the edit plan while preserving existing command boundaries and save behavior.
+   - Replace `ProjectHierarchyView::apply_project_item_edits` only after the planner can describe every existing edit path and the GUI has a non-legacy operation applier.
 
 6. Add `project_items write-value`.
    - Add request/response/command enum variants under `squalr-engine-api/src/commands/project_items/`.
@@ -156,3 +156,4 @@ Our current task, from `README.md`, is:
 - Current Struct Viewer pass added a compatibility adapter and focus API for `DetailsProjection`; no Project Hierarchy or Symbol Tree callers have migrated yet.
 - Current project item pass added a pure API-side `ProjectItemDetailsProjection`.
 - Current Project Hierarchy pass migrated single-selection details focus to `DetailsProjection`; multi-selection and legacy edit application still use `ProjectItemDetails`.
+- Current project item planning pass added `ProjectItemDetailsEditPlanner`; Project Hierarchy is not wired through the plan yet.
