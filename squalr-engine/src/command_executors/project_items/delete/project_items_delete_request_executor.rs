@@ -1,5 +1,6 @@
 use crate::command_executors::project_items::project_item_sort_order::remove_project_items_from_sort_order;
 use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
+use crate::services::projects::project_item_file_mutation::resolve_project_item_path;
 use squalr_engine_api::commands::project_items::delete::project_items_delete_request::ProjectItemsDeleteRequest;
 use squalr_engine_api::commands::project_items::delete::project_items_delete_response::ProjectItemsDeleteResponse;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
@@ -135,17 +136,6 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsDeleteRequest {
             success: operation_success,
             deleted_project_item_count,
         }
-    }
-}
-
-fn resolve_project_item_path(
-    project_directory_path: &Path,
-    project_item_path: &Path,
-) -> PathBuf {
-    if project_item_path.is_absolute() {
-        project_item_path.to_path_buf()
-    } else {
-        project_directory_path.join(project_item_path)
     }
 }
 

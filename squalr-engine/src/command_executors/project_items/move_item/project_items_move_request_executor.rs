@@ -1,5 +1,6 @@
 use crate::command_executors::project_items::project_item_sort_order::{append_project_items_to_sort_order, remove_project_items_from_sort_order};
 use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
+use crate::services::projects::project_item_file_mutation::resolve_project_item_path;
 use squalr_engine_api::commands::project_items::move_item::project_items_move_request::ProjectItemsMoveRequest;
 use squalr_engine_api::commands::project_items::move_item::project_items_move_response::ProjectItemsMoveResponse;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
@@ -155,17 +156,6 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsMoveRequest {
             success: operation_success,
             moved_project_item_count,
         }
-    }
-}
-
-fn resolve_project_item_path(
-    project_directory_path: &Path,
-    project_item_path: &Path,
-) -> PathBuf {
-    if project_item_path.is_absolute() {
-        project_item_path.to_path_buf()
-    } else {
-        project_directory_path.join(project_item_path)
     }
 }
 

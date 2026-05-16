@@ -1,7 +1,7 @@
-use crate::command_executors::pointer_scan::pointer_scan_target_resolver::PointerScanTargetResolver;
 use crate::command_executors::privileged_request_executor::PrivilegedCommandRequestExecutor;
 use crate::command_executors::snapshot_region_builder::merge_memory_regions_into_snapshot_regions;
 use crate::engine_privileged_state::EnginePrivilegedState;
+use crate::services::pointer_scans::pointer_scan_target_resolution::PointerScanTargetResolver;
 use squalr_engine_api::commands::pointer_scan::validate::pointer_scan_validate_request::PointerScanValidateRequest;
 use squalr_engine_api::commands::pointer_scan::validate::pointer_scan_validate_response::PointerScanValidateResponse;
 use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;

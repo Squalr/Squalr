@@ -1,17 +1,13 @@
-use crate::command_executors::pointer_scan::pointer_scan_target_resolver::PointerScanTargetResolver;
 use crate::command_executors::privileged_request_executor::PrivilegedCommandRequestExecutor;
 use crate::command_executors::snapshot_region_builder::merge_memory_regions_into_snapshot_regions;
 use crate::engine_privileged_state::EnginePrivilegedState;
+use crate::services::pointer_scans::pointer_scan_target_resolution::{
+    PointerScanTargetResolver, parse_target_address, resolve_pointer_scan_address_space, resolve_pointer_size_for_process_bitness,
+};
 use squalr_engine_api::commands::pointer_scan::start::pointer_scan_start_request::PointerScanStartRequest;
 use squalr_engine_api::commands::pointer_scan::start::pointer_scan_start_response::PointerScanStartResponse;
-use squalr_engine_api::structures::data_values::anonymous_value_string::AnonymousValueString;
-use squalr_engine_api::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
-use squalr_engine_api::structures::memory::address_display::is_virtual_module_address;
 use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_address_space::PointerScanAddressSpace;
-use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
-use squalr_engine_api::structures::pointer_scans::pointer_scan_target_request::PointerScanTargetRequest;
-use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::scanning::plans::pointer_scan::pointer_scan_parameters::PointerScanParameters;
 use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
 use squalr_engine_scanning::pointer_scans::pointer_scan_executor_task::PointerScanExecutor;
@@ -150,77 +146,6 @@ impl PrivilegedCommandRequestExecutor for PointerScanStartRequest {
             success: true,
             pointer_scan_summary: Some(pointer_scan_summary),
         }
-    }
-}
-
-fn resolve_pointer_scan_address_space(
-    requested_address_space: PointerScanAddressSpace,
-    target_request: &PointerScanTargetRequest,
-) -> PointerScanAddressSpace {
-    match requested_address_space {
-        PointerScanAddressSpace::Auto => target_request
-            .target_address
-            .as_ref()
-            .and_then(parse_target_address)
-            .filter(|target_address| is_virtual_module_address(*target_address))
-            .map(|_| PointerScanAddressSpace::GameMemory)
-            .unwrap_or(PointerScanAddressSpace::EmulatorMemory),
-        PointerScanAddressSpace::GameMemory => PointerScanAddressSpace::GameMemory,
-        PointerScanAddressSpace::EmulatorMemory => PointerScanAddressSpace::EmulatorMemory,
-    }
-}
-
-fn resolve_pointer_size_for_process_bitness(
-    requested_pointer_size: PointerScanPointerSize,
-    address_space: PointerScanAddressSpace,
-    process_info: &OpenedProcessInfo,
-) -> PointerScanPointerSize {
-    if matches!(address_space, PointerScanAddressSpace::GameMemory) {
-        return requested_pointer_size;
-    }
-
-    let process_pointer_size = PointerScanPointerSize::from_process_bitness(process_info.get_bitness());
-
-    if requested_pointer_size != process_pointer_size {
-        log::warn!(
-            "Pointer scan requested {} for process {} (PID {}) but the process is {:?}; using {} instead.",
-            requested_pointer_size,
-            process_info.get_name(),
-            process_info.get_process_id_raw(),
-            process_info.get_bitness(),
-            process_pointer_size,
-        );
-    }
-
-    process_pointer_size
-}
-
-fn parse_target_address(target_address: &AnonymousValueString) -> Option<u64> {
-    let trimmed_target_address = target_address.get_anonymous_value_string().trim();
-
-    if trimmed_target_address.is_empty() {
-        return None;
-    }
-
-    match target_address.get_anonymous_value_string_format() {
-        AnonymousValueStringFormat::Address | AnonymousValueStringFormat::Hexadecimal => {
-            let hexadecimal_input = trimmed_target_address
-                .strip_prefix("0x")
-                .or_else(|| trimmed_target_address.strip_prefix("0X"))
-                .unwrap_or(trimmed_target_address);
-
-            u64::from_str_radix(hexadecimal_input, 16).ok()
-        }
-        AnonymousValueStringFormat::Decimal => trimmed_target_address.parse::<u64>().ok(),
-        AnonymousValueStringFormat::Binary => {
-            let binary_input = trimmed_target_address
-                .strip_prefix("0b")
-                .or_else(|| trimmed_target_address.strip_prefix("0B"))
-                .unwrap_or(trimmed_target_address);
-
-            u64::from_str_radix(binary_input, 2).ok()
-        }
-        _ => trimmed_target_address.parse::<u64>().ok(),
     }
 }
 
