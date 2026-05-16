@@ -597,6 +597,24 @@ impl SymbolLayoutEditorViewData {
         true
     }
 
+    pub fn insert_unassigned_split_offset_for_layout(
+        symbol_layout_editor_view_data: Dependency<Self>,
+        layout_id: Option<String>,
+        split_offset_in_bytes: u64,
+    ) -> bool {
+        if split_offset_in_bytes == 0 {
+            return false;
+        }
+
+        let Some(mut symbol_layout_editor_view_data) = symbol_layout_editor_view_data.write("SymbolLayoutEditor insert unassigned split offset") else {
+            return false;
+        };
+
+        symbol_layout_editor_view_data
+            .get_unassigned_split_offsets_mut(layout_id.as_deref())
+            .insert(split_offset_in_bytes)
+    }
+
     pub fn select_symbol_layout(
         symbol_layout_editor_view_data: Dependency<Self>,
         selected_layout_id: Option<String>,
@@ -1396,7 +1414,7 @@ impl SymbolLayoutEditorViewData {
                 next_sequential_offset,
                 declared_size_in_bytes,
                 unassigned_split_offsets,
-                false,
+                !draft.field_drafts.is_empty() || !unassigned_split_offsets.is_empty(),
             );
         }
 
@@ -2310,6 +2328,33 @@ mod tests {
     }
 
     #[test]
+    fn build_symbol_layout_descriptor_persists_tail_unassigned_after_field() {
+        let project_symbol_catalog = ProjectSymbolCatalog::default();
+        let draft = SymbolLayoutEditDraft {
+            original_layout_id: None,
+            layout_id: String::from("inventory.slot"),
+            layout_kind: SymbolicLayoutKind::Struct,
+            size_text: String::from("8"),
+            size_format: AnonymousValueStringFormat::Decimal,
+            field_drafts: vec![create_field_draft(
+                "item_id",
+                "u32",
+                SymbolLayoutFieldContainerEdit::default(),
+            )],
+        };
+
+        let struct_layout_descriptor =
+            SymbolLayoutEditorViewData::build_symbol_layout_descriptor(&project_symbol_catalog, &draft).expect("Expected draft to build.");
+        let fields = struct_layout_descriptor
+            .get_struct_layout_definition()
+            .get_fields();
+
+        assert_eq!(fields.len(), 2);
+        assert_eq!(fields[0].to_string(), "item_id:u32");
+        assert_eq!(fields[1].to_string(), "unassigned[4]");
+    }
+
+    #[test]
     fn build_symbol_layout_descriptor_allows_empty_layout() {
         let project_symbol_catalog = ProjectSymbolCatalog::default();
         let draft = SymbolLayoutEditDraft {
@@ -2386,10 +2431,11 @@ mod tests {
             .get_struct_layout_definition()
             .get_fields();
 
-        assert_eq!(fields.len(), 3);
+        assert_eq!(fields.len(), 4);
         assert_eq!(fields[0].to_string(), "unassigned[8]");
         assert_eq!(fields[1].to_string(), "unassigned[8]");
         assert_eq!(fields[2].to_string(), "value:u8");
+        assert_eq!(fields[3].to_string(), "unassigned[15]");
     }
 
     #[test]
