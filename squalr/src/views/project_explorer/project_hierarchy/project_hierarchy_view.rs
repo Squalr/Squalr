@@ -42,7 +42,7 @@ use squalr_engine_api::commands::settings::scan::list::scan_settings_list_reques
 use squalr_engine_api::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
-use squalr_engine_api::structures::data_types::{built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8, data_type_ref::DataTypeRef};
+use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::{
     anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType,
 };
@@ -55,7 +55,7 @@ use squalr_engine_api::structures::projects::project_items::built_in_types::{
     project_item_type_address::ProjectItemTypeAddress, project_item_type_directory::ProjectItemTypeDirectory, project_item_type_pointer::ProjectItemTypePointer,
 };
 use squalr_engine_api::structures::projects::project_items::{
-    details::{ProjectItemDetailsEditPlanner, ProjectItemDetailsProjection},
+    details::{ProjectItemDetailsEditApplier, ProjectItemDetailsEditPlanner, ProjectItemDetailsProjection},
     project_item::ProjectItem,
     project_item_ref::ProjectItemRef,
 };
@@ -3077,14 +3077,12 @@ impl ProjectHierarchyView {
                     DetailsEditOperation::Reject { reason } => {
                         log::warn!("Rejected project item details edit: {}", reason);
                     }
-                    DetailsEditOperation::RenameTarget { .. } | DetailsEditOperation::RefreshProjection { .. } => {}
-                    DetailsEditOperation::UpdateStoredField { .. } => {
-                        let Some(edited_field) = Self::project_item_details_operation_to_legacy_field(operation) else {
-                            log::warn!("Failed to convert project item details operation to legacy field: {:?}", operation);
-                            continue;
-                        };
-
-                        Self::apply_project_item_edits(app_context.clone(), project_item_paths.clone(), edited_field);
+                    DetailsEditOperation::RefreshProjection { .. } => {}
+                    DetailsEditOperation::RenameTarget { name, .. } => {
+                        Self::dispatch_project_item_details_rename(app_context.clone(), &project_item_paths, name);
+                    }
+                    DetailsEditOperation::UpdateStoredField { source, value, .. } => {
+                        Self::apply_project_item_details_stored_field_update(app_context.clone(), &project_item_paths, source, value);
                     }
                     DetailsEditOperation::WriteRuntimeValue { source, value, .. } => {
                         let Some(project_items_write_value_request) =
@@ -3148,61 +3146,6 @@ impl ProjectHierarchyView {
         Some(ProjectItemDetailsEditPlanner::plan_edit(project_item, details_edit))
     }
 
-    fn project_item_details_operation_to_legacy_field(operation: &DetailsEditOperation) -> Option<ValuedStructField> {
-        let (legacy_field_name, details_value) = match operation {
-            DetailsEditOperation::UpdateStoredField { source, value, .. } => {
-                let legacy_field_name = Self::project_item_details_source_to_legacy_field_name(source)?;
-
-                (legacy_field_name, value)
-            }
-            DetailsEditOperation::WriteRuntimeValue { field_id, value, .. } => {
-                let legacy_field_name = Self::project_item_details_property_field_id_to_legacy_field_name(field_id.get_field_id())?;
-
-                (legacy_field_name, value)
-            }
-            DetailsEditOperation::Noop { .. }
-            | DetailsEditOperation::Reject { .. }
-            | DetailsEditOperation::RenameTarget { .. }
-            | DetailsEditOperation::RefreshProjection { .. } => return None,
-        };
-        let field_data = Self::details_value_to_legacy_field_data(details_value);
-
-        Some(ValuedStructField::new(legacy_field_name, field_data, false))
-    }
-
-    fn project_item_details_source_to_legacy_field_name(details_field_source: &DetailsFieldSource) -> Option<String> {
-        match details_field_source {
-            DetailsFieldSource::ProjectItemProperty { property_name } => Some(property_name.clone()),
-            DetailsFieldSource::ProjectItemAddressTarget { property_name } if property_name == "pointer_size" => {
-                Some(ProjectItemDetails::TARGET_FIELD_POINTER_SIZE.to_string())
-            }
-            DetailsFieldSource::ProjectItemAddressTarget { property_name } if property_name == "pointer_offsets" => {
-                Some(ProjectItemDetails::TARGET_FIELD_POINTER_OFFSETS.to_string())
-            }
-            _ => None,
-        }
-    }
-
-    fn project_item_details_property_field_id_to_legacy_field_name(field_id: &str) -> Option<String> {
-        field_id
-            .strip_prefix(ProjectItemDetailsProjection::FIELD_ID_PROPERTY_PREFIX)
-            .map(|property_name| property_name.to_string())
-    }
-
-    fn details_value_to_legacy_field_data(details_value: &DetailsValue) -> ValuedStructFieldData {
-        match details_value {
-            DetailsValue::DataValue(data_value) => ValuedStructFieldData::Value(data_value.clone()),
-            DetailsValue::Text(text) => ValuedStructFieldData::Value(DataTypeStringUtf8::get_value_from_primitive_string(text)),
-            DetailsValue::Boolean(value) => ValuedStructFieldData::Value(DataTypeStringUtf8::get_value_from_primitive_string(&value.to_string())),
-            DetailsValue::UnsignedInteger(value) => ValuedStructFieldData::Value(DataTypeStringUtf8::get_value_from_primitive_string(&value.to_string())),
-            DetailsValue::SignedInteger(value) => ValuedStructFieldData::Value(DataTypeStringUtf8::get_value_from_primitive_string(&value.to_string())),
-            DetailsValue::AnonymousValue(anonymous_value_string) => ValuedStructFieldData::Value(DataTypeStringUtf8::get_value_from_primitive_string(
-                anonymous_value_string.get_anonymous_value_string(),
-            )),
-            DetailsValue::Empty => ValuedStructFieldData::Value(DataTypeStringUtf8::get_value_from_primitive_string("")),
-        }
-    }
-
     fn build_project_item_write_value_request(
         app_context: Arc<AppContext>,
         project_item_paths: &[PathBuf],
@@ -3224,6 +3167,105 @@ impl ProjectHierarchyView {
             field_name,
             anonymous_value_string,
         })
+    }
+
+    fn apply_project_item_details_stored_field_update(
+        app_context: Arc<AppContext>,
+        project_item_paths: &[PathBuf],
+        details_field_source: &DetailsFieldSource,
+        details_value: &DetailsValue,
+    ) {
+        let project_manager = app_context.engine_unprivileged_state.get_project_manager();
+        let opened_project_lock = project_manager.get_opened_project();
+        let mut opened_project_guard = match opened_project_lock.write() {
+            Ok(opened_project_guard) => opened_project_guard,
+            Err(error) => {
+                log::error!("Failed to acquire opened project lock for project item details update: {}", error);
+                return;
+            }
+        };
+        let Some(opened_project) = opened_project_guard.as_mut() else {
+            log::warn!("Cannot apply project item details update without an opened project.");
+            return;
+        };
+        let mut has_persisted_property_edits = false;
+
+        for project_item_path in project_item_paths {
+            let project_item_ref = ProjectItemRef::new(project_item_path.clone());
+            let Some(project_item) = opened_project.get_project_item_mut(&project_item_ref) else {
+                log::warn!("Cannot apply project item details update, project item was not found: {:?}", project_item_path);
+                continue;
+            };
+
+            match ProjectItemDetailsEditApplier::apply_update(project_item, details_field_source, details_value) {
+                Ok(true) => {
+                    project_item.set_has_unsaved_changes(true);
+                    has_persisted_property_edits = true;
+                }
+                Ok(false) => {}
+                Err(error) => log::warn!("Failed to apply project item details update: {}", error),
+            }
+        }
+
+        if !has_persisted_property_edits {
+            return;
+        }
+
+        opened_project
+            .get_project_info_mut()
+            .set_has_unsaved_changes(true);
+        drop(opened_project_guard);
+
+        let project_save_request = ProjectSaveRequest {};
+
+        project_save_request.send(&app_context.engine_unprivileged_state, |project_save_response| {
+            if !project_save_response.success {
+                log::error!("Failed to persist project item details update through project save command.");
+            }
+        });
+        project_manager.notify_project_items_changed();
+    }
+
+    fn dispatch_project_item_details_rename(
+        app_context: Arc<AppContext>,
+        project_item_paths: &[PathBuf],
+        edited_name: &str,
+    ) {
+        let Some(project_item_path) = project_item_paths.first() else {
+            return;
+        };
+        let project_manager = app_context.engine_unprivileged_state.get_project_manager();
+        let opened_project_lock = project_manager.get_opened_project();
+        let opened_project_guard = match opened_project_lock.read() {
+            Ok(opened_project_guard) => opened_project_guard,
+            Err(error) => {
+                log::error!("Failed to acquire opened project lock for project item details rename: {}", error);
+                return;
+            }
+        };
+        let Some(opened_project) = opened_project_guard.as_ref() else {
+            log::warn!("Cannot rename project item from details without an opened project.");
+            return;
+        };
+        let project_item_ref = ProjectItemRef::new(project_item_path.clone());
+        let Some(project_item) = opened_project.get_project_items().get(&project_item_ref) else {
+            log::warn!("Cannot rename project item from details, project item was not found: {:?}", project_item_path);
+            return;
+        };
+        let project_item_type_id = project_item
+            .get_item_type()
+            .get_project_item_type_id()
+            .to_string();
+        let project_items_rename_request = Self::build_project_item_rename_request(project_item_path, &project_item_type_id, edited_name);
+        drop(opened_project_guard);
+
+        if let Some(project_items_rename_request) = project_items_rename_request {
+            project_items_rename_request.send(&app_context.engine_unprivileged_state, |project_items_rename_response| {
+                if !project_items_rename_response.success {
+                    log::warn!("Project item rename command failed while committing details edit.");
+                }
+            });
+        }
     }
 
     fn details_value_to_anonymous_value_string(
