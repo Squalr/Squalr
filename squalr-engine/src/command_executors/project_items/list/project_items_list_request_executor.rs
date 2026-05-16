@@ -6,7 +6,10 @@ use squalr_engine_api::commands::privileged_command_response::TypedPrivilegedCom
 use squalr_engine_api::commands::project_items::list::project_items_list_request::ProjectItemsListRequest;
 use squalr_engine_api::commands::project_items::list::project_items_list_response::ProjectItemsListResponse;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
-use squalr_engine_api::structures::data_values::{anonymous_value_string::AnonymousValueString, container_type::ContainerType};
+use squalr_engine_api::structures::data_values::{
+    container_type::ContainerType,
+    data_value_preview_formatter::{DataValuePreviewFormatOptions, DataValuePreviewFormatter},
+};
 use squalr_engine_api::structures::memory::pointer::Pointer;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 use squalr_engine_api::structures::projects::project_items::built_in_types::{
@@ -72,9 +75,7 @@ struct PointerPreviewEvaluation {
     evaluated_path: String,
 }
 
-const MAX_ARRAY_PREVIEW_CHARACTER_COUNT: usize = 96;
-const MAX_ARRAY_PREVIEW_ELEMENT_COUNT: u64 = 4;
-const MAX_ARRAY_PREVIEW_DISPLAY_ELEMENT_COUNT: usize = 4;
+const PROJECT_ITEM_PREVIEW_FORMAT_OPTIONS: DataValuePreviewFormatOptions = DataValuePreviewFormatOptions::new(4, 96);
 
 impl UnprivilegedCommandRequestExecutor for ProjectItemsListRequest {
     type ResponseType = ProjectItemsListResponse;
@@ -285,10 +286,11 @@ fn refresh_project_item_display_value_from_memory_read<SetDisplayValue>(
     let freeze_display_value = engine_unprivileged_state
         .anonymize_value(first_read_field_data_value, default_anonymous_value_string_format)
         .map(|anonymous_value_string| {
-            format_project_item_preview_value(
+            DataValuePreviewFormatter::format_anonymous_value_preview(
                 &anonymous_value_string,
                 project_item_preview_read_definition.symbolic_field_container_type,
                 project_item_preview_read_definition.preview_was_truncated,
+                PROJECT_ITEM_PREVIEW_FORMAT_OPTIONS,
             )
         })
         .unwrap_or_default();
@@ -313,10 +315,7 @@ fn build_project_item_preview_read_definition(
         });
     };
 
-    let preview_container_type = match preview_field_definition.get_container_type() {
-        ContainerType::ArrayFixed(length) if length > MAX_ARRAY_PREVIEW_ELEMENT_COUNT => ContainerType::ArrayFixed(MAX_ARRAY_PREVIEW_ELEMENT_COUNT),
-        container_type => container_type,
-    };
+    let preview_container_type = DataValuePreviewFormatter::limit_array_container_type(preview_field_definition.get_container_type());
     let preview_was_truncated = preview_container_type != preview_field_definition.get_container_type();
 
     Some(ProjectItemPreviewReadDefinition {
@@ -342,105 +341,6 @@ fn resolve_project_item_container_type(symbolic_struct_namespace: &str) -> Conta
     SymbolicFieldDefinition::from_str(symbolic_struct_namespace)
         .map(|symbolic_field_definition| symbolic_field_definition.get_container_type())
         .unwrap_or(ContainerType::None)
-}
-
-fn format_project_item_preview_value(
-    anonymous_value_string: &AnonymousValueString,
-    symbolic_field_container_type: ContainerType,
-    preview_was_truncated: bool,
-) -> String {
-    let effective_container_type = if matches!(anonymous_value_string.get_container_type(), ContainerType::Array | ContainerType::ArrayFixed(_)) {
-        anonymous_value_string.get_container_type()
-    } else {
-        symbolic_field_container_type
-    };
-    let display_value = anonymous_value_string.get_anonymous_value_string();
-
-    if matches!(effective_container_type, ContainerType::Array | ContainerType::ArrayFixed(_)) && !display_value.is_empty() {
-        let preview_value = if preview_was_truncated {
-            append_array_preview_ellipsis(display_value)
-        } else {
-            truncate_array_preview_value(display_value)
-        };
-
-        format!("[{}]", preview_value)
-    } else {
-        display_value.to_string()
-    }
-}
-
-fn append_array_preview_ellipsis(display_value: &str) -> String {
-    if let Some(truncated_array_preview) = format_array_preview_from_elements(display_value, true) {
-        return truncated_array_preview;
-    }
-
-    let trimmed_display_value = display_value.trim_end_matches(|character: char| character.is_ascii_whitespace() || matches!(character, ',' | ';'));
-
-    if trimmed_display_value.is_empty() {
-        String::from("...")
-    } else {
-        format!("{}...", trimmed_display_value)
-    }
-}
-
-fn truncate_array_preview_value(display_value: &str) -> String {
-    if let Some(truncated_array_preview) = format_array_preview_from_elements(display_value, false) {
-        return truncated_array_preview;
-    }
-
-    truncate_array_preview_by_character_count(display_value)
-}
-
-fn format_array_preview_from_elements(
-    display_value: &str,
-    force_ellipsis: bool,
-) -> Option<String> {
-    let array_elements = split_array_preview_elements(display_value);
-
-    if array_elements.len() <= 1 {
-        return None;
-    }
-
-    let visible_element_count = array_elements
-        .len()
-        .min(MAX_ARRAY_PREVIEW_DISPLAY_ELEMENT_COUNT);
-    let mut preview_elements = array_elements
-        .iter()
-        .take(visible_element_count)
-        .map(|array_element| (*array_element).to_string())
-        .collect::<Vec<_>>();
-    let has_hidden_elements = force_ellipsis || array_elements.len() > visible_element_count;
-
-    if has_hidden_elements {
-        preview_elements.push(String::from("..."));
-    }
-
-    Some(preview_elements.join(", "))
-}
-
-fn split_array_preview_elements(display_value: &str) -> Vec<&str> {
-    display_value
-        .split([',', ';'])
-        .map(str::trim)
-        .filter(|array_element| !array_element.is_empty())
-        .collect::<Vec<_>>()
-}
-
-fn truncate_array_preview_by_character_count(display_value: &str) -> String {
-    let display_value_character_count = display_value.chars().count();
-
-    if display_value_character_count <= MAX_ARRAY_PREVIEW_CHARACTER_COUNT {
-        return display_value.to_string();
-    }
-
-    let truncated_prefix: String = display_value
-        .chars()
-        .take(MAX_ARRAY_PREVIEW_CHARACTER_COUNT)
-        .collect::<String>()
-        .trim_end_matches(|character: char| character.is_ascii_whitespace() || matches!(character, ',' | ';'))
-        .to_string();
-
-    format!("{}...", truncated_prefix)
 }
 
 fn evaluate_pointer_for_preview(
@@ -641,8 +541,8 @@ fn dispatch_memory_read_request(
 #[cfg(test)]
 mod tests {
     use super::{
-        MAX_ARRAY_PREVIEW_ELEMENT_COUNT, ProjectItemPreviewRefreshSession, build_project_item_preview_read_definition, evaluate_pointer_for_preview,
-        format_project_item_preview_value, refresh_pointer_project_item_display_value, refresh_project_item_display_values,
+        DataValuePreviewFormatter, PROJECT_ITEM_PREVIEW_FORMAT_OPTIONS, ProjectItemPreviewRefreshSession, build_project_item_preview_read_definition,
+        evaluate_pointer_for_preview, refresh_pointer_project_item_display_value, refresh_project_item_display_values,
     };
     use crossbeam_channel::{Receiver, unbounded};
     use squalr_engine_api::commands::memory::memory_command::MemoryCommand;
@@ -1205,16 +1105,17 @@ mod tests {
         assert!(
             project_item_preview_read_definition
                 .layout_key
-                .contains(&MAX_ARRAY_PREVIEW_ELEMENT_COUNT.to_string())
+                .contains(&DataValuePreviewFormatter::DEFAULT_MAX_ARRAY_PREVIEW_ELEMENT_COUNT.to_string())
         );
     }
 
     #[test]
     fn format_project_item_preview_value_appends_ellipsis_for_truncated_array_reads() {
-        let preview_value = format_project_item_preview_value(
+        let preview_value = DataValuePreviewFormatter::format_anonymous_value_preview(
             &AnonymousValueString::new("1, 2, 3, ".to_string(), AnonymousValueStringFormat::Decimal, ContainerType::ArrayFixed(3)),
             ContainerType::None,
             true,
+            PROJECT_ITEM_PREVIEW_FORMAT_OPTIONS,
         );
 
         assert_eq!(preview_value, "[1, 2, 3, ...]");
@@ -1222,10 +1123,11 @@ mod tests {
 
     #[test]
     fn format_project_item_preview_value_wraps_array_values_in_brackets() {
-        let preview_value = format_project_item_preview_value(
+        let preview_value = DataValuePreviewFormatter::format_anonymous_value_preview(
             &AnonymousValueString::new("1, 2".to_string(), AnonymousValueStringFormat::Decimal, ContainerType::ArrayFixed(2)),
             ContainerType::None,
             false,
+            PROJECT_ITEM_PREVIEW_FORMAT_OPTIONS,
         );
 
         assert_eq!(preview_value, "[1, 2]");
@@ -1233,10 +1135,11 @@ mod tests {
 
     #[test]
     fn format_project_item_preview_value_uses_symbolic_container_for_single_element_arrays() {
-        let preview_value = format_project_item_preview_value(
+        let preview_value = DataValuePreviewFormatter::format_anonymous_value_preview(
             &AnonymousValueString::new("1".to_string(), AnonymousValueStringFormat::Decimal, ContainerType::None),
             ContainerType::ArrayFixed(1),
             false,
+            PROJECT_ITEM_PREVIEW_FORMAT_OPTIONS,
         );
 
         assert_eq!(preview_value, "[1]");
@@ -1249,10 +1152,11 @@ mod tests {
             .collect::<Vec<_>>()
             .join(", ");
 
-        let preview_value = format_project_item_preview_value(
+        let preview_value = DataValuePreviewFormatter::format_anonymous_value_preview(
             &AnonymousValueString::new(long_array_preview, AnonymousValueStringFormat::Decimal, ContainerType::ArrayFixed(80)),
             ContainerType::None,
             false,
+            PROJECT_ITEM_PREVIEW_FORMAT_OPTIONS,
         );
 
         assert_eq!(preview_value, "[0, 1, 2, 3, ...]");
@@ -1262,10 +1166,11 @@ mod tests {
     fn format_project_item_preview_value_does_not_truncate_scalar_previews() {
         let long_scalar_preview = "1234567890".repeat(20);
 
-        let preview_value = format_project_item_preview_value(
+        let preview_value = DataValuePreviewFormatter::format_anonymous_value_preview(
             &AnonymousValueString::new(long_scalar_preview.clone(), AnonymousValueStringFormat::Decimal, ContainerType::None),
             ContainerType::None,
             false,
+            PROJECT_ITEM_PREVIEW_FORMAT_OPTIONS,
         );
 
         assert_eq!(preview_value, long_scalar_preview);

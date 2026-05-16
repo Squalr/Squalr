@@ -22,7 +22,10 @@ use squalr_engine_api::commands::project_symbols::list::project_symbols_list_req
 use squalr_engine_api::commands::scan_results::set_property::scan_results_set_property_request::ScanResultsSetPropertyRequest;
 use squalr_engine_api::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
-use squalr_engine_api::structures::data_values::{anonymous_value_string::AnonymousValueString, container_type::ContainerType};
+use squalr_engine_api::structures::data_values::{
+    container_type::ContainerType,
+    data_value_preview_formatter::{DataValuePreviewFormatOptions, DataValuePreviewFormatter},
+};
 use squalr_engine_api::structures::projects::project::Project;
 use squalr_engine_api::structures::projects::project_items::built_in_types::{
     project_item_type_address::ProjectItemTypeAddress, project_item_type_directory::ProjectItemTypeDirectory, project_item_type_pointer::ProjectItemTypePointer,
@@ -43,9 +46,7 @@ use std::time::Duration;
 
 impl AppShell {
     const PROJECT_ITEM_PREVIEW_VIRTUAL_SNAPSHOT_ID: &'static str = "tui_project_item_previews";
-    const MAX_PROJECT_ITEM_PREVIEW_ELEMENT_COUNT: u64 = 4;
-    const MAX_PROJECT_ITEM_PREVIEW_ARRAY_CHARACTER_COUNT: usize = 96;
-    const MAX_PROJECT_ITEM_PREVIEW_DISPLAY_ELEMENT_COUNT: usize = 4;
+    const PROJECT_ITEM_PREVIEW_FORMAT_OPTIONS: DataValuePreviewFormatOptions = DataValuePreviewFormatOptions::new(4, 96);
 
     pub(super) fn commit_project_selector_input(
         &mut self,
@@ -1226,12 +1227,7 @@ impl AppShell {
             return Some(symbolic_struct_definition);
         };
 
-        let preview_container_type = match preview_field_definition.get_container_type() {
-            ContainerType::ArrayFixed(length) if length > Self::MAX_PROJECT_ITEM_PREVIEW_ELEMENT_COUNT => {
-                ContainerType::ArrayFixed(Self::MAX_PROJECT_ITEM_PREVIEW_ELEMENT_COUNT)
-            }
-            container_type => container_type,
-        };
+        let preview_container_type = DataValuePreviewFormatter::limit_array_container_type(preview_field_definition.get_container_type());
 
         if preview_container_type == preview_field_definition.get_container_type() {
             Some(symbolic_struct_definition)
@@ -1273,7 +1269,12 @@ impl AppShell {
         engine_unprivileged_state
             .anonymize_value(first_read_field_data_value, default_anonymous_value_string_format)
             .map(|anonymous_value_string| {
-                Self::format_project_item_preview_value(&anonymous_value_string, symbolic_field_container_type, preview_was_truncated)
+                DataValuePreviewFormatter::format_anonymous_value_preview(
+                    &anonymous_value_string,
+                    symbolic_field_container_type,
+                    preview_was_truncated,
+                    Self::PROJECT_ITEM_PREVIEW_FORMAT_OPTIONS,
+                )
             })
             .unwrap_or_default()
     }
@@ -1317,105 +1318,7 @@ impl AppShell {
             return false;
         };
 
-        matches!(
-            symbolic_field_definition.get_container_type(),
-            ContainerType::ArrayFixed(length) if length > Self::MAX_PROJECT_ITEM_PREVIEW_ELEMENT_COUNT
-        )
-    }
-
-    fn format_project_item_preview_value(
-        anonymous_value_string: &AnonymousValueString,
-        symbolic_field_container_type: ContainerType,
-        preview_was_truncated: bool,
-    ) -> String {
-        let effective_container_type = if matches!(anonymous_value_string.get_container_type(), ContainerType::Array | ContainerType::ArrayFixed(_)) {
-            anonymous_value_string.get_container_type()
-        } else {
-            symbolic_field_container_type
-        };
-        let display_value = anonymous_value_string.get_anonymous_value_string();
-
-        if matches!(effective_container_type, ContainerType::Array | ContainerType::ArrayFixed(_)) && !display_value.is_empty() {
-            let preview_value = if preview_was_truncated {
-                Self::append_project_item_preview_ellipsis(display_value)
-            } else {
-                Self::truncate_project_item_preview_value(display_value)
-            };
-
-            format!("[{}]", preview_value)
-        } else {
-            display_value.to_string()
-        }
-    }
-
-    fn append_project_item_preview_ellipsis(display_value: &str) -> String {
-        if let Some(truncated_array_preview) = Self::format_project_item_preview_from_elements(display_value, true) {
-            return truncated_array_preview;
-        }
-
-        let trimmed_display_value = display_value.trim_end_matches(|character: char| character.is_ascii_whitespace() || matches!(character, ',' | ';'));
-
-        if trimmed_display_value.is_empty() {
-            String::from("...")
-        } else {
-            format!("{}...", trimmed_display_value)
-        }
-    }
-
-    fn truncate_project_item_preview_value(display_value: &str) -> String {
-        if let Some(truncated_array_preview) = Self::format_project_item_preview_from_elements(display_value, false) {
-            return truncated_array_preview;
-        }
-
-        let display_value_character_count = display_value.chars().count();
-
-        if display_value_character_count <= Self::MAX_PROJECT_ITEM_PREVIEW_ARRAY_CHARACTER_COUNT {
-            return display_value.to_string();
-        }
-
-        let truncated_prefix = display_value
-            .chars()
-            .take(Self::MAX_PROJECT_ITEM_PREVIEW_ARRAY_CHARACTER_COUNT)
-            .collect::<String>()
-            .trim_end_matches(|character: char| character.is_ascii_whitespace() || matches!(character, ',' | ';'))
-            .to_string();
-
-        format!("{}...", truncated_prefix)
-    }
-
-    fn format_project_item_preview_from_elements(
-        display_value: &str,
-        force_ellipsis: bool,
-    ) -> Option<String> {
-        let array_elements = Self::split_project_item_preview_elements(display_value);
-
-        if array_elements.len() <= 1 {
-            return None;
-        }
-
-        let visible_element_count = array_elements
-            .len()
-            .min(Self::MAX_PROJECT_ITEM_PREVIEW_DISPLAY_ELEMENT_COUNT);
-        let mut preview_elements = array_elements
-            .iter()
-            .take(visible_element_count)
-            .map(|array_element| (*array_element).to_string())
-            .collect::<Vec<_>>();
-        let has_hidden_elements = force_ellipsis || array_elements.len() > visible_element_count;
-
-        if has_hidden_elements {
-            preview_elements.push(String::from("..."));
-        }
-
-        Some(preview_elements.join(", "))
-    }
-
-    fn split_project_item_preview_elements(display_value: &str) -> Vec<&str> {
-        display_value
-            .split([',', ';'])
-            .map(str::trim)
-            .filter(|array_element| !array_element.is_empty())
-            .collect::<Vec<_>>()
+        DataValuePreviewFormatter::array_preview_was_truncated(symbolic_field_definition.get_container_type())
     }
 
     pub(super) fn extract_string_value_from_edited_field(edited_field: &ValuedStructField) -> Option<String> {
