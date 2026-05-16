@@ -1,9 +1,11 @@
 use crate::ui::widgets::controls::state_layer::StateLayer;
+use crate::ui::widgets::controls::tooltip::{ThemedTooltip, ThemedTooltipStyle};
 use crate::ui::{theme::Theme, widgets::controls::check_state::CheckState};
 use eframe::egui::{Color32, Response, Sense, Ui, Widget};
 use epaint::{CornerRadius, Rect, StrokeKind, TextureHandle, Vec2, pos2};
 
 pub struct Checkbox<'lifetime> {
+    pub tooltip_style: Option<ThemedTooltipStyle>,
     pub tooltip_text: &'lifetime str,
 
     pub corner_radius: CornerRadius,
@@ -31,6 +33,7 @@ impl<'lifetime> Checkbox<'lifetime> {
 
     pub fn new_from_theme(theme: &Theme) -> Self {
         let checkbox = Self {
+            tooltip_style: Some(ThemedTooltipStyle::from_theme(theme)),
             tooltip_text: "",
 
             corner_radius: CornerRadius::ZERO,
@@ -94,7 +97,7 @@ impl<'lifetime> Widget for Checkbox<'lifetime> {
         user_interface: &mut Ui,
     ) -> Response {
         let sense = if self.disabled { Sense::hover() } else { Sense::click() };
-        let (allocated_size_rectangle, mut response) = user_interface.allocate_exact_size(self.size, sense);
+        let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(self.size, sense);
 
         // Background box.
         user_interface
@@ -155,8 +158,14 @@ impl<'lifetime> Widget for Checkbox<'lifetime> {
         }
 
         // Tooltip.
-        if !self.tooltip_text.is_empty() {
-            response = response.on_hover_text(self.tooltip_text);
+        if let Some(tooltip_style) = &self.tooltip_style {
+            ThemedTooltip::show_text_with_style(
+                user_interface,
+                &response,
+                response.id.with("themed_checkbox_tooltip"),
+                tooltip_style,
+                self.tooltip_text,
+            );
         }
 
         // Click sound.

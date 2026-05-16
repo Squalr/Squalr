@@ -591,8 +591,6 @@ impl StructViewerViewData {
                 StructViewerFieldPresentation::new(String::from("Container"), StructViewerFieldEditorKind::SymbolLayoutFieldContainerKindSelector)
             } else if Self::is_symbol_layout_field_pointer_size_field(valued_struct_field) {
                 StructViewerFieldPresentation::new(String::from("Pointer Size"), StructViewerFieldEditorKind::SymbolLayoutFieldPointerSizeSelector)
-            } else if Self::is_symbol_layout_field_offset_mode_field(valued_struct_field) {
-                StructViewerFieldPresentation::new(String::from("Offset Mode"), StructViewerFieldEditorKind::SymbolLayoutFieldOffsetModeSelector)
             } else if Self::is_live_value_field(valued_struct_field) && live_value_uses_code_viewer {
                 StructViewerFieldPresentation::new(String::from("Value"), StructViewerFieldEditorKind::CodeViewerButton)
             } else if Self::is_live_value_field(valued_struct_field) && live_value_uses_external_viewer {
@@ -637,8 +635,6 @@ impl StructViewerViewData {
             Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_DISPLAY_COUNT_RESOLVER => String::from("Display Count Resolver"),
             Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_ACTIVE_WHEN_RESOLVER => String::from("Active When Resolver"),
             Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_POINTER_SIZE => String::from("Pointer Size"),
-            Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_OFFSET_MODE => String::from("Offset Mode"),
-            Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_STATIC_OFFSET => String::from("Byte Offset"),
             Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_OFFSET_RESOLVER => String::from("Offset Resolver"),
             _ => Self::humanize_field_key(field_name),
         }
@@ -793,10 +789,6 @@ impl StructViewerViewData {
 
     fn is_symbol_layout_field_pointer_size_field(valued_struct_field: &ValuedStructField) -> bool {
         valued_struct_field.get_name() == Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_POINTER_SIZE
-    }
-
-    fn is_symbol_layout_field_offset_mode_field(valued_struct_field: &ValuedStructField) -> bool {
-        valued_struct_field.get_name() == Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_OFFSET_MODE
     }
 
     fn is_live_value_field(valued_struct_field: &ValuedStructField) -> bool {
@@ -1353,8 +1345,6 @@ mod tests {
                 .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_CONTAINER_KIND.to_string(), false),
             DataTypeStringUtf8::get_value_from_primitive_string("u64")
                 .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_POINTER_SIZE.to_string(), false),
-            DataTypeStringUtf8::get_value_from_primitive_string("Resolver")
-                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_OFFSET_MODE.to_string(), false),
             DataTypeStringUtf8::get_value_from_primitive_string("entity.offset")
                 .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_OFFSET_RESOLVER.to_string(), false),
         ]);
@@ -1408,18 +1398,6 @@ mod tests {
                 .get(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_POINTER_SIZE)
                 .map(StructViewerFieldPresentation::editor_kind),
             Some(&StructViewerFieldEditorKind::SymbolLayoutFieldPointerSizeSelector)
-        );
-        assert_eq!(
-            field_presentations
-                .get(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_OFFSET_MODE)
-                .map(StructViewerFieldPresentation::editor_kind),
-            Some(&StructViewerFieldEditorKind::SymbolLayoutFieldOffsetModeSelector)
-        );
-        assert_eq!(
-            field_presentations
-                .get(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_OFFSET_MODE)
-                .map(StructViewerFieldPresentation::display_name),
-            Some("Offset Mode")
         );
         assert_eq!(
             field_presentations

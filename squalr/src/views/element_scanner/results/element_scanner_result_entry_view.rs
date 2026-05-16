@@ -1,7 +1,7 @@
 use crate::{
     app_context::AppContext,
     ui::converters::data_type_to_string_converter::DataTypeToStringConverter,
-    ui::widgets::controls::{checkbox::Checkbox, state_layer::StateLayer},
+    ui::widgets::controls::{checkbox::Checkbox, state_layer::StateLayer, tooltip::ThemedTooltip},
     views::element_scanner::results::view_data::element_scanner_result_frame_action::ElementScannerResultFrameAction,
 };
 use eframe::egui::{Align2, Rect, Response, Sense, Ui, Widget, pos2, vec2};
@@ -54,6 +54,7 @@ impl<'lifetime> ElementScannerResultEntryView<'lifetime> {
     }
 
     fn add_cell_tooltip(
+        app_context: &AppContext,
         user_interface: &mut Ui,
         cell_rectangle: Rect,
         tooltip_id_suffix: &str,
@@ -69,9 +70,14 @@ impl<'lifetime> ElementScannerResultEntryView<'lifetime> {
             return;
         }
 
-        user_interface
-            .interact(tooltip_rectangle, user_interface.id().with(tooltip_id_suffix), Sense::hover())
-            .on_hover_text(tooltip_text);
+        let tooltip_response = user_interface.interact(tooltip_rectangle, user_interface.id().with(tooltip_id_suffix), Sense::hover());
+        ThemedTooltip::show_text(
+            user_interface,
+            &tooltip_response,
+            tooltip_response.id.with("scan_result_cell_tooltip"),
+            &app_context.theme,
+            tooltip_text,
+        );
     }
 
     fn text_clip_rectangle(
@@ -234,6 +240,7 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
             );
 
         Self::add_cell_tooltip(
+            &self.app_context,
             user_interface,
             address_cell_rectangle,
             &format!("scan_result_address_tooltip_{}", self.index),
@@ -271,6 +278,7 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
             );
 
         Self::add_cell_tooltip(
+            &self.app_context,
             user_interface,
             current_value_cell_rectangle,
             &format!("scan_result_current_value_tooltip_{}", self.index),
@@ -310,6 +318,7 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
             );
 
         Self::add_cell_tooltip(
+            &self.app_context,
             user_interface,
             previous_value_cell_rectangle,
             &format!("scan_result_previous_value_tooltip_{}", self.index),

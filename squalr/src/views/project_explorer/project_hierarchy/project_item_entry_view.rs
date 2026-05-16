@@ -3,7 +3,7 @@ use crate::{
     ui::{
         draw::icon_draw::IconDraw,
         geometry::safe_clamp_f32,
-        widgets::controls::{checkbox::Checkbox, state_layer::StateLayer},
+        widgets::controls::{checkbox::Checkbox, state_layer::StateLayer, tooltip::ThemedTooltip},
     },
     views::project_explorer::project_hierarchy::view_data::project_hierarchy_frame_action::ProjectHierarchyFrameAction,
 };
@@ -250,14 +250,19 @@ impl<'lifetime> ProjectItemEntryView<'lifetime> {
             && !arrow_click_response.clicked()
             && name_hit_box_rect.contains(click_position)
             && !should_request_value_edit;
-        let row_response = if self.preview_path.is_empty() {
-            response
-        } else {
-            response.on_hover_text(format!("{}: {}", self.display_name, self.preview_path))
-        };
+        if !self.preview_path.is_empty() {
+            let tooltip_text = format!("{}: {}", self.display_name, self.preview_path);
+            ThemedTooltip::show_text(
+                user_interface,
+                &response,
+                response.id.with("project_item_preview_path_tooltip"),
+                theme,
+                &tooltip_text,
+            );
+        }
 
         ProjectItemEntryViewResponse {
-            row_response,
+            row_response: response,
             should_request_rename,
             should_request_value_edit,
         }

@@ -82,7 +82,6 @@ impl<'lifetime> StructViewerEntryView<'lifetime> {
         "Fixed Pointer Array",
         "Dynamic Pointer Array",
     ];
-    const SYMBOL_LAYOUT_FIELD_OFFSET_MODE_LABELS: [&'static str; 3] = ["Sequential", "Static", "Resolver"];
     const SEARCHABLE_SELECTOR_POPUP_DEFAULT_WIDTH: f32 = 240.0;
     const SEARCHABLE_SELECTOR_POPUP_MAX_WIDTH: f32 = 640.0;
     const SEARCHABLE_SELECTOR_POPUP_HORIZONTAL_PADDING: f32 = 56.0;
@@ -1378,53 +1377,6 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
 
                 if let Some(selected_pointer_size_label) = selected_pointer_size_label {
                     Self::commit_symbol_resolver_text_selection(self.valued_struct_field, &selected_pointer_size_label, self.struct_viewer_frame_action);
-                }
-            }
-            StructViewerFieldEditorKind::SymbolLayoutFieldOffsetModeSelector => {
-                let offset_mode_selector_id = format!(
-                    "struct_viewer_symbol_layout_field_offset_mode_{}_{}",
-                    self.row_index,
-                    self.valued_struct_field.get_name()
-                );
-                let current_offset_mode = StructViewerViewData::read_utf8_field_text(self.valued_struct_field);
-                let offset_mode_label = Self::SYMBOL_LAYOUT_FIELD_OFFSET_MODE_LABELS
-                    .iter()
-                    .copied()
-                    .find(|candidate_label| *candidate_label == current_offset_mode)
-                    .unwrap_or("Sequential");
-                let mut selected_offset_mode_label = None;
-                let trailing_checkbox_space = Self::trailing_action_slot_width(commit_button_width, value_column_padding);
-                let offset_mode_width = (row_max_x - value_box_position_x - trailing_checkbox_space).max(0.0);
-
-                user_interface.put(
-                    Rect::from_min_size(
-                        pos2(value_box_position_x, available_size_rect.min.y),
-                        vec2(offset_mode_width, available_size_rect.height()),
-                    ),
-                    ComboBoxView::new(
-                        self.app_context.clone(),
-                        offset_mode_label,
-                        &offset_mode_selector_id,
-                        None,
-                        |popup_user_interface: &mut Ui, should_close: &mut bool| {
-                            for candidate_label in Self::SYMBOL_LAYOUT_FIELD_OFFSET_MODE_LABELS {
-                                let offset_mode_response =
-                                    popup_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), candidate_label, None, offset_mode_width));
-
-                                if offset_mode_response.clicked() {
-                                    selected_offset_mode_label = Some(candidate_label);
-                                    *should_close = true;
-                                }
-                            }
-                        },
-                    )
-                    .with_label_tooltip()
-                    .width(offset_mode_width)
-                    .height(available_size_rect.height()),
-                );
-
-                if let Some(selected_offset_mode_label) = selected_offset_mode_label {
-                    Self::commit_symbol_resolver_text_selection(self.valued_struct_field, selected_offset_mode_label, self.struct_viewer_frame_action);
                 }
             }
         }

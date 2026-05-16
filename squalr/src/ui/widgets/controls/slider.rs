@@ -1,10 +1,12 @@
 use crate::ui::widgets::controls::state_layer::StateLayer;
+use crate::ui::widgets::controls::tooltip::{ThemedTooltip, ThemedTooltipStyle};
 use crate::ui::{geometry::safe_clamp_f32, theme::Theme};
 use eframe::egui::{Color32, Response, Sense, Ui, Widget};
 use epaint::{CornerRadius, Rect, TextureHandle, pos2, vec2};
 
 #[derive(Default)]
 pub struct Slider<'lifetime> {
+    pub tooltip_style: Option<ThemedTooltipStyle>,
     pub current_value: Option<&'lifetime mut i64>,
     pub minimum_value: i64,
     pub maximum_value: i64,
@@ -28,6 +30,7 @@ impl<'lifetime> Slider<'lifetime> {
     pub fn new_from_theme(theme: &Theme) -> Self {
         let mut slider = Slider::default();
 
+        slider.tooltip_style = Some(ThemedTooltipStyle::from_theme(theme));
         slider.handle_size = 20;
         slider.track_width = 128.0;
 
@@ -167,8 +170,14 @@ impl<'lifetime> Widget for Slider<'lifetime> {
             }
         }
 
-        if !self.tooltip_text.is_empty() {
-            response = response.on_hover_text(self.tooltip_text);
+        if let Some(tooltip_style) = &self.tooltip_style {
+            ThemedTooltip::show_text_with_style(
+                user_interface,
+                &response,
+                response.id.with("themed_slider_tooltip"),
+                tooltip_style,
+                self.tooltip_text,
+            );
         }
 
         if response.clicked() {
