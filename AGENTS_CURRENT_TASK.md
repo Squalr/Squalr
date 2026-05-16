@@ -65,6 +65,7 @@ Our current task, from `README.md`, is:
 - Moved shared context-menu width measurement into `ContextMenuSizing` so Symbol Tree and Project Hierarchy context menus use the widget-level sizing utility instead of hand-rolled view-local measurement. Needs human verification in the GUI.
 - Extracted Symbol Tree take-over panels into standalone sibling views: `SymbolTreeModuleCreateView`, `SymbolTreeDefineFieldView`, and `SymbolTreeDeleteConfirmationView`, with shared take-over controls in `symbol_tree_take_over_view_helpers`. `SymbolTreeView` now hosts these subviews and dispatches their actions instead of rendering the panels inline. Needs human verification in the GUI.
 - Removed Symbol Tree double-click's cross-view Details field selection. Double-clicking a Symbol Tree entry still focuses its Details struct, but no longer selects the first editable Details field such as `value`. Needs human verification in the GUI.
+- Removed the dead `render_symbol_tree_list_legacy` path and its private text-button helper from `SymbolTreeView`. The current list renderer is the only Symbol Tree row rendering path now. Needs human verification in the GUI.
 
 ## Important Information
 
@@ -116,3 +117,4 @@ Our current task, from `README.md`, is:
 - Context menu sizing utility validation ran `cargo fmt --all`, `cargo test -p squalr context_menu --lib --locked`, `cargo test -p squalr symbol_tree --lib --locked`, `cargo test -p squalr project_hierarchy --lib --locked`, and `git diff --check`.
 - Symbol Tree take-over view extraction validation ran `cargo fmt --all`, `cargo test -p squalr symbol_tree --lib --locked`, `cargo test -p squalr struct_viewer --lib --locked`, and `git diff --check`.
 - Symbol Tree Details selection correction validation ran `cargo fmt --all`, `cargo test -p squalr symbol_tree --lib --locked`, `cargo test -p squalr struct_viewer --lib --locked`, and `git diff --check`.
+- Symbol Tree legacy renderer removal validation ran `cargo fmt --all`, `cargo test -p squalr symbol_tree --lib --locked`, `cargo test -p squalr struct_viewer --lib --locked`, stale `legacy` search under `squalr/src/views/symbol_tree`, and `git diff --check`.

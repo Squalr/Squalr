@@ -1,7 +1,6 @@
 use crate::app_context::AppContext;
 use crate::ui::list_navigation::{ListNavigationDirection, resolve_next_index};
 use crate::ui::widgets::controls::{
-    button::Button as ThemeButton,
     context_menu::context_menu::{ContextMenu, ContextMenuSizing},
     toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView,
 };
@@ -23,8 +22,7 @@ use crate::views::{
         symbol_tree_view_data::{SymbolTreeContextMenuTarget, SymbolTreeSelection, SymbolTreeTakeOverState, SymbolTreeViewData},
     },
 };
-use eframe::egui::{Align, Color32, Direction, Id, Key, Layout, Response, RichText, ScrollArea, Ui, UiBuilder, Widget};
-use epaint::pos2;
+use eframe::egui::{Align, Direction, Id, Key, Layout, Response, RichText, ScrollArea, Ui, UiBuilder, Widget};
 use squalr_engine_api::commands::{
     memory::{
         read::{memory_read_request::MemoryReadRequest, memory_read_response::MemoryReadResponse},
@@ -1691,38 +1689,6 @@ impl SymbolTreeView {
         }
     }
 
-    fn draw_text_button(
-        &self,
-        user_interface: &mut Ui,
-        label: &str,
-        fill_color: Color32,
-        enabled: bool,
-        minimum_width: f32,
-    ) -> Response {
-        let theme = &self.app_context.theme;
-        let text_color = if enabled { theme.foreground } else { theme.foreground_preview };
-        let label_galley = user_interface
-            .painter()
-            .layout_no_wrap(label.to_string(), theme.font_library.font_noto_sans.font_normal.clone(), text_color);
-        let desired_width = (label_galley.size().x + 18.0).max(minimum_width);
-        let button_response = user_interface.add_sized(
-            [desired_width, 28.0],
-            ThemeButton::new_from_theme(theme)
-                .disabled(!enabled)
-                .background_color(fill_color),
-        );
-        let text_position = pos2(
-            button_response.rect.center().x - label_galley.size().x * 0.5,
-            button_response.rect.center().y - label_galley.size().y * 0.5,
-        );
-
-        user_interface
-            .painter()
-            .galley(text_position, label_galley, text_color);
-
-        button_response
-    }
-
     fn build_symbol_tree_action_context(symbol_tree_entry: &SymbolTreeNode) -> SymbolTreeActionContext {
         match symbol_tree_entry.get_kind() {
             SymbolTreeNodeKind::ModuleSpace { module_name, .. } => SymbolTreeActionContext::new(SymbolTreeActionSelection::ModuleRoot {
@@ -1792,94 +1758,6 @@ impl SymbolTreeView {
                 }
             },
         );
-    }
-
-    #[allow(dead_code)]
-    fn render_symbol_tree_list_legacy(
-        &self,
-        user_interface: &mut Ui,
-        symbol_tree_entries: &[SymbolTreeNode],
-        selected_entry: Option<&SymbolTreeSelection>,
-    ) {
-        user_interface.horizontal(|user_interface| {
-            user_interface.add_space(Self::SYMBOL_TREE_TEXT_PADDING_X);
-            user_interface.label(
-                RichText::new(format!(
-                    "Symbol Tree ({})",
-                    symbol_tree_entries
-                        .iter()
-                        .filter(|symbol_tree_entry| matches!(symbol_tree_entry.get_kind(), SymbolTreeNodeKind::ModuleSpace { .. }))
-                        .count()
-                ))
-                .font(
-                    self.app_context
-                        .theme
-                        .font_library
-                        .font_noto_sans
-                        .font_header
-                        .clone(),
-                )
-                .color(self.app_context.theme.foreground),
-            );
-        });
-        user_interface.add_space(6.0);
-
-        for symbol_tree_entry in symbol_tree_entries {
-            let is_selected = matches!(
-                selected_entry,
-                Some(SymbolTreeSelection::SymbolClaim(selected_symbol_locator_key))
-                    if !Self::is_module_field_tree_entry(symbol_tree_entry)
-                        && matches!(symbol_tree_entry.get_kind(), SymbolTreeNodeKind::SymbolClaim { symbol_locator_key } if selected_symbol_locator_key == symbol_locator_key)
-            ) || matches!(
-                selected_entry,
-                Some(SymbolTreeSelection::DerivedNode(selected_node_key)) if selected_node_key == symbol_tree_entry.get_node_key()
-            );
-
-            user_interface.horizontal(|user_interface| {
-                user_interface.add_space(symbol_tree_entry.get_depth() as f32 * 16.0);
-
-                if symbol_tree_entry.can_expand() {
-                    let expansion_label = if symbol_tree_entry.is_expanded() { "▾" } else { "▸" };
-
-                    if self
-                        .draw_text_button(user_interface, expansion_label, self.app_context.theme.background_control_secondary, true, 24.0)
-                        .clicked()
-                    {
-                        SymbolTreeViewData::toggle_tree_node_expansion(self.symbol_tree_view_data.clone(), symbol_tree_entry.get_node_key());
-                    }
-                } else {
-                    user_interface.add_space(24.0);
-                }
-
-                let row_label = format!(
-                    "{}  [{}{}]",
-                    symbol_tree_entry.get_display_name(),
-                    symbol_tree_entry.get_symbol_type_id(),
-                    symbol_tree_entry.get_container_type()
-                );
-                let response = user_interface.selectable_label(is_selected, RichText::new(row_label).color(self.app_context.theme.foreground));
-
-                if response.clicked() {
-                    if let Some(selection) = Self::build_selection_for_tree_entry(symbol_tree_entry) {
-                        SymbolTreeViewData::set_selected_entry(self.symbol_tree_view_data.clone(), Some(selection));
-                    }
-                }
-            });
-
-            user_interface.label(
-                RichText::new(symbol_tree_entry.get_locator().to_string())
-                    .font(
-                        self.app_context
-                            .theme
-                            .font_library
-                            .font_noto_sans
-                            .font_small
-                            .clone(),
-                    )
-                    .color(self.app_context.theme.foreground_preview),
-            );
-            user_interface.add_space(6.0);
-        }
     }
 
     fn render_symbol_tree_list(
