@@ -1,5 +1,6 @@
 use crate::app_context::AppContext;
 use crate::ui::widgets::controls::state_layer::StateLayer;
+use crate::ui::widgets::controls::tooltip::ThemedTooltip;
 use eframe::egui::{Align, Area, Frame, Id, Key, Layout, Order, Response, Sense, Ui, Widget};
 use epaint::{Color32, CornerRadius, Margin, Rect, Stroke, TextureHandle, Vec2, pos2, vec2};
 use std::{borrow::Cow, sync::Arc};
@@ -134,7 +135,7 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
         let down_arrow = &theme.icon_library.icon_handle_navigation_down_arrow_small;
         let desired_size = vec2(self.width, self.height);
         let sense = if self.disabled { Sense::hover() } else { Sense::click() };
-        let (allocated_size_rectangle, mut response) = user_interface.allocate_exact_size(desired_size, sense);
+        let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(desired_size, sense);
 
         // Precompute positions.
         let icon_size_vec = vec2(self.icon_size, self.icon_size);
@@ -234,14 +235,6 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
             );
         }
 
-        if let Some(tooltip_text) = &self.tooltip_text {
-            if !tooltip_text.is_empty() {
-                let tooltip_text: &str = tooltip_text.as_ref();
-
-                response = response.on_hover_text(tooltip_text);
-            }
-        }
-
         // Popup logic.
         let popup_id = Id::new(("combo_popup", self.menu_id, user_interface.id().value()));
         let mut open = user_interface.memory(|memory| memory.data.get_temp::<bool>(popup_id).unwrap_or(false));
@@ -261,6 +254,16 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
         user_interface.memory_mut(|memory| memory.data.insert_temp(popup_id, open));
 
         if !open {
+            if let Some(tooltip_text) = &self.tooltip_text {
+                ThemedTooltip::show_text(
+                    user_interface,
+                    &response,
+                    Id::new(("combo_tooltip", self.menu_id, user_interface.id().value())),
+                    theme,
+                    tooltip_text.as_ref(),
+                );
+            }
+
             return response;
         }
 
