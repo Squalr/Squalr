@@ -3,6 +3,7 @@ use squalr_engine_api::structures::{
     data_types::{built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8, data_type_ref::DataTypeRef},
     data_values::{container_type::ContainerType, data_value::DataValue},
     details::{DetailsEdit, DetailsEditorHint, DetailsField, DetailsFieldId, DetailsFieldSource, DetailsProjection, DetailsTarget, DetailsValue},
+    projects::project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress,
     structs::{
         valued_struct::ValuedStruct,
         valued_struct_field::{ValuedStructField, ValuedStructFieldData},
@@ -145,6 +146,9 @@ impl DetailsProjectionAdapter {
     ) -> String {
         let preferred_field_name = match details_field.get_source() {
             DetailsFieldSource::ProjectItemProperty { property_name } => Some(property_name.clone()),
+            DetailsFieldSource::SymbolLayoutMetadata { metadata_name } if metadata_name == "type" => {
+                Some(ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE.to_string())
+            }
             _ => details_field
                 .get_id()
                 .get_field_id()
@@ -249,6 +253,7 @@ mod tests {
         data_types::{built_in_types::u32::data_type_u32::DataTypeU32, data_type_ref::DataTypeRef},
         data_values::container_type::ContainerType,
         details::{DetailsEditorHint, DetailsField, DetailsFieldId, DetailsFieldSource, DetailsProjection, DetailsTarget, DetailsValue},
+        projects::project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress,
     };
     use squalr_engine_api::{
         commands::{
@@ -342,5 +347,39 @@ mod tests {
         assert_eq!(field_presentation.editor_kind(), &StructViewerFieldEditorKind::ValueBox);
         assert_eq!(details_edit.get_target(), &target);
         assert_eq!(details_edit.get_field_id(), &field_id);
+    }
+
+    #[test]
+    fn details_projection_adapter_renders_symbol_tree_type_metadata_as_data_type_field() {
+        let details_projection = DetailsProjection::new(
+            DetailsTarget::new("symbol_tree", "claim:absolute:1234"),
+            "Health",
+            vec![DetailsField::new(
+                DetailsFieldId::new("metadata.type"),
+                "Data Type",
+                DetailsValue::Text(String::from("player.stats")),
+                true,
+                DetailsEditorHint::DataType,
+                Some(DataTypeRef::new("string_utf8")),
+                ContainerType::None,
+                DetailsFieldSource::SymbolLayoutMetadata {
+                    metadata_name: String::from("type"),
+                },
+            )],
+        );
+        let engine_unprivileged_state = create_test_engine_unprivileged_state();
+        let adapter = DetailsProjectionAdapter::adapt_projection(&engine_unprivileged_state, &details_projection);
+        let (valued_struct, adapter_state) = adapter.into_parts();
+        let rendered_field = valued_struct
+            .get_fields()
+            .first()
+            .expect("Expected symbol tree type field.");
+        let field_presentation = adapter_state
+            .field_presentations
+            .get(rendered_field.get_name())
+            .expect("Expected symbol tree type presentation.");
+
+        assert_eq!(rendered_field.get_name(), ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE);
+        assert_eq!(field_presentation.editor_kind(), &StructViewerFieldEditorKind::DataTypeSelector);
     }
 }

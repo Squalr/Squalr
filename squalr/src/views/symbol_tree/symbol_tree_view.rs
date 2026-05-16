@@ -670,8 +670,6 @@ impl SymbolTreeView {
             .struct_viewer_view_data
             .read("Symbol tree current struct viewer focus target")
             .and_then(|struct_viewer_view_data| struct_viewer_view_data.get_focus_target().cloned());
-        let selected_symbol_tree_entry =
-            selected_symbol_tree_entry.filter(|symbol_tree_entry| !matches!(symbol_tree_entry.get_kind(), SymbolTreeNodeKind::ModuleSpace { .. }));
         let desired_focus_target = Self::build_struct_viewer_focus_target(selected_symbol_tree_entry);
 
         if current_focus_target == desired_focus_target {
@@ -1046,6 +1044,10 @@ impl SymbolTreeView {
         let engine_execution_context: Arc<dyn EngineExecutionContext> = self.app_context.engine_unprivileged_state.clone();
         let symbol_size_in_bytes = Self::resolve_symbol_tree_entry_size_for_struct_viewer(&engine_execution_context, symbol_tree_entry);
 
+        if matches!(symbol_tree_entry.get_kind(), SymbolTreeNodeKind::ModuleSpace { .. }) {
+            return SymbolTreeDetailsProjection::build(symbol_tree_entry, include_symbol_claim_metadata, symbol_size_in_bytes, None, None);
+        }
+
         let Some(symbolic_struct_definition) = self.build_named_symbolic_struct_definition_for_symbol_tree_entry(project_symbol_catalog, symbol_tree_entry)
         else {
             return SymbolTreeDetailsProjection::build(
@@ -1217,7 +1219,10 @@ impl SymbolTreeView {
     }
 
     fn symbol_tree_entry_should_use_external_value_viewer(symbol_tree_entry: &SymbolTreeNode) -> bool {
-        if matches!(symbol_tree_entry.get_kind(), SymbolTreeNodeKind::UnassignedSegment { .. }) {
+        if matches!(
+            symbol_tree_entry.get_kind(),
+            SymbolTreeNodeKind::ModuleSpace { .. } | SymbolTreeNodeKind::UnassignedSegment { .. }
+        ) {
             return false;
         }
 
@@ -3553,5 +3558,12 @@ mod tests {
                 .get_field(ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE)
                 .is_some()
         );
+    }
+
+    #[test]
+    fn module_roots_do_not_use_external_value_viewer() {
+        let module_tree_entry = create_module_tree_entry("game.exe");
+
+        assert!(!SymbolTreeView::symbol_tree_entry_should_use_external_value_viewer(&module_tree_entry));
     }
 }

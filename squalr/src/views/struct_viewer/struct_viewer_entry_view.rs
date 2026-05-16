@@ -377,6 +377,25 @@ impl<'lifetime> StructViewerEntryView<'lifetime> {
             .collect()
     }
 
+    fn available_data_type_refs_with_symbol_layouts(app_context: &Arc<AppContext>) -> Vec<DataTypeRef> {
+        let mut available_data_type_refs = app_context
+            .engine_unprivileged_state
+            .get_registered_data_type_refs();
+        let Some(project_symbol_catalog) = Self::get_opened_project_symbol_catalog(app_context) else {
+            return available_data_type_refs;
+        };
+
+        for struct_layout_descriptor in project_symbol_catalog.get_struct_layout_descriptors() {
+            let struct_layout_data_type_ref = DataTypeRef::new(struct_layout_descriptor.get_struct_layout_id());
+
+            if !available_data_type_refs.contains(&struct_layout_data_type_ref) {
+                available_data_type_refs.push(struct_layout_data_type_ref);
+            }
+        }
+
+        available_data_type_refs
+    }
+
     fn selector_text_width(
         user_interface: &Ui,
         app_context: &Arc<AppContext>,
@@ -538,10 +557,7 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
         let value_position_x = self.value_splitter_x.min(row_max_x);
         let value_box_position_x = Self::value_box_position_x(value_position_x, value_column_padding);
         let value_box_width = Self::value_box_width(row_max_x, value_box_position_x, commit_button_width, value_column_padding);
-        let available_data_type_refs = self
-            .app_context
-            .engine_unprivileged_state
-            .get_registered_data_type_refs();
+        let available_data_type_refs = Self::available_data_type_refs_with_symbol_layouts(&self.app_context);
 
         // Draw icon.
         let icon_rect = Rect::from_min_max(

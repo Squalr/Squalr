@@ -279,26 +279,32 @@ impl<'lifetime> DataTypeSelectorView<'lifetime> {
             .collect()
     }
 
-    fn ordered_selectable_data_types(available_data_types: Option<&[DataTypeRef]>) -> Vec<DataTypeRef> {
+    fn selectable_data_type_groups(available_data_types: Option<&[DataTypeRef]>) -> (Vec<DataTypeRef>, Vec<DataTypeRef>) {
         let default_selectable_data_types = Self::default_selectable_data_types();
 
         let Some(available_data_types) = available_data_types else {
-            return default_selectable_data_types;
+            return (default_selectable_data_types, Vec::new());
         };
 
-        let mut ordered_selectable_data_types = default_selectable_data_types
+        let built_in_selectable_data_types = default_selectable_data_types
             .iter()
             .filter(|default_selectable_data_type| available_data_types.contains(default_selectable_data_type))
             .cloned()
             .collect::<Vec<_>>();
+        let extra_selectable_data_types = available_data_types
+            .iter()
+            .filter(|available_data_type| !default_selectable_data_types.contains(available_data_type))
+            .cloned()
+            .collect::<Vec<_>>();
 
-        for available_data_type in available_data_types {
-            if !ordered_selectable_data_types.contains(available_data_type) {
-                ordered_selectable_data_types.push(available_data_type.clone());
-            }
-        }
+        (built_in_selectable_data_types, extra_selectable_data_types)
+    }
 
-        ordered_selectable_data_types
+    fn ordered_selectable_data_types(available_data_types: Option<&[DataTypeRef]>) -> Vec<DataTypeRef> {
+        let (mut built_in_selectable_data_types, mut extra_selectable_data_types) = Self::selectable_data_type_groups(available_data_types);
+
+        built_in_selectable_data_types.append(&mut extra_selectable_data_types);
+        built_in_selectable_data_types
     }
 
     fn anonymous_value_string_format_sort_key(anonymous_value_string_format: AnonymousValueStringFormat) -> u8 {
@@ -380,7 +386,7 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
             None
         };
         let combo_label = Self::combo_label(data_type_selection, label_mode, show_preview_text);
-        let selectable_data_types = Self::ordered_selectable_data_types(available_data_types.as_deref());
+        let (built_in_selectable_data_types, extra_selectable_data_types) = Self::selectable_data_type_groups(available_data_types.as_deref());
 
         let combo_box = ComboBoxView::new(
             app_context.clone(),
@@ -396,7 +402,7 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
                         .spacing(vec2(Self::SELECTABLE_DATA_TYPE_COLUMN_SPACING, 0.0))
                         .min_col_width(Self::SELECTABLE_DATA_TYPE_ITEM_WIDTH)
                         .show(user_interface, |user_interface| {
-                            for (data_type_index, data_type_ref) in selectable_data_types.iter().enumerate() {
+                            for (data_type_index, data_type_ref) in built_in_selectable_data_types.iter().enumerate() {
                                 let is_data_type_compatible = Self::is_data_type_compatible_from_match_state(
                                     data_type_selection.selected_data_type_count(),
                                     data_type_selection.is_data_type_selected(data_type_ref),
@@ -435,10 +441,49 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
                                 }
                             }
 
-                            if !selectable_data_types.is_empty() && selectable_data_types.len() % selectable_data_type_column_count != 0 {
+                            if !built_in_selectable_data_types.is_empty() && built_in_selectable_data_types.len() % selectable_data_type_column_count != 0 {
                                 user_interface.end_row();
                             }
                         });
+
+                    if !built_in_selectable_data_types.is_empty() && !extra_selectable_data_types.is_empty() {
+                        user_interface.separator();
+                    }
+
+                    for data_type_ref in extra_selectable_data_types {
+                        let is_data_type_compatible = Self::is_data_type_compatible_from_match_state(
+                            data_type_selection.selected_data_type_count(),
+                            data_type_selection.is_data_type_selected(&data_type_ref),
+                            Self::has_matching_supported_formats(&app_context, data_type_selection.visible_data_type(), &data_type_ref),
+                            enforce_format_compatibility,
+                        );
+                        let data_type_item_response = user_interface.add(
+                            DataTypeItemView::new(
+                                app_context.clone(),
+                                DataTypeToStringConverter::convert_data_type_to_string(data_type_ref.get_data_type_id()),
+                                Some(DataTypeToIconConverter::convert_data_type_to_icon(
+                                    data_type_ref.get_data_type_id(),
+                                    &app_context.theme.icon_library,
+                                )),
+                                popup_width,
+                            )
+                            .with_check_state(CheckState::from_bool(data_type_selection.is_data_type_selected(&data_type_ref)))
+                            .disabled(!is_data_type_compatible),
+                        );
+
+                        if is_data_type_compatible && single_select && data_type_item_response.clicked() {
+                            data_type_selection.select_single_data_type(data_type_ref.clone());
+                            *should_close = true;
+                        } else if is_data_type_compatible {
+                            Self::handle_selectable_data_type_interaction(
+                                user_interface,
+                                menu_id,
+                                data_type_selection,
+                                data_type_ref,
+                                &data_type_item_response,
+                            );
+                        }
+                    }
                 });
             },
         );
@@ -529,6 +574,18 @@ mod tests {
                 DataTypeRef::new("u32"),
             ]
         );
+    }
+
+    #[test]
+    fn selectable_data_type_groups_puts_custom_layouts_after_builtins() {
+        let (built_in_data_types, extra_data_types) = DataTypeSelectorView::selectable_data_type_groups(Some(&[
+            DataTypeRef::new("player.stats"),
+            DataTypeRef::new("u32"),
+            DataTypeRef::new("i8"),
+        ]));
+
+        assert_eq!(built_in_data_types, vec![DataTypeRef::new("i8"), DataTypeRef::new("u32")]);
+        assert_eq!(extra_data_types, vec![DataTypeRef::new("player.stats")]);
     }
 
     #[test]

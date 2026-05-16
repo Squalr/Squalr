@@ -141,26 +141,22 @@ impl SymbolTreeDetailsProjection {
             .get_fields()
             .iter()
             .enumerate()
-            .map(|(field_index, valued_struct_field)| {
+            .filter_map(|(field_index, valued_struct_field)| {
                 let field_name = Self::normalize_symbol_value_field_name(valued_struct_field.get_name(), field_index);
-                let details_value = match valued_struct_field.get_field_data() {
-                    ValuedStructFieldData::Value(data_value) => DetailsValue::DataValue(data_value.clone()),
-                    ValuedStructFieldData::NestedStruct(nested_struct) => DetailsValue::Text(nested_struct.get_display_string(false)),
+                let ValuedStructFieldData::Value(data_value) = valued_struct_field.get_field_data() else {
+                    return None;
                 };
-                let validation_data_type_ref = valued_struct_field
-                    .get_data_value()
-                    .map(|data_value| data_value.get_data_type_ref().clone());
 
-                DetailsField::new(
+                Some(DetailsField::new(
                     DetailsFieldId::new(format!("{}{}", Self::FIELD_ID_VALUE_PREFIX, field_name)),
                     field_name.clone(),
-                    details_value,
+                    DetailsValue::DataValue(data_value.clone()),
                     false,
                     DetailsEditorHint::Value,
-                    validation_data_type_ref,
+                    Some(data_value.get_data_type_ref().clone()),
                     ContainerType::None,
                     DetailsFieldSource::ProjectSymbolRuntimeValue { field_path: vec![field_name] },
-                )
+                ))
             })
             .collect()
     }
@@ -215,7 +211,10 @@ mod tests {
             project_symbol_locator::ProjectSymbolLocator,
             symbol_tree::symbol_tree_node::{SymbolTreeNode, SymbolTreeNodeKind},
         },
-        structs::valued_struct::ValuedStruct,
+        structs::{
+            valued_struct::ValuedStruct,
+            valued_struct_field::{ValuedStructField, ValuedStructFieldData},
+        },
     };
 
     fn create_symbol_claim_node() -> SymbolTreeNode {
@@ -302,6 +301,34 @@ mod tests {
                 .expect("Expected status field.")
                 .get_value(),
             &DetailsValue::Text(String::from("Unable to read symbol."))
+        );
+    }
+
+    #[test]
+    fn build_omits_nested_runtime_structs_from_value_fields() {
+        let symbol_tree_node = create_symbol_claim_node();
+        let nested_runtime_struct = ValuedStruct::new_anonymous(vec![
+            DataTypeU32::get_value_from_primitive(100).to_named_valued_struct_field(String::from("nested_value"), false),
+        ]);
+        let runtime_value_struct = ValuedStruct::new_anonymous(vec![
+            ValuedStructField::new(
+                String::from("nested"),
+                ValuedStructFieldData::NestedStruct(Box::new(nested_runtime_struct)),
+                false,
+            ),
+            DataTypeU32::get_value_from_primitive(200).to_named_valued_struct_field(String::from("leaf"), false),
+        ]);
+        let details_projection = SymbolTreeDetailsProjection::build(&symbol_tree_node, false, None, Some(&runtime_value_struct), None);
+
+        assert!(
+            details_projection
+                .get_field(&DetailsFieldId::new("value.nested"))
+                .is_none()
+        );
+        assert!(
+            details_projection
+                .get_field(&DetailsFieldId::new("value.leaf"))
+                .is_some()
         );
     }
 }
