@@ -41,6 +41,9 @@ impl ProjectItemDetailsEditPlanner {
                 DetailsEditOperation::WriteRuntimeValue {
                     target: details_edit.get_target().clone(),
                     field_id: details_edit.get_field_id().clone(),
+                    source: DetailsFieldSource::ProjectItemRuntimeValue {
+                        field_path: vec!["value".to_string()],
+                    },
                     value: details_edit.get_value().clone(),
                 },
                 DetailsEditOperation::RefreshProjection {

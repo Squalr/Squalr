@@ -22,6 +22,7 @@ pub enum DetailsEditOperation {
     WriteRuntimeValue {
         target: DetailsTarget,
         field_id: DetailsFieldId,
+        source: DetailsFieldSource,
         value: DetailsValue,
     },
     RefreshProjection {

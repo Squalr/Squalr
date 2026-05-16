@@ -37,12 +37,15 @@ use epaint::{CornerRadius, Stroke, StrokeKind};
 use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRequest;
 use squalr_engine_api::commands::project::save::project_save_request::ProjectSaveRequest;
 use squalr_engine_api::commands::project_items::rename::project_items_rename_request::ProjectItemsRenameRequest;
+use squalr_engine_api::commands::project_items::write_value::project_items_write_value_request::ProjectItemsWriteValueRequest;
 use squalr_engine_api::commands::settings::scan::list::scan_settings_list_request::ScanSettingsListRequest;
 use squalr_engine_api::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::structures::data_types::{built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8, data_type_ref::DataTypeRef};
-use squalr_engine_api::structures::data_values::anonymous_value_string::AnonymousValueString;
+use squalr_engine_api::structures::data_values::{
+    anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType,
+};
 use squalr_engine_api::structures::details::{DetailsEdit, DetailsEditOperation, DetailsEditPlan, DetailsFieldSource, DetailsValue};
 use squalr_engine_api::structures::memory::address_display::try_resolve_virtual_module_address;
 use squalr_engine_api::structures::memory::pointer::Pointer;
@@ -185,7 +188,10 @@ mod tests {
         u16::data_type_u16::DataTypeU16, u32::data_type_u32::DataTypeU32, u64::data_type_u64::DataTypeU64 as DataTypeU64Pointer,
     };
     use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
-    use squalr_engine_api::structures::data_values::{container_type::ContainerType, data_value::DataValue};
+    use squalr_engine_api::structures::data_values::{
+        anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType, data_value::DataValue,
+    };
+    use squalr_engine_api::structures::details::{DetailsFieldSource, DetailsValue};
     use squalr_engine_api::structures::memory::{normalized_module::NormalizedModule, pointer::Pointer, pointer_chain_segment::PointerChainSegment};
     use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
     use squalr_engine_api::structures::projects::project_items::built_in_types::{
@@ -485,6 +491,40 @@ mod tests {
             ProjectHierarchyView::build_project_item_rename_request(project_item_path, ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID, "health.json");
 
         assert!(rename_request.is_none());
+    }
+
+    #[test]
+    fn build_project_item_write_value_request_uses_runtime_field_path() {
+        let app_context = create_test_app_context();
+        let project_item_paths = vec![PathBuf::from(
+            "C:/Projects/TestProject/project_items/health.json",
+        )];
+        let details_field_source = DetailsFieldSource::ProjectItemRuntimeValue {
+            field_path: vec![String::from("health")],
+        };
+
+        let write_value_request = ProjectHierarchyView::build_project_item_write_value_request(
+            app_context,
+            &project_item_paths,
+            &details_field_source,
+            &DetailsValue::UnsignedInteger(255),
+        )
+        .expect("Expected project item write-value request.");
+
+        assert_eq!(write_value_request.project_item_path, project_item_paths[0]);
+        assert_eq!(write_value_request.field_name, "health");
+        assert_eq!(
+            write_value_request
+                .anonymous_value_string
+                .get_anonymous_value_string(),
+            "255"
+        );
+        assert_eq!(
+            write_value_request
+                .anonymous_value_string
+                .get_anonymous_value_string_format(),
+            AnonymousValueStringFormat::Decimal
+        );
     }
 
     #[test]
@@ -3038,13 +3078,27 @@ impl ProjectHierarchyView {
                         log::warn!("Rejected project item details edit: {}", reason);
                     }
                     DetailsEditOperation::RenameTarget { .. } | DetailsEditOperation::RefreshProjection { .. } => {}
-                    DetailsEditOperation::UpdateStoredField { .. } | DetailsEditOperation::WriteRuntimeValue { .. } => {
+                    DetailsEditOperation::UpdateStoredField { .. } => {
                         let Some(edited_field) = Self::project_item_details_operation_to_legacy_field(operation) else {
                             log::warn!("Failed to convert project item details operation to legacy field: {:?}", operation);
                             continue;
                         };
 
                         Self::apply_project_item_edits(app_context.clone(), project_item_paths.clone(), edited_field);
+                    }
+                    DetailsEditOperation::WriteRuntimeValue { source, value, .. } => {
+                        let Some(project_items_write_value_request) =
+                            Self::build_project_item_write_value_request(app_context.clone(), &project_item_paths, source, value)
+                        else {
+                            log::warn!("Failed to build project item write-value command for details operation: {:?}", operation);
+                            continue;
+                        };
+
+                        project_items_write_value_request.send(&app_context.engine_unprivileged_state, |project_items_write_value_response| {
+                            if !project_items_write_value_response.success {
+                                log::warn!("Project item write-value command failed while committing details edit.");
+                            }
+                        });
                     }
                 }
             }
@@ -3146,6 +3200,73 @@ impl ProjectHierarchyView {
                 anonymous_value_string.get_anonymous_value_string(),
             )),
             DetailsValue::Empty => ValuedStructFieldData::Value(DataTypeStringUtf8::get_value_from_primitive_string("")),
+        }
+    }
+
+    fn build_project_item_write_value_request(
+        app_context: Arc<AppContext>,
+        project_item_paths: &[PathBuf],
+        details_field_source: &DetailsFieldSource,
+        details_value: &DetailsValue,
+    ) -> Option<ProjectItemsWriteValueRequest> {
+        let project_item_path = project_item_paths.first()?.clone();
+        let DetailsFieldSource::ProjectItemRuntimeValue { field_path } = details_field_source else {
+            return None;
+        };
+        let field_name = field_path
+            .last()
+            .cloned()
+            .unwrap_or_else(|| String::from("value"));
+        let anonymous_value_string = Self::details_value_to_anonymous_value_string(app_context, details_value)?;
+
+        Some(ProjectItemsWriteValueRequest {
+            project_item_path,
+            field_name,
+            anonymous_value_string,
+        })
+    }
+
+    fn details_value_to_anonymous_value_string(
+        app_context: Arc<AppContext>,
+        details_value: &DetailsValue,
+    ) -> Option<AnonymousValueString> {
+        match details_value {
+            DetailsValue::AnonymousValue(anonymous_value_string) => Some(anonymous_value_string.clone()),
+            DetailsValue::DataValue(data_value) => {
+                let anonymous_value_string_format = app_context
+                    .engine_unprivileged_state
+                    .get_default_anonymous_value_string_format(data_value.get_data_type_ref());
+
+                app_context
+                    .engine_unprivileged_state
+                    .anonymize_value(data_value, anonymous_value_string_format)
+                    .map_err(|error| {
+                        log::warn!("Failed to anonymize project item runtime value edit: {}", error);
+                        error
+                    })
+                    .ok()
+            }
+            DetailsValue::Text(text) => Some(AnonymousValueString::new(text.clone(), AnonymousValueStringFormat::String, ContainerType::None)),
+            DetailsValue::Boolean(value) => Some(AnonymousValueString::new(
+                value.to_string(),
+                AnonymousValueStringFormat::Bool,
+                ContainerType::None,
+            )),
+            DetailsValue::UnsignedInteger(value) => Some(AnonymousValueString::new(
+                value.to_string(),
+                AnonymousValueStringFormat::Decimal,
+                ContainerType::None,
+            )),
+            DetailsValue::SignedInteger(value) => Some(AnonymousValueString::new(
+                value.to_string(),
+                AnonymousValueStringFormat::Decimal,
+                ContainerType::None,
+            )),
+            DetailsValue::Empty => Some(AnonymousValueString::new(
+                String::new(),
+                AnonymousValueStringFormat::String,
+                ContainerType::None,
+            )),
         }
     }
 

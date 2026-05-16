@@ -100,7 +100,9 @@ Our current task, from `README.md`, is:
      - refresh details,
      - no-op/error.
    - Single-selection Project Hierarchy Details edits now run through `ProjectItemDetailsEditPlanner`.
-   - The GUI still adapts planned operations into the existing legacy `apply_project_item_edits` path for persistence, rename, and runtime write dispatch.
+   - `WriteRuntimeValue` operations now carry `DetailsFieldSource::ProjectItemRuntimeValue` so callers do not need to infer runtime field paths from rendered ids.
+   - Single-selection runtime value edits now dispatch `ProjectItemsWriteValueRequest` instead of building memory writes in GUI code.
+   - The GUI still adapts stored-field operations into the existing legacy `apply_project_item_edits` path for persistence and rename handling.
    - Remaining target: replace `ProjectHierarchyView::apply_project_item_edits` after the GUI has a non-legacy operation applier.
 
 6. Done: add `project_items write-value`.
@@ -114,7 +116,8 @@ Our current task, from `README.md`, is:
 7. Migrate Project Hierarchy to Details.
    - Change `focus_project_item_paths_in_struct_viewer` to request/focus `DetailsProjection`s.
    - Change the edit callback to receive `DetailsEdit`, ask the planner for operations, and dispatch commands.
-   - Remove direct parsing of edited `ValuedStructField` names from `ProjectHierarchyView`.
+   - Single-selection Details focus/edit now uses `DetailsEdit` and dispatches `project_items write-value` for runtime edits.
+   - Remaining target: remove direct parsing of edited `ValuedStructField` names from stored-field edits and multi-selection fallback.
    - Keep tree rendering, selection, drag/drop, and context menus in the view until a separate reason exists to move them.
 
 8. Migrate Symbol Tree to Details.
@@ -160,3 +163,4 @@ Our current task, from `README.md`, is:
 - Current Project Hierarchy pass migrated single-selection details focus to `DetailsProjection`; multi-selection and legacy edit application still use `ProjectItemDetails`.
 - Current project item planning pass added `ProjectItemDetailsEditPlanner` and wired single-selection Project Hierarchy Details edits through it.
 - Current command pass added `project_items write-value` plus an engine service that resolves project items into symbol runtime writes. Validated with `cargo test -p squalr-engine project_items --lib --locked`, `cargo test -p squalr-engine project_item_runtime_value_write --lib --locked`, and `cargo test -p squalr-cli parse_input --locked`.
+- Current Project Hierarchy command-routing pass changed Details runtime edits to dispatch `ProjectItemsWriteValueRequest` and added runtime source metadata to `DetailsEditOperation::WriteRuntimeValue`. Validated with `cargo test -p squalr-engine-api project_item_details --lib --locked` and `cargo test -p squalr project_hierarchy --lib --locked`.
