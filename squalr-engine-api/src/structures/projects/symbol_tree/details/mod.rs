@@ -1,0 +1,3 @@
+pub mod symbol_tree_details_projection;
+
+pub use symbol_tree_details_projection::SymbolTreeDetailsProjection;

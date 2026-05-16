@@ -128,7 +128,8 @@ Our current task, from `README.md`, is:
    - Keep tree rendering, selection, drag/drop, and context menus in the view until a separate reason exists to move them.
 
 8. Migrate Symbol Tree to Details.
-   - Add a shared projector, likely under `squalr-engine-api/src/structures/projects/symbol_tree/details/`.
+   - Added shared projector under `squalr-engine-api/src/structures/projects/symbol_tree/details/`.
+   - `SymbolTreeDetailsProjection` covers symbol claim display-name metadata, type metadata, address/module/size/path fields, fallback locator/status fields, and normalized runtime value fields.
    - Move metadata/location/value field construction out of `build_symbol_layout_*`.
    - Use existing `ProjectSymbolsWriteValueRequest` for runtime edits.
    - Keep symbol tree rendering, expansion state, and selection in the GUI view.
@@ -175,3 +176,4 @@ Our current task, from `README.md`, is:
 - Current shared applier pass added `ProjectItemDetailsEditApplier` for stored project item Details operations. Validated with `cargo test -p squalr-engine-api project_item_details --lib --locked`.
 - Current Project Hierarchy stored-edit pass wired single-selection `UpdateStoredField` operations to `ProjectItemDetailsEditApplier` and `RenameTarget` operations to `ProjectItemsRenameRequest`. Validated with `cargo test -p squalr project_hierarchy --lib --locked`.
 - Current Project Hierarchy runtime cleanup pass routed legacy fallback runtime edits through `ProjectItemsWriteValueRequest` and removed `ProjectItemDetails::build_memory_write_request_for_runtime_value_edit`. Validated with `cargo test -p squalr project_hierarchy --lib --locked`.
+- Current Symbol Tree projector pass added `SymbolTreeDetailsProjection` for metadata, fallback status, and runtime value fields. Validated with `cargo test -p squalr-engine-api symbol_tree_details --lib --locked`.
