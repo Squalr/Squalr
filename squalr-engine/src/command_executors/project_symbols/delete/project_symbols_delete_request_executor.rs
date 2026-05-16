@@ -1,11 +1,10 @@
-use crate::command_executors::project_symbols::{
-    project_symbol_layout_mutation::ProjectSymbolLayoutMutation, project_symbol_store_mutation::save_and_sync_project_symbol_catalog,
-};
 use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
-use squalr_engine_api::commands::project_symbols::delete::project_symbols_delete_request::{ProjectSymbolsDeleteModuleRange, ProjectSymbolsDeleteRequest};
+use crate::services::projects::{
+    project_symbol_catalog_mutation::delete_project_symbols, project_symbol_catalog_persistence::save_and_sync_project_symbol_catalog,
+};
+use squalr_engine_api::commands::project_symbols::delete::project_symbols_delete_request::ProjectSymbolsDeleteRequest;
 use squalr_engine_api::commands::project_symbols::delete::project_symbols_delete_response::ProjectSymbolsDeleteResponse;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
-use std::collections::HashSet;
 use std::sync::Arc;
 
 impl UnprivilegedCommandRequestExecutor for ProjectSymbolsDeleteRequest {
@@ -41,74 +40,12 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsDeleteRequest {
             log::error!("Failed to resolve opened project directory for project-symbols delete command.");
             return ProjectSymbolsDeleteResponse::default();
         };
-        let symbol_locator_key_set = self
-            .symbol_locator_keys
-            .iter()
-            .map(|symbol_locator_key| symbol_locator_key.trim())
-            .filter(|symbol_locator_key| !symbol_locator_key.is_empty())
-            .map(str::to_string)
-            .collect::<HashSet<String>>();
-        let module_name_set = self
-            .module_names
-            .iter()
-            .map(|module_name| module_name.trim())
-            .filter(|module_name| !module_name.is_empty())
-            .map(str::to_string)
-            .collect::<HashSet<String>>();
-        let mut module_ranges = self
-            .module_ranges
-            .iter()
-            .filter_map(normalize_delete_module_range)
-            .collect::<Vec<_>>();
-        module_ranges.sort_by(|left_range, right_range| {
-            right_range
-                .module_name
-                .cmp(&left_range.module_name)
-                .then_with(|| right_range.offset.cmp(&left_range.offset))
-        });
         let project_symbol_catalog = opened_project
             .get_project_info_mut()
             .get_project_symbol_catalog_mut();
-        let (deleted_module_names, deleted_module_count) = {
-            let symbol_modules = project_symbol_catalog.get_symbol_modules_mut();
-            let symbol_module_count_before_delete = symbol_modules.len();
-            let deleted_module_names = symbol_modules
-                .iter()
-                .filter(|symbol_module| module_name_set.contains(symbol_module.get_module_name()))
-                .map(|symbol_module| symbol_module.get_module_name().to_string())
-                .collect::<HashSet<String>>();
+        let delete_summary = delete_project_symbols(project_symbol_catalog, self);
 
-            symbol_modules.retain(|symbol_module| !module_name_set.contains(symbol_module.get_module_name()));
-
-            (
-                deleted_module_names,
-                symbol_module_count_before_delete.saturating_sub(symbol_modules.len()) as u64,
-            )
-        };
-        project_symbol_catalog.delete_module_root_struct_layouts(&deleted_module_names);
-        let delete_module_field_summary = ProjectSymbolLayoutMutation::delete_module_fields_by_locator_key(project_symbol_catalog, &symbol_locator_key_set);
-        let delete_module_range_summary = ProjectSymbolLayoutMutation::delete_module_ranges(project_symbol_catalog, &module_ranges, &module_name_set);
-        let symbol_claims = project_symbol_catalog.get_symbol_claims_mut();
-        let symbol_claim_count_before_delete = symbol_claims.len();
-
-        symbol_claims.retain(|symbol_claim| {
-            if symbol_locator_key_set.contains(&symbol_claim.get_symbol_locator_key()) {
-                return false;
-            }
-
-            match symbol_claim.get_locator() {
-                squalr_engine_api::structures::projects::project_symbol_locator::ProjectSymbolLocator::ModuleOffset { module_name, .. } => {
-                    !module_name_set.contains(module_name)
-                }
-                squalr_engine_api::structures::projects::project_symbol_locator::ProjectSymbolLocator::AbsoluteAddress { .. } => true,
-            }
-        });
-
-        let deleted_symbol_count =
-            symbol_claim_count_before_delete.saturating_sub(symbol_claims.len()) as u64 + delete_module_field_summary.get_deleted_module_field_count();
-        let deleted_module_range_count = delete_module_range_summary.get_deleted_module_range_count();
-
-        if deleted_symbol_count == 0 && deleted_module_count == 0 && deleted_module_range_count == 0 {
+        if !delete_summary.did_delete_anything() {
             return ProjectSymbolsDeleteResponse {
                 success: true,
                 deleted_symbol_count: 0,
@@ -120,34 +57,19 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsDeleteRequest {
         if !save_and_sync_project_symbol_catalog(engine_unprivileged_state, opened_project, &project_directory_path) {
             return ProjectSymbolsDeleteResponse {
                 success: false,
-                deleted_symbol_count,
-                deleted_module_count,
-                deleted_module_range_count,
+                deleted_symbol_count: delete_summary.deleted_symbol_count,
+                deleted_module_count: delete_summary.deleted_module_count,
+                deleted_module_range_count: delete_summary.deleted_module_range_count,
             };
         }
 
         ProjectSymbolsDeleteResponse {
             success: true,
-            deleted_symbol_count,
-            deleted_module_count,
-            deleted_module_range_count,
+            deleted_symbol_count: delete_summary.deleted_symbol_count,
+            deleted_module_count: delete_summary.deleted_module_count,
+            deleted_module_range_count: delete_summary.deleted_module_range_count,
         }
     }
-}
-
-fn normalize_delete_module_range(project_symbols_delete_module_range: &ProjectSymbolsDeleteModuleRange) -> Option<ProjectSymbolsDeleteModuleRange> {
-    let module_name = project_symbols_delete_module_range.module_name.trim();
-
-    if module_name.is_empty() || project_symbols_delete_module_range.length == 0 {
-        return None;
-    }
-
-    Some(ProjectSymbolsDeleteModuleRange {
-        module_name: module_name.to_string(),
-        offset: project_symbols_delete_module_range.offset,
-        length: project_symbols_delete_module_range.length,
-        mode: project_symbols_delete_module_range.mode,
-    })
 }
 
 #[cfg(test)]

@@ -1,1 +1,5 @@
+pub mod project_symbol_catalog_mutation;
+pub mod project_symbol_catalog_persistence;
+pub mod project_symbol_layout_mutation;
+pub mod project_symbol_name_scope;
 pub mod project_symbol_runtime_value_write;

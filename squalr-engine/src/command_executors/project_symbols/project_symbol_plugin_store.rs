@@ -1,4 +1,4 @@
-use crate::command_executors::project_symbols::project_symbol_store_mutation::save_and_sync_project_symbol_catalog;
+use crate::services::projects::project_symbol_catalog_persistence::save_and_sync_project_symbol_catalog;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::plugins::symbol_tree::symbol_tree_action::ProjectSymbolStore;
 use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;

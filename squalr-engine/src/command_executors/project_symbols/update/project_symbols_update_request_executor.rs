@@ -1,12 +1,10 @@
-use crate::command_executors::project_symbols::{
-    project_symbol_layout_mutation::ProjectSymbolLayoutMutation, project_symbol_name_scope::ProjectSymbolNameScope,
-    project_symbol_store_mutation::save_and_sync_project_symbol_catalog,
-};
 use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
+use crate::services::projects::{
+    project_symbol_catalog_mutation::update_project_symbol, project_symbol_catalog_persistence::save_and_sync_project_symbol_catalog,
+};
 use squalr_engine_api::commands::project_symbols::update::project_symbols_update_request::ProjectSymbolsUpdateRequest;
 use squalr_engine_api::commands::project_symbols::update::project_symbols_update_response::ProjectSymbolsUpdateResponse;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
-use squalr_engine_api::structures::projects::project_symbol_locator::ProjectSymbolLocator;
 use std::sync::Arc;
 
 impl UnprivilegedCommandRequestExecutor for ProjectSymbolsUpdateRequest {
@@ -34,110 +32,11 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsUpdateRequest {
             return ProjectSymbolsUpdateResponse::default();
         };
 
-        let trimmed_display_name = self
-            .display_name
-            .as_deref()
-            .map(str::trim)
-            .filter(|display_name| !display_name.is_empty())
-            .map(str::to_string);
-        let trimmed_struct_layout_id = self
-            .struct_layout_id
-            .as_deref()
-            .map(str::trim)
-            .filter(|struct_layout_id| !struct_layout_id.is_empty())
-            .map(str::to_string);
-
-        if trimmed_display_name.is_none() && trimmed_struct_layout_id.is_none() {
-            log::warn!("Project-symbols update request requires at least one non-empty update field.");
-            return ProjectSymbolsUpdateResponse::default();
-        }
-
         let project_symbol_catalog = opened_project
             .get_project_info_mut()
             .get_project_symbol_catalog_mut();
-        let local_struct_layout_descriptors = project_symbol_catalog.get_struct_layout_descriptors().to_vec();
-        let resolve_field_size_in_bytes = |struct_layout_id: &str| {
-            ProjectSymbolLayoutMutation::resolve_struct_layout_id_size_in_bytes(
-                struct_layout_id,
-                |data_type_ref| {
-                    engine_unprivileged_state
-                        .get_default_value(data_type_ref)
-                        .map(|default_value| default_value.get_size_in_bytes())
-                },
-                |resolved_struct_layout_id| {
-                    local_struct_layout_descriptors
-                        .iter()
-                        .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == resolved_struct_layout_id)
-                        .map(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_definition().clone())
-                },
-            )
-        };
-        let did_update = if let Some(symbol_claim) = project_symbol_catalog.find_symbol_claim(&self.symbol_locator_key) {
-            let locator = symbol_claim.get_locator().clone();
-            let deduplicated_display_name = trimmed_display_name.as_ref().map(|display_name| {
-                ProjectSymbolNameScope::deduplicate_display_name(
-                    project_symbol_catalog,
-                    project_symbol_catalog.get_symbol_claims(),
-                    &locator,
-                    display_name,
-                    Some(&self.symbol_locator_key),
-                )
-            });
-
-            if let Some(symbol_claim) = project_symbol_catalog.find_symbol_claim_mut(&self.symbol_locator_key) {
-                if let Some(display_name) = deduplicated_display_name {
-                    symbol_claim.set_display_name(display_name);
-                }
-
-                if let Some(struct_layout_id) = trimmed_struct_layout_id.as_ref() {
-                    symbol_claim.set_struct_layout_id(struct_layout_id.clone());
-                }
-
-                true
-            } else {
-                false
-            }
-        } else if let Some((symbol_module, module_field)) = project_symbol_catalog.find_module_field(&self.symbol_locator_key) {
-            let module_name = symbol_module.get_module_name().to_string();
-            let locator = ProjectSymbolLocator::new_module_offset(module_name.clone(), module_field.get_offset());
-            let display_name = trimmed_display_name
-                .clone()
-                .unwrap_or_else(|| module_field.get_display_name().to_string());
-            let display_name = ProjectSymbolNameScope::deduplicate_display_name(
-                project_symbol_catalog,
-                project_symbol_catalog.get_symbol_claims(),
-                &locator,
-                &display_name,
-                Some(&self.symbol_locator_key),
-            );
-            let offset = module_field.get_offset();
-            let struct_layout_id = trimmed_struct_layout_id
-                .clone()
-                .unwrap_or_else(|| module_field.get_struct_layout_id().to_string());
-
-            match ProjectSymbolLayoutMutation::upsert_module_field(
-                project_symbol_catalog,
-                &module_name,
-                display_name,
-                offset,
-                struct_layout_id,
-                resolve_field_size_in_bytes,
-            ) {
-                Ok(_) => true,
-                Err(error) => {
-                    log::warn!("Project-symbols update module-field request failed: {}", error);
-                    false
-                }
-            }
-        } else {
-            false
-        };
-
-        if !did_update {
-            log::warn!(
-                "Project-symbols update request could not find symbol locator key '{}'.",
-                self.symbol_locator_key
-            );
+        if let Err(error) = update_project_symbol(engine_unprivileged_state, project_symbol_catalog, self) {
+            log::warn!("{}", error);
             return ProjectSymbolsUpdateResponse::default();
         }
 
