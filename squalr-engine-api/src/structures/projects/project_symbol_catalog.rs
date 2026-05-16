@@ -11,13 +11,9 @@ use std::collections::{HashMap, HashSet};
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ProjectSymbolCatalog {
-    #[serde(default)]
     symbol_modules: Vec<ProjectSymbolModule>,
-    #[serde(default)]
     struct_layout_descriptors: Vec<StructLayoutDescriptor>,
-    #[serde(default)]
     symbolic_resolver_descriptors: Vec<SymbolicResolverDescriptor>,
-    #[serde(default)]
     symbol_claims: Vec<ProjectSymbolClaim>,
 }
 

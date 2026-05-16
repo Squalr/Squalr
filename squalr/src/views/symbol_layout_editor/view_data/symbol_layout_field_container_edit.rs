@@ -108,16 +108,6 @@ impl SymbolLayoutFieldContainerEdit {
                 pointer_size,
                 ..Self::default()
             },
-            ContainerType::Pointer32 => Self {
-                kind: SymbolLayoutFieldContainerKind::Pointer,
-                pointer_size: PointerScanPointerSize::Pointer32,
-                ..Self::default()
-            },
-            ContainerType::Pointer64 => Self {
-                kind: SymbolLayoutFieldContainerKind::Pointer,
-                pointer_size: PointerScanPointerSize::Pointer64,
-                ..Self::default()
-            },
         }
     }
 

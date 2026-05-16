@@ -25,7 +25,6 @@ impl ProjectItemTypePointer {
     pub const PROJECT_ITEM_TYPE_ID: &str = "pointer";
     pub const DEFAULT_PROJECT_ITEM_NAME: &str = "New Pointer";
     pub const PROPERTY_OFFSET: &str = "offset";
-    pub const LEGACY_PROPERTY_ADDRESS: &str = "address";
     pub const PROPERTY_MODULE: &str = "module";
     pub const PROPERTY_POINTER_OFFSETS: &str = "pointer_offsets";
     pub const PROPERTY_POINTER_SIZE: &str = "pointer_size";
@@ -54,33 +53,8 @@ impl ProjectItemTypePointer {
         project_item
     }
 
-    pub fn normalize_pointer_fields(project_item: &mut ProjectItem) {
-        let legacy_field_data = project_item
-            .get_properties()
-            .get_field(Self::LEGACY_PROPERTY_ADDRESS)
-            .map(|field| field.get_field_data().clone());
-
-        if project_item
-            .get_properties()
-            .get_field(Self::PROPERTY_OFFSET)
-            .is_none()
-        {
-            if let Some(legacy_field_data) = legacy_field_data {
-                project_item
-                    .get_properties_mut()
-                    .set_field_data(Self::PROPERTY_OFFSET, legacy_field_data, false);
-            }
-        }
-
-        project_item
-            .get_properties_mut()
-            .remove_field(Self::LEGACY_PROPERTY_ADDRESS);
-    }
-
     pub fn get_field_offset(project_item: &ProjectItem) -> u64 {
-        Self::read_u64_field(project_item, Self::PROPERTY_OFFSET)
-            .or_else(|| Self::read_u64_field(project_item, Self::LEGACY_PROPERTY_ADDRESS))
-            .unwrap_or(0)
+        Self::read_u64_field(project_item, Self::PROPERTY_OFFSET).unwrap_or(0)
     }
 
     pub fn set_field_offset(
@@ -93,20 +67,6 @@ impl ProjectItemTypePointer {
         project_item
             .get_properties_mut()
             .set_field_data(Self::PROPERTY_OFFSET, field_data, false);
-        project_item
-            .get_properties_mut()
-            .remove_field(Self::LEGACY_PROPERTY_ADDRESS);
-    }
-
-    pub fn get_field_address(project_item: &ProjectItem) -> u64 {
-        Self::get_field_offset(project_item)
-    }
-
-    pub fn set_field_address(
-        project_item: &mut ProjectItem,
-        address: u64,
-    ) {
-        Self::set_field_offset(project_item, address);
     }
 
     fn read_u64_field(
@@ -333,10 +293,8 @@ impl ProjectItemType for ProjectItemTypePointer {
 #[cfg(test)]
 mod tests {
     use super::ProjectItemTypePointer;
-    use crate::structures::data_types::built_in_types::u64::data_type_u64::DataTypeU64;
     use crate::structures::memory::pointer::Pointer;
     use crate::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
-    use crate::structures::structs::valued_struct_field::ValuedStructFieldData;
 
     #[test]
     fn new_project_item_uses_new_pointer_for_empty_name() {
@@ -377,42 +335,6 @@ mod tests {
                 .get_properties()
                 .get_field(ProjectItemTypePointer::PROPERTY_OFFSET)
                 .is_some()
-        );
-        assert!(
-            project_item
-                .get_properties()
-                .get_field(ProjectItemTypePointer::LEGACY_PROPERTY_ADDRESS)
-                .is_none()
-        );
-    }
-
-    #[test]
-    fn normalize_pointer_fields_migrates_legacy_address_property() {
-        let pointer = Pointer::new_with_size(0x44, vec![0x10], "game.exe".to_string(), PointerScanPointerSize::Pointer64);
-        let mut project_item = ProjectItemTypePointer::new_project_item("Pointer Name", &pointer, "", "u8");
-        let legacy_offset_data = ValuedStructFieldData::Value(DataTypeU64::get_value_from_primitive(0x88));
-
-        project_item
-            .get_properties_mut()
-            .remove_field(ProjectItemTypePointer::PROPERTY_OFFSET);
-        project_item
-            .get_properties_mut()
-            .set_field_data(ProjectItemTypePointer::LEGACY_PROPERTY_ADDRESS, legacy_offset_data, false);
-
-        ProjectItemTypePointer::normalize_pointer_fields(&mut project_item);
-
-        assert_eq!(ProjectItemTypePointer::get_field_offset(&project_item), 0x88);
-        assert!(
-            project_item
-                .get_properties()
-                .get_field(ProjectItemTypePointer::PROPERTY_OFFSET)
-                .is_some()
-        );
-        assert!(
-            project_item
-                .get_properties()
-                .get_field(ProjectItemTypePointer::LEGACY_PROPERTY_ADDRESS)
-                .is_none()
         );
     }
 }

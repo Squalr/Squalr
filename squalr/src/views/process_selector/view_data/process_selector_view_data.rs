@@ -491,7 +491,7 @@ impl ProcessSelectorViewData {
 
     fn refresh_shortcut_dropdown_process_list(&mut self) {
         let next_shortcut_dropdown_process_list = if !Self::IS_ANDROID_TARGET {
-            // Preserve legacy desktop behavior: shortcut dropdown is strictly windowed-only.
+            // Desktop shortcut dropdowns stay windowed-only.
             Self::sort_processes_case_insensitive_then_process_id(self.windowed_process_list.clone())
         } else if self.show_windowed_processes_only {
             Self::choose_shortcut_dropdown_windowed_candidates(&self.windowed_process_list, &self.full_process_list)

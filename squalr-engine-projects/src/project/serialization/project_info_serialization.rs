@@ -1,6 +1,5 @@
 use crate::project::serialization::serializable_project_file::SerializableProjectFile;
 use serde::{Deserialize, Serialize};
-use squalr_engine_api::plugins::PluginEnablementOverrides;
 use squalr_engine_api::structures::{
     processes::process_icon::ProcessIcon,
     projects::{project::Project, project_info::ProjectInfo, project_manifest::ProjectManifest, project_symbol_catalog::ProjectSymbolCatalog},
@@ -9,13 +8,6 @@ use std::{
     fs::{File, OpenOptions},
     path::Path,
 };
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(untagged)]
-enum ProjectPluginConfigurationStub {
-    LegacyEnabledPluginIds(Vec<String>),
-    PluginEnablementOverrides(PluginEnablementOverrides),
-}
 
 /// Represents a condensed version of project info excluding information that we do not want to serialize.
 /// Note that #[serde(skip)] is insufficient, as we still want to serialize across commands,
@@ -36,7 +28,7 @@ struct ProjectInfoStub {
 
     /// Plugin enablement overrides stored with this project.
     #[serde(rename = "plugins", default, skip_serializing_if = "Option::is_none")]
-    plugin_configuration: Option<ProjectPluginConfigurationStub>,
+    plugin_configuration: Option<squalr_engine_api::plugins::PluginEnablementOverrides>,
 }
 
 impl SerializableProjectFile for ProjectInfo {
@@ -58,10 +50,7 @@ impl SerializableProjectFile for ProjectInfo {
                 project_icon_rgba: self.get_project_icon_rgba().clone(),
                 project_manifest: self.get_project_manifest().clone(),
                 project_symbol_catalog: self.get_project_symbol_catalog().clone(),
-                plugin_configuration: self
-                    .get_plugin_enablement_overrides()
-                    .cloned()
-                    .map(ProjectPluginConfigurationStub::PluginEnablementOverrides),
+                plugin_configuration: self.get_plugin_enablement_overrides().cloned(),
             };
 
             serde_json::to_writer(file, &project_info_stub)?;
@@ -82,13 +71,7 @@ impl SerializableProjectFile for ProjectInfo {
             project_info_stub.project_manifest,
             project_info_stub.project_symbol_catalog,
         );
-        project_info.set_plugin_enablement_overrides(match project_info_stub.plugin_configuration {
-            Some(ProjectPluginConfigurationStub::LegacyEnabledPluginIds(enabled_plugin_ids)) => {
-                Some(PluginEnablementOverrides::new(enabled_plugin_ids, Vec::new()))
-            }
-            Some(ProjectPluginConfigurationStub::PluginEnablementOverrides(plugin_enablement_overrides)) => Some(plugin_enablement_overrides),
-            None => None,
-        });
+        project_info.set_plugin_enablement_overrides(project_info_stub.plugin_configuration);
 
         Ok(project_info)
     }
@@ -108,7 +91,6 @@ mod tests {
         },
         structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition},
     };
-    use std::fs;
 
     #[test]
     fn project_info_round_trip_preserves_project_symbol_catalog() {
@@ -237,49 +219,5 @@ mod tests {
                 vec![String::from("builtin.memory-view.dolphin")],
             ))
         );
-    }
-
-    #[test]
-    fn project_info_loads_legacy_plugin_list_as_enabled_overrides() {
-        let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
-        let project_file_path = temp_directory.path().join(Project::PROJECT_FILE);
-        let legacy_project_json = r#"{
-            "icon": null,
-            "manifest": {},
-            "symbols": {},
-            "plugins": ["builtin.data-type.24bit-integers", "builtin.memory-view.dolphin"]
-        }"#;
-
-        fs::write(&project_file_path, legacy_project_json).expect("Expected legacy project json to write.");
-
-        let loaded_project_info = ProjectInfo::load_from_path(&project_file_path).expect("Expected legacy project info to load.");
-
-        assert_eq!(
-            loaded_project_info.get_plugin_enablement_overrides(),
-            Some(&PluginEnablementOverrides::new(
-                vec![
-                    String::from("builtin.data-type.24bit-integers"),
-                    String::from("builtin.memory-view.dolphin"),
-                ],
-                Vec::new(),
-            ))
-        );
-    }
-
-    #[test]
-    fn project_info_loads_when_symbols_object_omits_struct_layout_descriptors() {
-        let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
-        let project_file_path = temp_directory.path().join(Project::PROJECT_FILE);
-        let legacy_project_json = r#"{
-            "icon": null,
-            "manifest": {},
-            "symbols": {}
-        }"#;
-
-        fs::write(&project_file_path, legacy_project_json).expect("Expected legacy project json to write.");
-
-        let loaded_project_info = ProjectInfo::load_from_path(&project_file_path).expect("Expected legacy project info to load.");
-
-        assert!(loaded_project_info.get_project_symbol_catalog().is_empty());
     }
 }

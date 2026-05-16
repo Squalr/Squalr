@@ -793,7 +793,7 @@ fn append_field_children<ResolvePrimitiveSize, ReadScalarField, ResolveRelativeP
                 visited_struct_layout_ids.remove(&type_identifier);
             }
         }
-        ContainerType::Pointer(_) | ContainerType::Pointer32 | ContainerType::Pointer64 => {
+        ContainerType::Pointer(_) => {
             let Some(resolved_pointer_target) = resolved_pointer_targets_by_node_key.get(parent_node_key) else {
                 return;
             };
@@ -994,7 +994,7 @@ fn data_type_ref_can_expand(
                     visited_struct_layout_ids,
                 )
         }
-        ContainerType::Pointer(_) | ContainerType::Pointer32 | ContainerType::Pointer64 => true,
+        ContainerType::Pointer(_) => true,
         ContainerType::None => {
             let data_type_id = data_type_ref.get_data_type_id();
 

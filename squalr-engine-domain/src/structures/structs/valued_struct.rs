@@ -14,7 +14,6 @@ use std::fmt;
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ValuedStruct {
     symbolic_struct_ref: SymbolicStructRef,
-    #[serde(default, skip_serializing_if = "SymbolicLayoutKind::is_default")]
     layout_kind: SymbolicLayoutKind,
     fields: Vec<ValuedStructField>,
 }

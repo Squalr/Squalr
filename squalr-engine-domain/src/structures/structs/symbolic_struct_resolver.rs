@@ -1,6 +1,6 @@
 use crate::structures::{
     data_types::data_type_ref::DataTypeRef,
-    data_values::{container_type::ContainerType, pointer_scan_pointer_size::PointerScanPointerSize},
+    data_values::container_type::ContainerType,
     memory::symbolic_pointer_chain::{SymbolicPointerChain, SymbolicPointerChainLink},
     structs::{
         symbolic_field_definition::{SymbolicFieldCountResolution, SymbolicFieldDefinition, SymbolicFieldOffsetResolution},
@@ -705,7 +705,7 @@ where
         SymbolicFieldCountResolution::Inferred => match field_definition.get_container_type() {
             ContainerType::ArrayFixed(element_count) | ContainerType::PointerArrayFixed(_, element_count) => Ok(Some(element_count)),
             ContainerType::Array | ContainerType::PointerArray(_) => Ok(None),
-            ContainerType::None | ContainerType::Pointer(_) | ContainerType::Pointer32 | ContainerType::Pointer64 => Ok(Some(1)),
+            ContainerType::None | ContainerType::Pointer(_) => Ok(Some(1)),
         },
     }
 }
@@ -1065,9 +1065,7 @@ fn resolve_field_static_size_in_bytes(
         ContainerType::ArrayFixed(element_count) | ContainerType::PointerArrayFixed(_, element_count) => {
             resolve_field_size_in_bytes(field_definition, unit_size_in_bytes, element_count)
         }
-        ContainerType::None | ContainerType::Pointer(_) | ContainerType::Pointer32 | ContainerType::Pointer64 => {
-            resolve_field_size_in_bytes(field_definition, unit_size_in_bytes, 1)
-        }
+        ContainerType::None | ContainerType::Pointer(_) => resolve_field_size_in_bytes(field_definition, unit_size_in_bytes, 1),
         ContainerType::Array | ContainerType::PointerArray(_) => None,
     }
 }
@@ -1079,8 +1077,6 @@ fn resolve_field_size_in_bytes(
 ) -> Option<u64> {
     match field_definition.get_container_type() {
         ContainerType::Pointer(pointer_size) => Some(pointer_size.get_size_in_bytes()),
-        ContainerType::Pointer32 => Some(PointerScanPointerSize::Pointer32.get_size_in_bytes()),
-        ContainerType::Pointer64 => Some(PointerScanPointerSize::Pointer64.get_size_in_bytes()),
         ContainerType::PointerArray(pointer_size) | ContainerType::PointerArrayFixed(pointer_size, _) => {
             pointer_size.get_size_in_bytes().checked_mul(element_count)
         }

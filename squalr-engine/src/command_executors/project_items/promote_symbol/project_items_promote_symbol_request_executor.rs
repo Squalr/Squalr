@@ -444,11 +444,7 @@ fn find_containing_child_struct_layout(
                         offset_in_child: offset_in_bytes.saturating_sub(field_span.offset_in_bytes) % child_struct_size_in_bytes,
                     })
                 }
-                ContainerType::Pointer(_)
-                | ContainerType::PointerArray(_)
-                | ContainerType::PointerArrayFixed(_, _)
-                | ContainerType::Pointer32
-                | ContainerType::Pointer64 => None,
+                ContainerType::Pointer(_) | ContainerType::PointerArray(_) | ContainerType::PointerArrayFixed(_, _) => None,
             }?;
 
             Some((containing_child_struct_layout, field_span.size_in_bytes))
@@ -745,8 +741,6 @@ fn estimate_symbolic_field_size_in_bytes(
     let data_type_id = symbolic_field_definition.get_data_type_ref().get_data_type_id();
     let unit_size_in_bytes = match symbolic_field_definition.get_container_type() {
         ContainerType::Pointer(pointer_size) => pointer_size.get_size_in_bytes(),
-        ContainerType::Pointer32 => 4,
-        ContainerType::Pointer64 => 8,
         _ => {
             if !visited_type_ids.insert(data_type_id.to_string()) {
                 return 0;

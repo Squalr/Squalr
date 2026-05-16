@@ -225,7 +225,7 @@ impl SymbolicFieldDefinition {
 
                     ValuedStructFieldData::Value(array_value)
                 }
-                ContainerType::Pointer(_) | ContainerType::Pointer32 | ContainerType::Pointer64 => ValuedStructFieldData::Value(Default::default()),
+                ContainerType::Pointer(_) => ValuedStructFieldData::Value(Default::default()),
             }
         };
 
@@ -459,12 +459,7 @@ impl SymbolicFieldDefinition {
             ContainerType::PointerArray(pointer_size) | ContainerType::PointerArrayFixed(pointer_size, _) => {
                 format!("*({})[{}]", pointer_size, count_text)
             }
-            ContainerType::None
-            | ContainerType::Array
-            | ContainerType::ArrayFixed(_)
-            | ContainerType::Pointer(_)
-            | ContainerType::Pointer32
-            | ContainerType::Pointer64 => format!("[{}]", count_text),
+            ContainerType::None | ContainerType::Array | ContainerType::ArrayFixed(_) | ContainerType::Pointer(_) => format!("[{}]", count_text),
         }
     }
 }

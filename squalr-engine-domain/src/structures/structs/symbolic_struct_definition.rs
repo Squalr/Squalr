@@ -32,9 +32,7 @@ impl SymbolicLayoutKind {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SymbolicStructDefinition {
     symbol_namespace: String,
-    #[serde(default, skip_serializing_if = "SymbolicLayoutKind::is_default")]
     layout_kind: SymbolicLayoutKind,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     size_in_bytes: Option<u64>,
     fields: Vec<SymbolicFieldDefinition>,
 }
@@ -164,12 +162,6 @@ impl SymbolicStructDefinition {
     }
 }
 
-impl SymbolicLayoutKind {
-    pub fn is_default(&self) -> bool {
-        *self == Self::default()
-    }
-}
-
 impl FromStr for SymbolicStructDefinition {
     type Err = String;
 
@@ -186,7 +178,7 @@ impl FromStr for SymbolicStructDefinition {
 
 #[cfg(test)]
 mod tests {
-    use super::{SymbolicLayoutKind, SymbolicStructDefinition};
+    use super::SymbolicStructDefinition;
     use crate::registries::symbols::symbol_registry::SymbolRegistry;
     use crate::structures::structs::symbolic_field_definition::SymbolicFieldDefinition;
     use std::str::FromStr;
@@ -215,15 +207,6 @@ mod tests {
     }
 
     #[test]
-    fn layout_kind_defaults_to_struct_for_serialized_compatibility() {
-        let serialized_struct = r#"{"symbol_namespace":"legacy","fields":[]}"#;
-        let symbolic_struct_definition: SymbolicStructDefinition =
-            serde_json::from_str(serialized_struct).expect("Expected legacy symbolic struct definition to deserialize.");
-
-        assert_eq!(symbolic_struct_definition.get_layout_kind(), SymbolicLayoutKind::Struct);
-    }
-
-    #[test]
     fn declared_size_extends_layout_past_field_span() {
         let symbol_registry = SymbolRegistry::new();
         let symbolic_struct_definition = SymbolicStructDefinition::new(
@@ -234,14 +217,5 @@ mod tests {
 
         assert_eq!(symbolic_struct_definition.get_size_in_bytes(&symbol_registry), 32);
         assert_eq!(symbolic_struct_definition.get_declared_size_in_bytes(), Some(32));
-    }
-
-    #[test]
-    fn declared_size_defaults_to_none_for_serialized_compatibility() {
-        let serialized_struct = r#"{"symbol_namespace":"legacy","fields":[]}"#;
-        let symbolic_struct_definition: SymbolicStructDefinition =
-            serde_json::from_str(serialized_struct).expect("Expected legacy symbolic struct definition to deserialize.");
-
-        assert_eq!(symbolic_struct_definition.get_declared_size_in_bytes(), None);
     }
 }

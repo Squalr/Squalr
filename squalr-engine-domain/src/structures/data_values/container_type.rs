@@ -11,8 +11,6 @@ pub enum ContainerType {
     Pointer(PointerScanPointerSize),
     PointerArray(PointerScanPointerSize),
     PointerArrayFixed(PointerScanPointerSize, u64),
-    Pointer32,
-    Pointer64,
 }
 
 impl ContainerType {
@@ -23,8 +21,6 @@ impl ContainerType {
     pub fn get_pointer_size(&self) -> Option<PointerScanPointerSize> {
         match self {
             ContainerType::Pointer(pointer_size) => Some(*pointer_size),
-            ContainerType::Pointer32 => Some(PointerScanPointerSize::Pointer32),
-            ContainerType::Pointer64 => Some(PointerScanPointerSize::Pointer64),
             _ => None,
         }
     }
@@ -39,8 +35,6 @@ impl ContainerType {
             ContainerType::ArrayFixed(length) => unit_size_in_bytes.saturating_mul(*length),
             ContainerType::Pointer(pointer_size) | ContainerType::PointerArray(pointer_size) => pointer_size.get_size_in_bytes(),
             ContainerType::PointerArrayFixed(pointer_size, length) => pointer_size.get_size_in_bytes().saturating_mul(*length),
-            ContainerType::Pointer32 => PointerScanPointerSize::Pointer32.get_size_in_bytes(),
-            ContainerType::Pointer64 => PointerScanPointerSize::Pointer64.get_size_in_bytes(),
         }
     }
 
@@ -53,7 +47,7 @@ impl ContainerType {
             ContainerType::PointerArray(pointer_size) | ContainerType::PointerArrayFixed(pointer_size, _) => {
                 Some(ContainerType::PointerArrayFixed(*pointer_size, element_count))
             }
-            ContainerType::None | ContainerType::Pointer(_) | ContainerType::Pointer32 | ContainerType::Pointer64 => None,
+            ContainerType::None | ContainerType::Pointer(_) => None,
         }
     }
 }
@@ -70,8 +64,6 @@ impl fmt::Display for ContainerType {
             ContainerType::Pointer(pointer_size) => format!("*({})", pointer_size),
             ContainerType::PointerArray(pointer_size) => format!("*({})[]", pointer_size),
             ContainerType::PointerArrayFixed(pointer_size, length) => format!("*({})[{}]", pointer_size, length),
-            ContainerType::Pointer32 => format!("*({})", PointerScanPointerSize::Pointer32),
-            ContainerType::Pointer64 => format!("*({})", PointerScanPointerSize::Pointer64),
         };
 
         write!(formatter, "{}", container_type_str)
@@ -160,12 +152,5 @@ mod tests {
         assert_eq!(container_type, ContainerType::PointerArrayFixed(PointerScanPointerSize::Pointer64, 1024));
         assert_eq!(container_type.to_string(), "*(u64)[1024]");
         assert_eq!(container_type.get_total_size_in_bytes(32), 8192);
-    }
-
-    #[test]
-    fn legacy_pointer_container_strings_map_to_shared_pointer_sizes() {
-        let container_type = ContainerType::from_str("*(32)").expect("Expected legacy pointer container to parse.");
-
-        assert_eq!(container_type.get_pointer_size(), Some(PointerScanPointerSize::Pointer32));
     }
 }
