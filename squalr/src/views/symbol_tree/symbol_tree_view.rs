@@ -50,7 +50,7 @@ use squalr_engine_api::structures::data_values::{
     data_value::DataValue,
     data_value_preview_formatter::{DataValuePreviewFormatOptions, DataValuePreviewFormatter},
 };
-use squalr_engine_api::structures::details::{DetailsEdit, DetailsProjection, DetailsValue};
+use squalr_engine_api::structures::details::{DetailsEdit, DetailsFieldSource, DetailsProjection, DetailsValue};
 use squalr_engine_api::structures::memory::{
     pointer::Pointer,
     symbolic_pointer_chain::{SymbolicPointerChain, SymbolicPointerChainLink},
@@ -623,14 +623,13 @@ impl SymbolTreeView {
                     .send(&engine_unprivileged_state, |_project_symbols_rename_response| {});
                 }
                 _ => {
-                    let Some(field_name) = details_edit
-                        .get_field_id()
-                        .get_field_id()
-                        .strip_prefix(SymbolTreeDetailsProjection::FIELD_ID_VALUE_PREFIX)
-                        .map(str::to_string)
-                    else {
+                    let DetailsFieldSource::ProjectSymbolRuntimeValue { field_path } = details_edit.get_source() else {
                         return;
                     };
+                    let field_name = field_path
+                        .last()
+                        .cloned()
+                        .unwrap_or_else(|| String::from("value"));
                     let Some(anonymous_value_string) = Self::details_value_to_anonymous_value_string(engine_unprivileged_state.as_ref(), details_value) else {
                         return;
                     };

@@ -2,7 +2,7 @@ use crate::views::struct_viewer::view_data::struct_viewer_field_presentation::{S
 use squalr_engine_api::structures::{
     data_types::{built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8, data_type_ref::DataTypeRef},
     data_values::{container_type::ContainerType, data_value::DataValue},
-    details::{DetailsEdit, DetailsEditorHint, DetailsField, DetailsFieldId, DetailsProjection, DetailsTarget, DetailsValue},
+    details::{DetailsEdit, DetailsEditorHint, DetailsField, DetailsFieldId, DetailsFieldSource, DetailsProjection, DetailsTarget, DetailsValue},
     structs::{
         valued_struct::ValuedStruct,
         valued_struct_field::{ValuedStructField, ValuedStructFieldData},
@@ -15,6 +15,7 @@ use std::{collections::HashMap, sync::Arc};
 pub struct DetailsProjectionAdapterState {
     target: DetailsTarget,
     rendered_field_ids: HashMap<String, DetailsFieldId>,
+    rendered_field_sources: HashMap<String, DetailsFieldSource>,
     field_presentations: HashMap<String, StructViewerFieldPresentation>,
     field_validation_data_type_refs: HashMap<String, DataTypeRef>,
 }
@@ -54,9 +55,14 @@ impl DetailsProjectionAdapterState {
         edited_field: &ValuedStructField,
     ) -> Option<DetailsEdit> {
         let field_id = self.rendered_field_ids.get(edited_field.get_name())?.clone();
+        let source = self
+            .rendered_field_sources
+            .get(edited_field.get_name())
+            .cloned()
+            .unwrap_or_default();
         let value = Self::details_value_from_valued_struct_field(edited_field);
 
-        Some(DetailsEdit::new(self.target.clone(), field_id, value))
+        Some(DetailsEdit::new_with_source(self.target.clone(), field_id, source, value))
     }
 
     fn details_value_from_valued_struct_field(valued_struct_field: &ValuedStructField) -> DetailsValue {
@@ -80,6 +86,7 @@ impl DetailsProjectionAdapter {
     ) -> Self {
         let mut fields = Vec::new();
         let mut rendered_field_ids = HashMap::new();
+        let mut rendered_field_sources = HashMap::new();
         let mut field_presentations = HashMap::new();
         let mut field_validation_data_type_refs = HashMap::new();
 
@@ -88,6 +95,7 @@ impl DetailsProjectionAdapter {
             let valued_struct_field = Self::valued_struct_field_from_details_field(engine_unprivileged_state, details_field, &rendered_field_name);
 
             rendered_field_ids.insert(rendered_field_name.clone(), details_field.get_id().clone());
+            rendered_field_sources.insert(rendered_field_name.clone(), details_field.get_source().clone());
             field_presentations.insert(
                 rendered_field_name.clone(),
                 StructViewerFieldPresentation::new(details_field.get_label().to_string(), Self::editor_kind_from_details_field(details_field)),
@@ -105,6 +113,7 @@ impl DetailsProjectionAdapter {
             state: DetailsProjectionAdapterState {
                 target: details_projection.get_target().clone(),
                 rendered_field_ids,
+                rendered_field_sources,
                 field_presentations,
                 field_validation_data_type_refs,
             },

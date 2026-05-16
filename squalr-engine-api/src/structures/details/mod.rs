@@ -60,10 +60,23 @@ mod tests {
     #[test]
     fn details_edit_routes_by_target_and_field_id() {
         let target = DetailsTarget::new("project_symbol", "Player.Health");
-        let edit = DetailsEdit::new(target.clone(), DetailsFieldId::new("runtime.value"), DetailsValue::UnsignedInteger(255));
+        let edit = DetailsEdit::new_with_source(
+            target.clone(),
+            DetailsFieldId::new("runtime.value"),
+            DetailsFieldSource::ProjectSymbolRuntimeValue {
+                field_path: vec!["value".to_string()],
+            },
+            DetailsValue::UnsignedInteger(255),
+        );
 
         assert_eq!(edit.get_target(), &target);
         assert_eq!(edit.get_field_id().get_field_id(), "runtime.value");
+        assert_eq!(
+            edit.get_source(),
+            &DetailsFieldSource::ProjectSymbolRuntimeValue {
+                field_path: vec!["value".to_string()]
+            }
+        );
         assert_eq!(edit.get_value(), &DetailsValue::UnsignedInteger(255));
     }
 

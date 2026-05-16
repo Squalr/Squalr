@@ -65,6 +65,7 @@ Our current task, from `README.md`, is:
      - `DetailsEditPlan { operations }`
    - Keep `DetailsEditorHint` semantic: value, address, code, data type, container type, pointer offsets, pointer size, resolver, layout field, etc. Do not use egui/widget enum names.
    - Keep `DetailsFieldSource` explicit enough to represent project item property, project item runtime value, project item address target metadata, project symbol runtime value, symbol layout metadata, and symbol resolver metadata.
+   - `DetailsEdit` now carries `DetailsFieldSource` from the projected field, so callers can route edits without re-inferring source from field ids.
    - Added small API tests for serialization/round trip, stable field id routing, and ordered edit-plan operations.
 
 2. Done: add a Struct Viewer compatibility adapter.
@@ -72,7 +73,7 @@ Our current task, from `README.md`, is:
    - Added `StructViewerViewData::focus_details_projection_with_focus_target` beside the existing `focus_valued_struct*` APIs.
    - Converts `DetailsProjection` into the rendered legacy `ValuedStruct` so table rendering stays stable.
    - Preserves a local mapping from rendered field name to `DetailsFieldId` and uses `StructViewerFieldPresentation` for display labels.
-   - Converts edited rows back into `DetailsEdit` before invoking caller logic. Callers no longer need to parse display labels on the Details path.
+   - Converts edited rows back into `DetailsEdit` with stable field id and source metadata before invoking caller logic. Callers no longer need to parse display labels on the Details path.
    - Added focused tests proving labels can change without breaking edit routing.
 
 3. Stop adding domain rules to `StructViewerViewData`.
@@ -181,3 +182,4 @@ Our current task, from `README.md`, is:
 - Current Project Hierarchy runtime cleanup pass routed legacy fallback runtime edits through `ProjectItemsWriteValueRequest` and removed `ProjectItemDetails::build_memory_write_request_for_runtime_value_edit`. Validated with `cargo test -p squalr project_hierarchy --lib --locked`.
 - Current Symbol Tree projector pass added `SymbolTreeDetailsProjection` for metadata, fallback status, and runtime value fields. Validated with `cargo test -p squalr-engine-api symbol_tree_details --lib --locked`.
 - Current Symbol Tree focus pass routed normal readable Symbol Tree selections through `SymbolTreeDetailsProjection` and Details edit callbacks, leaving the external array/value-viewer path legacy. Validated with `cargo test -p squalr symbol_tree --lib --locked`.
+- Current Details edit-source pass preserved `DetailsFieldSource` on `DetailsEdit` and routed Symbol Tree runtime edits from source metadata instead of field-id inference. Validated with `cargo test -p squalr-engine-api details --lib --locked`, `cargo test -p squalr struct_viewer --lib --locked`, and `cargo test -p squalr symbol_tree --lib --locked`.
