@@ -44,9 +44,13 @@ use squalr_engine_api::plugins::symbol_tree::symbol_tree_action::{SymbolTreeActi
 use squalr_engine_api::structures::data_types::built_in_types::{string::utf8::data_type_string_utf8::DataTypeStringUtf8, u64::data_type_u64::DataTypeU64};
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::{
+    anonymous_value_string::AnonymousValueString,
+    anonymous_value_string_format::AnonymousValueStringFormat,
     container_type::ContainerType,
+    data_value::DataValue,
     data_value_preview_formatter::{DataValuePreviewFormatOptions, DataValuePreviewFormatter},
 };
+use squalr_engine_api::structures::details::{DetailsEdit, DetailsProjection, DetailsValue};
 use squalr_engine_api::structures::memory::{
     pointer::Pointer,
     symbolic_pointer_chain::{SymbolicPointerChain, SymbolicPointerChainLink},
@@ -55,6 +59,7 @@ use squalr_engine_api::structures::projects::{
     project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress,
     project_symbol_catalog::ProjectSymbolCatalog,
     project_symbol_locator::ProjectSymbolLocator,
+    symbol_tree::details::SymbolTreeDetailsProjection,
     symbol_tree::operations::{
         add_symbol_to_project::{AddSymbolToProjectTarget, build_add_symbol_project_item_create_request, build_add_symbol_to_project_target},
         define_field::DefineFieldPlan,
@@ -556,17 +561,105 @@ impl SymbolTreeView {
         project_symbol_catalog: &ProjectSymbolCatalog,
         selected_symbol_tree_entry: &SymbolTreeNode,
     ) {
-        let symbol_layout = self.build_symbol_layout_for_tree_entry(project_symbol_catalog, selected_symbol_tree_entry);
-        let struct_viewer_edit_callback = self.build_struct_viewer_edit_callback(selected_symbol_tree_entry);
         let focus_target = Self::build_struct_viewer_focus_target(Some(selected_symbol_tree_entry));
 
-        StructViewerViewData::focus_valued_struct_with_focus_target(
+        if Self::symbol_tree_entry_should_use_external_value_viewer(selected_symbol_tree_entry) {
+            let symbol_layout = self.build_symbol_layout_for_tree_entry(project_symbol_catalog, selected_symbol_tree_entry);
+            let struct_viewer_edit_callback = self.build_struct_viewer_edit_callback(selected_symbol_tree_entry);
+
+            StructViewerViewData::focus_valued_struct_with_focus_target(
+                self.struct_viewer_view_data.clone(),
+                self.app_context.engine_unprivileged_state.clone(),
+                symbol_layout,
+                struct_viewer_edit_callback,
+                focus_target,
+            );
+
+            return;
+        }
+
+        let details_projection = self.build_symbol_details_projection_for_tree_entry(project_symbol_catalog, selected_symbol_tree_entry);
+        let details_edit_callback = self.build_symbol_details_edit_callback(selected_symbol_tree_entry);
+
+        StructViewerViewData::focus_details_projection_with_focus_target(
             self.struct_viewer_view_data.clone(),
             self.app_context.engine_unprivileged_state.clone(),
-            symbol_layout,
-            struct_viewer_edit_callback,
+            details_projection,
+            details_edit_callback,
             focus_target,
         );
+    }
+
+    fn build_symbol_details_edit_callback(
+        &self,
+        selected_symbol_tree_entry: &SymbolTreeNode,
+    ) -> Arc<dyn Fn(DetailsEdit) + Send + Sync> {
+        let symbol_claim_locator_key = match selected_symbol_tree_entry.get_kind() {
+            SymbolTreeNodeKind::SymbolClaim { symbol_locator_key } => Some(symbol_locator_key.to_string()),
+            _ => None,
+        };
+        let selected_symbol_tree_entry = selected_symbol_tree_entry.clone();
+        let engine_unprivileged_state = self.app_context.engine_unprivileged_state.clone();
+
+        Arc::new(move |details_edit: DetailsEdit| match details_edit.get_value() {
+            DetailsValue::Empty => {}
+            details_value => match details_edit.get_field_id().get_field_id() {
+                "metadata.display_name" => {
+                    let Some(symbol_locator_key) = symbol_claim_locator_key.as_ref() else {
+                        return;
+                    };
+                    let Some(next_display_name) = Self::details_value_to_text(details_value) else {
+                        return;
+                    };
+                    let next_display_name = next_display_name.trim().to_string();
+                    if next_display_name.is_empty() || next_display_name == selected_symbol_tree_entry.get_display_name() {
+                        return;
+                    }
+
+                    ProjectSymbolsRenameRequest {
+                        symbol_locator_key: symbol_locator_key.clone(),
+                        display_name: next_display_name,
+                    }
+                    .send(&engine_unprivileged_state, |_project_symbols_rename_response| {});
+                }
+                _ => {
+                    let Some(field_name) = details_edit
+                        .get_field_id()
+                        .get_field_id()
+                        .strip_prefix(SymbolTreeDetailsProjection::FIELD_ID_VALUE_PREFIX)
+                        .map(str::to_string)
+                    else {
+                        return;
+                    };
+                    let Some(anonymous_value_string) = Self::details_value_to_anonymous_value_string(engine_unprivileged_state.as_ref(), details_value) else {
+                        return;
+                    };
+
+                    ProjectSymbolsWriteValueRequest {
+                        address: selected_symbol_tree_entry.get_locator().get_focus_address(),
+                        module_name: selected_symbol_tree_entry
+                            .get_locator()
+                            .get_focus_module_name()
+                            .to_string(),
+                        symbol_type_id: selected_symbol_tree_entry.get_symbol_type_id().to_string(),
+                        container_type: selected_symbol_tree_entry.get_container_type(),
+                        field_name,
+                        anonymous_value_string,
+                    }
+                    .send(&engine_unprivileged_state, |project_symbols_write_value_response| {
+                        if !project_symbols_write_value_response.success {
+                            log::warn!(
+                                "Symbol Tree details value write command failed: {}",
+                                project_symbols_write_value_response
+                                    .error
+                                    .as_deref()
+                                    .unwrap_or("unknown error")
+                            );
+                        }
+                    });
+                }
+            },
+        })
     }
 
     fn sync_selected_symbol_into_struct_viewer(
@@ -666,6 +759,64 @@ impl SymbolTreeView {
                 }
             });
         })
+    }
+
+    fn details_value_to_text(details_value: &DetailsValue) -> Option<String> {
+        match details_value {
+            DetailsValue::Text(text) => Some(text.clone()),
+            DetailsValue::DataValue(data_value) => String::from_utf8(data_value.get_value_bytes().clone()).ok(),
+            DetailsValue::AnonymousValue(anonymous_value_string) => Some(anonymous_value_string.get_anonymous_value_string().to_string()),
+            DetailsValue::Boolean(value) => Some(value.to_string()),
+            DetailsValue::UnsignedInteger(value) => Some(value.to_string()),
+            DetailsValue::SignedInteger(value) => Some(value.to_string()),
+            DetailsValue::Empty => Some(String::new()),
+        }
+    }
+
+    fn details_value_to_anonymous_value_string(
+        engine_execution_context: &dyn EngineExecutionContext,
+        details_value: &DetailsValue,
+    ) -> Option<AnonymousValueString> {
+        match details_value {
+            DetailsValue::AnonymousValue(anonymous_value_string) => Some(anonymous_value_string.clone()),
+            DetailsValue::DataValue(data_value) => Self::data_value_to_anonymous_value_string(engine_execution_context, data_value),
+            DetailsValue::Text(text) => Some(AnonymousValueString::new(text.clone(), AnonymousValueStringFormat::String, ContainerType::None)),
+            DetailsValue::Boolean(value) => Some(AnonymousValueString::new(
+                value.to_string(),
+                AnonymousValueStringFormat::Bool,
+                ContainerType::None,
+            )),
+            DetailsValue::UnsignedInteger(value) => Some(AnonymousValueString::new(
+                value.to_string(),
+                AnonymousValueStringFormat::Decimal,
+                ContainerType::None,
+            )),
+            DetailsValue::SignedInteger(value) => Some(AnonymousValueString::new(
+                value.to_string(),
+                AnonymousValueStringFormat::Decimal,
+                ContainerType::None,
+            )),
+            DetailsValue::Empty => Some(AnonymousValueString::new(
+                String::new(),
+                AnonymousValueStringFormat::String,
+                ContainerType::None,
+            )),
+        }
+    }
+
+    fn data_value_to_anonymous_value_string(
+        engine_execution_context: &dyn EngineExecutionContext,
+        data_value: &DataValue,
+    ) -> Option<AnonymousValueString> {
+        let anonymous_value_string_format = engine_execution_context.get_default_anonymous_value_string_format(data_value.get_data_type_ref());
+
+        engine_execution_context
+            .anonymize_value(data_value, anonymous_value_string_format)
+            .map_err(|error| {
+                log::warn!("Failed to format Symbol Tree details edit: {}", error);
+                error
+            })
+            .ok()
     }
 
     fn resolve_symbolic_field_size_in_bytes(
@@ -885,6 +1036,61 @@ impl SymbolTreeView {
                     symbol_tree_entry.get_container_type(),
                 )])
             })
+    }
+
+    fn build_symbol_details_projection_for_tree_entry(
+        &self,
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        symbol_tree_entry: &SymbolTreeNode,
+    ) -> DetailsProjection {
+        let include_symbol_claim_metadata = SymbolTreeDetailsProjection::include_symbol_claim_metadata(symbol_tree_entry);
+        let engine_execution_context: Arc<dyn EngineExecutionContext> = self.app_context.engine_unprivileged_state.clone();
+        let symbol_size_in_bytes = Self::resolve_symbol_tree_entry_size_for_struct_viewer(&engine_execution_context, symbol_tree_entry);
+
+        let Some(symbolic_struct_definition) = self.build_named_symbolic_struct_definition_for_symbol_tree_entry(project_symbol_catalog, symbol_tree_entry)
+        else {
+            return SymbolTreeDetailsProjection::build(
+                symbol_tree_entry,
+                include_symbol_claim_metadata,
+                symbol_size_in_bytes,
+                None,
+                Some("Unable to resolve a struct definition for the selected symbol."),
+            );
+        };
+
+        let memory_read_response = Self::dispatch_memory_read_request(
+            &engine_execution_context,
+            symbol_tree_entry.get_locator().get_focus_address(),
+            symbol_tree_entry.get_locator().get_focus_module_name(),
+            &symbolic_struct_definition,
+        );
+        let Some(memory_read_response) = memory_read_response else {
+            return SymbolTreeDetailsProjection::build(
+                symbol_tree_entry,
+                include_symbol_claim_metadata,
+                symbol_size_in_bytes,
+                None,
+                Some("Timed out while reading the selected symbol from memory."),
+            );
+        };
+
+        if !memory_read_response.success {
+            return SymbolTreeDetailsProjection::build(
+                symbol_tree_entry,
+                include_symbol_claim_metadata,
+                symbol_size_in_bytes,
+                None,
+                Some("The selected symbol could not be read from memory."),
+            );
+        }
+
+        SymbolTreeDetailsProjection::build(
+            symbol_tree_entry,
+            include_symbol_claim_metadata,
+            symbol_size_in_bytes,
+            Some(&memory_read_response.valued_struct),
+            None,
+        )
     }
 
     fn normalize_symbol_memory_struct(

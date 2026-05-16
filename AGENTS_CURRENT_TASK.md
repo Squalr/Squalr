@@ -116,7 +116,7 @@ Our current task, from `README.md`, is:
    - Added `squalr-engine/src/services/projects/project_item_runtime_value_write.rs` so project items resolve to the existing `project_symbols write-value` runtime write planner instead of building memory writes in GUI code.
    - Reused `project_item_symbol_resolution::resolve_project_item_locator` and `resolve_project_item_struct_layout_id`, then dispatches `MemoryWriteRequest` from the engine.
    - Added CLI parsing and response handling to mirror `project_symbols write-value`.
-   - Remaining target: route Project Hierarchy runtime value edits through this command instead of adapting to legacy `ValuedStructField` and calling GUI-side write helpers.
+   - Project Hierarchy runtime value edits now route through this command.
 
 7. Migrate Project Hierarchy to Details.
    - Change `focus_project_item_paths_in_struct_viewer` to request/focus `DetailsProjection`s.
@@ -130,8 +130,11 @@ Our current task, from `README.md`, is:
 8. Migrate Symbol Tree to Details.
    - Added shared projector under `squalr-engine-api/src/structures/projects/symbol_tree/details/`.
    - `SymbolTreeDetailsProjection` covers symbol claim display-name metadata, type metadata, address/module/size/path fields, fallback locator/status fields, and normalized runtime value fields.
-   - Move metadata/location/value field construction out of `build_symbol_layout_*`.
-   - Use existing `ProjectSymbolsWriteValueRequest` for runtime edits.
+   - Normal readable Symbol Tree selections now focus `DetailsProjection` through `StructViewerViewData::focus_details_projection_with_focus_target`.
+   - Normal Details runtime edits dispatch existing `ProjectSymbolsWriteValueRequest`.
+   - Normal Details display-name edits dispatch existing `ProjectSymbolsRenameRequest`.
+   - Remaining target: move external array/value-viewer rows off the old `ValuedStruct` path.
+   - Remaining target: remove legacy metadata/location/value field construction from `build_symbol_layout_*` after the external path is migrated.
    - Keep symbol tree rendering, expansion state, and selection in the GUI view.
 
 9. Drain old virtual fields from Struct Viewer.
@@ -177,3 +180,4 @@ Our current task, from `README.md`, is:
 - Current Project Hierarchy stored-edit pass wired single-selection `UpdateStoredField` operations to `ProjectItemDetailsEditApplier` and `RenameTarget` operations to `ProjectItemsRenameRequest`. Validated with `cargo test -p squalr project_hierarchy --lib --locked`.
 - Current Project Hierarchy runtime cleanup pass routed legacy fallback runtime edits through `ProjectItemsWriteValueRequest` and removed `ProjectItemDetails::build_memory_write_request_for_runtime_value_edit`. Validated with `cargo test -p squalr project_hierarchy --lib --locked`.
 - Current Symbol Tree projector pass added `SymbolTreeDetailsProjection` for metadata, fallback status, and runtime value fields. Validated with `cargo test -p squalr-engine-api symbol_tree_details --lib --locked`.
+- Current Symbol Tree focus pass routed normal readable Symbol Tree selections through `SymbolTreeDetailsProjection` and Details edit callbacks, leaving the external array/value-viewer path legacy. Validated with `cargo test -p squalr symbol_tree --lib --locked`.
