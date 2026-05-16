@@ -52,6 +52,24 @@ Our current task, from `README.md`, is:
   - `dispatch_memory_read_request`
   - `build_symbol_preview_snapshot_queries`
 
+## Vestigial Code Audit
+
+- `StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_OFFSET_MODE` and `VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_STATIC_OFFSET` look like removable fossils. Symbol Layout editor no longer renders or applies those rows; remaining references are constants plus tests asserting the rows are absent.
+- `SymbolLayoutFieldEditDraft::is_hidden`, `SymbolicFieldDefinition::is_hidden`, `with_hidden`, and `" hidden"` parsing remain after explicit `unassigned[...]` was introduced. PE symbol population no longer emits hidden fields. Hidden currently behaves like a second mechanism for non-rendered layout bytes, while `unassigned[...]` is the preferred explicit data variant. Audit before removal because union inactive/ambiguous filtering uses a separate activation model, not the hidden flag.
+- `DetailsEditorHint::{Code, ContainerType, SymbolResolver, SymbolLayout}` and `DetailsFieldSource::SymbolResolverMetadata` are currently unproduced by project item and symbol tree Details projectors. They may be future vocabulary, but today they are speculative API surface.
+- `ProjectItemDetails` remains reachable only as a GUI bridge for multi-selection Details, preview/value display helpers, and context actions. It is not dead yet, but its single-selection stored edit/value-write responsibilities have moved to `ProjectItemDetailsProjection`, `ProjectItemDetailsEditPlanner`, `ProjectItemDetailsEditApplier`, and `project_items write-value`.
+- `SymbolTreeView::build_symbol_layout_for_tree_entry`, `build_symbol_layout_metadata_fields`, `build_symbol_layout_location_fields`, and the view-owned memory-read dispatcher remain reachable through the external array/value-viewer path only. Normal symbol Details moved to `SymbolTreeDetailsProjection`.
+- `plugins/squalr-plugin-symbols-pe/src/populate_pe_symbols_action.rs::resolve_primitive_data_type_size` is a local size table used only by PE layout placement. It is not dead, but it duplicates data-type sizing knowledge and should eventually use a shared symbolic layout sizing service if one is introduced.
+
+## Vestigial Cleanup Action Items
+
+1. Remove the two dead Symbol Layout offset/static Struct Viewer virtual field constants and update tests to assert absence by user-visible labels or field count instead of obsolete ids.
+2. Decide whether hidden symbolic fields still exist as a domain concept. If not, remove `" hidden"` parsing/storage/draft state/tests and represent reserved bytes exclusively with `unassigned[...]`.
+3. Tighten the Details model by removing unproduced editor/source variants, or add the actual projectors that produce them. Avoid carrying pretend vocabulary with no caller.
+4. Finish migrating Project Hierarchy multi-selection off `ProjectItemDetails::build_struct_view_properties`; then delete legacy persisted-property edit parsing from `ProjectHierarchyView::apply_project_item_edits`.
+5. Move Symbol Tree external array/value-viewer projection to Details; then delete the remaining legacy `build_symbol_layout_*` path and view-owned memory-read dispatcher.
+6. Consider extracting shared symbolic layout size estimation once PE placement and runtime/tree sizing need the same behavior.
+
 ## Detailed Action Items
 
 1. Done: add the shared Details model before moving any GUI behavior.
