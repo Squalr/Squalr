@@ -1,4 +1,5 @@
 pub mod converters;
+pub mod data_value_preview_formatter;
 pub mod draw;
 pub mod fonts;
 pub mod geometry;

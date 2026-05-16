@@ -1,4 +1,5 @@
 use crate::app_context::AppContext;
+use crate::ui::data_value_preview_formatter::DataValuePreviewFormatter;
 use crate::ui::list_navigation::{ListNavigationDirection, resolve_next_index};
 use crate::ui::widgets::controls::{
     context_menu::context_menu::{ContextMenu, ContextMenuSizing},
@@ -45,7 +46,7 @@ use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::plugins::symbol_tree::symbol_tree_action::{SymbolTreeActionContext, SymbolTreeActionSelection};
 use squalr_engine_api::structures::data_types::built_in_types::{string::utf8::data_type_string_utf8::DataTypeStringUtf8, u64::data_type_u64::DataTypeU64};
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
-use squalr_engine_api::structures::data_values::{anonymous_value_string::AnonymousValueString, container_type::ContainerType};
+use squalr_engine_api::structures::data_values::container_type::ContainerType;
 use squalr_engine_api::structures::memory::{
     pointer::Pointer,
     symbolic_pointer_chain::{SymbolicPointerChain, SymbolicPointerChainLink},
@@ -110,9 +111,6 @@ impl SymbolTreeView {
     const STRUCT_VIEWER_SYMBOL_PATH_FIELD: &'static str = "path";
     const INLINE_RENAME_TEXT_STORAGE_ID_PREFIX: &'static str = "symbol_tree_inline_rename_text";
     const INLINE_RENAME_HIGHLIGHT_STORAGE_ID_PREFIX: &'static str = "symbol_tree_inline_rename_highlight";
-    const MAX_SYMBOL_PREVIEW_ELEMENT_COUNT: u64 = 4;
-    const MAX_SYMBOL_PREVIEW_DISPLAY_ELEMENT_COUNT: usize = 3;
-    const MAX_SYMBOL_PREVIEW_ARRAY_CHARACTER_COUNT: usize = 24;
     const SYMBOL_TREE_CTX_OPEN_MEMORY_VIEWER_LABEL: &str = OPEN_IN_MEMORY_VIEWER_LABEL;
     const SYMBOL_TREE_CTX_OPEN_MEMORY_VIEWER_ID: &str = "symbol_tree_ctx_open_memory_viewer";
     const SYMBOL_TREE_CTX_OPEN_CODE_VIEWER_LABEL: &str = OPEN_IN_CODE_VIEWER_LABEL;
@@ -815,8 +813,8 @@ impl SymbolTreeView {
         let entry_field_definition = SymbolicFieldDefinition::from_str(&symbol_tree_entry.get_display_type_id()).ok()?;
         let preview_container_type = if truncate_preview_arrays {
             match entry_field_definition.get_container_type() {
-                ContainerType::ArrayFixed(length) if length > Self::MAX_SYMBOL_PREVIEW_ELEMENT_COUNT => {
-                    ContainerType::ArrayFixed(Self::MAX_SYMBOL_PREVIEW_ELEMENT_COUNT)
+                ContainerType::ArrayFixed(length) if length > DataValuePreviewFormatter::MAX_ARRAY_PREVIEW_ELEMENT_COUNT => {
+                    ContainerType::ArrayFixed(DataValuePreviewFormatter::MAX_ARRAY_PREVIEW_ELEMENT_COUNT)
                 }
                 container_type => container_type,
             }
@@ -1536,115 +1534,13 @@ impl SymbolTreeView {
             .engine_unprivileged_state
             .anonymize_value(first_read_field_data_value, default_anonymous_value_string_format)
             .map(|anonymous_value_string| {
-                Self::format_symbol_preview_value(
+                DataValuePreviewFormatter::format_anonymous_value_preview(
                     &anonymous_value_string,
                     symbol_tree_entry.get_container_type(),
-                    Self::symbol_preview_was_truncated(symbol_tree_entry),
+                    DataValuePreviewFormatter::array_preview_was_truncated(symbol_tree_entry.get_container_type()),
                 )
             })
             .unwrap_or_default()
-    }
-
-    fn symbol_preview_was_truncated(symbol_tree_entry: &SymbolTreeNode) -> bool {
-        matches!(
-            symbol_tree_entry.get_container_type(),
-            ContainerType::ArrayFixed(length) if length > Self::MAX_SYMBOL_PREVIEW_ELEMENT_COUNT
-        )
-    }
-
-    fn format_symbol_preview_value(
-        anonymous_value_string: &AnonymousValueString,
-        symbolic_field_container_type: ContainerType,
-        preview_was_truncated: bool,
-    ) -> String {
-        let effective_container_type = if matches!(anonymous_value_string.get_container_type(), ContainerType::Array | ContainerType::ArrayFixed(_)) {
-            anonymous_value_string.get_container_type()
-        } else {
-            symbolic_field_container_type
-        };
-        let display_value = anonymous_value_string.get_anonymous_value_string();
-
-        if matches!(effective_container_type, ContainerType::Array | ContainerType::ArrayFixed(_)) && !display_value.is_empty() {
-            let preview_value = if preview_was_truncated {
-                Self::append_symbol_preview_ellipsis(display_value)
-            } else {
-                Self::truncate_symbol_preview_value(display_value)
-            };
-
-            format!("[{}]", preview_value)
-        } else {
-            display_value.to_string()
-        }
-    }
-
-    fn append_symbol_preview_ellipsis(display_value: &str) -> String {
-        if let Some(truncated_array_preview) = Self::format_symbol_preview_from_elements(display_value, true) {
-            return truncated_array_preview;
-        }
-
-        let trimmed_display_value = display_value.trim_end_matches(|character: char| character.is_ascii_whitespace() || matches!(character, ',' | ';'));
-
-        if trimmed_display_value.is_empty() {
-            String::from("...")
-        } else {
-            format!("{}...", trimmed_display_value)
-        }
-    }
-
-    fn truncate_symbol_preview_value(display_value: &str) -> String {
-        if let Some(truncated_array_preview) = Self::format_symbol_preview_from_elements(display_value, false) {
-            return truncated_array_preview;
-        }
-
-        let display_value_character_count = display_value.chars().count();
-
-        if display_value_character_count <= Self::MAX_SYMBOL_PREVIEW_ARRAY_CHARACTER_COUNT {
-            return display_value.to_string();
-        }
-
-        let truncated_prefix: String = display_value
-            .chars()
-            .take(Self::MAX_SYMBOL_PREVIEW_ARRAY_CHARACTER_COUNT)
-            .collect::<String>()
-            .trim_end_matches(|character: char| character.is_ascii_whitespace() || matches!(character, ',' | ';'))
-            .to_string();
-
-        format!("{}...", truncated_prefix)
-    }
-
-    fn format_symbol_preview_from_elements(
-        display_value: &str,
-        force_ellipsis: bool,
-    ) -> Option<String> {
-        let array_elements = Self::split_symbol_preview_elements(display_value);
-
-        if array_elements.len() <= 1 {
-            return None;
-        }
-
-        let visible_element_count = array_elements
-            .len()
-            .min(Self::MAX_SYMBOL_PREVIEW_DISPLAY_ELEMENT_COUNT);
-        let mut preview_elements = array_elements
-            .iter()
-            .take(visible_element_count)
-            .map(|array_element| (*array_element).to_string())
-            .collect::<Vec<_>>();
-        let has_hidden_elements = force_ellipsis || array_elements.len() > visible_element_count;
-
-        if has_hidden_elements {
-            preview_elements.push(String::from("..."));
-        }
-
-        Some(preview_elements.join(", "))
-    }
-
-    fn split_symbol_preview_elements(display_value: &str) -> Vec<&str> {
-        display_value
-            .split([',', ';'])
-            .map(str::trim)
-            .filter(|array_element| !array_element.is_empty())
-            .collect::<Vec<_>>()
     }
 
     fn format_symbol_tree_size_preview(size_in_bytes: u64) -> String {
