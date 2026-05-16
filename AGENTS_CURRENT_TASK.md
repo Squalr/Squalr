@@ -87,8 +87,9 @@ Our current task, from `README.md`, is:
    - API projector models address target pointer size/offsets, projected module metadata, symbolic data type, and runtime value as semantic `DetailsField`s.
    - Existing field-shape tests for address target fields, pointer preview hiding, projected module, and runtime editability were mirrored into the API projector.
    - Single-selection Project Hierarchy details focus now uses `ProjectItemDetailsProjection` plus `StructViewerViewData::focus_details_projection_with_focus_target`.
+   - Project Hierarchy icon data type resolution now uses `ProjectItemDetailsProjection::resolve_project_item_icon_data_type_id`.
    - Multi-selection Project Hierarchy details focus still uses legacy `ProjectItemDetails::build_struct_view_properties` until a multi-projection strategy exists.
-   - Remaining target: migrate `resolve_project_item_icon_data_type_id` callers and remove legacy single-selection `ProjectItemDetails::build_struct_view_properties` dependency after edit planning moves off legacy fields.
+   - Remaining target: remove legacy single-selection `ProjectItemDetails::build_struct_view_properties` dependency after stored-field edit application moves off legacy fields.
 
 5. In progress: add project item edit planning.
    - Added `ProjectItemDetailsEditPlanner` in `squalr-engine-api/src/structures/projects/project_items/details/`.
@@ -164,3 +165,4 @@ Our current task, from `README.md`, is:
 - Current project item planning pass added `ProjectItemDetailsEditPlanner` and wired single-selection Project Hierarchy Details edits through it.
 - Current command pass added `project_items write-value` plus an engine service that resolves project items into symbol runtime writes. Validated with `cargo test -p squalr-engine project_items --lib --locked`, `cargo test -p squalr-engine project_item_runtime_value_write --lib --locked`, and `cargo test -p squalr-cli parse_input --locked`.
 - Current Project Hierarchy command-routing pass changed Details runtime edits to dispatch `ProjectItemsWriteValueRequest` and added runtime source metadata to `DetailsEditOperation::WriteRuntimeValue`. Validated with `cargo test -p squalr-engine-api project_item_details --lib --locked` and `cargo test -p squalr project_hierarchy --lib --locked`.
+- Current icon-routing pass moved Project Hierarchy icon data type resolution to `ProjectItemDetailsProjection` and removed the GUI bridge method.

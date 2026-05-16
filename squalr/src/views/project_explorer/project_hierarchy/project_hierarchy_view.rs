@@ -3706,7 +3706,7 @@ impl ProjectHierarchyView {
         if project_item_type_id == ProjectItemTypeDirectory::PROJECT_ITEM_TYPE_ID {
             Some(icon_library.icon_handle_file_system_open_folder.clone())
         } else {
-            let icon_data_type_id = ProjectItemDetails::resolve_project_item_icon_data_type_id(project_item).unwrap_or_default();
+            let icon_data_type_id = ProjectItemDetailsProjection::resolve_project_item_icon_data_type_id(project_item).unwrap_or_default();
 
             Some(DataTypeToIconConverter::convert_data_type_to_icon(&icon_data_type_id, icon_library))
         }

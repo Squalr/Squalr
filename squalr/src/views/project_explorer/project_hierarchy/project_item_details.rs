@@ -277,10 +277,6 @@ impl ProjectItemDetails {
             .unwrap_or(false)
     }
 
-    pub fn resolve_project_item_icon_data_type_id(project_item: &ProjectItem) -> Option<String> {
-        Self::resolve_project_item_symbolic_struct_namespace(project_item)
-    }
-
     pub fn build_project_item_value_edit_context(
         engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
         opened_project_info: Option<&ProjectInfo>,
