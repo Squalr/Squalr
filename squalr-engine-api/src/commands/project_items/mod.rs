@@ -10,3 +10,4 @@ pub mod project_items_response;
 pub mod promote_symbol;
 pub mod rename;
 pub mod reorder;
+pub mod write_value;

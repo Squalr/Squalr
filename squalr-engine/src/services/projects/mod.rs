@@ -1,6 +1,7 @@
 pub mod project_item_activation;
 pub mod project_item_file_mutation;
 pub mod project_item_preview;
+pub mod project_item_runtime_value_write;
 pub mod project_item_symbol_promotion;
 pub mod project_item_symbol_resolution;
 pub mod project_symbol_catalog_mutation;

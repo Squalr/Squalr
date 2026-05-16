@@ -49,6 +49,11 @@ impl UnprivilegedCommandExecutor for ProjectItemsCommand {
             ProjectItemsCommand::Reorder { project_items_reorder_request } => project_items_reorder_request
                 .execute(engine_unprivileged_state)
                 .to_engine_response(),
+            ProjectItemsCommand::WriteValue {
+                project_items_write_value_request,
+            } => project_items_write_value_request
+                .execute(engine_unprivileged_state)
+                .to_engine_response(),
         }
     }
 }

@@ -41,6 +41,17 @@ pub fn handle_project_items_response(project_items_response: ProjectItemsRespons
                     .join(", ")
             );
         }
+        ProjectItemsResponse::WriteValue {
+            project_items_write_value_response,
+        } => {
+            if project_items_write_value_response.success {
+                log::info!("project item value write succeeded.");
+            } else if let Some(error) = project_items_write_value_response.error {
+                log::warn!("{}", error);
+            } else {
+                log::warn!("project item value write failed.");
+            }
+        }
         ProjectItemsResponse::Add { project_items_add_response } => {
             log::debug!("Unhandled project items add response: {:?}", project_items_add_response);
         }

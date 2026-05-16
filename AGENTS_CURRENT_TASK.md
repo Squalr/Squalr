@@ -103,12 +103,13 @@ Our current task, from `README.md`, is:
    - The GUI still adapts planned operations into the existing legacy `apply_project_item_edits` path for persistence, rename, and runtime write dispatch.
    - Remaining target: replace `ProjectHierarchyView::apply_project_item_edits` after the GUI has a non-legacy operation applier.
 
-6. Add `project_items write-value`.
-   - Add request/response/command enum variants under `squalr-engine-api/src/commands/project_items/`.
-   - Add executor under `squalr-engine/src/command_executors/project_items/write_value/`.
-   - Reuse `project_item_symbol_resolution::{resolve_project_item_locator, resolve_address_target_runtime_target, resolve_pointer_runtime_target}` and dispatch `MemoryWriteRequest` from the engine, not the GUI.
-   - Add CLI parsing and response handling to mirror `project_symbols write-value`.
-   - After this exists, runtime value edits in GUI/TUI/CLI can share the same command path.
+6. Done: add `project_items write-value`.
+   - Added request/response/command enum variants under `squalr-engine-api/src/commands/project_items/write_value/`.
+   - Added executor under `squalr-engine/src/command_executors/project_items/write_value/`.
+   - Added `squalr-engine/src/services/projects/project_item_runtime_value_write.rs` so project items resolve to the existing `project_symbols write-value` runtime write planner instead of building memory writes in GUI code.
+   - Reused `project_item_symbol_resolution::resolve_project_item_locator` and `resolve_project_item_struct_layout_id`, then dispatches `MemoryWriteRequest` from the engine.
+   - Added CLI parsing and response handling to mirror `project_symbols write-value`.
+   - Remaining target: route Project Hierarchy runtime value edits through this command instead of adapting to legacy `ValuedStructField` and calling GUI-side write helpers.
 
 7. Migrate Project Hierarchy to Details.
    - Change `focus_project_item_paths_in_struct_viewer` to request/focus `DetailsProjection`s.
@@ -158,3 +159,4 @@ Our current task, from `README.md`, is:
 - Current project item pass added a pure API-side `ProjectItemDetailsProjection`.
 - Current Project Hierarchy pass migrated single-selection details focus to `DetailsProjection`; multi-selection and legacy edit application still use `ProjectItemDetails`.
 - Current project item planning pass added `ProjectItemDetailsEditPlanner` and wired single-selection Project Hierarchy Details edits through it.
+- Current command pass added `project_items write-value` plus an engine service that resolves project items into symbol runtime writes. Validated with `cargo test -p squalr-engine project_items --lib --locked`, `cargo test -p squalr-engine project_item_runtime_value_write --lib --locked`, and `cargo test -p squalr-cli parse_input --locked`.

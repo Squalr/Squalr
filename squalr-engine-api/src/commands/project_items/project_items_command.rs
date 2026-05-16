@@ -4,6 +4,7 @@ use crate::commands::project_items::{
     duplicate::project_items_duplicate_request::ProjectItemsDuplicateRequest, list::project_items_list_request::ProjectItemsListRequest,
     move_item::project_items_move_request::ProjectItemsMoveRequest, promote_symbol::project_items_promote_symbol_request::ProjectItemsPromoteSymbolRequest,
     rename::project_items_rename_request::ProjectItemsRenameRequest, reorder::project_items_reorder_request::ProjectItemsReorderRequest,
+    write_value::project_items_write_value_request::ProjectItemsWriteValueRequest,
 };
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
@@ -59,5 +60,10 @@ pub enum ProjectItemsCommand {
     Reorder {
         #[structopt(flatten)]
         project_items_reorder_request: ProjectItemsReorderRequest,
+    },
+    /// Writes the runtime value represented by a project item.
+    WriteValue {
+        #[structopt(flatten)]
+        project_items_write_value_request: ProjectItemsWriteValueRequest,
     },
 }
