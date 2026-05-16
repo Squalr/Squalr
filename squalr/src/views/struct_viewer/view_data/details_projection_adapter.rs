@@ -9,7 +9,10 @@ use squalr_engine_api::structures::{
     },
 };
 use squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState;
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 #[derive(Clone, Debug, Default)]
 pub struct DetailsProjectionAdapterState {
@@ -37,6 +40,16 @@ impl DetailsProjectionAdapterState {
         field_presentations: &mut HashMap<String, StructViewerFieldPresentation>,
     ) {
         for (rendered_field_name, field_presentation) in &self.field_presentations {
+            if field_presentations
+                .get(rendered_field_name)
+                .is_some_and(|existing_field_presentation| {
+                    field_presentation.editor_kind() == &StructViewerFieldEditorKind::ValueBox
+                        && existing_field_presentation.editor_kind() != &StructViewerFieldEditorKind::ValueBox
+                })
+            {
+                continue;
+            }
+
             field_presentations.insert(rendered_field_name.clone(), field_presentation.clone());
         }
     }
@@ -89,9 +102,10 @@ impl DetailsProjectionAdapter {
         let mut rendered_field_sources = HashMap::new();
         let mut field_presentations = HashMap::new();
         let mut field_validation_data_type_refs = HashMap::new();
+        let mut rendered_field_names = HashSet::new();
 
         for (field_index, details_field) in details_projection.get_fields().iter().enumerate() {
-            let rendered_field_name = Self::rendered_field_name(field_index);
+            let rendered_field_name = Self::rendered_field_name(field_index, details_field, &mut rendered_field_names);
             let valued_struct_field = Self::valued_struct_field_from_details_field(engine_unprivileged_state, details_field, &rendered_field_name);
 
             rendered_field_ids.insert(rendered_field_name.clone(), details_field.get_id().clone());
@@ -124,8 +138,35 @@ impl DetailsProjectionAdapter {
         (self.valued_struct, self.state)
     }
 
-    fn rendered_field_name(field_index: usize) -> String {
-        format!("__details_field_{}", field_index)
+    fn rendered_field_name(
+        field_index: usize,
+        details_field: &DetailsField,
+        rendered_field_names: &mut HashSet<String>,
+    ) -> String {
+        let preferred_field_name = match details_field.get_source() {
+            DetailsFieldSource::ProjectItemProperty { property_name } => Some(property_name.clone()),
+            _ => details_field
+                .get_id()
+                .get_field_id()
+                .strip_prefix("property.")
+                .map(str::to_string),
+        }
+        .filter(|field_name| !field_name.trim().is_empty());
+
+        if let Some(preferred_field_name) = preferred_field_name {
+            if rendered_field_names.insert(preferred_field_name.clone()) {
+                return preferred_field_name;
+            }
+        }
+
+        let mut candidate_field_name = format!("__details_field_{}", field_index);
+        let mut collision_index = 0_usize;
+        while !rendered_field_names.insert(candidate_field_name.clone()) {
+            collision_index = collision_index.saturating_add(1);
+            candidate_field_name = format!("__details_field_{}_{}", field_index, collision_index);
+        }
+
+        candidate_field_name
     }
 
     fn valued_struct_field_from_details_field(

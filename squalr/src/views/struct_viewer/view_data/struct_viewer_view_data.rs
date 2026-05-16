@@ -948,7 +948,7 @@ mod tests {
         data_types::data_type_ref::DataTypeRef,
         data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
         details::{DetailsEdit, DetailsEditorHint, DetailsField, DetailsFieldId, DetailsFieldSource, DetailsProjection, DetailsTarget, DetailsValue},
-        projects::project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress,
+        projects::project_items::{built_in_types::project_item_type_address::ProjectItemTypeAddress, details::ProjectItemDetailsProjection},
     };
     use squalr_engine_api::{
         commands::{
@@ -1106,6 +1106,66 @@ mod tests {
         assert_eq!(field_presentation.display_name(), "Current HP");
         assert_eq!(captured_details_edit.get_target(), &target);
         assert_eq!(captured_details_edit.get_field_id(), &field_id);
+    }
+
+    #[test]
+    fn project_item_details_projection_preserves_data_type_selector_and_live_preview() {
+        let dependency_container = DependencyContainer::new();
+        let struct_viewer_view_data = dependency_container.register(StructViewerViewData::new());
+        let engine_unprivileged_state = create_test_engine_unprivileged_state();
+        let mut project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU16::get_value_from_primitive(0));
+        ProjectItemTypeAddress::set_field_freeze_data_value_interpreter(&mut project_item, "4660");
+        let details_projection = ProjectItemDetailsProjection::build(&project_item, "/Health");
+
+        StructViewerViewData::focus_details_projection_with_focus_target(
+            struct_viewer_view_data.clone(),
+            engine_unprivileged_state,
+            details_projection,
+            Arc::new(|_details_edit| {}),
+            None,
+        );
+
+        let struct_viewer_view_data = struct_viewer_view_data
+            .read("Read project item details projection state")
+            .expect("Expected struct viewer view data to be readable.");
+        let struct_under_view = struct_viewer_view_data
+            .struct_under_view
+            .as_ref()
+            .as_ref()
+            .expect("Expected projected project item details.");
+        let data_type_field_presentation = struct_viewer_view_data
+            .field_presentations
+            .get(ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE)
+            .expect("Expected data-type field presentation.");
+        let data_type_selection = struct_viewer_view_data
+            .field_data_type_selections
+            .get(ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE)
+            .expect("Expected data-type selection.");
+        let live_value_edit_value = struct_viewer_view_data
+            .field_edit_values
+            .get(ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE)
+            .expect("Expected live value edit preview.");
+
+        assert!(
+            struct_under_view
+                .get_field(ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE)
+                .is_some()
+        );
+        assert!(
+            struct_under_view
+                .get_field(StructViewerViewData::VIRTUAL_FIELD_CONTAINER_TYPE)
+                .is_some()
+        );
+        assert_eq!(data_type_field_presentation.editor_kind(), &StructViewerFieldEditorKind::DataTypeSelector);
+        assert_eq!(data_type_selection.visible_data_type(), &DataTypeRef::new(DataTypeU16::DATA_TYPE_ID));
+        assert_eq!(live_value_edit_value.get_anonymous_value_string(), "4660");
+        assert_eq!(live_value_edit_value.get_anonymous_value_string_format(), AnonymousValueStringFormat::Decimal);
+        assert!(
+            struct_viewer_view_data
+                .field_display_values
+                .get(ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE)
+                .is_some_and(|field_display_values| !field_display_values.is_empty())
+        );
     }
 
     #[test]
