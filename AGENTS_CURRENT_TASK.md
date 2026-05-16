@@ -80,12 +80,13 @@ Our current task, from `README.md`, is:
    - New Details flows must carry editor hints/source metadata through `DetailsField`; they should not add more `VIRTUAL_FIELD_*` constants.
    - Existing project item pointer fields, symbol resolver fields, symbol layout fields, and live value field decisions should be removed only after their callers are migrated to Details.
 
-4. Add a project item detail projector.
-   - Put pure API-shaped projection in `squalr-engine-api/src/structures/projects/project_items/details/` if it only needs item properties.
+4. In progress: add a project item detail projector.
+   - Added pure API-shaped projection in `squalr-engine-api/src/structures/projects/project_items/details/`.
    - Put runtime-aware projection/planning in `squalr-engine/src/services/projects/project_item_details.rs` if it needs process memory, module resolution, pointer evaluation, or preview data.
-   - First target: replace `ProjectItemDetails::build_struct_view_properties` and `resolve_project_item_icon_data_type_id` with shared projection for Directory, Script, Address, and Pointer items.
-   - Model pointer size/offsets, module address metadata, symbolic data type, runtime value, and preview display as semantic `DetailsField`s.
-   - Move or mirror the existing `ProjectHierarchyView`/`ProjectItemDetails` tests so the projector owns field shape expectations.
+   - API projector currently covers stored project item fields for Directory, Script, Address, and Pointer items.
+   - API projector models address target pointer size/offsets, projected module metadata, symbolic data type, and runtime value as semantic `DetailsField`s.
+   - Existing field-shape tests for address target fields, pointer preview hiding, projected module, and runtime editability were mirrored into the API projector.
+   - Remaining target: migrate `ProjectItemDetails::build_struct_view_properties` and `resolve_project_item_icon_data_type_id` callers to shared projection.
 
 5. Add project item edit planning.
    - A project item detail edit should produce explicit operations such as:
@@ -141,7 +142,7 @@ Our current task, from `README.md`, is:
 
 - Shared Details API model: added under `squalr-engine-api/src/structures/details/`; validate with `cargo test -p squalr-engine-api details --lib --locked`.
 - Struct Viewer adapter: added under `squalr/src/views/struct_viewer/view_data/`; validate with `cargo test -p squalr struct_viewer --lib --locked`.
-- Project item detail projector/planner: `cargo test -p squalr project_hierarchy --lib --locked` and `cargo test -p squalr-engine project_items --lib --locked`.
+- Project item detail projector/planner: API projector validates with `cargo test -p squalr-engine-api project_item_details --lib --locked`; GUI/runtime migration should also run `cargo test -p squalr project_hierarchy --lib --locked` and `cargo test -p squalr-engine project_items --lib --locked`.
 - `project_items write-value`: `cargo test -p squalr-engine project_items --lib --locked` and `cargo test -p squalr-cli parse_input --locked`.
 - Symbol Tree projector: `cargo test -p squalr symbol_tree --lib --locked` and `cargo test -p squalr-engine-api symbol_tree --lib --locked`.
 - Final cleanup pass: run the relevant package tests plus `cargo fmt` for touched Rust files.
@@ -151,3 +152,4 @@ Our current task, from `README.md`, is:
 - Details architecture audit used source inspection only.
 - Previous implementation pass added the shared `DetailsProjection`/field/edit/plan model only.
 - Current Struct Viewer pass added a compatibility adapter and focus API for `DetailsProjection`; no Project Hierarchy or Symbol Tree callers have migrated yet.
+- Current project item pass added a pure API-side `ProjectItemDetailsProjection`; no Project Hierarchy callers have migrated yet.

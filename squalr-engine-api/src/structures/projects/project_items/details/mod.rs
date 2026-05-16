@@ -1,0 +1,3 @@
+pub mod project_item_details_projection;
+
+pub use project_item_details_projection::ProjectItemDetailsProjection;
