@@ -2010,9 +2010,11 @@ impl SymbolLayoutEditorView {
                 .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_OFFSET_MODE.to_string(), false),
         );
         if field_draft.offset_mode == SymbolLayoutFieldOffsetMode::Static {
-            let offset_in_bytes = SymbolLayoutFieldEditDraft::parse_static_offset_text(&field_draft.static_offset_in_bytes).unwrap_or(0);
+            let static_offset_text = SymbolLayoutFieldEditDraft::parse_static_offset_text(&field_draft.static_offset_in_bytes)
+                .map(Self::format_static_offset_text)
+                .unwrap_or_else(|| field_draft.static_offset_in_bytes.clone());
             fields.push(
-                DataTypeU64::get_value_from_primitive(offset_in_bytes)
+                DataTypeStringUtf8::get_value_from_primitive_string(&static_offset_text)
                     .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_STATIC_OFFSET.to_string(), false),
             );
         }
@@ -2185,9 +2187,9 @@ impl SymbolLayoutEditorView {
                 }
             }
             StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_STATIC_OFFSET => {
-                if let Some(offset_in_bytes) = Self::read_u64_field_value(edited_field) {
-                    field_draft.static_offset_in_bytes = offset_in_bytes.to_string();
-                }
+                field_draft.static_offset_in_bytes = SymbolLayoutFieldEditDraft::parse_static_offset_text(&edited_text)
+                    .map(Self::format_static_offset_text)
+                    .unwrap_or(edited_text);
             }
             StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_OFFSET_RESOLVER => {
                 field_draft.offset_resolver_id = edited_text;
@@ -2226,6 +2228,10 @@ impl SymbolLayoutEditorView {
         if next_sequential_offset > declared_size_in_bytes {
             draft.size_text = Self::format_layout_size(next_sequential_offset, draft.size_format);
         }
+    }
+
+    fn format_static_offset_text(offset_in_bytes: u64) -> String {
+        format!("0x{:X}", offset_in_bytes)
     }
 
     fn format_layout_size(
@@ -4577,7 +4583,10 @@ mod tests {
     use crate::views::symbol_layout_editor::view_data::symbol_layout_editor_view_data::{SymbolLayoutEditDraft, SymbolLayoutFieldOffsetMode};
     use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
     use squalr_engine_api::structures::{
-        data_types::{built_in_types::u32::data_type_u32::DataTypeU32, data_type_ref::DataTypeRef},
+        data_types::{
+            built_in_types::{string::utf8::data_type_string_utf8::DataTypeStringUtf8, u32::data_type_u32::DataTypeU32},
+            data_type_ref::DataTypeRef,
+        },
         data_values::anonymous_value_string_format::AnonymousValueStringFormat,
         pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
         projects::project_symbol_catalog::ProjectSymbolCatalog,
@@ -4619,6 +4628,39 @@ mod tests {
                 .iter()
                 .any(|field| field.get_name() == "__symbol_layout_field_hidden")
         );
+    }
+
+    #[test]
+    fn build_field_details_struct_formats_static_offset_as_hex() {
+        let field_draft = create_static_field_draft("health", 16);
+        let details_struct = SymbolLayoutEditorView::build_field_details_struct(&ProjectSymbolCatalog::default(), SymbolicLayoutKind::Struct, &field_draft);
+        let static_offset_field = details_struct
+            .get_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_STATIC_OFFSET)
+            .expect("Expected static offset field.");
+
+        assert_eq!(StructViewerViewData::read_utf8_field_text(static_offset_field), "0x10");
+    }
+
+    #[test]
+    fn apply_field_details_edit_accepts_hex_static_offset_text() {
+        let mut field_draft = create_static_field_draft("health", 0);
+        let edited_field = DataTypeStringUtf8::get_value_from_primitive_string("0x20")
+            .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_STATIC_OFFSET.to_string(), false);
+
+        SymbolLayoutEditorView::apply_field_details_edit(&ProjectSymbolCatalog::default(), &mut field_draft, &edited_field);
+
+        assert_eq!(field_draft.static_offset_in_bytes, "0x20");
+    }
+
+    #[test]
+    fn apply_field_details_edit_preserves_invalid_static_offset_text_for_validation() {
+        let mut field_draft = create_static_field_draft("health", 0);
+        let edited_field = DataTypeStringUtf8::get_value_from_primitive_string("-0x10")
+            .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_STATIC_OFFSET.to_string(), false);
+
+        SymbolLayoutEditorView::apply_field_details_edit(&ProjectSymbolCatalog::default(), &mut field_draft, &edited_field);
+
+        assert_eq!(field_draft.static_offset_in_bytes, "-0x10");
     }
 
     #[test]
