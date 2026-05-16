@@ -421,6 +421,51 @@ impl SymbolLayoutEditorViewData {
         self.unassigned_split_offsets_by_layout.clear();
     }
 
+    fn collect_unassigned_split_offsets_from_descriptor(
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        struct_layout_descriptor: &StructLayoutDescriptor,
+    ) -> BTreeSet<u64> {
+        let mut split_offsets = BTreeSet::new();
+        let mut next_sequential_offset = 0_u64;
+        let mut previous_was_unassigned = false;
+
+        for symbolic_field_definition in struct_layout_descriptor
+            .get_struct_layout_definition()
+            .get_fields()
+        {
+            if symbolic_field_definition.is_unassigned() {
+                if previous_was_unassigned && next_sequential_offset > 0 {
+                    split_offsets.insert(next_sequential_offset);
+                }
+                next_sequential_offset = next_sequential_offset.saturating_add(
+                    symbolic_field_definition
+                        .get_unassigned_size_in_bytes()
+                        .unwrap_or(0),
+                );
+                previous_was_unassigned = true;
+                continue;
+            }
+
+            previous_was_unassigned = false;
+            let field_offset = match symbolic_field_definition.get_offset_resolution() {
+                SymbolicFieldOffsetResolution::Static(offset_in_bytes) => *offset_in_bytes,
+                SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_)
+                    if struct_layout_descriptor
+                        .get_struct_layout_definition()
+                        .get_layout_kind()
+                        .is_union() =>
+                {
+                    0
+                }
+                SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_) => next_sequential_offset,
+            };
+            let field_size_in_bytes = Self::resolve_symbolic_field_size_in_bytes(project_symbol_catalog, symbolic_field_definition, &mut HashSet::new());
+            next_sequential_offset = next_sequential_offset.max(field_offset.saturating_add(field_size_in_bytes));
+        }
+
+        split_offsets
+    }
+
     pub fn set_filter_text(
         symbol_layout_editor_view_data: Dependency<Self>,
         filter_text: String,
@@ -631,11 +676,16 @@ impl SymbolLayoutEditorViewData {
             symbol_layout_editor_view_data.clear_unassigned_split_offsets();
             symbol_layout_editor_view_data.baseline_project_symbol_catalog = Some(project_symbol_catalog.clone());
             symbol_layout_editor_view_data.has_take_over_catalog_side_effects = false;
-            symbol_layout_editor_view_data.baseline_draft = project_symbol_catalog
+            let selected_struct_layout_descriptor = project_symbol_catalog
                 .get_struct_layout_descriptors()
                 .iter()
-                .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == layout_id)
+                .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == layout_id);
+            symbol_layout_editor_view_data.baseline_draft = selected_struct_layout_descriptor
                 .map(|struct_layout_descriptor| Self::create_draft_from_descriptor_with_catalog(project_symbol_catalog, struct_layout_descriptor));
+            if let Some(struct_layout_descriptor) = selected_struct_layout_descriptor {
+                symbol_layout_editor_view_data.unassigned_split_offsets =
+                    Self::collect_unassigned_split_offsets_from_descriptor(project_symbol_catalog, struct_layout_descriptor);
+            }
             symbol_layout_editor_view_data.draft = symbol_layout_editor_view_data.baseline_draft.clone();
         }
     }
@@ -659,11 +709,16 @@ impl SymbolLayoutEditorViewData {
             symbol_layout_editor_view_data.clear_unassigned_split_offsets();
             symbol_layout_editor_view_data.baseline_project_symbol_catalog = Some(project_symbol_catalog.clone());
             symbol_layout_editor_view_data.has_take_over_catalog_side_effects = false;
-            symbol_layout_editor_view_data.baseline_draft = project_symbol_catalog
+            let selected_struct_layout_descriptor = project_symbol_catalog
                 .get_struct_layout_descriptors()
                 .iter()
-                .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == layout_id)
+                .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == layout_id);
+            symbol_layout_editor_view_data.baseline_draft = selected_struct_layout_descriptor
                 .map(|struct_layout_descriptor| Self::create_draft_from_descriptor_with_catalog(project_symbol_catalog, struct_layout_descriptor));
+            if let Some(struct_layout_descriptor) = selected_struct_layout_descriptor {
+                symbol_layout_editor_view_data.unassigned_split_offsets =
+                    Self::collect_unassigned_split_offsets_from_descriptor(project_symbol_catalog, struct_layout_descriptor);
+            }
             symbol_layout_editor_view_data.draft = symbol_layout_editor_view_data.baseline_draft.clone();
         }
     }
@@ -1245,6 +1300,14 @@ impl SymbolLayoutEditorViewData {
         project_symbol_catalog: &ProjectSymbolCatalog,
         draft: &SymbolLayoutEditDraft,
     ) -> Result<StructLayoutDescriptor, String> {
+        Self::build_symbol_layout_descriptor_with_unassigned_split_offsets(project_symbol_catalog, draft, &BTreeSet::new())
+    }
+
+    pub fn build_symbol_layout_descriptor_with_unassigned_split_offsets(
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        draft: &SymbolLayoutEditDraft,
+        unassigned_split_offsets: &BTreeSet<u64>,
+    ) -> Result<StructLayoutDescriptor, String> {
         let trimmed_layout_id = draft.layout_id.trim();
         if trimmed_layout_id.is_empty() {
             return Err(String::from("Symbol layout id is required."));
@@ -1302,7 +1365,13 @@ impl SymbolLayoutEditorViewData {
             let (field_offset, symbolic_field_definition) = match symbolic_field_definition.get_offset_resolution() {
                 SymbolicFieldOffsetResolution::Static(offset_in_bytes) if !draft.layout_kind.is_union() && *offset_in_bytes >= next_sequential_offset => {
                     if *offset_in_bytes > next_sequential_offset {
-                        symbolic_field_definitions.push(SymbolicFieldDefinition::new_unassigned(offset_in_bytes.saturating_sub(next_sequential_offset)));
+                        Self::push_unassigned_range(
+                            &mut symbolic_field_definitions,
+                            next_sequential_offset,
+                            *offset_in_bytes,
+                            unassigned_split_offsets,
+                            true,
+                        );
                     }
 
                     (
@@ -1321,6 +1390,15 @@ impl SymbolLayoutEditorViewData {
             next_sequential_offset = next_sequential_offset.max(field_offset.saturating_add(field_size_in_bytes));
             symbolic_field_definitions.push(symbolic_field_definition);
         }
+        if !draft.layout_kind.is_union() && declared_size_in_bytes > next_sequential_offset {
+            Self::push_unassigned_range(
+                &mut symbolic_field_definitions,
+                next_sequential_offset,
+                declared_size_in_bytes,
+                unassigned_split_offsets,
+                false,
+            );
+        }
 
         let symbolic_struct_definition =
             SymbolicStructDefinition::new_with_layout_kind(trimmed_layout_id.to_string(), draft.layout_kind, symbolic_field_definitions)
@@ -1338,6 +1416,42 @@ impl SymbolLayoutEditorViewData {
         project_symbol_catalog.validate_local_resolver_dependencies_for_struct_layout(&struct_layout_descriptor)?;
 
         Ok(struct_layout_descriptor)
+    }
+
+    fn push_unassigned_range(
+        symbolic_field_definitions: &mut Vec<SymbolicFieldDefinition>,
+        start_offset_in_bytes: u64,
+        end_offset_in_bytes: u64,
+        unassigned_split_offsets: &BTreeSet<u64>,
+        include_unsplit_range: bool,
+    ) {
+        if end_offset_in_bytes <= start_offset_in_bytes {
+            return;
+        }
+
+        let contained_split_offsets = unassigned_split_offsets
+            .range((start_offset_in_bytes.saturating_add(1))..end_offset_in_bytes)
+            .copied()
+            .collect::<Vec<_>>();
+        if contained_split_offsets.is_empty() && !include_unsplit_range {
+            return;
+        }
+
+        let mut previous_offset_in_bytes = start_offset_in_bytes;
+        for split_offset_in_bytes in contained_split_offsets {
+            if split_offset_in_bytes > previous_offset_in_bytes {
+                symbolic_field_definitions.push(SymbolicFieldDefinition::new_unassigned(
+                    split_offset_in_bytes.saturating_sub(previous_offset_in_bytes),
+                ));
+            }
+            previous_offset_in_bytes = split_offset_in_bytes;
+        }
+
+        if end_offset_in_bytes > previous_offset_in_bytes {
+            symbolic_field_definitions.push(SymbolicFieldDefinition::new_unassigned(
+                end_offset_in_bytes.saturating_sub(previous_offset_in_bytes),
+            ));
+        }
     }
 
     pub fn parse_layout_size_text(
@@ -1564,7 +1678,16 @@ impl SymbolLayoutEditorViewData {
         project_symbol_catalog: &ProjectSymbolCatalog,
         draft: &SymbolLayoutEditDraft,
     ) -> Result<ProjectSymbolCatalog, String> {
-        let resolved_struct_layout_descriptor = Self::build_symbol_layout_descriptor(project_symbol_catalog, draft)?;
+        Self::apply_draft_to_catalog_with_unassigned_split_offsets(project_symbol_catalog, draft, &BTreeSet::new())
+    }
+
+    pub fn apply_draft_to_catalog_with_unassigned_split_offsets(
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        draft: &SymbolLayoutEditDraft,
+        unassigned_split_offsets: &BTreeSet<u64>,
+    ) -> Result<ProjectSymbolCatalog, String> {
+        let resolved_struct_layout_descriptor =
+            Self::build_symbol_layout_descriptor_with_unassigned_split_offsets(project_symbol_catalog, draft, unassigned_split_offsets)?;
         let mut updated_project_symbol_catalog = project_symbol_catalog.clone();
         let mut updated_struct_layout_descriptors = updated_project_symbol_catalog
             .get_struct_layout_descriptors()
@@ -2213,6 +2336,88 @@ mod tests {
                 .get_declared_size_in_bytes(),
             Some(16)
         );
+    }
+
+    #[test]
+    fn build_symbol_layout_descriptor_persists_split_unassigned_empty_layout() {
+        let project_symbol_catalog = ProjectSymbolCatalog::default();
+        let draft = SymbolLayoutEditDraft {
+            original_layout_id: Some(String::from("module.root")),
+            layout_id: String::from("module.root"),
+            layout_kind: SymbolicLayoutKind::Struct,
+            size_text: String::from("16"),
+            size_format: AnonymousValueStringFormat::Decimal,
+            field_drafts: Vec::new(),
+        };
+        let split_offsets = BTreeSet::from([8]);
+
+        let struct_layout_descriptor =
+            SymbolLayoutEditorViewData::build_symbol_layout_descriptor_with_unassigned_split_offsets(&project_symbol_catalog, &draft, &split_offsets)
+                .expect("Expected split empty layout to build.");
+        let fields = struct_layout_descriptor
+            .get_struct_layout_definition()
+            .get_fields();
+
+        assert_eq!(fields.len(), 2);
+        assert_eq!(fields[0].to_string(), "unassigned[8]");
+        assert_eq!(fields[1].to_string(), "unassigned[8]");
+    }
+
+    #[test]
+    fn build_symbol_layout_descriptor_persists_split_unassigned_before_field() {
+        let project_symbol_catalog = ProjectSymbolCatalog::default();
+        let mut field_draft = create_field_draft("value", DataTypeU8::DATA_TYPE_ID, SymbolLayoutFieldContainerEdit::default());
+        field_draft.offset_mode = SymbolLayoutFieldOffsetMode::Static;
+        field_draft.static_offset_in_bytes = String::from("0x10");
+        let draft = SymbolLayoutEditDraft {
+            original_layout_id: Some(String::from("module.root")),
+            layout_id: String::from("module.root"),
+            layout_kind: SymbolicLayoutKind::Struct,
+            size_text: String::from("32"),
+            size_format: AnonymousValueStringFormat::Decimal,
+            field_drafts: vec![field_draft],
+        };
+        let split_offsets = BTreeSet::from([8]);
+
+        let struct_layout_descriptor =
+            SymbolLayoutEditorViewData::build_symbol_layout_descriptor_with_unassigned_split_offsets(&project_symbol_catalog, &draft, &split_offsets)
+                .expect("Expected split field layout to build.");
+        let fields = struct_layout_descriptor
+            .get_struct_layout_definition()
+            .get_fields();
+
+        assert_eq!(fields.len(), 3);
+        assert_eq!(fields[0].to_string(), "unassigned[8]");
+        assert_eq!(fields[1].to_string(), "unassigned[8]");
+        assert_eq!(fields[2].to_string(), "value:u8");
+    }
+
+    #[test]
+    fn begin_open_symbol_layout_restores_persisted_unassigned_split_offsets() {
+        let dependency_container = DependencyContainer::new();
+        let view_data = dependency_container.register(SymbolLayoutEditorViewData::new());
+        let struct_layout_descriptor = StructLayoutDescriptor::new(
+            String::from("module.root"),
+            SymbolicStructDefinition::new(
+                String::from("module.root"),
+                vec![
+                    SymbolicFieldDefinition::new_unassigned(8),
+                    SymbolicFieldDefinition::new_unassigned(8),
+                    SymbolicFieldDefinition::new_named(String::from("value"), DataTypeRef::new(DataTypeU8::DATA_TYPE_ID), ContainerType::None),
+                ],
+            )
+            .with_declared_size_in_bytes(Some(32)),
+        );
+        let project_symbol_catalog = ProjectSymbolCatalog::new(vec![struct_layout_descriptor]);
+
+        SymbolLayoutEditorViewData::begin_open_symbol_layout(view_data.clone(), &project_symbol_catalog, "module.root");
+
+        let restored_split_offsets = view_data
+            .read("Symbol layout restored split offsets")
+            .map(|view_data_read| view_data_read.get_unassigned_split_offsets().clone())
+            .unwrap_or_default();
+
+        assert_eq!(restored_split_offsets, BTreeSet::from([8]));
     }
 
     #[test]

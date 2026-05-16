@@ -1690,6 +1690,29 @@ impl SymbolLayoutEditorView {
             .find(|layout_kind| layout_kind.label() == label.trim())
     }
 
+    fn symbol_layout_take_over_has_unsaved_changes(
+        baseline_project_symbol_catalog: Option<&ProjectSymbolCatalog>,
+        baseline_draft: &SymbolLayoutEditDraft,
+        edited_draft: &SymbolLayoutEditDraft,
+        edited_struct_layout_descriptor: Option<&squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor>,
+        unassigned_split_offsets: &BTreeSet<u64>,
+    ) -> bool {
+        if let (Some(baseline_project_symbol_catalog), Some(original_layout_id), Some(edited_struct_layout_descriptor)) = (
+            baseline_project_symbol_catalog,
+            edited_draft.original_layout_id.as_deref(),
+            edited_struct_layout_descriptor,
+        ) && let Some(baseline_struct_layout_descriptor) = baseline_project_symbol_catalog
+            .get_struct_layout_descriptors()
+            .iter()
+            .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == original_layout_id)
+        {
+            return edited_struct_layout_descriptor.get_struct_layout_id() != baseline_struct_layout_descriptor.get_struct_layout_id()
+                || edited_struct_layout_descriptor.get_struct_layout_definition() != baseline_struct_layout_descriptor.get_struct_layout_definition();
+        }
+
+        edited_draft != baseline_draft || !unassigned_split_offsets.is_empty()
+    }
+
     fn clear_struct_viewer_if_symbol_layout_focused(&self) {
         let is_symbol_layout_focused = self
             .struct_viewer_view_data
@@ -3996,6 +4019,7 @@ impl SymbolLayoutEditorView {
         has_catalog_side_effects: bool,
         baseline_draft: Option<&SymbolLayoutEditDraft>,
         draft: Option<&SymbolLayoutEditDraft>,
+        unassigned_split_offsets: &BTreeSet<u64>,
         selected_field_index: Option<usize>,
         selected_field_layout_id: Option<&str>,
         selected_unassigned_span: Option<&SymbolLayoutUnassignedSelection>,
@@ -4007,13 +4031,23 @@ impl SymbolLayoutEditorView {
         let baseline_draft = baseline_draft.unwrap_or(draft);
 
         let mut edited_draft = draft.clone();
-        let validation_result = SymbolLayoutEditorViewData::build_symbol_layout_descriptor(project_symbol_catalog, &edited_draft);
+        let validation_result = SymbolLayoutEditorViewData::build_symbol_layout_descriptor_with_unassigned_split_offsets(
+            project_symbol_catalog,
+            &edited_draft,
+            unassigned_split_offsets,
+        );
         let usage_count = edited_draft
             .original_layout_id
             .as_deref()
             .map(|selected_layout_id| SymbolLayoutEditorViewData::count_symbol_claim_usages(project_symbol_catalog, selected_layout_id))
             .unwrap_or(0);
-        let has_unsaved_changes = edited_draft != *baseline_draft;
+        let has_unsaved_changes = Self::symbol_layout_take_over_has_unsaved_changes(
+            baseline_project_symbol_catalog,
+            baseline_draft,
+            &edited_draft,
+            validation_result.as_ref().ok(),
+            unassigned_split_offsets,
+        );
         let is_creating_new_layout = edited_draft.original_layout_id.is_none();
         let is_union_layout = edited_draft.layout_kind.is_union();
         let can_save = validation_result.is_ok() && has_unsaved_changes;
@@ -4189,7 +4223,11 @@ impl SymbolLayoutEditorView {
         }
 
         if should_save_draft {
-            match SymbolLayoutEditorViewData::apply_draft_to_catalog(project_symbol_catalog, &edited_draft) {
+            match SymbolLayoutEditorViewData::apply_draft_to_catalog_with_unassigned_split_offsets(
+                project_symbol_catalog,
+                &edited_draft,
+                unassigned_split_offsets,
+            ) {
                 Ok(updated_project_symbol_catalog) => {
                     self.persist_project_symbol_catalog(updated_project_symbol_catalog.clone());
                     SymbolLayoutEditorViewData::select_symbol_layout(
@@ -4558,7 +4596,9 @@ mod tests {
         SymbolLayoutUnassignedRowContext,
     };
     use crate::views::struct_viewer::view_data::struct_viewer_view_data::StructViewerViewData;
-    use crate::views::symbol_layout_editor::view_data::symbol_layout_editor_view_data::{SymbolLayoutEditDraft, SymbolLayoutFieldOffsetMode};
+    use crate::views::symbol_layout_editor::view_data::symbol_layout_editor_view_data::{
+        SymbolLayoutEditDraft, SymbolLayoutEditorViewData, SymbolLayoutFieldOffsetMode,
+    };
     use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
     use squalr_engine_api::structures::{
         data_types::{built_in_types::u32::data_type_u32::DataTypeU32, data_type_ref::DataTypeRef},
@@ -4620,6 +4660,61 @@ mod tests {
                 .get_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_STATIC_OFFSET)
                 .is_none()
         );
+    }
+
+    #[test]
+    fn symbol_layout_take_over_dirty_check_includes_unassigned_split_offsets() {
+        let project_symbol_catalog = ProjectSymbolCatalog::default();
+        let baseline_draft = SymbolLayoutEditDraft {
+            original_layout_id: Some(String::from("module.root")),
+            layout_id: String::from("module.root"),
+            layout_kind: SymbolicLayoutKind::Struct,
+            size_text: String::from("32"),
+            size_format: AnonymousValueStringFormat::Decimal,
+            field_drafts: vec![create_static_field_draft("value", 16)],
+        };
+        let baseline_descriptor = SymbolLayoutEditorViewData::build_symbol_layout_descriptor(&project_symbol_catalog, &baseline_draft)
+            .expect("Expected baseline descriptor to build.");
+        let baseline_project_symbol_catalog = ProjectSymbolCatalog::new(vec![baseline_descriptor]);
+        let edited_split_offsets = BTreeSet::from([8]);
+        let edited_descriptor = SymbolLayoutEditorViewData::build_symbol_layout_descriptor_with_unassigned_split_offsets(
+            &project_symbol_catalog,
+            &baseline_draft,
+            &edited_split_offsets,
+        )
+        .expect("Expected edited descriptor to build.");
+
+        assert!(SymbolLayoutEditorView::symbol_layout_take_over_has_unsaved_changes(
+            Some(&baseline_project_symbol_catalog),
+            &baseline_draft,
+            &baseline_draft,
+            Some(&edited_descriptor),
+            &edited_split_offsets,
+        ));
+    }
+
+    #[test]
+    fn symbol_layout_take_over_dirty_check_ignores_unchanged_baseline_descriptor() {
+        let project_symbol_catalog = ProjectSymbolCatalog::default();
+        let baseline_draft = SymbolLayoutEditDraft {
+            original_layout_id: Some(String::from("module.root")),
+            layout_id: String::from("module.root"),
+            layout_kind: SymbolicLayoutKind::Struct,
+            size_text: String::from("32"),
+            size_format: AnonymousValueStringFormat::Decimal,
+            field_drafts: vec![create_static_field_draft("value", 16)],
+        };
+        let baseline_descriptor = SymbolLayoutEditorViewData::build_symbol_layout_descriptor(&project_symbol_catalog, &baseline_draft)
+            .expect("Expected baseline descriptor to build.");
+        let baseline_project_symbol_catalog = ProjectSymbolCatalog::new(vec![baseline_descriptor.clone()]);
+
+        assert!(!SymbolLayoutEditorView::symbol_layout_take_over_has_unsaved_changes(
+            Some(&baseline_project_symbol_catalog),
+            &baseline_draft,
+            &baseline_draft,
+            Some(&baseline_descriptor),
+            &BTreeSet::new(),
+        ));
     }
 
     #[test]
@@ -5240,6 +5335,7 @@ impl Widget for SymbolLayoutEditorView {
             has_catalog_side_effects,
             baseline_draft,
             draft,
+            unassigned_split_offsets,
             selected_field_index,
             selected_field_layout_id,
             selected_unassigned_span,
@@ -5260,6 +5356,9 @@ impl Widget for SymbolLayoutEditorView {
                     symbol_layout_editor_view_data.has_take_over_catalog_side_effects(),
                     symbol_layout_editor_view_data.get_baseline_draft().cloned(),
                     symbol_layout_editor_view_data.get_draft().cloned(),
+                    symbol_layout_editor_view_data
+                        .get_unassigned_split_offsets()
+                        .clone(),
                     symbol_layout_editor_view_data.get_selected_field_index(),
                     symbol_layout_editor_view_data
                         .get_selected_field_layout_id()
@@ -5270,7 +5369,7 @@ impl Widget for SymbolLayoutEditorView {
                     symbol_layout_editor_view_data.get_define_field_draft().cloned(),
                 )
             })
-            .unwrap_or((None, String::new(), None, None, false, None, None, None, None, None, None));
+            .unwrap_or((None, String::new(), None, None, false, None, None, BTreeSet::new(), None, None, None, None));
         let is_take_over_active = take_over_state.is_some();
         let is_window_focused = self
             .app_context
@@ -5341,6 +5440,7 @@ impl Widget for SymbolLayoutEditorView {
                             has_catalog_side_effects,
                             baseline_draft.as_ref(),
                             draft.as_ref(),
+                            &unassigned_split_offsets,
                             selected_field_index,
                             selected_field_layout_id.as_deref(),
                             selected_unassigned_span.as_ref(),
@@ -5356,6 +5456,7 @@ impl Widget for SymbolLayoutEditorView {
                             has_catalog_side_effects,
                             baseline_draft.as_ref(),
                             draft.as_ref(),
+                            &unassigned_split_offsets,
                             selected_field_index,
                             selected_field_layout_id.as_deref(),
                             selected_unassigned_span.as_ref(),
@@ -5371,6 +5472,7 @@ impl Widget for SymbolLayoutEditorView {
                             has_catalog_side_effects,
                             baseline_draft.as_ref(),
                             draft.as_ref(),
+                            &unassigned_split_offsets,
                             selected_field_index,
                             selected_field_layout_id.as_deref(),
                             selected_unassigned_span.as_ref(),
