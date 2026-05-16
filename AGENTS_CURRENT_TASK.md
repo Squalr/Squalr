@@ -99,8 +99,9 @@ Our current task, from `README.md`, is:
      - write runtime value,
      - refresh details,
      - no-op/error.
-   - Remaining target: wire Project Hierarchy through the edit plan while preserving existing command boundaries and save behavior.
-   - Replace `ProjectHierarchyView::apply_project_item_edits` only after the planner can describe every existing edit path and the GUI has a non-legacy operation applier.
+   - Single-selection Project Hierarchy Details edits now run through `ProjectItemDetailsEditPlanner`.
+   - The GUI still adapts planned operations into the existing legacy `apply_project_item_edits` path for persistence, rename, and runtime write dispatch.
+   - Remaining target: replace `ProjectHierarchyView::apply_project_item_edits` after the GUI has a non-legacy operation applier.
 
 6. Add `project_items write-value`.
    - Add request/response/command enum variants under `squalr-engine-api/src/commands/project_items/`.
@@ -156,4 +157,4 @@ Our current task, from `README.md`, is:
 - Current Struct Viewer pass added a compatibility adapter and focus API for `DetailsProjection`; no Project Hierarchy or Symbol Tree callers have migrated yet.
 - Current project item pass added a pure API-side `ProjectItemDetailsProjection`.
 - Current Project Hierarchy pass migrated single-selection details focus to `DetailsProjection`; multi-selection and legacy edit application still use `ProjectItemDetails`.
-- Current project item planning pass added `ProjectItemDetailsEditPlanner`; Project Hierarchy is not wired through the plan yet.
+- Current project item planning pass added `ProjectItemDetailsEditPlanner` and wired single-selection Project Hierarchy Details edits through it.

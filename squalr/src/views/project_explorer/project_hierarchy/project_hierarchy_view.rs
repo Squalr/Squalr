@@ -43,7 +43,7 @@ use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::structures::data_types::{built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8, data_type_ref::DataTypeRef};
 use squalr_engine_api::structures::data_values::anonymous_value_string::AnonymousValueString;
-use squalr_engine_api::structures::details::{DetailsEdit, DetailsFieldId, DetailsValue};
+use squalr_engine_api::structures::details::{DetailsEdit, DetailsEditOperation, DetailsEditPlan, DetailsFieldSource, DetailsValue};
 use squalr_engine_api::structures::memory::address_display::try_resolve_virtual_module_address;
 use squalr_engine_api::structures::memory::pointer::Pointer;
 use squalr_engine_api::structures::projects::project::Project;
@@ -52,7 +52,9 @@ use squalr_engine_api::structures::projects::project_items::built_in_types::{
     project_item_type_address::ProjectItemTypeAddress, project_item_type_directory::ProjectItemTypeDirectory, project_item_type_pointer::ProjectItemTypePointer,
 };
 use squalr_engine_api::structures::projects::project_items::{
-    details::ProjectItemDetailsProjection, project_item::ProjectItem, project_item_ref::ProjectItemRef,
+    details::{ProjectItemDetailsEditPlanner, ProjectItemDetailsProjection},
+    project_item::ProjectItem,
+    project_item_ref::ProjectItemRef,
 };
 use squalr_engine_api::structures::structs::valued_struct_field::{ValuedStructField, ValuedStructFieldData};
 use squalr_engine_session::virtual_snapshots::virtual_snapshot_query::VirtualSnapshotQuery;
@@ -3017,13 +3019,35 @@ impl ProjectHierarchyView {
         project_item_paths: Vec<PathBuf>,
     ) -> Arc<dyn Fn(DetailsEdit) + Send + Sync> {
         Arc::new(move |details_edit: DetailsEdit| {
-            let should_refocus_details = details_edit.get_field_id().get_field_id() == ProjectItemDetailsProjection::FIELD_ID_ADDRESS_TARGET_POINTER_SIZE;
-            let Some(edited_field) = Self::project_item_details_edit_to_legacy_field(&details_edit) else {
-                log::warn!("Failed to convert project item details edit to legacy field: {:?}", details_edit);
+            let Some(edit_plan) = Self::plan_project_item_details_edit(app_context.clone(), &project_item_paths, &details_edit) else {
                 return;
             };
+            let should_refocus_details = edit_plan
+                .get_operations()
+                .iter()
+                .any(|operation| matches!(operation, DetailsEditOperation::RefreshProjection { .. }));
 
-            Self::apply_project_item_edits(app_context.clone(), project_item_paths.clone(), edited_field);
+            for operation in edit_plan.get_operations() {
+                match operation {
+                    DetailsEditOperation::Noop { reason } => {
+                        if let Some(reason) = reason {
+                            log::debug!("Skipping project item details edit: {}", reason);
+                        }
+                    }
+                    DetailsEditOperation::Reject { reason } => {
+                        log::warn!("Rejected project item details edit: {}", reason);
+                    }
+                    DetailsEditOperation::RenameTarget { .. } | DetailsEditOperation::RefreshProjection { .. } => {}
+                    DetailsEditOperation::UpdateStoredField { .. } | DetailsEditOperation::WriteRuntimeValue { .. } => {
+                        let Some(edited_field) = Self::project_item_details_operation_to_legacy_field(operation) else {
+                            log::warn!("Failed to convert project item details operation to legacy field: {:?}", operation);
+                            continue;
+                        };
+
+                        Self::apply_project_item_edits(app_context.clone(), project_item_paths.clone(), edited_field);
+                    }
+                }
+            }
 
             if should_refocus_details {
                 Self::focus_project_item_paths_in_struct_viewer(
@@ -3036,26 +3060,78 @@ impl ProjectHierarchyView {
         })
     }
 
-    fn project_item_details_edit_to_legacy_field(details_edit: &DetailsEdit) -> Option<ValuedStructField> {
-        let legacy_field_name = Self::project_item_details_field_id_to_legacy_field_name(details_edit.get_field_id())?;
-        let field_data = Self::details_value_to_legacy_field_data(details_edit.get_value());
+    fn plan_project_item_details_edit(
+        app_context: Arc<AppContext>,
+        project_item_paths: &[PathBuf],
+        details_edit: &DetailsEdit,
+    ) -> Option<DetailsEditPlan> {
+        let project_item_path = project_item_paths.first()?;
+        let project_manager = app_context.engine_unprivileged_state.get_project_manager();
+        let opened_project_lock = project_manager.get_opened_project();
+        let opened_project_guard = match opened_project_lock.read() {
+            Ok(opened_project_guard) => opened_project_guard,
+            Err(error) => {
+                log::error!("Failed to acquire opened project lock while planning project item details edit: {}", error);
+                return None;
+            }
+        };
+        let opened_project = match opened_project_guard.as_ref() {
+            Some(opened_project) => opened_project,
+            None => {
+                log::warn!("Cannot plan project item details edit without an opened project.");
+                return None;
+            }
+        };
+        let project_item_ref = ProjectItemRef::new(project_item_path.clone());
+        let project_item = match opened_project.get_project_items().get(&project_item_ref) {
+            Some(project_item) => project_item,
+            None => {
+                log::warn!("Cannot plan project item details edit, project item was not found: {:?}", project_item_path);
+                return None;
+            }
+        };
+
+        Some(ProjectItemDetailsEditPlanner::plan_edit(project_item, details_edit))
+    }
+
+    fn project_item_details_operation_to_legacy_field(operation: &DetailsEditOperation) -> Option<ValuedStructField> {
+        let (legacy_field_name, details_value) = match operation {
+            DetailsEditOperation::UpdateStoredField { source, value, .. } => {
+                let legacy_field_name = Self::project_item_details_source_to_legacy_field_name(source)?;
+
+                (legacy_field_name, value)
+            }
+            DetailsEditOperation::WriteRuntimeValue { field_id, value, .. } => {
+                let legacy_field_name = Self::project_item_details_property_field_id_to_legacy_field_name(field_id.get_field_id())?;
+
+                (legacy_field_name, value)
+            }
+            DetailsEditOperation::Noop { .. }
+            | DetailsEditOperation::Reject { .. }
+            | DetailsEditOperation::RenameTarget { .. }
+            | DetailsEditOperation::RefreshProjection { .. } => return None,
+        };
+        let field_data = Self::details_value_to_legacy_field_data(details_value);
 
         Some(ValuedStructField::new(legacy_field_name, field_data, false))
     }
 
-    fn project_item_details_field_id_to_legacy_field_name(details_field_id: &DetailsFieldId) -> Option<String> {
-        let field_id = details_field_id.get_field_id();
-
-        if field_id == ProjectItemDetailsProjection::FIELD_ID_ADDRESS_TARGET_POINTER_SIZE {
-            return Some(ProjectItemDetails::TARGET_FIELD_POINTER_SIZE.to_string());
+    fn project_item_details_source_to_legacy_field_name(details_field_source: &DetailsFieldSource) -> Option<String> {
+        match details_field_source {
+            DetailsFieldSource::ProjectItemProperty { property_name } => Some(property_name.clone()),
+            DetailsFieldSource::ProjectItemAddressTarget { property_name } if property_name == "pointer_size" => {
+                Some(ProjectItemDetails::TARGET_FIELD_POINTER_SIZE.to_string())
+            }
+            DetailsFieldSource::ProjectItemAddressTarget { property_name } if property_name == "pointer_offsets" => {
+                Some(ProjectItemDetails::TARGET_FIELD_POINTER_OFFSETS.to_string())
+            }
+            _ => None,
         }
+    }
 
-        if field_id == ProjectItemDetailsProjection::FIELD_ID_ADDRESS_TARGET_POINTER_OFFSETS {
-            return Some(ProjectItemDetails::TARGET_FIELD_POINTER_OFFSETS.to_string());
-        }
-
+    fn project_item_details_property_field_id_to_legacy_field_name(field_id: &str) -> Option<String> {
         field_id
-            .strip_prefix("property.")
+            .strip_prefix(ProjectItemDetailsProjection::FIELD_ID_PROPERTY_PREFIX)
             .map(|property_name| property_name.to_string())
     }
 
