@@ -572,37 +572,6 @@ impl SymbolTreeView {
         );
     }
 
-    fn focus_symbol_tree_entry_for_edit(
-        &self,
-        project_symbol_catalog: &ProjectSymbolCatalog,
-        selected_symbol_tree_entry: &SymbolTreeNode,
-    ) {
-        let symbol_layout = self.build_symbol_layout_for_tree_entry(project_symbol_catalog, selected_symbol_tree_entry);
-        let selected_field_name = Self::resolve_first_editable_struct_viewer_field_name(&symbol_layout);
-        let struct_viewer_edit_callback = self.build_struct_viewer_edit_callback(project_symbol_catalog, selected_symbol_tree_entry);
-        let focus_target = Self::build_struct_viewer_focus_target(Some(selected_symbol_tree_entry));
-
-        StructViewerViewData::focus_valued_struct_with_focus_target(
-            self.struct_viewer_view_data.clone(),
-            self.app_context.engine_unprivileged_state.clone(),
-            symbol_layout,
-            struct_viewer_edit_callback,
-            focus_target,
-        );
-
-        if let Some(selected_field_name) = selected_field_name {
-            StructViewerViewData::set_selected_field(self.struct_viewer_view_data.clone(), selected_field_name);
-        }
-    }
-
-    fn resolve_first_editable_struct_viewer_field_name(symbol_layout: &ValuedStruct) -> Option<String> {
-        symbol_layout
-            .get_fields()
-            .iter()
-            .find(|valued_struct_field| !valued_struct_field.get_is_read_only())
-            .map(|valued_struct_field| valued_struct_field.get_name().to_string())
-    }
-
     fn sync_selected_symbol_into_struct_viewer(
         &self,
         project_symbol_catalog: &ProjectSymbolCatalog,
@@ -2030,7 +1999,7 @@ impl SymbolTreeView {
                 }
 
                 if !matches!(symbol_tree_entry.get_kind(), SymbolTreeNodeKind::ModuleSpace { .. }) {
-                    self.focus_symbol_tree_entry_for_edit(project_symbol_catalog, symbol_tree_entry);
+                    self.focus_symbol_tree_entry_in_struct_viewer(project_symbol_catalog, symbol_tree_entry);
                 }
 
                 continue;
@@ -2893,10 +2862,7 @@ mod tests {
     };
     use squalr_engine_api::structures::projects::symbol_tree::symbol_tree_node::{SymbolTreeNode, SymbolTreeNodeKind};
     use squalr_engine_api::structures::{
-        data_types::{
-            built_in_types::{string::utf8::data_type_string_utf8::DataTypeStringUtf8, u32::data_type_u32::DataTypeU32},
-            data_type_ref::DataTypeRef,
-        },
+        data_types::{built_in_types::u32::data_type_u32::DataTypeU32, data_type_ref::DataTypeRef},
         data_values::{anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
         memory::{
             pointer_chain_segment::PointerChainSegment,
@@ -3257,19 +3223,6 @@ mod tests {
         };
 
         assert!(!SymbolTreeView::is_symbol_tree_entry_struct_viewer_focused(&player_entry, Some(&focus_target),));
-    }
-
-    #[test]
-    fn resolve_first_editable_struct_viewer_field_name_skips_read_only_fields() {
-        let valued_struct = ValuedStruct::new_anonymous(vec![
-            DataTypeStringUtf8::get_value_from_primitive_string("u32").to_named_valued_struct_field(String::from("type"), true),
-            DataTypeStringUtf8::get_value_from_primitive_string("123").to_named_valued_struct_field(String::from("value"), false),
-        ]);
-
-        assert_eq!(
-            SymbolTreeView::resolve_first_editable_struct_viewer_field_name(&valued_struct),
-            Some(String::from("value"))
-        );
     }
 
     #[test]
