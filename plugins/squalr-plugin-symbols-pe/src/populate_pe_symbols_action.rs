@@ -11,7 +11,7 @@ use squalr_engine_api::{
             project_symbol_catalog::ProjectSymbolCatalog, project_symbol_module::ProjectSymbolModule, project_symbol_module_field::ProjectSymbolModuleField,
         },
         structs::{
-            symbolic_field_definition::SymbolicFieldDefinition,
+            symbolic_field_definition::{SymbolicFieldDefinition, SymbolicFieldOffsetResolution},
             symbolic_resolver_definition::{
                 SymbolicResolverBinaryOperator, SymbolicResolverDefinition, SymbolicResolverNode, SymbolicResolverRelativeSymbolPath,
             },
@@ -19,6 +19,7 @@ use squalr_engine_api::{
         },
     },
 };
+use std::collections::HashSet;
 use std::str::FromStr;
 
 const PE_HEADERS32_ID: &str = "win.pe.PE_HEADERS32";
@@ -68,6 +69,13 @@ struct DesiredModuleField {
     offset: u64,
     struct_layout_id: String,
     size_in_bytes: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct PositionedLayoutField {
+    offset: u64,
+    size_in_bytes: u64,
+    field_definition: SymbolicFieldDefinition,
 }
 
 pub struct PopulatePeSymbolsAction;
@@ -289,7 +297,10 @@ fn upsert_pe_module_fields(
         return Err(format!("Could not resolve module `{module_name}` after creating it."));
     };
 
-    upsert_pe_module_fields_in_module(symbol_module, &desired_module_fields)
+    upsert_pe_module_fields_in_module(symbol_module, &desired_module_fields)?;
+    let module_size = symbol_module.get_size();
+    project_symbol_catalog.ensure_module_root_struct_layout(module_name, module_size);
+    upsert_pe_module_root_layout_fields(project_symbol_catalog, module_name, &desired_module_fields, module_size)
 }
 
 fn build_desired_pe_module_fields(pe_header_layout: &PeHeaderLayout) -> Result<Vec<DesiredModuleField>, String> {
@@ -350,6 +361,172 @@ fn upsert_pe_module_fields_in_module(
     sort_module_fields(module_fields);
 
     Ok(())
+}
+
+fn upsert_pe_module_root_layout_fields(
+    project_symbol_catalog: &mut ProjectSymbolCatalog,
+    module_name: &str,
+    desired_module_fields: &[DesiredModuleField],
+    module_size: u64,
+) -> Result<(), String> {
+    let mut struct_layout_descriptors = project_symbol_catalog.get_struct_layout_descriptors().to_vec();
+    let Some(module_root_layout_descriptor) = struct_layout_descriptors
+        .iter_mut()
+        .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == module_name)
+    else {
+        return Ok(());
+    };
+    let module_root_layout_definition = module_root_layout_descriptor
+        .get_struct_layout_definition()
+        .clone();
+    let desired_field_ranges = desired_module_fields
+        .iter()
+        .map(|desired_module_field| {
+            desired_module_field
+                .offset
+                .checked_add(desired_module_field.size_in_bytes)
+                .map(|desired_field_end| (desired_module_field.offset, desired_field_end))
+                .ok_or_else(|| format!("PE field `{}` range is too large.", desired_module_field.display_name))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut positioned_fields = collect_positioned_layout_fields(project_symbol_catalog, &module_root_layout_definition)
+        .into_iter()
+        .filter(|positioned_field| {
+            !desired_field_ranges
+                .iter()
+                .any(|desired_field_range| positioned_layout_field_overlaps_range(positioned_field, *desired_field_range))
+        })
+        .collect::<Vec<_>>();
+
+    positioned_fields.extend(
+        desired_module_fields
+            .iter()
+            .map(|desired_module_field| PositionedLayoutField {
+                offset: desired_module_field.offset,
+                size_in_bytes: desired_module_field.size_in_bytes,
+                field_definition: SymbolicFieldDefinition::new_named(
+                    desired_module_field.display_name.clone(),
+                    DataTypeRef::new(&desired_module_field.struct_layout_id),
+                    ContainerType::None,
+                ),
+            }),
+    );
+    positioned_fields.sort_by(|left_field, right_field| {
+        left_field.offset.cmp(&right_field.offset).then_with(|| {
+            left_field
+                .field_definition
+                .get_field_name()
+                .cmp(right_field.field_definition.get_field_name())
+        })
+    });
+
+    let maximum_field_end = positioned_fields
+        .iter()
+        .filter_map(|positioned_field| {
+            positioned_field
+                .offset
+                .checked_add(positioned_field.size_in_bytes)
+        })
+        .max()
+        .unwrap_or(0);
+    let declared_size_in_bytes = module_root_layout_definition
+        .get_declared_size_in_bytes()
+        .unwrap_or(0)
+        .max(module_size)
+        .max(maximum_field_end);
+    let rebuilt_fields = rebuild_sequential_layout_fields(positioned_fields)?;
+    let rebuilt_module_root_layout_definition = SymbolicStructDefinition::new_with_layout_kind(
+        module_root_layout_definition.get_symbol_namespace().to_string(),
+        module_root_layout_definition.get_layout_kind(),
+        rebuilt_fields,
+    )
+    .with_declared_size_in_bytes(Some(declared_size_in_bytes));
+
+    *module_root_layout_descriptor = StructLayoutDescriptor::new(module_name.to_string(), rebuilt_module_root_layout_definition);
+    project_symbol_catalog.set_struct_layout_descriptors(struct_layout_descriptors);
+
+    Ok(())
+}
+
+fn collect_positioned_layout_fields(
+    project_symbol_catalog: &ProjectSymbolCatalog,
+    symbolic_struct_definition: &SymbolicStructDefinition,
+) -> Vec<PositionedLayoutField> {
+    let mut positioned_fields = Vec::new();
+    let mut next_sequential_offset = 0_u64;
+
+    for field_definition in symbolic_struct_definition.get_fields() {
+        if field_definition.is_unassigned() {
+            next_sequential_offset = next_sequential_offset.saturating_add(field_definition.get_unassigned_size_in_bytes().unwrap_or(0));
+            continue;
+        }
+
+        let field_offset = match field_definition.get_offset_resolution() {
+            SymbolicFieldOffsetResolution::Static(offset_in_bytes) => *offset_in_bytes,
+            SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_)
+                if symbolic_struct_definition.get_layout_kind().is_union() =>
+            {
+                0
+            }
+            SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_) => next_sequential_offset,
+        };
+        let field_size_in_bytes = estimate_symbolic_field_size_in_bytes(project_symbol_catalog, field_definition, &mut HashSet::new()).max(1);
+
+        next_sequential_offset = next_sequential_offset.max(field_offset.saturating_add(field_size_in_bytes));
+        positioned_fields.push(PositionedLayoutField {
+            offset: field_offset,
+            size_in_bytes: field_size_in_bytes,
+            field_definition: field_definition.clone(),
+        });
+    }
+
+    positioned_fields
+}
+
+fn positioned_layout_field_overlaps_range(
+    positioned_field: &PositionedLayoutField,
+    desired_field_range: (u64, u64),
+) -> bool {
+    let Some(field_end_offset) = positioned_field
+        .offset
+        .checked_add(positioned_field.size_in_bytes)
+    else {
+        return false;
+    };
+
+    positioned_field.offset < desired_field_range.1 && desired_field_range.0 < field_end_offset
+}
+
+fn rebuild_sequential_layout_fields(positioned_fields: Vec<PositionedLayoutField>) -> Result<Vec<SymbolicFieldDefinition>, String> {
+    let mut rebuilt_fields = Vec::new();
+    let mut next_sequential_offset = 0_u64;
+
+    for positioned_field in positioned_fields {
+        if positioned_field.offset < next_sequential_offset {
+            return Err(format!(
+                "Cannot place PE field `{}` at 0x{:X}; it overlaps an earlier module-root layout field.",
+                positioned_field.field_definition.get_field_name(),
+                positioned_field.offset
+            ));
+        }
+
+        if positioned_field.offset > next_sequential_offset {
+            rebuilt_fields.push(SymbolicFieldDefinition::new_unassigned(
+                positioned_field.offset.saturating_sub(next_sequential_offset),
+            ));
+        }
+
+        rebuilt_fields.push(
+            positioned_field
+                .field_definition
+                .with_offset_resolution(SymbolicFieldOffsetResolution::Sequential),
+        );
+        next_sequential_offset = positioned_field
+            .offset
+            .saturating_add(positioned_field.size_in_bytes);
+    }
+
+    Ok(rebuilt_fields)
 }
 
 fn module_field_overlaps_desired_pe_range(
@@ -717,6 +894,114 @@ fn resolve_known_module_field_size(struct_layout_id: &str) -> Option<u64> {
     }
 }
 
+fn estimate_symbolic_field_size_in_bytes(
+    project_symbol_catalog: &ProjectSymbolCatalog,
+    field_definition: &SymbolicFieldDefinition,
+    visited_struct_layout_ids: &mut HashSet<String>,
+) -> u64 {
+    if let Some(unassigned_size_in_bytes) = field_definition.get_unassigned_size_in_bytes() {
+        return unassigned_size_in_bytes;
+    }
+
+    let unit_size_in_bytes = estimate_data_type_size_in_bytes(
+        project_symbol_catalog,
+        field_definition.get_data_type_ref().get_data_type_id(),
+        visited_struct_layout_ids,
+    );
+
+    field_definition
+        .get_container_type()
+        .get_total_size_in_bytes(unit_size_in_bytes)
+}
+
+fn estimate_data_type_size_in_bytes(
+    project_symbol_catalog: &ProjectSymbolCatalog,
+    data_type_id: &str,
+    visited_struct_layout_ids: &mut HashSet<String>,
+) -> u64 {
+    if let Some(known_size_in_bytes) = resolve_primitive_data_type_size(data_type_id).or_else(|| resolve_known_module_field_size(data_type_id)) {
+        return known_size_in_bytes;
+    }
+
+    if !visited_struct_layout_ids.insert(data_type_id.to_string()) {
+        return 0;
+    }
+
+    let size_in_bytes = project_symbol_catalog
+        .get_struct_layout_descriptors()
+        .iter()
+        .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == data_type_id)
+        .map(|struct_layout_descriptor| {
+            estimate_symbolic_struct_size_in_bytes(
+                project_symbol_catalog,
+                struct_layout_descriptor.get_struct_layout_definition(),
+                visited_struct_layout_ids,
+            )
+        })
+        .or_else(|| {
+            if data_type_id.contains(';') {
+                SymbolicStructDefinition::from_str(data_type_id)
+                    .ok()
+                    .map(|symbolic_struct_definition| {
+                        estimate_symbolic_struct_size_in_bytes(project_symbol_catalog, &symbolic_struct_definition, visited_struct_layout_ids)
+                    })
+            } else {
+                None
+            }
+        })
+        .unwrap_or(1);
+
+    visited_struct_layout_ids.remove(data_type_id);
+
+    size_in_bytes
+}
+
+fn estimate_symbolic_struct_size_in_bytes(
+    project_symbol_catalog: &ProjectSymbolCatalog,
+    symbolic_struct_definition: &SymbolicStructDefinition,
+    visited_struct_layout_ids: &mut HashSet<String>,
+) -> u64 {
+    let mut next_sequential_offset = 0_u64;
+
+    for field_definition in symbolic_struct_definition.get_fields() {
+        if field_definition.is_unassigned() {
+            next_sequential_offset = next_sequential_offset.saturating_add(field_definition.get_unassigned_size_in_bytes().unwrap_or(0));
+            continue;
+        }
+
+        let field_offset = match field_definition.get_offset_resolution() {
+            SymbolicFieldOffsetResolution::Static(offset_in_bytes) => *offset_in_bytes,
+            SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_)
+                if symbolic_struct_definition.get_layout_kind().is_union() =>
+            {
+                0
+            }
+            SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_) => next_sequential_offset,
+        };
+        let field_size_in_bytes = estimate_symbolic_field_size_in_bytes(project_symbol_catalog, field_definition, visited_struct_layout_ids);
+
+        next_sequential_offset = next_sequential_offset.max(field_offset.saturating_add(field_size_in_bytes));
+    }
+
+    next_sequential_offset.max(
+        symbolic_struct_definition
+            .get_declared_size_in_bytes()
+            .unwrap_or(0),
+    )
+}
+
+fn resolve_primitive_data_type_size(data_type_id: &str) -> Option<u64> {
+    match data_type_id {
+        "bool8" | "i8" | "u8" => Some(1),
+        "bool16" | "i16" | "i16be" | "u16" | "u16be" => Some(2),
+        "i24" | "i24be" | "u24" | "u24be" => Some(3),
+        "bool32" | "f32" | "i32" | "i32be" | "u32" | "u32be" => Some(4),
+        "bool64" | "f64" | "i64" | "i64be" | "u64" | "u64be" => Some(8),
+        "i128" | "u128" => Some(16),
+        _ => None,
+    }
+}
+
 fn resolve_u8_array_length(struct_layout_id: &str) -> Option<u64> {
     resolve_fixed_array_length(struct_layout_id, "u8")
 }
@@ -757,11 +1042,17 @@ mod tests {
             ProcessMemoryStore, ProjectSymbolStore, SymbolTreeAction, SymbolTreeActionContext, SymbolTreeActionSelection, SymbolTreeActionServices,
             SymbolTreeWindowStore,
         },
+        registries::symbols::struct_layout_descriptor::StructLayoutDescriptor,
         structures::{
+            data_types::data_type_ref::DataTypeRef,
+            data_values::container_type::ContainerType,
             projects::{
                 project_symbol_catalog::ProjectSymbolCatalog, project_symbol_module::ProjectSymbolModule, project_symbol_module_field::ProjectSymbolModuleField,
             },
-            structs::symbolic_resolver_definition::SymbolicResolverNode,
+            structs::{
+                symbolic_field_definition::SymbolicFieldDefinition, symbolic_resolver_definition::SymbolicResolverNode,
+                symbolic_struct_definition::SymbolicStructDefinition,
+            },
         },
     };
     use std::sync::{Arc, Mutex};
@@ -1026,6 +1317,48 @@ mod tests {
         assert!(fields.iter().any(|field| field.get_display_name() == "Outside"));
         assert_eq!(fields[0].get_struct_layout_id(), PE_HEADERS32_ID);
         assert_eq!(fields[1].get_display_name(), "Outside");
+    }
+
+    #[test]
+    fn populate_pe_symbols_rebuilds_existing_module_root_layout_from_start() {
+        let symbol_module = ProjectSymbolModule::new(String::from("game.exe"), 0x6000);
+        let module_root_layout_descriptor = StructLayoutDescriptor::new(
+            String::from("game.exe"),
+            SymbolicStructDefinition::new(
+                String::from("game.exe"),
+                vec![
+                    SymbolicFieldDefinition::new_unassigned(0x579C),
+                    SymbolicFieldDefinition::new_named(String::from("winmine.exe+579C"), DataTypeRef::new("u8"), ContainerType::None),
+                ],
+            )
+            .with_declared_size_in_bytes(Some(0x6000)),
+        );
+        let mut project_symbol_catalog =
+            ProjectSymbolCatalog::new_with_modules_and_symbol_claims(vec![symbol_module], vec![module_root_layout_descriptor], Vec::new());
+        let pe_header_layout = PeHeaderLayout {
+            pe_header_offset: 0x80,
+            size_of_optional_header: 0xE0,
+            number_of_sections: 3,
+            optional_header_kind: PeOptionalHeaderKind::Pe32,
+        };
+
+        populate_pe_symbols(&mut project_symbol_catalog, "game.exe", &pe_header_layout)
+            .expect("Expected PE symbol population to update the module root layout.");
+
+        let module_root_layout_descriptor = project_symbol_catalog
+            .get_struct_layout_descriptors()
+            .iter()
+            .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == "game.exe")
+            .expect("Expected module root layout descriptor.");
+        let module_root_fields = module_root_layout_descriptor
+            .get_struct_layout_definition()
+            .get_fields();
+
+        assert_eq!(module_root_fields.len(), 3);
+        assert_eq!(module_root_fields[0].get_field_name(), "PE Headers");
+        assert_eq!(module_root_fields[0].get_data_type_ref().get_data_type_id(), PE_HEADERS32_ID);
+        assert_eq!(module_root_fields[1].get_unassigned_size_in_bytes(), Some(0x579C - 0x1F0));
+        assert_eq!(module_root_fields[2].get_field_name(), "winmine.exe+579C");
     }
 
     fn build_test_pe_header_bytes() -> Vec<u8> {
