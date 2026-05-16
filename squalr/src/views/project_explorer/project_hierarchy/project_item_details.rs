@@ -3,7 +3,6 @@ use squalr_engine_api::commands::memory::query::memory_query_request::MemoryQuer
 use squalr_engine_api::commands::memory::query::memory_query_response::MemoryQueryResponse;
 use squalr_engine_api::commands::memory::read::memory_read_request::MemoryReadRequest;
 use squalr_engine_api::commands::memory::read::memory_read_response::MemoryReadResponse;
-use squalr_engine_api::commands::memory::write::memory_write_request::MemoryWriteRequest;
 use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRequest;
 use squalr_engine_api::commands::privileged_command_response::TypedPrivilegedCommandResponse;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
@@ -52,43 +51,6 @@ impl ProjectItemDetails {
     pub const TARGET_FIELD_POINTER_SIZE: &'static str = StructViewerViewData::VIRTUAL_FIELD_PROJECT_ITEM_POINTER_SIZE;
 
     const PROJECT_ITEM_PREVIEW_FORMAT_OPTIONS: DataValuePreviewFormatOptions = DataValuePreviewFormatOptions::new(4, 96);
-
-    pub fn build_memory_write_request_for_runtime_value_edit(
-        engine_execution_context: &Arc<dyn EngineExecutionContext>,
-        opened_project_info: Option<&ProjectInfo>,
-        project_item: &ProjectItem,
-        edited_field: &ValuedStructField,
-    ) -> Option<MemoryWriteRequest> {
-        if !Self::is_runtime_value_field(edited_field.get_name()) {
-            return None;
-        }
-
-        let edited_data_value = edited_field.get_data_value()?;
-        let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
-
-        if project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
-            let (address, module_name) = Self::resolve_project_item_runtime_value_target(engine_execution_context, opened_project_info, project_item)?;
-
-            return Some(MemoryWriteRequest {
-                address,
-                module_name,
-                value: edited_data_value.get_value_bytes().clone(),
-            });
-        }
-
-        if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
-            let pointer = ProjectItemTypePointer::get_field_pointer(project_item);
-            let (address, module_name) = Self::resolve_pointer_write_target(engine_execution_context, &pointer)?;
-
-            return Some(MemoryWriteRequest {
-                address,
-                module_name,
-                value: edited_data_value.get_value_bytes().clone(),
-            });
-        }
-
-        None
-    }
 
     pub fn can_open_project_item_in_memory_viewer(project_item: &ProjectItem) -> bool {
         let project_item_type_id = project_item.get_item_type().get_project_item_type_id();

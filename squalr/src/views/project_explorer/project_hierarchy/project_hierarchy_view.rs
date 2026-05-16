@@ -45,6 +45,7 @@ use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::{
     anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType,
+    data_value::DataValue,
 };
 use squalr_engine_api::structures::details::{DetailsEdit, DetailsEditOperation, DetailsEditPlan, DetailsFieldSource, DetailsValue};
 use squalr_engine_api::structures::memory::address_display::try_resolve_virtual_module_address;
@@ -528,6 +529,36 @@ mod tests {
     }
 
     #[test]
+    fn build_project_item_write_value_request_from_legacy_field_uses_value_field() {
+        let app_context = create_test_app_context();
+        let project_item_path = PathBuf::from("C:/Projects/TestProject/project_items/health.json");
+        let edited_field = ValuedStructField::new(
+            ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE.to_string(),
+            ValuedStructFieldData::Value(DataTypeU16::get_value_from_primitive(0xBEEF)),
+            false,
+        );
+
+        let write_value_request =
+            ProjectHierarchyView::build_project_item_write_value_request_from_legacy_field(app_context, &project_item_path, &edited_field)
+                .expect("Expected legacy field write-value request.");
+
+        assert_eq!(write_value_request.project_item_path, project_item_path);
+        assert_eq!(write_value_request.field_name, "value");
+        assert_eq!(
+            write_value_request
+                .anonymous_value_string
+                .get_anonymous_value_string(),
+            "48879"
+        );
+        assert_eq!(
+            write_value_request
+                .anonymous_value_string
+                .get_anonymous_value_string_format(),
+            AnonymousValueStringFormat::Decimal
+        );
+    }
+
+    #[test]
     fn should_apply_struct_field_edit_to_project_item_returns_false_for_directory_name_edits() {
         let should_apply_struct_field_edit = ProjectItemDetails::should_apply_struct_field_edit_to_project_item(
             ProjectItemTypeDirectory::PROJECT_ITEM_TYPE_ID,
@@ -952,55 +983,6 @@ mod tests {
                 PointerScanPointerSize::Pointer64,
             )
         );
-    }
-
-    #[test]
-    fn build_memory_write_request_for_runtime_value_edit_uses_address_target() {
-        let engine_execution_context = create_execution_context(MockMemoryReadBindings::new(|_memory_read_request| {
-            panic!("Did not expect pointer dereference for address project item runtime value edit.")
-        }));
-        let address_project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU16::get_value_from_primitive(0));
-        let edited_field = ValuedStructField::new(
-            ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE.to_string(),
-            ValuedStructFieldData::Value(DataTypeU16::get_value_from_primitive(0xBEEF)),
-            false,
-        );
-
-        let memory_write_request =
-            ProjectItemDetails::build_memory_write_request_for_runtime_value_edit(&engine_execution_context, None, &address_project_item, &edited_field);
-
-        assert!(memory_write_request.is_some());
-        let memory_write_request = memory_write_request.unwrap_or_else(|| panic!("Expected runtime value memory write request for address project item."));
-        assert_eq!(memory_write_request.address, 0x1234);
-        assert_eq!(memory_write_request.module_name, "game.exe");
-        assert_eq!(memory_write_request.value, 0xBEEFu16.to_le_bytes().to_vec());
-    }
-
-    #[test]
-    fn build_memory_write_request_for_runtime_value_edit_resolves_pointer_target() {
-        let engine_execution_context = create_execution_context(MockMemoryReadBindings::new(|memory_read_request| {
-            match (memory_read_request.address, memory_read_request.module_name.as_str()) {
-                (0x1000, "game.exe") => create_pointer_memory_read_response(0x2000, PointerScanPointerSize::Pointer64, true),
-                (0x2020, "") => create_pointer_memory_read_response(0x3000, PointerScanPointerSize::Pointer64, true),
-                unexpected_request => panic!("Unexpected pointer dereference request: {unexpected_request:?}"),
-            }
-        }));
-        let pointer = Pointer::new_with_size(0x1000, vec![0x20, -0x10], "game.exe".to_string(), PointerScanPointerSize::Pointer64);
-        let pointer_project_item = ProjectItemTypePointer::new_project_item("Ammo Pointer", &pointer, "", "u16");
-        let edited_field = ValuedStructField::new(
-            ProjectItemTypePointer::PROPERTY_FREEZE_DISPLAY_VALUE.to_string(),
-            ValuedStructFieldData::Value(DataTypeU16::get_value_from_primitive(0x1234)),
-            false,
-        );
-
-        let memory_write_request =
-            ProjectItemDetails::build_memory_write_request_for_runtime_value_edit(&engine_execution_context, None, &pointer_project_item, &edited_field);
-
-        assert!(memory_write_request.is_some());
-        let memory_write_request = memory_write_request.unwrap_or_else(|| panic!("Expected runtime value memory write request for pointer project item."));
-        assert_eq!(memory_write_request.address, 0x2FF0);
-        assert_eq!(memory_write_request.module_name, "");
-        assert_eq!(memory_write_request.value, 0x1234u16.to_le_bytes().to_vec());
     }
 
     #[test]
@@ -3274,20 +3256,7 @@ impl ProjectHierarchyView {
     ) -> Option<AnonymousValueString> {
         match details_value {
             DetailsValue::AnonymousValue(anonymous_value_string) => Some(anonymous_value_string.clone()),
-            DetailsValue::DataValue(data_value) => {
-                let anonymous_value_string_format = app_context
-                    .engine_unprivileged_state
-                    .get_default_anonymous_value_string_format(data_value.get_data_type_ref());
-
-                app_context
-                    .engine_unprivileged_state
-                    .anonymize_value(data_value, anonymous_value_string_format)
-                    .map_err(|error| {
-                        log::warn!("Failed to anonymize project item runtime value edit: {}", error);
-                        error
-                    })
-                    .ok()
-            }
+            DetailsValue::DataValue(data_value) => Self::data_value_to_anonymous_value_string(&app_context, data_value),
             DetailsValue::Text(text) => Some(AnonymousValueString::new(text.clone(), AnonymousValueStringFormat::String, ContainerType::None)),
             DetailsValue::Boolean(value) => Some(AnonymousValueString::new(
                 value.to_string(),
@@ -3310,6 +3279,43 @@ impl ProjectHierarchyView {
                 ContainerType::None,
             )),
         }
+    }
+
+    fn build_project_item_write_value_request_from_legacy_field(
+        app_context: Arc<AppContext>,
+        project_item_path: &Path,
+        edited_field: &ValuedStructField,
+    ) -> Option<ProjectItemsWriteValueRequest> {
+        if !ProjectItemDetails::is_runtime_value_field(edited_field.get_name()) {
+            return None;
+        }
+
+        let edited_data_value = edited_field.get_data_value()?;
+        let anonymous_value_string = Self::data_value_to_anonymous_value_string(&app_context, edited_data_value)?;
+
+        Some(ProjectItemsWriteValueRequest {
+            project_item_path: project_item_path.to_path_buf(),
+            field_name: String::from("value"),
+            anonymous_value_string,
+        })
+    }
+
+    fn data_value_to_anonymous_value_string(
+        app_context: &Arc<AppContext>,
+        data_value: &DataValue,
+    ) -> Option<AnonymousValueString> {
+        let anonymous_value_string_format = app_context
+            .engine_unprivileged_state
+            .get_default_anonymous_value_string_format(data_value.get_data_type_ref());
+
+        app_context
+            .engine_unprivileged_state
+            .anonymize_value(data_value, anonymous_value_string_format)
+            .map_err(|error| {
+                log::warn!("Failed to anonymize project item runtime value edit: {}", error);
+                error
+            })
+            .ok()
     }
 
     fn build_project_item_details_edit_callback(
@@ -3431,11 +3437,10 @@ impl ProjectHierarchyView {
 
         let project_manager = app_context.engine_unprivileged_state.get_project_manager();
         let opened_project_lock = project_manager.get_opened_project();
-        let mut memory_write_requests = Vec::new();
+        let mut write_value_requests = Vec::new();
         let mut rename_requests = Vec::new();
         let mut has_persisted_property_edits = false;
         let edited_field_name = edited_field.get_name().to_string();
-        let engine_execution_context: Arc<dyn EngineExecutionContext> = app_context.engine_unprivileged_state.clone();
         let edited_name = if edited_field_name == ProjectItem::PROPERTY_NAME {
             Self::extract_string_value_from_edited_field(&edited_field)
         } else {
@@ -3456,7 +3461,6 @@ impl ProjectHierarchyView {
                 return;
             }
         };
-        let opened_project_info = opened_project.get_project_info().clone();
         let root_project_item_path = opened_project
             .get_project_root_ref()
             .get_project_item_path()
@@ -3504,17 +3508,14 @@ impl ProjectHierarchyView {
                 }
             }
 
-            if let Some(memory_write_request) = ProjectItemDetails::build_memory_write_request_for_runtime_value_edit(
-                &engine_execution_context,
-                Some(&opened_project_info),
-                project_item,
-                &edited_field,
-            ) {
-                memory_write_requests.push(memory_write_request);
+            if let Some(write_value_request) =
+                Self::build_project_item_write_value_request_from_legacy_field(app_context.clone(), project_item_path, &edited_field)
+            {
+                write_value_requests.push(write_value_request);
             }
         }
 
-        if !has_persisted_property_edits && rename_requests.is_empty() && memory_write_requests.is_empty() {
+        if !has_persisted_property_edits && rename_requests.is_empty() && write_value_requests.is_empty() {
             return;
         }
 
@@ -3547,10 +3548,10 @@ impl ProjectHierarchyView {
             });
         }
 
-        for memory_write_request in memory_write_requests {
-            memory_write_request.send(&app_context.engine_unprivileged_state, |memory_write_response| {
-                if !memory_write_response.success {
-                    log::warn!("Project item address edit memory write command failed.");
+        for write_value_request in write_value_requests {
+            write_value_request.send(&app_context.engine_unprivileged_state, |project_items_write_value_response| {
+                if !project_items_write_value_response.success {
+                    log::warn!("Project item write-value command failed while committing legacy details edit.");
                 }
             });
         }

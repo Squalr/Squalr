@@ -106,7 +106,8 @@ Our current task, from `README.md`, is:
    - Stored-field application now has shared logic for regular properties, address target pointer size/offsets, address target module updates, and pointer item pointer size/offset serialization.
    - Single-selection runtime value edits now dispatch `ProjectItemsWriteValueRequest` instead of building memory writes in GUI code.
    - Single-selection stored-field edits now apply through `ProjectItemDetailsEditApplier`; rename operations dispatch `ProjectItemsRenameRequest`.
-   - The GUI still keeps legacy `apply_project_item_edits` for multi-selection `ValuedStruct` fallback.
+   - Multi-selection legacy fallback now also dispatches `ProjectItemsWriteValueRequest` for runtime value edits instead of building `MemoryWriteRequest` in GUI code.
+   - The GUI still keeps legacy `apply_project_item_edits` for multi-selection persisted property edits.
    - Remaining target: remove or shrink `ProjectHierarchyView::apply_project_item_edits` after multi-selection moves off legacy fields.
 
 6. Done: add `project_items write-value`.
@@ -122,7 +123,8 @@ Our current task, from `README.md`, is:
    - Change the edit callback to receive `DetailsEdit`, ask the planner for operations, and dispatch commands.
    - Single-selection Details focus/edit now uses `DetailsEdit` and dispatches `project_items write-value` for runtime edits.
    - Single-selection stored-field edits now use `ProjectItemDetailsEditApplier` instead of converting operations back to `ValuedStructField`.
-   - Remaining target: remove direct parsing of edited `ValuedStructField` names from multi-selection fallback.
+   - Runtime value edits no longer build raw `MemoryWriteRequest`s in Project Hierarchy.
+   - Remaining target: remove direct parsing of edited `ValuedStructField` names from multi-selection persisted property fallback.
    - Keep tree rendering, selection, drag/drop, and context menus in the view until a separate reason exists to move them.
 
 8. Migrate Symbol Tree to Details.
@@ -172,3 +174,4 @@ Our current task, from `README.md`, is:
 - Current icon-routing pass moved Project Hierarchy icon data type resolution to `ProjectItemDetailsProjection` and removed the GUI bridge method.
 - Current shared applier pass added `ProjectItemDetailsEditApplier` for stored project item Details operations. Validated with `cargo test -p squalr-engine-api project_item_details --lib --locked`.
 - Current Project Hierarchy stored-edit pass wired single-selection `UpdateStoredField` operations to `ProjectItemDetailsEditApplier` and `RenameTarget` operations to `ProjectItemsRenameRequest`. Validated with `cargo test -p squalr project_hierarchy --lib --locked`.
+- Current Project Hierarchy runtime cleanup pass routed legacy fallback runtime edits through `ProjectItemsWriteValueRequest` and removed `ProjectItemDetails::build_memory_write_request_for_runtime_value_edit`. Validated with `cargo test -p squalr project_hierarchy --lib --locked`.
