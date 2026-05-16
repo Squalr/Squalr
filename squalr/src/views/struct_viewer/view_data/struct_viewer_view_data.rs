@@ -1,5 +1,6 @@
 use crate::ui::list_navigation::{ListNavigationDirection, resolve_next_index};
 use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
+use crate::views::struct_viewer::view_data::details_projection_adapter::{DetailsProjectionAdapter, DetailsProjectionAdapterState};
 use crate::views::struct_viewer::view_data::struct_viewer_container_mode::StructViewerContainerMode;
 use crate::views::struct_viewer::view_data::struct_viewer_field_presentation::{StructViewerFieldEditorKind, StructViewerFieldPresentation};
 use crate::views::struct_viewer::view_data::struct_viewer_focus_target::StructViewerFocusTarget;
@@ -13,6 +14,7 @@ use squalr_engine_api::{
             data_type_ref::DataTypeRef,
         },
         data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
+        details::{DetailsEdit, DetailsProjection},
         projects::project_items::{
             built_in_types::{project_item_type_address::ProjectItemTypeAddress, project_item_type_pointer::ProjectItemTypePointer},
             project_item::ProjectItem,
@@ -41,6 +43,7 @@ pub struct StructViewerViewData {
     pub field_presentations: HashMap<String, StructViewerFieldPresentation>,
     pub field_validation_data_type_refs: HashMap<String, DataTypeRef>,
     pub field_data_type_selections: HashMap<String, DataTypeSelection>,
+    pub details_projection_adapter_state: Option<DetailsProjectionAdapterState>,
     pub take_over_state: Option<StructViewerTakeOverState>,
     pub value_splitter_ratio: f32,
     details_update_revision: u64,
@@ -89,6 +92,7 @@ impl StructViewerViewData {
             field_presentations: HashMap::new(),
             field_validation_data_type_refs: HashMap::new(),
             field_data_type_selections: HashMap::new(),
+            details_projection_adapter_state: None,
             take_over_state: None,
             value_splitter_ratio: Self::DEFAULT_NAME_SPLITTER_RATIO,
             details_update_revision: 0,
@@ -175,6 +179,7 @@ impl StructViewerViewData {
             Some(valued_struct),
             Some(valued_struct_field_edited_callback),
             focus_target,
+            None,
         );
     }
 
@@ -211,6 +216,36 @@ impl StructViewerViewData {
             Some(valued_struct),
             Some(valued_struct_field_edited_callback),
             focus_target,
+            None,
+        );
+    }
+
+    pub fn focus_details_projection_with_focus_target(
+        struct_viewer_view_data: Dependency<Self>,
+        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
+        details_projection: DetailsProjection,
+        details_edit_callback: Arc<dyn Fn(DetailsEdit) + Send + Sync>,
+        focus_target: Option<StructViewerFocusTarget>,
+    ) {
+        let details_projection_adapter = DetailsProjectionAdapter::adapt_projection(&engine_unprivileged_state, &details_projection);
+        let (valued_struct, details_projection_adapter_state) = details_projection_adapter.into_parts();
+        let details_projection_adapter_state_for_callback = details_projection_adapter_state.clone();
+        let valued_struct_field_edited_callback = Arc::new(move |edited_field: ValuedStructField| {
+            if let Some(details_edit) = details_projection_adapter_state_for_callback.build_details_edit(&edited_field) {
+                details_edit_callback(details_edit);
+            }
+        });
+        let mut struct_viewer_view_data = match struct_viewer_view_data.write("Focus details projection") {
+            Some(struct_viewer_view_data) => struct_viewer_view_data,
+            None => return,
+        };
+
+        struct_viewer_view_data.set_valued_struct_and_callback(
+            engine_unprivileged_state,
+            Some(valued_struct),
+            Some(valued_struct_field_edited_callback),
+            focus_target,
+            Some(details_projection_adapter_state),
         );
     }
 
@@ -224,6 +259,7 @@ impl StructViewerViewData {
         struct_viewer_view_data.field_display_values.clear();
         struct_viewer_view_data.field_validation_data_type_refs.clear();
         struct_viewer_view_data.field_data_type_selections.clear();
+        struct_viewer_view_data.details_projection_adapter_state = None;
         struct_viewer_view_data.selected_field_name = Arc::new(None);
         struct_viewer_view_data.source_struct_under_view = Arc::new(None);
         struct_viewer_view_data.struct_under_view = Arc::new(None);
@@ -280,12 +316,14 @@ impl StructViewerViewData {
         valued_struct: Option<ValuedStruct>,
         valued_struct_field_edited_callback: Option<Arc<dyn Fn(ValuedStructField) + Send + Sync>>,
         focus_target: Option<StructViewerFocusTarget>,
+        details_projection_adapter_state: Option<DetailsProjectionAdapterState>,
     ) {
         self.selected_field_name = Arc::new(None);
         self.take_over_state = None;
         self.source_struct_under_view = Arc::new(valued_struct);
         self.struct_field_modified_callback = valued_struct_field_edited_callback;
         self.focus_target = Arc::new(focus_target);
+        self.details_projection_adapter_state = details_projection_adapter_state;
         self.refresh_cached_field_state(&engine_unprivileged_state);
         self.details_update_revision = self.details_update_revision.saturating_add(1);
     }
@@ -304,10 +342,17 @@ impl StructViewerViewData {
             return;
         };
         let struct_under_view = Self::create_presented_struct(source_struct_under_view);
-        let field_validation_data_type_refs = Self::create_field_validation_data_type_refs(&struct_under_view, engine_unprivileged_state);
+        let mut field_validation_data_type_refs = Self::create_field_validation_data_type_refs(&struct_under_view, engine_unprivileged_state);
+
+        if let Some(details_projection_adapter_state) = &self.details_projection_adapter_state {
+            details_projection_adapter_state.apply_field_validation_data_type_refs(&mut field_validation_data_type_refs);
+        }
 
         self.struct_under_view = Arc::new(Some(struct_under_view.clone()));
         self.field_presentations = Self::create_field_presentations(&struct_under_view);
+        if let Some(details_projection_adapter_state) = &self.details_projection_adapter_state {
+            details_projection_adapter_state.apply_field_presentations(&mut self.field_presentations);
+        }
         self.field_edit_values = Self::create_field_edit_values(&struct_under_view, &field_validation_data_type_refs, engine_unprivileged_state);
         self.field_display_values = Self::create_field_display_values(&struct_under_view, &field_validation_data_type_refs, engine_unprivileged_state);
         self.field_validation_data_type_refs = field_validation_data_type_refs;
@@ -318,6 +363,14 @@ impl StructViewerViewData {
         &self,
         edited_field: &ValuedStructField,
     ) -> Option<ValuedStructField> {
+        if self
+            .details_projection_adapter_state
+            .as_ref()
+            .is_some_and(|details_projection_adapter_state| details_projection_adapter_state.contains_rendered_field_name(edited_field.get_name()))
+        {
+            return Some(edited_field.clone());
+        }
+
         if Self::is_virtual_container_type_field(edited_field) {
             let symbolic_field_definition = self
                 .source_struct_under_view
@@ -893,7 +946,8 @@ mod tests {
             u64::data_type_u64::DataTypeU64,
         },
         data_types::data_type_ref::DataTypeRef,
-        data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat},
+        data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
+        details::{DetailsEdit, DetailsEditorHint, DetailsField, DetailsFieldId, DetailsFieldSource, DetailsProjection, DetailsTarget, DetailsValue},
         projects::project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress,
     };
     use squalr_engine_api::{
@@ -912,7 +966,7 @@ mod tests {
         structures::structs::valued_struct::ValuedStruct,
     };
     use squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState;
-    use std::sync::{Arc, RwLock};
+    use std::sync::{Arc, Mutex, RwLock};
 
     struct TestEngineBindings;
 
@@ -972,6 +1026,86 @@ mod tests {
             .map(|struct_viewer_view_data| struct_viewer_view_data.get_details_update_revision());
 
         assert_eq!(details_update_revision, Some(1));
+    }
+
+    #[test]
+    fn focus_details_projection_routes_edits_by_stable_field_id() {
+        let dependency_container = DependencyContainer::new();
+        let struct_viewer_view_data = dependency_container.register(StructViewerViewData::new());
+        let engine_unprivileged_state = create_test_engine_unprivileged_state();
+        let target = DetailsTarget::new("project_item", "/Health");
+        let field_id = DetailsFieldId::new("runtime.value");
+        let details_projection = DetailsProjection::new(
+            target.clone(),
+            "Health",
+            vec![DetailsField::new(
+                field_id.clone(),
+                "Current HP",
+                DetailsValue::DataValue(DataTypeU32::get_value_from_primitive(100)),
+                false,
+                DetailsEditorHint::Value,
+                Some(DataTypeRef::new(DataTypeU32::DATA_TYPE_ID)),
+                ContainerType::None,
+                DetailsFieldSource::ProjectItemRuntimeValue {
+                    field_path: vec!["value".to_string()],
+                },
+            )],
+        );
+        let captured_details_edit: Arc<Mutex<Option<DetailsEdit>>> = Arc::new(Mutex::new(None));
+        let captured_details_edit_for_callback = captured_details_edit.clone();
+
+        StructViewerViewData::focus_details_projection_with_focus_target(
+            struct_viewer_view_data.clone(),
+            engine_unprivileged_state,
+            details_projection,
+            Arc::new(move |details_edit| {
+                if let Ok(mut captured_details_edit) = captured_details_edit_for_callback.lock() {
+                    *captured_details_edit = Some(details_edit);
+                }
+            }),
+            None,
+        );
+
+        let (rendered_field, field_presentation, modified_field_callback, details_update_revision) = {
+            let struct_viewer_view_data = struct_viewer_view_data
+                .read("Read details projection focus state")
+                .expect("Expected struct viewer view data to be readable.");
+            let rendered_field = struct_viewer_view_data
+                .struct_under_view
+                .as_ref()
+                .as_ref()
+                .and_then(|struct_under_view| struct_under_view.get_fields().first())
+                .cloned()
+                .expect("Expected details projection to render one field.");
+            let field_presentation = struct_viewer_view_data
+                .field_presentations
+                .get(rendered_field.get_name())
+                .cloned()
+                .expect("Expected details projection field presentation.");
+            let modified_field_callback = struct_viewer_view_data
+                .struct_field_modified_callback
+                .clone()
+                .expect("Expected details projection edit callback.");
+
+            (
+                rendered_field,
+                field_presentation,
+                modified_field_callback,
+                struct_viewer_view_data.get_details_update_revision(),
+            )
+        };
+
+        modified_field_callback(rendered_field);
+        let captured_details_edit = captured_details_edit
+            .lock()
+            .expect("Expected captured details edit lock to be available.")
+            .clone()
+            .expect("Expected details edit callback to run.");
+
+        assert_eq!(details_update_revision, 1);
+        assert_eq!(field_presentation.display_name(), "Current HP");
+        assert_eq!(captured_details_edit.get_target(), &target);
+        assert_eq!(captured_details_edit.get_field_id(), &field_id);
     }
 
     #[test]

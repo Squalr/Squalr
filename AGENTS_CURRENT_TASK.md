@@ -67,13 +67,13 @@ Our current task, from `README.md`, is:
    - Keep `DetailsFieldSource` explicit enough to represent project item property, project item runtime value, project item address target metadata, project symbol runtime value, symbol layout metadata, and symbol resolver metadata.
    - Added small API tests for serialization/round trip, stable field id routing, and ordered edit-plan operations.
 
-2. Add a Struct Viewer compatibility adapter.
-   - Add a GUI-only adapter, likely `squalr/src/views/struct_viewer/view_data/details_projection_adapter.rs`.
-   - Add `StructViewerViewData::focus_details_projection_with_focus_target` beside the existing `focus_valued_struct*` APIs.
-   - Initially convert `DetailsProjection` into the rendered legacy `ValuedStruct` so table rendering stays stable.
-   - Preserve a local mapping from rendered field name to `DetailsFieldId`, or generate stable internal field names from the id and use `StructViewerFieldPresentation.label` for display.
-   - Convert edited rows back into `DetailsEdit` before invoking caller logic. Do not make callers parse display names.
-   - Tests belong with current Struct Viewer tests and should prove that labels can change without breaking edit routing.
+2. Done: add a Struct Viewer compatibility adapter.
+   - Added GUI-only adapter at `squalr/src/views/struct_viewer/view_data/details_projection_adapter.rs`.
+   - Added `StructViewerViewData::focus_details_projection_with_focus_target` beside the existing `focus_valued_struct*` APIs.
+   - Converts `DetailsProjection` into the rendered legacy `ValuedStruct` so table rendering stays stable.
+   - Preserves a local mapping from rendered field name to `DetailsFieldId` and uses `StructViewerFieldPresentation` for display labels.
+   - Converts edited rows back into `DetailsEdit` before invoking caller logic. Callers no longer need to parse display labels on the Details path.
+   - Added focused tests proving labels can change without breaking edit routing.
 
 3. Stop adding domain rules to `StructViewerViewData`.
    - Leave old behavior in place while migration is incomplete.
@@ -140,7 +140,7 @@ Our current task, from `README.md`, is:
 ## Validation Per Stage
 
 - Shared Details API model: added under `squalr-engine-api/src/structures/details/`; validate with `cargo test -p squalr-engine-api details --lib --locked`.
-- Struct Viewer adapter: `cargo test -p squalr struct_viewer --lib --locked`.
+- Struct Viewer adapter: added under `squalr/src/views/struct_viewer/view_data/`; validate with `cargo test -p squalr struct_viewer --lib --locked`.
 - Project item detail projector/planner: `cargo test -p squalr project_hierarchy --lib --locked` and `cargo test -p squalr-engine project_items --lib --locked`.
 - `project_items write-value`: `cargo test -p squalr-engine project_items --lib --locked` and `cargo test -p squalr-cli parse_input --locked`.
 - Symbol Tree projector: `cargo test -p squalr symbol_tree --lib --locked` and `cargo test -p squalr-engine-api symbol_tree --lib --locked`.
@@ -149,4 +149,5 @@ Our current task, from `README.md`, is:
 ## Validation Notes
 
 - Details architecture audit used source inspection only.
-- Current implementation pass added the shared `DetailsProjection`/field/edit/plan model only; no GUI/runtime behavior changed.
+- Previous implementation pass added the shared `DetailsProjection`/field/edit/plan model only.
+- Current Struct Viewer pass added a compatibility adapter and focus API for `DetailsProjection`; no Project Hierarchy or Symbol Tree callers have migrated yet.
