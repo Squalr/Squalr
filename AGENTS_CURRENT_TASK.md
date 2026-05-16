@@ -10,60 +10,141 @@ Our current task, from `README.md`, is:
 
 ## Current Tasklist
 
-- Audit and plan a piecemeal migration from caller-built `ValuedStruct` details toward a reflection/schema-style Details system.
-- Do not do another containment-only extraction as the architectural answer. The goal is to make inspected objects describe their own details and edit semantics, not just move bulky view code into nearby helpers.
-- Add a shared Details document/edit model first, then migrate Project Hierarchy and Symbol Tree to it incrementally while keeping the current Struct Viewer UI working during the transition.
+- Replace caller-built `ValuedStruct` details with a shared reflection/schema-style Details document and edit-planning model.
+- Do this piecemeal. Keep the existing Struct Viewer UI working while adding a Details path beside the legacy `ValuedStruct` path.
+- Do not start by slimming views or doing containment-only extraction. First create the shared vocabulary that lets inspected objects describe fields, editor semantics, and edit intent.
+- Treat `ProjectItemDetails` as a temporary bridge from the previous refactor. Do not build more architecture on top of it.
 
 ## Important Information
 
-- Current choke point: `StructViewerViewData` accepts a completed `ValuedStruct` plus an `Arc<dyn Fn(ValuedStructField)>` edit callback. This forces each caller to synthesize display fields, remember string field names, and decode edits itself.
-- `ValuedStruct`/`ValuedStructField` carry data and read-only state, but not enough Details metadata: no stable field id separate from label, no source/origin, no semantic editor kind, no validation type override, no grouping, and no declared edit operation.
-- `StructViewerViewData` currently owns many domain-specific virtual field ids and editor decisions, including project-item pointer fields, symbol resolver fields, and symbol layout fields. That is a sign the Details layer is missing a semantic field schema.
-- `ProjectItemType` currently only exposes activation/tick behavior. It does not expose details projection, edit planning, preview planning, runtime target resolution, or value write semantics, so Project Hierarchy compensates with type-id switches.
-- `ProjectItem` persists properties as a `ValuedStruct`, which can remain the storage format for now. The migration should add a Details projection above it rather than immediately replacing persistence.
-- `ProjectItemDetails` is only a temporary containment point from the previous refactor. It should not be treated as the desired architecture; much of its logic belongs in shared project-item detail/command services or type-specific capabilities.
-- Existing engine services already cover some reusable pieces: `project_item_preview`, `project_item_activation`, and `project_item_symbol_resolution`. Project-item Details should reuse those instead of duplicating runtime pointer/address resolution in the GUI.
-- `project_symbols write-value` already exists as the correct command-boundary pattern for runtime writes. Project item runtime value edits need an equivalent `project_items write-value` or shared write command path so GUI/CLI/TUI do not build `MemoryWriteRequest` directly.
-- Symbol Tree already has a shared tree model and shared semantic operations, but its Details projection is still mostly GUI-owned in `symbol_tree_view.rs`.
-- Recommended shared model location: start in `squalr-engine-api/src/structures/details/` or similar, because GUI, CLI, TUI, and future plugins all need the same description/edit vocabulary. Keep GUI-only rendering widgets in `squalr/src/views/struct_viewer`.
+- `StructViewerViewData` is the main choke point. It accepts completed `ValuedStruct` data plus an `Arc<dyn Fn(ValuedStructField)>` callback, so callers have to synthesize fields, remember string field names, and decode edits themselves.
+- `StructViewerViewData` currently owns domain-specific virtual fields in `squalr/src/views/struct_viewer/view_data/struct_viewer_view_data.rs`: project item pointer rows, symbol resolver rows, symbol layout rows, live value detection, readable labels, editor choice, and virtual container row injection.
+- `ValuedStruct`/`ValuedStructField` in `squalr-engine-domain/src/structures/structs/` carry data and read-only state, but not enough Details metadata: no stable field id separate from label, no source/origin, no semantic editor kind, no validation type override, no grouping, and no declared edit operation.
+- `StructViewerFieldPresentation` in `squalr/src/views/struct_viewer/view_data/struct_viewer_field_presentation.rs` is GUI-only. New shared Details types must not depend on these widget/editor variants.
+- `ProjectItemType` in `squalr-engine-api/src/structures/projects/project_items/project_item_type.rs` only exposes activation/tick behavior. It does not expose details projection, edit planning, preview planning, runtime target resolution, or value write semantics, so Project Hierarchy compensates with type-id switches.
+- `ProjectItem` persists properties as a `ValuedStruct`. Keep that storage format during the migration; add a Details projection above it first.
+- `ProjectItemDetails` in `squalr/src/views/project_explorer/project_hierarchy/project_item_details.rs` contains useful extracted facts, but it is still GUI-side glue. It currently owns runtime write planning, property projection, icon data type resolution, value-edit context, snapshot queries, runtime target resolution, and field-name filtering.
+- Existing engine services already cover reusable project item behavior: `squalr-engine/src/services/projects/project_item_preview.rs`, `project_item_activation.rs`, and `project_item_symbol_resolution.rs`.
+- `project_symbols write-value` already exists and is CLI-parsed. Project item runtime value edits need an equivalent `project_items write-value` or a shared write command path so GUI/CLI/TUI do not build `MemoryWriteRequest` directly.
+- Symbol Tree already has shared tree data and command operations, but its Details projection is still GUI-owned in `squalr/src/views/symbol_tree/symbol_tree_view.rs`.
+- Recommended shared model location: `squalr-engine-api/src/structures/details/`. GUI adapters belong under `squalr/src/views/struct_viewer/`. Engine-only runtime planners belong under `squalr-engine/src/services/`.
 
-## Details System Migration Plan
+## Concrete Hot Spots
 
-1. Introduce a shared Details model with no behavior migration yet.
-   - Add types like `DetailDocument`, `DetailField`, `DetailFieldId`, `DetailFieldValue`, `DetailFieldEditorHint`, `DetailEdit`, and `DetailEditPlan`.
-   - Keep it semantic, not egui-specific. The GUI maps semantic editor hints to controls.
-   - Include enough metadata to retire virtual-name switches over time: stable id, display label, read-only/editable, validation `DataTypeRef`, container type, source/origin, and optional action/edit kind.
+- `StructViewerViewData` methods to drain or bypass:
+  - `focus_valued_struct*`
+  - `resolve_source_field_edit`
+  - `create_field_presentations`
+  - `is_live_value_field`
+  - `create_presented_struct`
+- `ProjectHierarchyView` methods to migrate after shared Details exists:
+  - `focus_project_item_paths_in_struct_viewer`
+  - `build_project_item_details_edit_callback`
+  - `apply_project_item_edits`
+  - `build_pointer_scanner_context_actions`
+  - `resolve_tree_entry_icon`
+- `SymbolTreeView` methods to migrate after shared Details exists:
+  - `focus_symbol_tree_entry_in_struct_viewer`
+  - `build_struct_viewer_edit_callback`
+  - `build_symbol_layout_for_tree_entry`
+  - `build_symbol_layout_metadata_fields`
+  - `build_symbol_layout_location_fields`
+  - `dispatch_memory_read_request`
+  - `build_symbol_preview_snapshot_queries`
 
-2. Add a compatibility adapter in the Struct Viewer.
-   - Let `StructViewerViewData` focus either a legacy `ValuedStruct` or a new `DetailDocument`.
-   - Initially adapt `DetailDocument` into the existing rendered `ValuedStruct` so the UI does not need a large rewrite.
-   - Convert field edits back to `DetailEdit` using stable field ids instead of relying on display/property names.
+## Detailed Action Items
 
-3. Move project-item detail projection behind a shared provider/planner.
-   - Address, Pointer, Directory, and Script item types should expose their detail fields through shared detail projection code.
-   - Project Hierarchy should ask for a `DetailDocument` for selected project items instead of building struct fields itself.
-   - Pointer size/offsets, module, symbolic type, runtime value, and preview display should become semantic fields, not `StructViewerViewData` virtual fields.
+1. Add the shared Details model before moving any GUI behavior.
+   - Create `squalr-engine-api/src/structures/details/mod.rs`.
+   - Add `detail_document.rs`, `detail_field.rs`, `detail_edit.rs`, and `detail_edit_plan.rs`.
+   - Minimum model:
+     - `DetailDocument { document_id, title, fields }`
+     - `DetailField { id, label, value, is_read_only, editor_hint, validation_data_type_ref, container_type, source }`
+     - `DetailEdit { document_id, field_id, value }`
+     - `DetailEditPlan { operations }`
+   - Keep `DetailEditorHint` semantic: value, address, code, data type, container type, pointer offsets, pointer size, resolver, layout field, etc. Do not use egui/widget enum names.
+   - Keep `DetailFieldSource` explicit enough to represent project item property, project item runtime value, project item address target metadata, project symbol runtime value, symbol layout metadata, and symbol resolver metadata.
+   - Add small API tests for serialization/round trip and stable field id behavior.
 
-4. Add project-item edit planning before changing UI behavior.
-   - A project item detail edit should return an explicit plan: rename item, update persisted properties, write runtime value, save project, refresh details, or no-op/error.
-   - Keep command dispatch outside the Struct Viewer. The view invokes a planner/command adapter rather than switching on field names.
+2. Add a Struct Viewer compatibility adapter.
+   - Add a GUI-only adapter, likely `squalr/src/views/struct_viewer/view_data/detail_document_adapter.rs`.
+   - Add `StructViewerViewData::focus_detail_document_with_focus_target` beside the existing `focus_valued_struct*` APIs.
+   - Initially convert `DetailDocument` into the rendered legacy `ValuedStruct` so table rendering stays stable.
+   - Preserve a local mapping from rendered field name to `DetailFieldId`, or generate stable internal field names from the id and use `StructViewerFieldPresentation.label` for display.
+   - Convert edited rows back into `DetailEdit` before invoking caller logic. Do not make callers parse display names.
+   - Tests belong with current Struct Viewer tests and should prove that labels can change without breaking edit routing.
 
-5. Add a `project_items write-value` command path.
-   - Move runtime value write planning out of the GUI and reuse `project_item_symbol_resolution` for address/pointer/symbol target resolution.
-   - Mirror the `project_symbols write-value` boundary so GUI/CLI/TUI can all write project item runtime values consistently.
+3. Stop adding domain rules to `StructViewerViewData`.
+   - Leave old behavior in place while migration is incomplete.
+   - New Details flows must carry editor hints/source metadata through `DetailField`; they should not add more `VIRTUAL_FIELD_*` constants.
+   - Existing project item pointer fields, symbol resolver fields, symbol layout fields, and live value field decisions should be removed only after their callers are migrated to Details.
 
-6. Migrate Symbol Tree Details projection.
-   - Add a shared Symbol Tree detail projector that accepts `ProjectSymbolCatalog`, `SymbolTreeNode`, and runtime/default-value context.
-   - Preserve existing `project_symbols write-value` for edits; the GUI should route a `DetailEdit` into that command instead of building symbol-specific callbacks in `symbol_tree_view.rs`.
+4. Add a project item detail projector.
+   - Put pure API-shaped projection in `squalr-engine-api/src/structures/projects/project_items/details/` if it only needs item properties.
+   - Put runtime-aware projection/planning in `squalr-engine/src/services/projects/project_item_details.rs` if it needs process memory, module resolution, pointer evaluation, or preview data.
+   - First target: replace `ProjectItemDetails::build_struct_view_properties` and `resolve_project_item_icon_data_type_id` with shared projection for Directory, Script, Address, and Pointer items.
+   - Model pointer size/offsets, module address metadata, symbolic data type, runtime value, and preview display as semantic `DetailField`s.
+   - Move or mirror the existing `ProjectHierarchyView`/`ProjectItemDetails` tests so the projector owns field shape expectations.
 
-7. Drain domain-specific virtual fields out of `StructViewerViewData`.
-   - Once Project Hierarchy and Symbol Tree are on `DetailDocument`, move symbol resolver/layout editor fields to the same model or consciously keep them as editor-specific until their turn.
-   - The end state is that `StructViewerViewData` handles selection, edit state, display formats, and generic editor dispatch, while domains describe fields and plan edits.
+5. Add project item edit planning.
+   - A project item detail edit should produce explicit operations such as:
+     - rename project item,
+     - update persisted property,
+     - update address target pointer size/offsets,
+     - write runtime value,
+     - save project,
+     - refresh details,
+     - no-op/error.
+   - Use existing command boundaries where possible, including `ProjectItemsRenameRequest`, property mutation plus save, and the future runtime write command.
+   - Replace `ProjectHierarchyView::apply_project_item_edits` only after the planner can describe every existing edit path.
 
-8. Only then slim the large views.
-   - After shared projection/edit planning exists, remove view-owned Details construction from `ProjectHierarchyView` and `SymbolTreeView`.
-   - The views should select objects, request detail focus, render tree/list rows, and route user actions. They should not parse edited field names or build memory write requests.
+6. Add `project_items write-value`.
+   - Add request/response/command enum variants under `squalr-engine-api/src/commands/project_items/`.
+   - Add executor under `squalr-engine/src/command_executors/project_items/write_value/`.
+   - Reuse `project_item_symbol_resolution::{resolve_project_item_locator, resolve_address_target_runtime_target, resolve_pointer_runtime_target}` and dispatch `MemoryWriteRequest` from the engine, not the GUI.
+   - Add CLI parsing and response handling to mirror `project_symbols write-value`.
+   - After this exists, runtime value edits in GUI/TUI/CLI can share the same command path.
+
+7. Migrate Project Hierarchy to Details.
+   - Change `focus_project_item_paths_in_struct_viewer` to request/focus `DetailDocument`s.
+   - Change the edit callback to receive `DetailEdit`, ask the planner for operations, and dispatch commands.
+   - Remove direct parsing of edited `ValuedStructField` names from `ProjectHierarchyView`.
+   - Keep tree rendering, selection, drag/drop, and context menus in the view until a separate reason exists to move them.
+
+8. Migrate Symbol Tree to Details.
+   - Add a shared projector, likely under `squalr-engine-api/src/structures/projects/symbol_tree/details/`.
+   - Move metadata/location/value field construction out of `build_symbol_layout_*`.
+   - Use existing `ProjectSymbolsWriteValueRequest` for runtime edits.
+   - Keep symbol tree rendering, expansion state, and selection in the GUI view.
+
+9. Drain old virtual fields from Struct Viewer.
+   - Remove project item pointer virtual fields after Project Hierarchy uses Details.
+   - Remove symbol layout/resolver virtual fields after Symbol Tree and symbol authoring editors use Details.
+   - Keep generic container/array display only if it is truly Struct Viewer behavior; otherwise model it as detail metadata too.
+
+10. Only then slim the large views.
+   - `ProjectHierarchyView` should select project items, render rows/context actions, and route user actions.
+   - `SymbolTreeView` should select symbols, render rows/context actions, and route user actions.
+   - Neither view should construct Details rows, parse edited field names, or build memory read/write requests directly.
+
+## Ordering Constraints
+
+- Do not slim views first; that repeats the containment-only mistake.
+- Do not extend the `ProjectItemType` trait until the Details model is stable enough. Start with sidecar projectors for built-ins, then consider trait capabilities for plugins.
+- Do not put command dispatch in Struct Viewer. Struct Viewer should emit `DetailEdit` or legacy field edits only.
+- Do not make `DetailEditorHint` a GUI widget enum.
+- Do not replace persisted `ProjectItem.properties` yet. Projection above storage is the safer first step.
+- Do not delete `ProjectItemDetails` until Project Hierarchy has a Details projector, edit planner, and project item write-value command.
+
+## Validation Per Stage
+
+- Shared Details API model: `cargo test -p squalr-engine-api details --lib --locked`.
+- Struct Viewer adapter: `cargo test -p squalr struct_viewer --lib --locked`.
+- Project item detail projector/planner: `cargo test -p squalr project_hierarchy --lib --locked` and `cargo test -p squalr-engine project_items --lib --locked`.
+- `project_items write-value`: `cargo test -p squalr-engine project_items --lib --locked` and `cargo test -p squalr-cli parse_input --locked`.
+- Symbol Tree projector: `cargo test -p squalr symbol_tree --lib --locked` and `cargo test -p squalr-engine-api symbol_tree --lib --locked`.
+- Final cleanup pass: run the relevant package tests plus `cargo fmt` for touched Rust files.
 
 ## Validation Notes
 
-- Details architecture audit used source inspection only; no runtime behavior was changed in this audit pass.
+- Details architecture audit used source inspection only; no runtime behavior changed in this audit pass.
