@@ -1713,15 +1713,15 @@ impl SymbolTreeView {
                 let can_delete_symbol_tree_entry =
                     context_menu_module_child_range_target.is_some() || context_menu_symbol_claim.is_some() || context_menu_module_name.is_some();
                 let mut context_menu_labels = Vec::new();
+                if context_menu_symbol_layout_edit_target.is_some() {
+                    context_menu_labels.push(Self::SYMBOL_TREE_CTX_EDIT_SYMBOL_LAYOUT_LABEL.to_string());
+                }
                 if can_open_symbol_tree_entry {
                     context_menu_labels.push(Self::SYMBOL_TREE_CTX_OPEN_MEMORY_VIEWER_LABEL.to_string());
                     context_menu_labels.push(Self::SYMBOL_TREE_CTX_OPEN_CODE_VIEWER_LABEL.to_string());
                 }
                 if context_menu_add_symbol_to_project_target.is_some() {
                     context_menu_labels.push(Self::SYMBOL_TREE_CTX_ADD_TO_PROJECT_LABEL.to_string());
-                }
-                if context_menu_symbol_layout_edit_target.is_some() {
-                    context_menu_labels.push(Self::SYMBOL_TREE_CTX_EDIT_SYMBOL_LAYOUT_LABEL.to_string());
                 }
                 if can_rename_symbol_tree_entry {
                     context_menu_labels.push(Self::SYMBOL_TREE_CTX_RENAME_LABEL.to_string());
@@ -1747,6 +1747,33 @@ impl SymbolTreeView {
                         .map(|context_menu_target| context_menu_target.get_position())
                         .unwrap_or(symbol_tree_entry_view_response.row_response.rect.left_top()),
                     |user_interface, should_close| {
+                        if let Some(struct_layout_id) = context_menu_symbol_layout_edit_target.as_deref() {
+                            if user_interface
+                                .add(
+                                    ToolbarMenuItemView::new(
+                                        self.app_context.clone(),
+                                        Self::SYMBOL_TREE_CTX_EDIT_SYMBOL_LAYOUT_LABEL,
+                                        Self::SYMBOL_TREE_CTX_EDIT_SYMBOL_LAYOUT_ID,
+                                        &None,
+                                        context_menu_width,
+                                    )
+                                    .icon(
+                                        self.app_context
+                                            .theme
+                                            .icon_library
+                                            .icon_handle_common_edit
+                                            .clone(),
+                                    ),
+                                )
+                                .clicked()
+                            {
+                                self.edit_symbol_tree_entry_symbol_layout(project_symbol_catalog, struct_layout_id);
+                                *should_close = true;
+                            }
+
+                            user_interface.separator();
+                        }
+
                         if can_open_symbol_tree_entry {
                             if user_interface
                                 .add(
@@ -1820,38 +1847,7 @@ impl SymbolTreeView {
                             }
                         }
 
-                        if (can_open_symbol_tree_entry || context_menu_add_symbol_to_project_target.is_some())
-                            && (context_menu_symbol_layout_edit_target.is_some() || can_rename_symbol_tree_entry)
-                        {
-                            user_interface.separator();
-                        }
-
-                        if let Some(struct_layout_id) = context_menu_symbol_layout_edit_target.as_deref() {
-                            if user_interface
-                                .add(
-                                    ToolbarMenuItemView::new(
-                                        self.app_context.clone(),
-                                        Self::SYMBOL_TREE_CTX_EDIT_SYMBOL_LAYOUT_LABEL,
-                                        Self::SYMBOL_TREE_CTX_EDIT_SYMBOL_LAYOUT_ID,
-                                        &None,
-                                        context_menu_width,
-                                    )
-                                    .icon(
-                                        self.app_context
-                                            .theme
-                                            .icon_library
-                                            .icon_handle_common_edit
-                                            .clone(),
-                                    ),
-                                )
-                                .clicked()
-                            {
-                                self.edit_symbol_tree_entry_symbol_layout(project_symbol_catalog, struct_layout_id);
-                                *should_close = true;
-                            }
-                        }
-
-                        if context_menu_symbol_layout_edit_target.is_some() && can_rename_symbol_tree_entry {
+                        if (can_open_symbol_tree_entry || context_menu_add_symbol_to_project_target.is_some()) && can_rename_symbol_tree_entry {
                             user_interface.separator();
                         }
 
@@ -1879,10 +1875,10 @@ impl SymbolTreeView {
                             *should_close = true;
                         }
 
-                        let has_symbol_tree_edit_menu_items =
-                            can_open_symbol_tree_entry || context_menu_symbol_layout_edit_target.is_some() || can_rename_symbol_tree_entry;
+                        let has_post_layout_edit_menu_items =
+                            can_open_symbol_tree_entry || context_menu_add_symbol_to_project_target.is_some() || can_rename_symbol_tree_entry;
 
-                        if has_symbol_tree_edit_menu_items && !context_menu_plugin_action_menu_items.is_empty() {
+                        if has_post_layout_edit_menu_items && !context_menu_plugin_action_menu_items.is_empty() {
                             user_interface.separator();
                         }
 
@@ -1916,7 +1912,7 @@ impl SymbolTreeView {
                             }
                         }
 
-                        if has_symbol_tree_edit_menu_items || !context_menu_plugin_action_menu_items.is_empty() {
+                        if has_post_layout_edit_menu_items || !context_menu_plugin_action_menu_items.is_empty() {
                             user_interface.separator();
                         }
 
