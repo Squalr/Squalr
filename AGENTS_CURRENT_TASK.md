@@ -89,10 +89,10 @@ Our current task, from `README.md`, is:
    - New home: `rows/symbol_layout_field_context_menu.rs`.
    - The menu emits `SymbolLayoutFieldRowAction`; the parent no longer owns menu labels, menu ids, delete eligibility, or move eligibility.
 
-4. Extract the field tree/list renderer.
-   - Current offenders: `render_field_rows`, `render_union_variant_layout_rows`, `render_union_variant_child_row`, and `SymbolLayoutVariantLayoutRowAction`.
-   - Target home: a named draft field tree view under `rows/`, for example `symbol_layout_draft_field_tree_view.rs`.
-   - Notes: this should do the natural tree walk: resolve spans, render each field/unassigned/variant child row, collect row actions, and dispatch row action appliers. The parent should not contain the field/unassigned traversal.
+4. Done: extracted the field tree/list renderer.
+   - New home: `rows/symbol_layout_draft_field_tree_view.rs`.
+   - Moved `render_field_rows`, `render_union_variant_layout_rows`, `render_union_variant_child_row`, and `SymbolLayoutVariantLayoutRowAction`.
+   - Notes: the draft field tree now walks fields/unassigned/variant child rows, collects row actions, and dispatches row action appliers. It still calls existing parent draft/session operations until those get their own owner.
 
 5. Move Symbol Layout list ownership out of the parent.
    - Current offenders: `render_list_panel`, `render_filter_text_box`, and `SymbolLayoutRowAction`.
@@ -100,9 +100,9 @@ Our current task, from `README.md`, is:
    - Notes: layout row selection should call the layout Details focus handler; list panel should own filtering/list-row composition and open/rename/delete handoff.
 
 6. Move define-field and layout-edit controls into named controls/views.
-   - Current offenders: `render_string_value_box`, `render_u64_data_value_box`, `render_define_field_container_selector`, `render_define_field_type_combo`, `render_layout_kind_combo`, `render_layout_size_editor`, `render_add_entry_button`, `render_centered_add_entry_button`, and `render_flat_icon_button`.
+   - Current offenders: `render_string_value_box`, `render_u64_data_value_box`, `render_define_field_container_selector`, `render_define_field_type_combo`, `render_layout_kind_combo`, `render_layout_size_editor`, `render_add_entry_button`, and `render_centered_add_entry_button`.
    - Target home: takeover-specific controls or shared UI widgets only when genuinely reusable, such as a symbol-layout field type selector, container selector, layout-size editor, and add-entry button.
-   - Notes: this is not a request for a generic helpers file; each control should be named after the UI it represents.
+   - Notes: `render_flat_icon_button` was removed after adding shared `IconButtonView`; the remaining controls should be named after the UI they represent.
 
 7. Move draft/session authoring operations out of the parent.
    - Current offenders: `default_data_type_ref`, `create_field_draft_for_layout_kind`, `create_field_draft_for_unassigned_span`, `append_field_to_variant_layout`, `resolve_variant_tail_unassigned_offset`, `resolve_draft_tail_unassigned_offset`, `create_union_variant_layout_draft_*`, `build_union_variant_layout_id`, `read_pending_variant_layout_draft`, `cache_variant_layout_draft`, `pending_variant_drafts_for_union*`, `build_effective_project_symbol_catalog_*`, `build_pending_variant_layout_descriptors`, `persist_variant_layout_draft`, `build_symbolic_field_definition_from_draft`, `validate_define_field_draft`, `normalize_union_field_drafts`, and `resolve_draft_field_spans`.
@@ -306,3 +306,4 @@ Our current task, from `README.md`, is:
 - Current Symbol Layout field-details edit pass moved `build_struct_viewer_field_edit_callback`, `build_variant_field_edit_callback`, field Details edit application, and draft auto-grow after field edits out of `SymbolLayoutEditorView` and into `symbol_layout_editor_view/rows/symbol_layout_field_row_action.rs`, beside the field-entry focus/action handling that feeds Struct Viewer. Parent `symbol_layout_editor_view.rs` is now 3,707 lines. Validated with `cargo fmt --all`, `cargo check -p squalr --locked`, `cargo test -p squalr symbol_layout_editor --lib --locked`, and `git diff --check`. Needs human verification in the GUI.
 - Current Symbol Layout editor cleanup audit pass added the "Symbol Layout Editor Cleanup Audit" section so remaining parent-file cleanup targets are tracked in one place: Details focus handlers, unassigned row actions, context menus, field-tree rendering, list panel ownership, define-field controls, draft/session authoring operations, constants, and final root widget shrinkage. Validated with source inspection and `git diff --check`; no code behavior changed.
 - Current Symbol Layout details/unassigned/menu extraction pass moved layout/field/unassigned Struct Viewer Details focus into `symbol_layout_editor_view/details/symbol_layout_details_focus.rs`, moved unassigned row action application into `rows/symbol_layout_unassigned_row_action.rs`, moved unassigned context menu rendering into `rows/symbol_layout_unassigned_context_menu.rs`, and moved field context menu rendering into `rows/symbol_layout_field_context_menu.rs`. Parent `symbol_layout_editor_view.rs` is now 2,991 lines. The next clear bite is extracting `render_field_rows` / union child row traversal into a named draft field tree view. Validated with `cargo fmt --all`, `cargo check -p squalr --locked`, `cargo test -p squalr symbol_layout_editor --lib --locked`, and `git diff --check`. Needs human verification in the GUI.
+- Current Symbol Layout icon/tree extraction pass added shared `IconButtonView` under `squalr/src/ui/widgets/controls/icon_button.rs`, removed `SymbolLayoutEditorView::render_flat_icon_button`, routed Symbol Layout row/list-toolbar/add-entry icon buttons through the shared widget, and moved draft field/unassigned/variant row traversal into `rows/symbol_layout_draft_field_tree_view.rs`. Parent `symbol_layout_editor_view.rs` is now 2,439 lines. The next clear bite is moving `render_list_panel` / `render_filter_text_box` and `SymbolLayoutRowAction` into `symbol_layout_editor_view/list/`. Validated with `cargo fmt --all`, `cargo check -p squalr --locked`, `cargo test -p squalr symbol_layout_editor --lib --locked`, and `git diff --check`. Needs human verification in the GUI.

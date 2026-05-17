@@ -1,8 +1,7 @@
 use crate::app_context::AppContext;
-use crate::ui::draw::icon_draw::IconDraw;
-use crate::ui::widgets::controls::button::Button as ThemeButton;
+use crate::ui::widgets::controls::icon_button::IconButtonView;
 use crate::views::symbol_layout_editor::view_data::symbol_layout_editor_view_data::SymbolLayoutEditorViewData;
-use eframe::egui::{Align, Color32, Layout, Response, Sense, TextureHandle, Ui, UiBuilder, Widget, vec2};
+use eframe::egui::{Align, Layout, Response, Sense, TextureHandle, Ui, UiBuilder, Widget, vec2};
 use epaint::CornerRadius;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::structures::{data_types::data_type_ref::DataTypeRef, projects::project_symbol_catalog::ProjectSymbolCatalog};
@@ -65,22 +64,10 @@ impl<'view> SymbolLayoutListToolbarView<'view> {
         is_disabled: bool,
     ) -> Response {
         let theme = &self.app_context.theme;
-        let button_response = user_interface.add_sized(
+        user_interface.add_sized(
             vec2(self.icon_button_width, self.icon_button_height),
-            ThemeButton::new_from_theme(theme)
-                .with_tooltip_text(tooltip_text)
-                .background_color(Color32::TRANSPARENT)
-                .disabled(is_disabled),
-        );
-
-        IconDraw::draw_tinted(
-            user_interface,
-            button_response.rect,
-            icon_handle,
-            if is_disabled { theme.foreground_preview } else { theme.foreground },
-        );
-
-        button_response
+            IconButtonView::new(theme, icon_handle, tooltip_text).disabled(is_disabled),
+        )
     }
 }
 

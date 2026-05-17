@@ -1,4 +1,5 @@
 mod row_icon_button;
+pub(super) mod symbol_layout_draft_field_tree_view;
 pub(super) mod symbol_layout_field_context_menu;
 pub(super) mod symbol_layout_field_row_action;
 pub(super) mod symbol_layout_field_row_view;

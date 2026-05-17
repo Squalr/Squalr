@@ -1,5 +1,6 @@
 use super::super::SymbolLayoutEditorView;
 use super::super::details::symbol_layout_details_focus::clear_struct_viewer_if_symbol_layout_focused;
+use super::super::rows::symbol_layout_draft_field_tree_view::SymbolLayoutDraftFieldTreeView;
 use super::super::rows::symbol_layout_field_row_action::focus_field_in_struct_viewer;
 use crate::ui::widgets::controls::groupbox::GroupBox;
 use crate::views::symbol_layout_editor::view_data::symbol_layout_editor_view_data::{
@@ -139,14 +140,15 @@ impl SymbolLayoutEditorView {
                             &self.app_context.theme,
                             if is_union_layout { "Edit Union Variants" } else { "Edit Symbol Layout" },
                             |user_interface| {
-                                self.render_field_rows(
-                                    user_interface,
+                                SymbolLayoutDraftFieldTreeView::new(
+                                    self,
                                     &effective_project_symbol_catalog,
                                     &mut edited_draft,
                                     selected_field_index,
                                     selected_field_layout_id,
                                     selected_unassigned_span,
-                                );
+                                )
+                                .show(user_interface);
                                 if !is_union_layout {
                                     user_interface.add_space(Self::TAKE_OVER_GROUPBOX_SPACING);
                                     let tail_unassigned_offset = self.resolve_draft_tail_unassigned_offset(&effective_project_symbol_catalog, &edited_draft);
@@ -169,14 +171,15 @@ impl SymbolLayoutEditorView {
                             |user_interface| {
                                 self.render_layout_size_editor(user_interface, &mut edited_draft);
                                 user_interface.add_space(Self::TAKE_OVER_GROUPBOX_SPACING);
-                                self.render_field_rows(
-                                    user_interface,
+                                SymbolLayoutDraftFieldTreeView::new(
+                                    self,
                                     &effective_project_symbol_catalog,
                                     &mut edited_draft,
                                     selected_field_index,
                                     selected_field_layout_id,
                                     selected_unassigned_span,
-                                );
+                                )
+                                .show(user_interface);
                                 if !is_union_layout {
                                     user_interface.add_space(Self::TAKE_OVER_GROUPBOX_SPACING);
                                     let tail_unassigned_offset = self.resolve_draft_tail_unassigned_offset(&effective_project_symbol_catalog, &edited_draft);

@@ -5,12 +5,11 @@ mod toolbars;
 
 use crate::app_context::AppContext;
 use crate::ui::converters::{data_type_to_icon_converter::DataTypeToIconConverter, data_type_to_string_converter::DataTypeToStringConverter};
-use crate::ui::draw::icon_draw::IconDraw;
 use crate::ui::list_navigation::ListNavigationDirection;
 use crate::ui::widgets::controls::{
-    button::Button as ThemeButton,
     combo_box::{combo_box_item_view::ComboBoxItemView, combo_box_view::ComboBoxView},
     data_value_box::data_value_box_view::DataValueBoxView,
+    icon_button::IconButtonView,
     list_header::ListHeaderView,
     search_box::SearchBoxView,
 };
@@ -20,18 +19,9 @@ use crate::views::symbol_layout_editor::view_data::symbol_layout_editor_view_dat
 };
 use crate::views::symbol_layout_editor::view_data::symbol_layout_field_container_edit::{SymbolLayoutFieldContainerEdit, SymbolLayoutFieldContainerKind};
 use details::symbol_layout_details_focus::{clear_struct_viewer_if_symbol_layout_focused, focus_selected_layout_in_struct_viewer};
-use eframe::egui::{Align, Direction, Grid, Id, Key, Layout, Response, RichText, ScrollArea, Ui, Widget, vec2};
-use epaint::{Color32, CornerRadius};
-use rows::{
-    symbol_layout_field_context_menu::render_field_context_menu,
-    symbol_layout_field_row_action::SymbolLayoutFieldRowAction,
-    symbol_layout_field_row_view::SymbolLayoutFieldRowView,
-    symbol_layout_row_view::SymbolLayoutRowView,
-    symbol_layout_unassigned_context_menu::render_unassigned_context_menu,
-    symbol_layout_unassigned_row_action::{SymbolLayoutUnassignedRowAction, apply_unassigned_row_action},
-    symbol_layout_unassigned_row_view::SymbolLayoutUnassignedRowView,
-    union_variant_preview_row_view::UnionVariantPreviewRowView,
-};
+use eframe::egui::{Align, Direction, Grid, Id, Key, Layout, RichText, ScrollArea, Ui, Widget, vec2};
+use epaint::CornerRadius;
+use rows::symbol_layout_row_view::SymbolLayoutRowView;
 use squalr_engine_api::commands::{
     project_symbols::{
         delete_layout::project_symbols_delete_layout_request::ProjectSymbolsDeleteLayoutRequest,
@@ -51,9 +41,7 @@ use squalr_engine_api::structures::{
     pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
     projects::{
         project_symbol_catalog::ProjectSymbolCatalog,
-        symbol_layouts::symbol_layout_draft_ops::{
-            SymbolLayoutDraftOps, SymbolLayoutFieldSpan, SymbolLayoutUnassignedAdjacentField, SymbolLayoutUnassignedRowContext, SymbolLayoutUnassignedSelection,
-        },
+        symbol_layouts::symbol_layout_draft_ops::{SymbolLayoutDraftOps, SymbolLayoutFieldSpan},
     },
     structs::{
         symbolic_field_definition::{SymbolicFieldDefinition, SymbolicFieldOffsetResolution},
@@ -62,20 +50,6 @@ use squalr_engine_api::structures::{
 };
 use std::{collections::BTreeSet, sync::Arc};
 use toolbars::symbol_layout_list_toolbar_view::SymbolLayoutListToolbarView;
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-enum SymbolLayoutVariantLayoutRowAction {
-    Field {
-        variant_layout_id: String,
-        field_index: usize,
-        field_row_action: SymbolLayoutFieldRowAction,
-    },
-    Unassigned {
-        variant_layout_id: String,
-        row_context: SymbolLayoutUnassignedRowContext,
-        row_action: SymbolLayoutUnassignedRowAction,
-    },
-}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum SymbolLayoutRowAction {
@@ -845,32 +819,6 @@ impl SymbolLayoutEditorView {
         DataTypeRef::new(DataTypeStringUtf8::DATA_TYPE_ID)
     }
 
-    fn render_flat_icon_button(
-        &self,
-        user_interface: &mut Ui,
-        icon_handle: &eframe::egui::TextureHandle,
-        tooltip_text: &str,
-        is_disabled: bool,
-    ) -> Response {
-        let theme = &self.app_context.theme;
-        let button_response = user_interface.add_sized(
-            vec2(Self::ICON_BUTTON_WIDTH, Self::FIELD_ROW_HEIGHT),
-            ThemeButton::new_from_theme(theme)
-                .with_tooltip_text(tooltip_text)
-                .background_color(Color32::TRANSPARENT)
-                .disabled(is_disabled),
-        );
-
-        IconDraw::draw_tinted(
-            user_interface,
-            button_response.rect,
-            icon_handle,
-            if is_disabled { theme.foreground_preview } else { theme.foreground },
-        );
-
-        button_response
-    }
-
     fn render_string_value_box(
         &self,
         user_interface: &mut Ui,
@@ -1314,7 +1262,13 @@ impl SymbolLayoutEditorView {
     ) -> bool {
         user_interface
             .horizontal(|user_interface| {
-                self.render_flat_icon_button(user_interface, &self.app_context.theme.icon_library.icon_handle_common_add, tooltip_text, false)
+                let theme = &self.app_context.theme;
+
+                user_interface
+                    .add_sized(
+                        vec2(Self::ICON_BUTTON_WIDTH, Self::FIELD_ROW_HEIGHT),
+                        IconButtonView::new(theme, &theme.icon_library.icon_handle_common_add, tooltip_text),
+                    )
                     .clicked()
             })
             .inner
@@ -1336,8 +1290,7 @@ impl SymbolLayoutEditorView {
 
                 let button_response = user_interface.add_sized(
                     button_size,
-                    ThemeButton::new_from_theme(theme)
-                        .with_tooltip_text(tooltip_text)
+                    IconButtonView::new(theme, &theme.icon_library.icon_handle_common_add, tooltip_text)
                         .corner_radius(CornerRadius::same(Self::FIELD_ADD_BUTTON_CORNER_RADIUS))
                         .background_color(theme.background_control_secondary)
                         .border_color(theme.background_control_secondary_dark)
@@ -1345,217 +1298,9 @@ impl SymbolLayoutEditorView {
                         .disabled(!is_enabled),
                 );
 
-                IconDraw::draw_tinted(
-                    user_interface,
-                    button_response.rect,
-                    &theme.icon_library.icon_handle_common_add,
-                    if is_enabled { theme.foreground } else { theme.foreground_preview },
-                );
-
                 is_enabled && button_response.clicked()
             })
             .inner
-    }
-
-    fn render_union_variant_child_row<R>(
-        user_interface: &mut Ui,
-        add_contents: impl FnOnce(&mut Ui) -> R,
-    ) -> R {
-        user_interface
-            .horizontal(|user_interface| {
-                user_interface.spacing_mut().item_spacing.x = 0.0;
-                user_interface.add_space(Self::UNION_VARIANT_CHILD_INDENT);
-                user_interface
-                    .allocate_ui_with_layout(vec2(user_interface.available_width().max(1.0), 0.0), Layout::top_down(Align::Min), add_contents)
-                    .inner
-            })
-            .inner
-    }
-
-    fn render_union_variant_layout_rows(
-        &self,
-        user_interface: &mut Ui,
-        project_symbol_catalog: &ProjectSymbolCatalog,
-        union_draft: &SymbolLayoutEditDraft,
-        variant_index: usize,
-        variant_field_draft: &SymbolLayoutFieldEditDraft,
-        selected_field_layout_id: Option<&str>,
-        selected_field_index: Option<usize>,
-        selected_unassigned_span: Option<&SymbolLayoutUnassignedSelection>,
-    ) -> Option<SymbolLayoutVariantLayoutRowAction> {
-        let mut variant_draft = self.create_union_variant_layout_draft_with_pending(project_symbol_catalog, union_draft, variant_index, variant_field_draft);
-        let variant_layout_id = variant_draft.layout_id.clone();
-
-        let Some((layout_size_in_bytes, mut field_spans)) = self.resolve_draft_field_spans(project_symbol_catalog, &variant_draft) else {
-            Self::render_union_variant_child_row(user_interface, |user_interface| {
-                UnionVariantPreviewRowView::new(self.app_context.clone(), "UNASSIGNED", "variant layout unresolved").show(user_interface);
-            });
-            return None;
-        };
-        let unassigned_split_offsets = self
-            .symbol_layout_editor_view_data
-            .read("SymbolLayoutEditor variant unassigned split offsets")
-            .map(|symbol_layout_editor_view_data| symbol_layout_editor_view_data.get_unassigned_split_offsets_for_layout(Some(variant_layout_id.as_str())))
-            .unwrap_or_default();
-        let mut pending_variant_layout_action = None;
-        let mut next_visible_offset = 0_u64;
-        let mut previous_visible_field = None;
-
-        field_spans.sort_by_key(|field_span| (field_span.offset_in_bytes, field_span.field_position));
-
-        for field_span in field_spans.iter().copied() {
-            if field_span.offset_in_bytes > next_visible_offset {
-                let unassigned_size = field_span.offset_in_bytes.saturating_sub(next_visible_offset);
-                let move_down_field = Some(SymbolLayoutUnassignedAdjacentField {
-                    field_position: field_span.field_position,
-                    offset_in_bytes: field_span.offset_in_bytes,
-                    size_in_bytes: field_span.size_in_bytes,
-                });
-                for unassigned_row_context in SymbolLayoutDraftOps::build_unassigned_row_contexts(
-                    next_visible_offset,
-                    unassigned_size,
-                    &unassigned_split_offsets,
-                    previous_visible_field,
-                    move_down_field,
-                ) {
-                    let is_selected = selected_unassigned_span.is_some_and(|selected_unassigned_span| {
-                        selected_unassigned_span.matches(
-                            Some(variant_layout_id.as_str()),
-                            unassigned_row_context.offset_in_bytes,
-                            unassigned_row_context.size_in_bytes,
-                        )
-                    });
-                    let unassigned_row_action = Self::render_union_variant_child_row(user_interface, |user_interface| {
-                        SymbolLayoutUnassignedRowView::new(
-                            self.app_context.clone(),
-                            self.symbol_layout_editor_view_data.clone(),
-                            Some(variant_layout_id.as_str()),
-                            &unassigned_row_context,
-                            true,
-                            false,
-                            is_selected,
-                        )
-                        .show(user_interface)
-                    });
-                    if let Some(unassigned_row_action) = unassigned_row_action {
-                        pending_variant_layout_action = Some(SymbolLayoutVariantLayoutRowAction::Unassigned {
-                            variant_layout_id: variant_layout_id.clone(),
-                            row_context: unassigned_row_context,
-                            row_action: unassigned_row_action,
-                        });
-                    }
-                }
-            }
-
-            let can_move_up = SymbolLayoutDraftOps::can_move_struct_field_up(&field_spans, &unassigned_split_offsets, field_span.field_position);
-            let can_move_down =
-                SymbolLayoutDraftOps::can_move_struct_field_down(&field_spans, layout_size_in_bytes, &unassigned_split_offsets, field_span.field_position);
-            let is_selected = selected_field_layout_id == Some(variant_layout_id.as_str()) && selected_field_index == Some(field_span.field_position);
-            if let Some(field_draft) = variant_draft.field_drafts.get_mut(field_span.field_position) {
-                let field_row_action = Self::render_union_variant_child_row(user_interface, |user_interface| {
-                    SymbolLayoutFieldRowView::new(
-                        self.app_context.clone(),
-                        self.symbol_layout_editor_view_data.clone(),
-                        project_symbol_catalog,
-                        SymbolicLayoutKind::Struct,
-                        field_draft,
-                        field_span.field_position,
-                        is_selected,
-                        can_move_up,
-                        can_move_down,
-                        Some(variant_layout_id.as_str()),
-                        true,
-                    )
-                    .show(user_interface)
-                });
-                if let Some(field_row_action) = field_row_action {
-                    pending_variant_layout_action = Some(SymbolLayoutVariantLayoutRowAction::Field {
-                        variant_layout_id: variant_layout_id.clone(),
-                        field_index: field_span.field_position,
-                        field_row_action,
-                    });
-                }
-            }
-
-            next_visible_offset = next_visible_offset.max(
-                field_span
-                    .offset_in_bytes
-                    .saturating_add(field_span.size_in_bytes),
-            );
-            previous_visible_field = Some(SymbolLayoutUnassignedAdjacentField {
-                field_position: field_span.field_position,
-                offset_in_bytes: field_span.offset_in_bytes,
-                size_in_bytes: field_span.size_in_bytes,
-            });
-        }
-
-        if layout_size_in_bytes > next_visible_offset {
-            let unassigned_size = layout_size_in_bytes.saturating_sub(next_visible_offset);
-            for unassigned_row_context in SymbolLayoutDraftOps::build_unassigned_row_contexts(
-                next_visible_offset,
-                unassigned_size,
-                &unassigned_split_offsets,
-                previous_visible_field,
-                None,
-            ) {
-                let is_selected = selected_unassigned_span.is_some_and(|selected_unassigned_span| {
-                    selected_unassigned_span.matches(
-                        Some(variant_layout_id.as_str()),
-                        unassigned_row_context.offset_in_bytes,
-                        unassigned_row_context.size_in_bytes,
-                    )
-                });
-                let unassigned_row_action = Self::render_union_variant_child_row(user_interface, |user_interface| {
-                    SymbolLayoutUnassignedRowView::new(
-                        self.app_context.clone(),
-                        self.symbol_layout_editor_view_data.clone(),
-                        Some(variant_layout_id.as_str()),
-                        &unassigned_row_context,
-                        true,
-                        false,
-                        is_selected,
-                    )
-                    .show(user_interface)
-                });
-                if let Some(unassigned_row_action) = unassigned_row_action {
-                    pending_variant_layout_action = Some(SymbolLayoutVariantLayoutRowAction::Unassigned {
-                        variant_layout_id: variant_layout_id.clone(),
-                        row_context: unassigned_row_context,
-                        row_action: unassigned_row_action,
-                    });
-                }
-            }
-        }
-
-        let field_context_menu_target = self
-            .symbol_layout_editor_view_data
-            .read("SymbolLayoutEditor variant field context menu")
-            .and_then(|symbol_layout_editor_view_data| {
-                symbol_layout_editor_view_data
-                    .get_field_context_menu_target()
-                    .cloned()
-            });
-
-        if let Some(field_context_menu_target) = field_context_menu_target
-            && field_context_menu_target.get_layout_id() == Some(variant_layout_id.as_str())
-            && field_context_menu_target.get_field_index() < variant_draft.field_drafts.len()
-            && let Some(field_row_action) = render_field_context_menu(
-                self,
-                user_interface,
-                SymbolicLayoutKind::Struct,
-                &field_context_menu_target,
-                variant_draft.field_drafts.len(),
-                true,
-            )
-        {
-            pending_variant_layout_action = Some(SymbolLayoutVariantLayoutRowAction::Field {
-                variant_layout_id: variant_layout_id.clone(),
-                field_index: field_context_menu_target.get_field_index(),
-                field_row_action,
-            });
-        }
-
-        pending_variant_layout_action
     }
 
     fn render_layout_size_editor(
@@ -1629,303 +1374,6 @@ impl SymbolLayoutEditorView {
         }
 
         Some((layout_size_in_bytes, field_spans))
-    }
-
-    fn render_field_rows(
-        &self,
-        user_interface: &mut Ui,
-        project_symbol_catalog: &ProjectSymbolCatalog,
-        draft: &mut SymbolLayoutEditDraft,
-        selected_field_index: Option<usize>,
-        selected_field_layout_id: Option<&str>,
-        selected_unassigned_span: Option<&SymbolLayoutUnassignedSelection>,
-    ) {
-        let field_count = draft.field_drafts.len();
-        let layout_kind = draft.layout_kind;
-        let mut pending_field_row_action = None;
-        let mut pending_variant_field_row_action = None;
-        let mut pending_unassigned_row_action: Option<(Option<String>, SymbolLayoutUnassignedRowContext, SymbolLayoutUnassignedRowAction)> = None;
-        let field_spans = self.resolve_draft_field_spans(project_symbol_catalog, draft);
-        let field_spans_by_position = field_spans
-            .as_ref()
-            .map(|(_layout_size_in_bytes, field_spans)| {
-                field_spans
-                    .iter()
-                    .map(|field_span| (field_span.field_position, *field_span))
-                    .collect::<std::collections::HashMap<usize, SymbolLayoutFieldSpan>>()
-            })
-            .unwrap_or_default();
-        let mut field_render_indices = (0..field_count).collect::<Vec<_>>();
-        if !layout_kind.is_union() && !field_spans_by_position.is_empty() {
-            field_render_indices.sort_by_key(|field_index| {
-                field_spans_by_position
-                    .get(field_index)
-                    .map(|field_span| (field_span.offset_in_bytes, field_span.field_position))
-                    .unwrap_or((u64::MAX, *field_index))
-            });
-        }
-        let unassigned_split_offsets = self
-            .symbol_layout_editor_view_data
-            .read("SymbolLayoutEditor unassigned split offsets")
-            .map(|symbol_layout_editor_view_data| {
-                symbol_layout_editor_view_data
-                    .get_unassigned_split_offsets()
-                    .clone()
-            })
-            .unwrap_or_default();
-        let mut next_visible_offset = 0_u64;
-        let mut previous_visible_field = None;
-
-        if layout_kind.is_union() {
-            for field_index in 0..field_count {
-                let union_draft_preview = draft.clone();
-                let Some(field_draft) = draft.field_drafts.get_mut(field_index) else {
-                    continue;
-                };
-
-                if let Some(field_row_action) = SymbolLayoutFieldRowView::new(
-                    self.app_context.clone(),
-                    self.symbol_layout_editor_view_data.clone(),
-                    project_symbol_catalog,
-                    layout_kind,
-                    field_draft,
-                    field_index,
-                    selected_field_layout_id.is_none() && selected_field_index == Some(field_index),
-                    field_index > 0,
-                    field_index + 1 < field_count,
-                    None,
-                    true,
-                )
-                .show(user_interface)
-                {
-                    pending_field_row_action = Some((field_index, field_row_action));
-                }
-
-                let variant_field_preview_draft = field_draft.clone();
-                if let Some(variant_layout_action) = self.render_union_variant_layout_rows(
-                    user_interface,
-                    project_symbol_catalog,
-                    &union_draft_preview,
-                    field_index,
-                    &variant_field_preview_draft,
-                    selected_field_layout_id,
-                    selected_field_index,
-                    selected_unassigned_span,
-                ) {
-                    match variant_layout_action {
-                        SymbolLayoutVariantLayoutRowAction::Field {
-                            variant_layout_id,
-                            field_index,
-                            field_row_action,
-                        } => {
-                            pending_variant_field_row_action = Some((variant_layout_id, field_index, field_row_action));
-                        }
-                        SymbolLayoutVariantLayoutRowAction::Unassigned {
-                            variant_layout_id,
-                            row_context,
-                            row_action,
-                        } => {
-                            pending_unassigned_row_action = Some((Some(variant_layout_id), row_context, row_action));
-                        }
-                    }
-                }
-
-                let variant_tail_unassigned_offset =
-                    self.resolve_variant_tail_unassigned_offset(project_symbol_catalog, &union_draft_preview, field_index, &variant_field_preview_draft);
-                if Self::render_union_variant_child_row(user_interface, |user_interface| {
-                    self.render_centered_add_entry_button(
-                        user_interface,
-                        "Add a new field to this union variant.",
-                        variant_tail_unassigned_offset.is_some(),
-                    )
-                }) {
-                    pending_field_row_action = Some((field_index, SymbolLayoutFieldRowAction::InsertFieldIntoVariant));
-                }
-
-                if field_index + 1 < field_count {
-                    user_interface.add_space(Self::TAKE_OVER_GROUPBOX_SPACING);
-                }
-            }
-        } else {
-            for field_index in field_render_indices {
-                let Some(field_draft) = draft.field_drafts.get_mut(field_index) else {
-                    continue;
-                };
-                if let Some(field_span) = field_spans_by_position.get(&field_index) {
-                    if field_span.offset_in_bytes > next_visible_offset {
-                        let unassigned_size = field_span.offset_in_bytes.saturating_sub(next_visible_offset);
-                        let move_down_field = Some(SymbolLayoutUnassignedAdjacentField {
-                            field_position: field_span.field_position,
-                            offset_in_bytes: field_span.offset_in_bytes,
-                            size_in_bytes: field_span.size_in_bytes,
-                        });
-                        for unassigned_row_context in SymbolLayoutDraftOps::build_unassigned_row_contexts(
-                            next_visible_offset,
-                            unassigned_size,
-                            &unassigned_split_offsets,
-                            previous_visible_field,
-                            move_down_field,
-                        ) {
-                            let is_selected = selected_unassigned_span.is_some_and(|selected_unassigned_span| {
-                                selected_unassigned_span.matches(None, unassigned_row_context.offset_in_bytes, unassigned_row_context.size_in_bytes)
-                            });
-                            if let Some(unassigned_row_action) = SymbolLayoutUnassignedRowView::new(
-                                self.app_context.clone(),
-                                self.symbol_layout_editor_view_data.clone(),
-                                None,
-                                &unassigned_row_context,
-                                true,
-                                true,
-                                is_selected,
-                            )
-                            .show(user_interface)
-                            {
-                                pending_unassigned_row_action = Some((None, unassigned_row_context, unassigned_row_action));
-                            }
-                        }
-                    }
-                    next_visible_offset = next_visible_offset.max(
-                        field_span
-                            .offset_in_bytes
-                            .saturating_add(field_span.size_in_bytes),
-                    );
-                    previous_visible_field = Some(SymbolLayoutUnassignedAdjacentField {
-                        field_position: field_span.field_position,
-                        offset_in_bytes: field_span.offset_in_bytes,
-                        size_in_bytes: field_span.size_in_bytes,
-                    });
-                }
-                let (can_move_up, can_move_down) = if let Some((layout_size_in_bytes, field_spans)) = field_spans.as_ref() {
-                    (
-                        SymbolLayoutDraftOps::can_move_struct_field_up(field_spans, &unassigned_split_offsets, field_index),
-                        SymbolLayoutDraftOps::can_move_struct_field_down(field_spans, *layout_size_in_bytes, &unassigned_split_offsets, field_index),
-                    )
-                } else {
-                    (false, false)
-                };
-                if let Some(field_row_action) = SymbolLayoutFieldRowView::new(
-                    self.app_context.clone(),
-                    self.symbol_layout_editor_view_data.clone(),
-                    project_symbol_catalog,
-                    layout_kind,
-                    field_draft,
-                    field_index,
-                    selected_field_layout_id.is_none() && selected_field_index == Some(field_index),
-                    can_move_up,
-                    can_move_down,
-                    None,
-                    true,
-                )
-                .show(user_interface)
-                {
-                    pending_field_row_action = Some((field_index, field_row_action));
-                }
-            }
-        }
-
-        if !layout_kind.is_union()
-            && let Some((layout_size_in_bytes, _field_spans)) = field_spans.as_ref()
-            && *layout_size_in_bytes > next_visible_offset
-        {
-            let unassigned_size = layout_size_in_bytes.saturating_sub(next_visible_offset);
-            let move_up_field = previous_visible_field;
-            for unassigned_row_context in
-                SymbolLayoutDraftOps::build_unassigned_row_contexts(next_visible_offset, unassigned_size, &unassigned_split_offsets, move_up_field, None)
-            {
-                let is_selected = selected_unassigned_span.is_some_and(|selected_unassigned_span| {
-                    selected_unassigned_span.matches(None, unassigned_row_context.offset_in_bytes, unassigned_row_context.size_in_bytes)
-                });
-                if let Some(unassigned_row_action) = SymbolLayoutUnassignedRowView::new(
-                    self.app_context.clone(),
-                    self.symbol_layout_editor_view_data.clone(),
-                    None,
-                    &unassigned_row_context,
-                    true,
-                    true,
-                    is_selected,
-                )
-                .show(user_interface)
-                {
-                    pending_unassigned_row_action = Some((None, unassigned_row_context, unassigned_row_action));
-                }
-            }
-        }
-
-        let (field_context_menu_target, unassigned_context_menu_target) = self
-            .symbol_layout_editor_view_data
-            .read("SymbolLayoutEditor context menus")
-            .and_then(|symbol_layout_editor_view_data| {
-                Some((
-                    symbol_layout_editor_view_data
-                        .get_field_context_menu_target()
-                        .cloned(),
-                    symbol_layout_editor_view_data
-                        .get_unassigned_context_menu_target()
-                        .cloned(),
-                ))
-            })
-            .unwrap_or((None, None));
-
-        if let Some(field_context_menu_target) = field_context_menu_target
-            && field_context_menu_target.get_layout_id().is_none()
-            && field_context_menu_target.get_field_index() < field_count
-            && let Some(field_row_action) = render_field_context_menu(self, user_interface, draft.layout_kind, &field_context_menu_target, field_count, false)
-        {
-            pending_field_row_action = Some((field_context_menu_target.get_field_index(), field_row_action));
-        }
-
-        if let Some(unassigned_context_menu_target) = unassigned_context_menu_target
-            && let Some(unassigned_row_action) = render_unassigned_context_menu(
-                self,
-                user_interface,
-                &unassigned_context_menu_target,
-                unassigned_context_menu_target.get_layout_id().is_none(),
-            )
-        {
-            let unassigned_row_context = SymbolLayoutUnassignedRowContext {
-                offset_in_bytes: unassigned_context_menu_target.get_offset_in_bytes(),
-                size_in_bytes: unassigned_context_menu_target.get_size_in_bytes(),
-                move_up_field: None,
-                move_down_field: None,
-                move_up_unassigned_span: None,
-                move_down_unassigned_span: None,
-                merge_above_span: unassigned_context_menu_target.get_merge_above_span().cloned(),
-                merge_below_span: unassigned_context_menu_target.get_merge_below_span().cloned(),
-            };
-            pending_unassigned_row_action = Some((
-                unassigned_context_menu_target
-                    .get_layout_id()
-                    .map(str::to_string),
-                unassigned_row_context,
-                unassigned_row_action,
-            ));
-        }
-
-        if let Some((target_layout_id, unassigned_row_context, unassigned_row_action)) = pending_unassigned_row_action {
-            apply_unassigned_row_action(
-                self,
-                project_symbol_catalog,
-                draft,
-                target_layout_id,
-                unassigned_row_context,
-                unassigned_row_action,
-            );
-        }
-
-        if let Some((variant_layout_id, field_index, field_row_action)) = pending_variant_field_row_action {
-            field_row_action.apply_to_variant_layout(self, project_symbol_catalog, draft, variant_layout_id, field_index);
-        }
-
-        if let Some((field_index, field_row_action)) = pending_field_row_action {
-            field_row_action.apply_to_layout_draft(
-                self,
-                project_symbol_catalog,
-                draft,
-                field_index,
-                field_spans.as_ref(),
-                &unassigned_split_offsets,
-            );
-        }
     }
 }
 
