@@ -7,6 +7,7 @@ use crate::views::{
     context_menu_labels::{OPEN_IN_CODE_VIEWER_LABEL, OPEN_IN_MEMORY_VIEWER_LABEL},
     struct_viewer::view_data::struct_viewer_focus_target::StructViewerFocusTarget,
     symbol_tree::{
+        symbol_tree_details_focus::SymbolTreeDetailsFocus,
         symbol_tree_entry_view::SymbolTreeEntryView,
         symbol_tree_inline_rename_view::SymbolTreeInlineRenameView,
         view_data::symbol_tree_view_data::{SymbolTreeContextMenuTarget, SymbolTreeSelection, SymbolTreeViewData},
@@ -713,20 +714,9 @@ impl<'lifetime> SymbolTreeListView<'lifetime> {
             return false;
         };
 
-        Self::build_struct_viewer_focus_target_key(Some(symbol_tree_entry))
+        SymbolTreeDetailsFocus::build_struct_viewer_focus_target_key(Some(symbol_tree_entry))
             .as_ref()
             .is_some_and(|row_selection_key| row_selection_key == selection_key)
-    }
-
-    fn build_struct_viewer_focus_target_key(selected_symbol_tree_entry: Option<&SymbolTreeNode>) -> Option<String> {
-        selected_symbol_tree_entry.map(|symbol_tree_entry| {
-            format!(
-                "{}|{}|{}",
-                symbol_tree_entry.get_node_key(),
-                symbol_tree_entry.get_display_name(),
-                symbol_tree_entry.get_display_type_id()
-            )
-        })
     }
 
     fn inline_rename_text_storage_id(symbol_locator_key: &str) -> Id {
