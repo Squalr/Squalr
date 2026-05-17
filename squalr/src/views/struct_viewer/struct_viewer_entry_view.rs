@@ -254,6 +254,13 @@ impl<'lifetime> StructViewerEntryView<'lifetime> {
             .map(|data_type_ref| DataTypeToIconConverter::convert_data_type_to_icon(data_type_ref.get_data_type_id(), &app_context.theme.icon_library))
     }
 
+    fn should_use_symbol_layout_row_icon(field_presentation: &StructViewerFieldPresentation) -> bool {
+        matches!(
+            field_presentation.editor_kind(),
+            StructViewerFieldEditorKind::SymbolLayoutFieldSymbolLayoutSelector
+        )
+    }
+
     fn symbol_resolver_operator_icon(
         app_context: &Arc<AppContext>,
         operator: SymbolicResolverBinaryOperator,
@@ -564,17 +571,21 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
             pos2(name_position_x, available_size_rect.max.y),
         );
         let icon_center = icon_rect.center();
-        let icon_data_type_id = match (self.field_presentation.editor_kind(), self.field_data_type_selection.as_ref()) {
-            (StructViewerFieldEditorKind::DataTypeSelector, Some(field_data_type_selection))
-            | (StructViewerFieldEditorKind::SymbolResolverDataTypeSelector, Some(field_data_type_selection))
-            | (StructViewerFieldEditorKind::SymbolLayoutFieldDataTypeSelector, Some(field_data_type_selection)) => field_data_type_selection
-                .visible_data_type()
-                .get_data_type_id()
-                .to_string(),
-            (StructViewerFieldEditorKind::SymbolLayoutFieldSymbolLayoutSelector, _) => StructViewerViewData::read_utf8_field_text(self.valued_struct_field),
-            _ => self.valued_struct_field.get_icon_id().to_string(),
+        let icon = if Self::should_use_symbol_layout_row_icon(self.field_presentation) {
+            DataTypeToIconConverter::convert_symbol_layout_to_icon(&theme.icon_library)
+        } else {
+            let icon_data_type_id = match (self.field_presentation.editor_kind(), self.field_data_type_selection.as_ref()) {
+                (StructViewerFieldEditorKind::DataTypeSelector, Some(field_data_type_selection))
+                | (StructViewerFieldEditorKind::SymbolResolverDataTypeSelector, Some(field_data_type_selection))
+                | (StructViewerFieldEditorKind::SymbolLayoutFieldDataTypeSelector, Some(field_data_type_selection)) => field_data_type_selection
+                    .visible_data_type()
+                    .get_data_type_id()
+                    .to_string(),
+                _ => self.valued_struct_field.get_icon_id().to_string(),
+            };
+
+            DataTypeToIconConverter::convert_data_type_to_icon(icon_data_type_id.as_ref(), &theme.icon_library)
         };
-        let icon = DataTypeToIconConverter::convert_data_type_to_icon(icon_data_type_id.as_ref(), &theme.icon_library);
 
         IconDraw::draw_sized(user_interface, icon_center, icon_size, &icon);
 
@@ -1107,6 +1118,7 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                 } else {
                     current_struct_layout_id.as_str()
                 };
+                let symbol_layout_icon = DataTypeToIconConverter::convert_symbol_layout_to_icon(&self.app_context.theme.icon_library);
 
                 user_interface.put(
                     Rect::from_min_size(
@@ -1117,7 +1129,7 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                         self.app_context.clone(),
                         symbol_layout_label,
                         &symbol_layout_selector_id,
-                        None,
+                        Some(symbol_layout_icon),
                         |popup_user_interface: &mut Ui, should_close: &mut bool| {
                             let mut search_text = popup_user_interface.memory(|memory| {
                                 memory
@@ -1387,6 +1399,7 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
 #[cfg(test)]
 mod tests {
     use super::StructViewerEntryView;
+    use crate::views::struct_viewer::view_data::struct_viewer_field_presentation::{StructViewerFieldEditorKind, StructViewerFieldPresentation};
     use squalr_engine_api::structures::data_types::{
         built_in_types::{u32::data_type_u32::DataTypeU32, u64::data_type_u64::DataTypeU64},
         data_type_ref::DataTypeRef,
@@ -1423,5 +1436,13 @@ mod tests {
         assert_eq!(value_box_position_x, 102.0);
         assert_eq!(value_box_width, 168.0);
         assert_eq!(value_box_position_x + value_box_width, row_max_x - action_button_width - value_column_padding);
+    }
+
+    #[test]
+    fn symbol_layout_selector_rows_use_symbol_layout_icon() {
+        let field_presentation =
+            StructViewerFieldPresentation::new("Symbol Layout".to_string(), StructViewerFieldEditorKind::SymbolLayoutFieldSymbolLayoutSelector);
+
+        assert!(StructViewerEntryView::should_use_symbol_layout_row_icon(&field_presentation));
     }
 }
