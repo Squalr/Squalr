@@ -71,6 +71,54 @@ Our current task, from `README.md`, is:
 5. Done: moved Symbol Tree external array/value-viewer projection to Details and deleted the remaining legacy `build_symbol_layout_*` path.
 6. Consider extracting shared symbolic layout size estimation once PE placement and runtime/tree sizing need the same behavior.
 
+## Symbol Layout Editor Cleanup Audit
+
+`squalr/src/views/symbol_layout_editor/symbol_layout_editor_view.rs` should keep only top-level window composition, high-level shortcut routing, and handoff to named subviews/controllers. Do not create vague helper buckets; every extraction below needs an intent-revealing owner.
+
+1. Move Symbol Layout Struct Viewer Details focus out of the parent.
+   - Current offenders: `clear_struct_viewer_if_symbol_layout_focused`, `focus_selected_layout_in_struct_viewer`, `build_struct_viewer_layout_edit_callback`, `focus_unassigned_span_in_struct_viewer`, `build_field_details`, and the test-only `build_field_details_struct`.
+   - Target home: `symbol_layout_editor_view/details/` with named layout, field, and unassigned Details focus/edit handlers.
+   - Notes: `focus_unassigned_span_in_struct_viewer` is read-only Details projection with a no-op edit callback; add a named read-only focus helper or handler instead of scattering `Arc::new(|_details_edit| {})`.
+
+2. Move unassigned span action handling beside the unassigned row.
+   - Current offenders: `SymbolLayoutUnassignedRowAction`, `render_unassigned_context_menu`, and the large `pending_unassigned_row_action` match inside `render_field_rows`.
+   - Target home: `rows/symbol_layout_unassigned_row_action.rs` plus an unassigned context menu view/action applier.
+   - Notes: the action applier should own select, split, merge, move up/down, define-field handoff, variant-draft persistence, and Struct Viewer focus refresh for unassigned spans.
+
+3. Move field context menu handling out of the parent.
+   - Current offender: `render_field_context_menu`.
+   - Target home: field row action/menu module, probably adjacent to `rows/symbol_layout_field_row_action.rs`.
+   - Notes: the menu already emits `SymbolLayoutFieldRowAction`; the parent should not know menu labels, menu ids, delete eligibility, or move eligibility.
+
+4. Extract the field tree/list renderer.
+   - Current offenders: `render_field_rows`, `render_union_variant_layout_rows`, `render_union_variant_child_row`, and `SymbolLayoutVariantLayoutRowAction`.
+   - Target home: a named draft field tree view under `rows/`, for example `symbol_layout_draft_field_tree_view.rs`.
+   - Notes: this should do the natural tree walk: resolve spans, render each field/unassigned/variant child row, collect row actions, and dispatch row action appliers. The parent should not contain the field/unassigned traversal.
+
+5. Move Symbol Layout list ownership out of the parent.
+   - Current offenders: `render_list_panel`, `render_filter_text_box`, and `SymbolLayoutRowAction`.
+   - Target home: `symbol_layout_editor_view/list/` with `symbol_layout_list_panel_view.rs`, a filter/search widget, and a layout-row action applier.
+   - Notes: layout row selection should call the layout Details focus handler; list panel should own filtering/list-row composition and open/rename/delete handoff.
+
+6. Move define-field and layout-edit controls into named controls/views.
+   - Current offenders: `render_string_value_box`, `render_u64_data_value_box`, `render_define_field_container_selector`, `render_define_field_type_combo`, `render_layout_kind_combo`, `render_layout_size_editor`, `render_add_entry_button`, `render_centered_add_entry_button`, and `render_flat_icon_button`.
+   - Target home: takeover-specific controls or shared UI widgets only when genuinely reusable, such as a symbol-layout field type selector, container selector, layout-size editor, and add-entry button.
+   - Notes: this is not a request for a generic helpers file; each control should be named after the UI it represents.
+
+7. Move draft/session authoring operations out of the parent.
+   - Current offenders: `default_data_type_ref`, `create_field_draft_for_layout_kind`, `create_field_draft_for_unassigned_span`, `append_field_to_variant_layout`, `resolve_variant_tail_unassigned_offset`, `resolve_draft_tail_unassigned_offset`, `create_union_variant_layout_draft_*`, `build_union_variant_layout_id`, `read_pending_variant_layout_draft`, `cache_variant_layout_draft`, `pending_variant_drafts_for_union*`, `build_effective_project_symbol_catalog_*`, `build_pending_variant_layout_descriptors`, `persist_variant_layout_draft`, `build_symbolic_field_definition_from_draft`, `validate_define_field_draft`, `normalize_union_field_drafts`, and `resolve_draft_field_spans`.
+   - Target home: `SymbolLayoutEditorViewData` for session state operations, engine-api draft ops for pure reusable operations, or named GUI-side controllers for draft factories/variant session overlays that still need `AppContext`.
+   - Notes: anything pure and useful to CLI/TUI belongs outside the GUI; anything GUI-only still needs a clear owner.
+
+8. Move constants to their owners as extraction proceeds.
+   - Current offenders: parent-level constants for takeovers, rows, list, context menus, define-field selector dimensions, and layout-kind combo widths.
+   - Target home: each extracted view/control keeps its own dimensions unless the constant is genuinely shared UI design language.
+
+9. Shrink the root `Widget::ui` method after the above.
+   - Current offenders: top-level state snapshot, escape/enter/up/down/delete shortcut handling, and takeover/list routing.
+   - Target home: keep the final parent as the window orchestrator, but move shortcut handling and takeover host composition only after their target views/controllers exist.
+   - Notes: this is lower priority than removing the current Details, unassigned, context menu, and row-tree responsibilities.
+
 ## Detailed Action Items
 
 1. Done: add the shared Details model before moving any GUI behavior.
@@ -257,3 +305,4 @@ Our current task, from `README.md`, is:
 - Current shared list-header pass added `ListHeaderView` under `squalr/src/ui/widgets/controls/list_header.rs` and removed `SymbolLayoutEditorView::render_list_header`. The Symbol Layout editor now uses the same standalone-widget direction as other reusable UI chrome. Validated with `cargo fmt --all`, `cargo check -p squalr --locked`, `cargo test -p squalr symbol_layout_editor --lib --locked`, and `git diff --check`. Needs human verification in the GUI.
 - Current Symbol Layout list-toolbar pass moved `render_list_toolbar` into `symbol_layout_editor_view/toolbars/symbol_layout_list_toolbar_view.rs`. The toolbar now owns its draw chrome and create-layout click handling while the parent list panel composes it as a widget. Parent `symbol_layout_editor_view.rs` is now 3,954 lines. Validated with `cargo fmt --all`, `cargo check -p squalr --locked`, `cargo test -p squalr symbol_layout_editor --lib --locked`, and `git diff --check`. Needs human verification in the GUI.
 - Current Symbol Layout field-details edit pass moved `build_struct_viewer_field_edit_callback`, `build_variant_field_edit_callback`, field Details edit application, and draft auto-grow after field edits out of `SymbolLayoutEditorView` and into `symbol_layout_editor_view/rows/symbol_layout_field_row_action.rs`, beside the field-entry focus/action handling that feeds Struct Viewer. Parent `symbol_layout_editor_view.rs` is now 3,707 lines. Validated with `cargo fmt --all`, `cargo check -p squalr --locked`, `cargo test -p squalr symbol_layout_editor --lib --locked`, and `git diff --check`. Needs human verification in the GUI.
+- Current Symbol Layout editor cleanup audit pass added the "Symbol Layout Editor Cleanup Audit" section so remaining parent-file cleanup targets are tracked in one place: Details focus handlers, unassigned row actions, context menus, field-tree rendering, list panel ownership, define-field controls, draft/session authoring operations, constants, and final root widget shrinkage. Validated with source inspection and `git diff --check`; no code behavior changed.
