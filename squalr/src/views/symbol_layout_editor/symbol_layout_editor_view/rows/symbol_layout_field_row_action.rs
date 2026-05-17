@@ -22,7 +22,9 @@ use squalr_engine_api::structures::{
 use std::{collections::BTreeSet, str::FromStr, sync::Arc};
 
 use super::super::SymbolLayoutEditorView;
+use super::super::authoring::symbol_layout_draft_analyzer::SymbolLayoutDraftAnalyzer;
 use super::super::authoring::symbol_layout_field_draft_factory::SymbolLayoutFieldDraftFactory;
+use super::super::authoring::symbol_layout_variant_field_appender::SymbolLayoutVariantFieldAppender;
 use super::super::authoring::symbol_layout_variant_session::SymbolLayoutVariantSession;
 use super::super::details::symbol_layout_details_focus::{
     build_field_details, clear_struct_viewer_if_symbol_layout_focused, focus_unassigned_span_in_struct_viewer,
@@ -66,7 +68,7 @@ impl SymbolLayoutFieldRowAction {
                 field_index_to_focus = Some(field_index);
             }
             SymbolLayoutFieldRowAction::MoveUp => {
-                if let Some((layout_size_in_bytes, field_spans)) = symbol_layout_editor_view.resolve_draft_field_spans(project_symbol_catalog, &variant_draft)
+                if let Some((layout_size_in_bytes, field_spans)) = SymbolLayoutDraftAnalyzer::resolve_draft_field_spans(project_symbol_catalog, &variant_draft)
                     && SymbolLayoutDraftOps::move_struct_field_up(&mut variant_draft, &field_spans, &unassigned_split_offsets, field_index)
                 {
                     if let Some(split_offset_in_bytes) =
@@ -83,7 +85,7 @@ impl SymbolLayoutFieldRowAction {
                 }
             }
             SymbolLayoutFieldRowAction::MoveDown => {
-                if let Some((layout_size_in_bytes, field_spans)) = symbol_layout_editor_view.resolve_draft_field_spans(project_symbol_catalog, &variant_draft)
+                if let Some((layout_size_in_bytes, field_spans)) = SymbolLayoutDraftAnalyzer::resolve_draft_field_spans(project_symbol_catalog, &variant_draft)
                     && SymbolLayoutDraftOps::move_struct_field_down(
                         &mut variant_draft,
                         &field_spans,
@@ -170,9 +172,13 @@ impl SymbolLayoutFieldRowAction {
                 field_index_to_focus = Some(insert_index);
             }
             SymbolLayoutFieldRowAction::InsertFieldIntoVariant => {
-                if let Some((variant_draft, variant_field_index)) =
-                    symbol_layout_editor_view.append_field_to_variant_layout(project_symbol_catalog, draft, field_index)
-                {
+                if let Some((variant_draft, variant_field_index)) = SymbolLayoutVariantFieldAppender::append_field_to_variant_layout(
+                    &symbol_layout_editor_view.app_context,
+                    symbol_layout_editor_view.symbol_layout_editor_view_data.clone(),
+                    project_symbol_catalog,
+                    draft,
+                    field_index,
+                ) {
                     SymbolLayoutEditorViewData::select_field_for_layout(
                         symbol_layout_editor_view.symbol_layout_editor_view_data.clone(),
                         Some(variant_draft.layout_id.clone()),
@@ -532,7 +538,7 @@ pub(in crate::views::symbol_layout_editor::symbol_layout_editor_view) fn grow_dr
     let mut next_sequential_offset = 0_u64;
 
     for field_draft in &draft.field_drafts {
-        let Ok(symbolic_field_definition) = SymbolLayoutEditorView::build_symbolic_field_definition_from_draft(field_draft) else {
+        let Ok(symbolic_field_definition) = SymbolLayoutDraftAnalyzer::build_symbolic_field_definition_from_draft(field_draft) else {
             continue;
         };
         let field_offset = match symbolic_field_definition.get_offset_resolution() {

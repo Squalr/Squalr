@@ -1,4 +1,5 @@
 use super::super::SymbolLayoutEditorView;
+use super::super::authoring::symbol_layout_draft_analyzer::SymbolLayoutDraftAnalyzer;
 use super::super::authoring::symbol_layout_field_draft_factory::SymbolLayoutFieldDraftFactory;
 use super::super::authoring::symbol_layout_variant_session::SymbolLayoutVariantSession;
 use super::super::controls::symbol_layout_add_entry_button::{render_symbol_layout_add_entry_button, render_symbol_layout_centered_add_entry_button};
@@ -174,7 +175,8 @@ impl SymbolLayoutEditorView {
                                 .show(user_interface);
                                 if !is_union_layout {
                                     user_interface.add_space(Self::TAKE_OVER_GROUPBOX_SPACING);
-                                    let tail_unassigned_offset = self.resolve_draft_tail_unassigned_offset(&effective_project_symbol_catalog, &edited_draft);
+                                    let tail_unassigned_offset =
+                                        SymbolLayoutDraftAnalyzer::resolve_draft_tail_unassigned_offset(&effective_project_symbol_catalog, &edited_draft);
                                     if render_symbol_layout_centered_add_entry_button(
                                         self.app_context.clone(),
                                         user_interface,
@@ -213,7 +215,8 @@ impl SymbolLayoutEditorView {
                                 .show(user_interface);
                                 if !is_union_layout {
                                     user_interface.add_space(Self::TAKE_OVER_GROUPBOX_SPACING);
-                                    let tail_unassigned_offset = self.resolve_draft_tail_unassigned_offset(&effective_project_symbol_catalog, &edited_draft);
+                                    let tail_unassigned_offset =
+                                        SymbolLayoutDraftAnalyzer::resolve_draft_tail_unassigned_offset(&effective_project_symbol_catalog, &edited_draft);
                                     if render_symbol_layout_centered_add_entry_button(
                                         self.app_context.clone(),
                                         user_interface,

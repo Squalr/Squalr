@@ -1,4 +1,5 @@
 use super::super::SymbolLayoutEditorView;
+use super::super::authoring::symbol_layout_draft_analyzer::SymbolLayoutDraftAnalyzer;
 use super::super::authoring::symbol_layout_variant_session::SymbolLayoutVariantSession;
 use super::symbol_layout_field_context_menu::render_field_context_menu;
 use super::symbol_layout_field_row_action::SymbolLayoutFieldRowAction;
@@ -96,9 +97,7 @@ impl<'view, 'draft> SymbolLayoutDraftFieldTreeView<'view, 'draft> {
         );
         let variant_layout_id = variant_draft.layout_id.clone();
 
-        let Some((layout_size_in_bytes, mut field_spans)) = self
-            .symbol_layout_editor_view
-            .resolve_draft_field_spans(self.project_symbol_catalog, &variant_draft)
+        let Some((layout_size_in_bytes, mut field_spans)) = SymbolLayoutDraftAnalyzer::resolve_draft_field_spans(self.project_symbol_catalog, &variant_draft)
         else {
             Self::render_union_variant_child_row(user_interface, |user_interface| {
                 UnionVariantPreviewRowView::new(self.symbol_layout_editor_view.app_context.clone(), "UNASSIGNED", "variant layout unresolved")
@@ -293,9 +292,7 @@ impl<'view, 'draft> SymbolLayoutDraftFieldTreeView<'view, 'draft> {
         let mut pending_field_row_action = None;
         let mut pending_variant_field_row_action = None;
         let mut pending_unassigned_row_action: Option<(Option<String>, SymbolLayoutUnassignedRowContext, SymbolLayoutUnassignedRowAction)> = None;
-        let field_spans = self
-            .symbol_layout_editor_view
-            .resolve_draft_field_spans(self.project_symbol_catalog, self.draft);
+        let field_spans = SymbolLayoutDraftAnalyzer::resolve_draft_field_spans(self.project_symbol_catalog, self.draft);
         let field_spans_by_position = field_spans
             .as_ref()
             .map(|(_layout_size_in_bytes, field_spans)| {
@@ -376,9 +373,15 @@ impl<'view, 'draft> SymbolLayoutDraftFieldTreeView<'view, 'draft> {
                     }
                 }
 
-                let variant_tail_unassigned_offset = self
-                    .symbol_layout_editor_view
-                    .resolve_variant_tail_unassigned_offset(self.project_symbol_catalog, &union_draft_preview, field_index, &variant_field_preview_draft);
+                let variant_tail_unassigned_offset = SymbolLayoutDraftAnalyzer::resolve_variant_tail_unassigned_offset(
+                    self.project_symbol_catalog,
+                    self.symbol_layout_editor_view
+                        .symbol_layout_editor_view_data
+                        .clone(),
+                    &union_draft_preview,
+                    field_index,
+                    &variant_field_preview_draft,
+                );
                 if Self::render_union_variant_child_row(user_interface, |user_interface| {
                     render_symbol_layout_centered_add_entry_button(
                         self.symbol_layout_editor_view.app_context.clone(),

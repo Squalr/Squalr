@@ -1,4 +1,5 @@
 use super::super::SymbolLayoutEditorView;
+use super::super::authoring::symbol_layout_draft_analyzer::SymbolLayoutDraftAnalyzer;
 use super::super::controls::symbol_layout_define_field_container_selector::render_define_field_container_selector;
 use super::super::controls::symbol_layout_define_field_type_combo::render_define_field_type_combo;
 use super::super::controls::symbol_layout_value_box::render_symbol_layout_string_value_box;
@@ -31,8 +32,12 @@ impl SymbolLayoutEditorView {
         };
         let theme = &self.app_context.theme;
         let mut edited_define_field_draft = define_field_draft.clone();
-        let mut validation_result =
-            Self::validate_define_field_draft(project_symbol_catalog, &edited_define_field_draft, span_offset_in_bytes, span_size_in_bytes);
+        let mut validation_result = SymbolLayoutDraftAnalyzer::validate_define_field_draft(
+            project_symbol_catalog,
+            &edited_define_field_draft,
+            span_offset_in_bytes,
+            span_size_in_bytes,
+        );
         let mut should_cancel = false;
         let mut should_create = false;
 
@@ -77,7 +82,7 @@ impl SymbolLayoutEditorView {
                                     Self::TOOLBAR_HEIGHT,
                                 );
 
-                                validation_result = Self::validate_define_field_draft(
+                                validation_result = SymbolLayoutDraftAnalyzer::validate_define_field_draft(
                                     project_symbol_catalog,
                                     &edited_define_field_draft,
                                     span_offset_in_bytes,
@@ -115,7 +120,7 @@ impl SymbolLayoutEditorView {
                                     );
                                 });
 
-                                validation_result = Self::validate_define_field_draft(
+                                validation_result = SymbolLayoutDraftAnalyzer::validate_define_field_draft(
                                     project_symbol_catalog,
                                     &edited_define_field_draft,
                                     span_offset_in_bytes,
@@ -202,8 +207,7 @@ impl SymbolLayoutEditorView {
             new_field_draft.offset_mode = SymbolLayoutFieldOffsetMode::Static;
             let (field_offset_in_bytes, _field_size_in_bytes) = validation_result.unwrap_or((span_offset_in_bytes, 0));
             new_field_draft.static_offset_in_bytes = format!("0x{:X}", field_offset_in_bytes);
-            let field_spans = self
-                .resolve_draft_field_spans(project_symbol_catalog, draft)
+            let field_spans = SymbolLayoutDraftAnalyzer::resolve_draft_field_spans(project_symbol_catalog, draft)
                 .map(|(_layout_size_in_bytes, field_spans)| field_spans)
                 .unwrap_or_default();
             let insert_index = SymbolLayoutDraftOps::field_insert_index_for_offset(&field_spans, updated_draft.field_drafts.len(), field_offset_in_bytes);

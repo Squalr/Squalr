@@ -10,11 +10,9 @@ use crate::app_context::AppContext;
 use crate::ui::list_navigation::ListNavigationDirection;
 use crate::views::struct_viewer::view_data::struct_viewer_view_data::StructViewerViewData;
 use crate::views::symbol_layout_editor::view_data::symbol_layout_editor_view_data::{
-    SymbolLayoutEditDraft, SymbolLayoutEditorTakeOverState, SymbolLayoutEditorViewData, SymbolLayoutFieldEditDraft, SymbolLayoutFieldOffsetMode,
+    SymbolLayoutEditDraft, SymbolLayoutEditorTakeOverState, SymbolLayoutEditorViewData,
 };
-use crate::views::symbol_layout_editor::view_data::symbol_layout_field_container_edit::SymbolLayoutFieldContainerKind;
 use authoring::symbol_layout_field_draft_factory::SymbolLayoutFieldDraftFactory;
-use authoring::symbol_layout_variant_session::SymbolLayoutVariantSession;
 use details::symbol_layout_details_focus::{clear_struct_viewer_if_symbol_layout_focused, focus_selected_layout_in_struct_viewer};
 use eframe::egui::{Align, Direction, Key, Layout, RichText, Ui, Widget};
 use list::symbol_layout_list_panel_view::SymbolLayoutListPanelView;
@@ -28,17 +26,7 @@ use squalr_engine_api::commands::{
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
-use squalr_engine_api::structures::{
-    data_types::data_type_ref::DataTypeRef,
-    projects::{
-        project_symbol_catalog::ProjectSymbolCatalog,
-        symbol_layouts::symbol_layout_draft_ops::{SymbolLayoutDraftOps, SymbolLayoutFieldSpan},
-    },
-    structs::{
-        symbolic_field_definition::{SymbolicFieldDefinition, SymbolicFieldOffsetResolution},
-        symbolic_struct_definition::SymbolicLayoutKind,
-    },
-};
+use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
 use std::{collections::BTreeSet, sync::Arc};
 
 #[derive(Clone)]
@@ -156,164 +144,6 @@ impl SymbolLayoutEditorView {
         clear_struct_viewer_if_symbol_layout_focused(self.struct_viewer_view_data.clone());
     }
 
-    fn append_field_to_variant_layout(
-        &self,
-        project_symbol_catalog: &ProjectSymbolCatalog,
-        union_draft: &mut SymbolLayoutEditDraft,
-        variant_index: usize,
-    ) -> Option<(SymbolLayoutEditDraft, usize)> {
-        let Some(variant_field_draft) = union_draft.field_drafts.get(variant_index) else {
-            return None;
-        };
-        let mut variant_draft = SymbolLayoutVariantSession::create_union_variant_layout_draft_with_pending(
-            project_symbol_catalog,
-            self.symbol_layout_editor_view_data.clone(),
-            union_draft,
-            variant_index,
-            variant_field_draft,
-        );
-
-        let Some((layout_size_in_bytes, field_spans)) = self.resolve_draft_field_spans(project_symbol_catalog, &variant_draft) else {
-            return None;
-        };
-        let Some(field_offset_in_bytes) = SymbolLayoutDraftOps::resolve_tail_unassigned_offset(&field_spans, layout_size_in_bytes) else {
-            return None;
-        };
-
-        let field_position = variant_draft.field_drafts.len();
-        let mut field_draft = SymbolLayoutFieldDraftFactory::create_field_draft_for_layout_kind(
-            &self.app_context,
-            project_symbol_catalog,
-            SymbolicLayoutKind::Struct,
-            &variant_draft.layout_id,
-            field_position,
-        );
-        field_draft.field_name = format!("field_{:08X}", field_offset_in_bytes);
-        field_draft.field_name = SymbolLayoutDraftOps::build_unique_field_name(&variant_draft, &field_draft.field_name);
-        field_draft.offset_mode = SymbolLayoutFieldOffsetMode::Static;
-        field_draft.static_offset_in_bytes = field_offset_in_bytes.to_string();
-        variant_draft.field_drafts.push(field_draft);
-        if let Some(variant_field_draft) = union_draft.field_drafts.get_mut(variant_index) {
-            variant_field_draft
-                .data_type_selection
-                .select_single_data_type(DataTypeRef::new(&variant_draft.layout_id));
-            variant_field_draft.container_edit.kind = SymbolLayoutFieldContainerKind::Element;
-            variant_field_draft.offset_mode = SymbolLayoutFieldOffsetMode::Sequential;
-        }
-
-        SymbolLayoutVariantSession::cache_variant_layout_draft(self.symbol_layout_editor_view_data.clone(), &variant_draft)
-            .then_some((variant_draft, field_position))
-    }
-
-    fn resolve_variant_tail_unassigned_offset(
-        &self,
-        project_symbol_catalog: &ProjectSymbolCatalog,
-        union_draft: &SymbolLayoutEditDraft,
-        variant_index: usize,
-        variant_field_draft: &SymbolLayoutFieldEditDraft,
-    ) -> Option<u64> {
-        let variant_draft = SymbolLayoutVariantSession::create_union_variant_layout_draft_with_pending(
-            project_symbol_catalog,
-            self.symbol_layout_editor_view_data.clone(),
-            union_draft,
-            variant_index,
-            variant_field_draft,
-        );
-        let (layout_size_in_bytes, field_spans) = self.resolve_draft_field_spans(project_symbol_catalog, &variant_draft)?;
-
-        SymbolLayoutDraftOps::resolve_tail_unassigned_offset(&field_spans, layout_size_in_bytes)
-    }
-
-    fn resolve_draft_tail_unassigned_offset(
-        &self,
-        project_symbol_catalog: &ProjectSymbolCatalog,
-        draft: &SymbolLayoutEditDraft,
-    ) -> Option<u64> {
-        let (layout_size_in_bytes, field_spans) = self.resolve_draft_field_spans(project_symbol_catalog, draft)?;
-
-        SymbolLayoutDraftOps::resolve_tail_unassigned_offset(&field_spans, layout_size_in_bytes)
-    }
-
-    fn build_symbolic_field_definition_from_draft(field_draft: &SymbolLayoutFieldEditDraft) -> Result<SymbolicFieldDefinition, String> {
-        let trimmed_data_type_id = field_draft
-            .data_type_selection
-            .visible_data_type()
-            .get_data_type_id()
-            .trim()
-            .to_string();
-        if trimmed_data_type_id.is_empty() {
-            return Err(String::from("Field data type is required."));
-        }
-
-        Ok(SymbolicFieldDefinition::new_named_with_resolutions_and_display_count(
-            field_draft.field_name.trim().to_string(),
-            DataTypeRef::new(&trimmed_data_type_id),
-            field_draft.container_edit.to_container_type()?,
-            field_draft.container_edit.to_count_resolution()?,
-            field_draft.container_edit.to_display_count_resolution()?,
-            field_draft.to_offset_resolution()?,
-        )
-        .with_active_when_resolver(field_draft.to_active_when_resolver()))
-    }
-
-    fn validate_define_field_draft(
-        project_symbol_catalog: &ProjectSymbolCatalog,
-        field_draft: &SymbolLayoutFieldEditDraft,
-        span_offset_in_bytes: u64,
-        span_size_in_bytes: u64,
-    ) -> Result<(u64, u64), String> {
-        if field_draft.field_name.trim().is_empty() {
-            return Err(String::from("Field name is required."));
-        }
-
-        if field_draft.offset_mode != SymbolLayoutFieldOffsetMode::Static {
-            return Err(String::from("Field offset must be static."));
-        }
-
-        let symbolic_field_definition = Self::build_symbolic_field_definition_from_draft(field_draft)?;
-        let relative_offset_in_bytes = match symbolic_field_definition.get_offset_resolution() {
-            SymbolicFieldOffsetResolution::Static(relative_offset_in_bytes) => *relative_offset_in_bytes,
-            _ => return Err(String::from("Field offset must be static.")),
-        };
-        let field_size_in_bytes = SymbolLayoutEditorViewData::resolve_symbolic_field_size_in_bytes(
-            project_symbol_catalog,
-            &symbolic_field_definition,
-            &mut std::collections::HashSet::new(),
-        );
-
-        if field_size_in_bytes == 0 {
-            return Err(String::from("Field has no byte size."));
-        }
-
-        let relative_field_end_in_bytes = relative_offset_in_bytes
-            .checked_add(field_size_in_bytes)
-            .ok_or_else(|| String::from("Field range is too large."))?;
-
-        if relative_field_end_in_bytes > span_size_in_bytes {
-            if field_size_in_bytes > span_size_in_bytes {
-                return Err(format!(
-                    "`{}` uses {} byte(s); selected span has {}.",
-                    symbolic_field_definition.get_data_type_ref().get_data_type_id(),
-                    field_size_in_bytes,
-                    span_size_in_bytes
-                ));
-            }
-
-            return Err(format!(
-                "`{}` uses {} byte(s); choose 0 to {}.",
-                symbolic_field_definition.get_data_type_ref().get_data_type_id(),
-                field_size_in_bytes,
-                span_size_in_bytes.saturating_sub(field_size_in_bytes)
-            ));
-        }
-
-        let field_offset_in_bytes = span_offset_in_bytes
-            .checked_add(relative_offset_in_bytes)
-            .ok_or_else(|| String::from("Field offset is too large."))?;
-
-        Ok((field_offset_in_bytes, field_size_in_bytes))
-    }
-
     fn symbol_layout_take_over_has_unsaved_changes(
         baseline_project_symbol_catalog: Option<&ProjectSymbolCatalog>,
         baseline_draft: &SymbolLayoutEditDraft,
@@ -336,76 +166,21 @@ impl SymbolLayoutEditorView {
 
         edited_draft != baseline_draft || !unassigned_split_offsets.is_empty()
     }
-
-    fn resolve_draft_field_spans(
-        &self,
-        project_symbol_catalog: &ProjectSymbolCatalog,
-        draft: &SymbolLayoutEditDraft,
-    ) -> Option<(u64, Vec<SymbolLayoutFieldSpan>)> {
-        let struct_layout_descriptor = SymbolLayoutEditorViewData::build_symbol_layout_descriptor(project_symbol_catalog, draft).ok()?;
-        let symbolic_struct_definition = struct_layout_descriptor.get_struct_layout_definition();
-        let layout_size_in_bytes = symbolic_struct_definition
-            .get_declared_size_in_bytes()
-            .unwrap_or_else(|| {
-                SymbolLayoutEditorViewData::resolve_symbolic_struct_size_in_bytes(
-                    project_symbol_catalog,
-                    symbolic_struct_definition,
-                    &mut std::collections::HashSet::new(),
-                )
-            });
-        let mut next_sequential_offset = 0_u64;
-        let mut field_spans = Vec::with_capacity(symbolic_struct_definition.get_fields().len());
-        let mut visible_field_position = 0_usize;
-
-        for symbolic_field_definition in symbolic_struct_definition.get_fields() {
-            if symbolic_field_definition.is_unassigned() {
-                next_sequential_offset = next_sequential_offset.saturating_add(
-                    symbolic_field_definition
-                        .get_unassigned_size_in_bytes()
-                        .unwrap_or(0),
-                );
-                continue;
-            }
-
-            let field_offset = match symbolic_field_definition.get_offset_resolution() {
-                SymbolicFieldOffsetResolution::Static(offset_in_bytes) => *offset_in_bytes,
-                SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_)
-                    if symbolic_struct_definition.get_layout_kind().is_union() =>
-                {
-                    0
-                }
-                SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_) => next_sequential_offset,
-            };
-            let field_size_in_bytes = SymbolLayoutEditorViewData::resolve_symbolic_field_size_in_bytes(
-                project_symbol_catalog,
-                symbolic_field_definition,
-                &mut std::collections::HashSet::new(),
-            );
-
-            next_sequential_offset = next_sequential_offset.max(field_offset.saturating_add(field_size_in_bytes));
-            field_spans.push(SymbolLayoutFieldSpan {
-                field_position: visible_field_position,
-                offset_in_bytes: field_offset,
-                size_in_bytes: field_size_in_bytes,
-            });
-            visible_field_position = visible_field_position.saturating_add(1);
-        }
-
-        Some((layout_size_in_bytes, field_spans))
-    }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::SymbolLayoutEditorView;
+    use super::authoring::symbol_layout_draft_analyzer::SymbolLayoutDraftAnalyzer;
     use super::authoring::symbol_layout_variant_session::SymbolLayoutVariantSession;
     use super::details::symbol_layout_details_focus::build_field_details_struct;
     use super::rows::symbol_layout_field_row_action::grow_draft_size_to_fit_fields;
     use super::rows::symbol_layout_field_row_view::SymbolLayoutFieldRowView;
-    use super::{SymbolLayoutEditorView, SymbolLayoutFieldContainerKind, SymbolLayoutFieldEditDraft};
     use crate::views::struct_viewer::view_data::struct_viewer_view_data::StructViewerViewData;
     use crate::views::symbol_layout_editor::view_data::symbol_layout_editor_view_data::{
-        SymbolLayoutEditDraft, SymbolLayoutEditorViewData, SymbolLayoutFieldOffsetMode,
+        SymbolLayoutEditDraft, SymbolLayoutEditorViewData, SymbolLayoutFieldEditDraft, SymbolLayoutFieldOffsetMode,
     };
+    use crate::views::symbol_layout_editor::view_data::symbol_layout_field_container_edit::SymbolLayoutFieldContainerKind;
     use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
     use squalr_engine_api::structures::{
         data_types::{built_in_types::u32::data_type_u32::DataTypeU32, data_type_ref::DataTypeRef},
@@ -1104,11 +879,11 @@ mod tests {
         let mut field_draft = SymbolLayoutFieldEditDraft::new(DataTypeRef::new(DataTypeU32::DATA_TYPE_ID));
 
         field_draft.field_name = String::from("middle_field");
-        field_draft.offset_mode = super::SymbolLayoutFieldOffsetMode::Static;
+        field_draft.offset_mode = SymbolLayoutFieldOffsetMode::Static;
         field_draft.static_offset_in_bytes = String::from("0x10");
 
         assert_eq!(
-            SymbolLayoutEditorView::validate_define_field_draft(&project_symbol_catalog, &field_draft, 0x100, 0x40),
+            SymbolLayoutDraftAnalyzer::validate_define_field_draft(&project_symbol_catalog, &field_draft, 0x100, 0x40),
             Ok((0x110, 4))
         );
     }
@@ -1119,10 +894,10 @@ mod tests {
         let mut field_draft = SymbolLayoutFieldEditDraft::new(DataTypeRef::new(DataTypeU32::DATA_TYPE_ID));
 
         field_draft.field_name = String::from("too_wide");
-        field_draft.offset_mode = super::SymbolLayoutFieldOffsetMode::Static;
+        field_draft.offset_mode = SymbolLayoutFieldOffsetMode::Static;
         field_draft.static_offset_in_bytes = String::from("0x3E");
 
-        assert!(SymbolLayoutEditorView::validate_define_field_draft(&project_symbol_catalog, &field_draft, 0x100, 0x40).is_err());
+        assert!(SymbolLayoutDraftAnalyzer::validate_define_field_draft(&project_symbol_catalog, &field_draft, 0x100, 0x40).is_err());
     }
 
     #[test]
