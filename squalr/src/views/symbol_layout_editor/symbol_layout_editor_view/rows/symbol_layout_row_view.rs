@@ -5,7 +5,14 @@ use epaint::{CornerRadius, Stroke, StrokeKind};
 use squalr_engine_api::structures::structs::symbolic_struct_definition::SymbolicLayoutKind;
 use std::sync::Arc;
 
-use super::super::{SymbolLayoutEditorView, SymbolLayoutRowAction};
+use super::super::SymbolLayoutEditorView;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::views::symbol_layout_editor::symbol_layout_editor_view) enum SymbolLayoutRowAction {
+    Select,
+    Open,
+    Rename,
+}
 
 pub(in crate::views::symbol_layout_editor::symbol_layout_editor_view) struct SymbolLayoutRowView<'view> {
     app_context: Arc<AppContext>,

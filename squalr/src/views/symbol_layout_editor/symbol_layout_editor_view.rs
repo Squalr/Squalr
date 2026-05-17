@@ -1,4 +1,5 @@
 mod details;
+mod list;
 mod rows;
 mod takeovers;
 mod toolbars;
@@ -10,7 +11,6 @@ use crate::ui::widgets::controls::{
     combo_box::{combo_box_item_view::ComboBoxItemView, combo_box_view::ComboBoxView},
     data_value_box::data_value_box_view::DataValueBoxView,
     icon_button::IconButtonView,
-    list_header::ListHeaderView,
     search_box::SearchBoxView,
 };
 use crate::views::struct_viewer::view_data::struct_viewer_view_data::StructViewerViewData;
@@ -21,7 +21,7 @@ use crate::views::symbol_layout_editor::view_data::symbol_layout_field_container
 use details::symbol_layout_details_focus::{clear_struct_viewer_if_symbol_layout_focused, focus_selected_layout_in_struct_viewer};
 use eframe::egui::{Align, Direction, Grid, Id, Key, Layout, RichText, ScrollArea, Ui, Widget, vec2};
 use epaint::CornerRadius;
-use rows::symbol_layout_row_view::SymbolLayoutRowView;
+use list::symbol_layout_list_panel_view::SymbolLayoutListPanelView;
 use squalr_engine_api::commands::{
     project_symbols::{
         delete_layout::project_symbols_delete_layout_request::ProjectSymbolsDeleteLayoutRequest,
@@ -49,15 +49,6 @@ use squalr_engine_api::structures::{
     },
 };
 use std::{collections::BTreeSet, sync::Arc};
-use toolbars::symbol_layout_list_toolbar_view::SymbolLayoutListToolbarView;
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum SymbolLayoutRowAction {
-    Select,
-    Open,
-    Rename,
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum SymbolLayoutFieldTypeOptionKind {
     BuiltIn,
@@ -1142,117 +1133,6 @@ impl SymbolLayoutEditorView {
         }
 
         edited_draft != baseline_draft || !unassigned_split_offsets.is_empty()
-    }
-
-    fn render_filter_text_box(
-        &self,
-        user_interface: &mut Ui,
-        filter_text: &str,
-    ) {
-        let mut edited_filter_text = filter_text.to_string();
-        user_interface.add(
-            SearchBoxView::new(
-                self.app_context.clone(),
-                &mut edited_filter_text,
-                "Filter symbol layouts...",
-                "symbol_layout_editor_filter_text",
-            )
-            .width(user_interface.available_width())
-            .height(Self::FIELD_ROW_HEIGHT),
-        );
-        if edited_filter_text != filter_text {
-            SymbolLayoutEditorViewData::set_filter_text(self.symbol_layout_editor_view_data.clone(), edited_filter_text);
-        }
-    }
-
-    fn render_list_panel(
-        &self,
-        user_interface: &mut Ui,
-        project_symbol_catalog: &ProjectSymbolCatalog,
-        selected_layout_id: Option<&str>,
-        filter_text: &str,
-        is_take_over_active: bool,
-    ) {
-        user_interface.add(
-            SymbolLayoutListToolbarView::new(
-                self.app_context.clone(),
-                self.symbol_layout_editor_view_data.clone(),
-                project_symbol_catalog,
-                self.default_data_type_ref(),
-                is_take_over_active,
-            )
-            .height(Self::TOOLBAR_HEIGHT)
-            .icon_button_size(Self::ICON_BUTTON_WIDTH, Self::FIELD_ROW_HEIGHT),
-        );
-
-        self.render_filter_text_box(user_interface, filter_text);
-
-        user_interface.add(
-            ListHeaderView::new(self.app_context.clone(), "Symbol Layout", "Kind | Entries | Uses")
-                .height(Self::LIST_ROW_HEIGHT)
-                .horizontal_padding(8.0),
-        );
-        ScrollArea::vertical()
-            .id_salt("symbol_layout_editor_layout_list")
-            .auto_shrink([false, false])
-            .show(user_interface, |user_interface| {
-                for struct_layout_descriptor in project_symbol_catalog
-                    .get_struct_layout_descriptors()
-                    .iter()
-                    .filter(|struct_layout_descriptor| SymbolLayoutEditorViewData::layout_matches_filter(struct_layout_descriptor, filter_text))
-                {
-                    let struct_layout_id = struct_layout_descriptor.get_struct_layout_id();
-                    let usage_count = SymbolLayoutEditorViewData::count_symbol_claim_usages(project_symbol_catalog, struct_layout_id);
-                    let field_count = struct_layout_descriptor
-                        .get_struct_layout_definition()
-                        .get_fields()
-                        .len();
-                    let row_action = SymbolLayoutRowView::new(
-                        self.app_context.clone(),
-                        struct_layout_id,
-                        struct_layout_descriptor
-                            .get_struct_layout_definition()
-                            .get_layout_kind(),
-                        field_count,
-                        usage_count,
-                        selected_layout_id == Some(struct_layout_id),
-                    )
-                    .show(user_interface);
-                    match row_action {
-                        Some(SymbolLayoutRowAction::Select) => {
-                            SymbolLayoutEditorViewData::select_symbol_layout(self.symbol_layout_editor_view_data.clone(), Some(struct_layout_id.to_string()));
-                            focus_selected_layout_in_struct_viewer(
-                                self.app_context.clone(),
-                                self.struct_viewer_view_data.clone(),
-                                project_symbol_catalog,
-                                Some(struct_layout_id),
-                            );
-                        }
-                        Some(SymbolLayoutRowAction::Open) if !is_take_over_active => {
-                            SymbolLayoutEditorViewData::begin_open_symbol_layout(
-                                self.symbol_layout_editor_view_data.clone(),
-                                project_symbol_catalog,
-                                struct_layout_id,
-                            );
-                        }
-                        Some(SymbolLayoutRowAction::Rename) if !is_take_over_active => {
-                            SymbolLayoutEditorViewData::begin_rename_symbol_layout(
-                                self.symbol_layout_editor_view_data.clone(),
-                                project_symbol_catalog,
-                                struct_layout_id,
-                            );
-                        }
-                        _ => {}
-                    }
-                }
-
-                if project_symbol_catalog
-                    .get_struct_layout_descriptors()
-                    .is_empty()
-                {
-                    user_interface.label(RichText::new("No symbol layouts yet.").color(self.app_context.theme.foreground_preview));
-                }
-            });
     }
 
     fn render_add_entry_button(
@@ -2424,13 +2304,17 @@ impl Widget for SymbolLayoutEditorView {
                         );
                     }
                     None => {
-                        self.render_list_panel(
-                            &mut content_user_interface,
+                        SymbolLayoutListPanelView::new(
+                            self.app_context.clone(),
+                            self.symbol_layout_editor_view_data.clone(),
+                            self.struct_viewer_view_data.clone(),
                             &project_symbol_catalog,
                             selected_layout_id.as_deref(),
                             &filter_text,
+                            self.default_data_type_ref(),
                             false,
-                        );
+                        )
+                        .show(&mut content_user_interface);
                     }
                 }
             })
