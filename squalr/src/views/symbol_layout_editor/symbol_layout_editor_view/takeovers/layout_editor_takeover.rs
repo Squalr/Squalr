@@ -1,4 +1,7 @@
 use super::super::SymbolLayoutEditorView;
+use super::super::controls::symbol_layout_add_entry_button::{render_symbol_layout_add_entry_button, render_symbol_layout_centered_add_entry_button};
+use super::super::controls::symbol_layout_kind_combo::render_symbol_layout_kind_combo;
+use super::super::controls::symbol_layout_value_box::{render_symbol_layout_size_editor, render_symbol_layout_string_value_box};
 use super::super::details::symbol_layout_details_focus::clear_struct_viewer_if_symbol_layout_focused;
 use super::super::rows::symbol_layout_draft_field_tree_view::SymbolLayoutDraftFieldTreeView;
 use super::super::rows::symbol_layout_field_row_action::focus_field_in_struct_viewer;
@@ -75,7 +78,15 @@ impl SymbolLayoutEditorView {
             },
             Self::TAKE_OVER_SECTION_SPACING,
             |user_interface| {
-                if is_union_layout && self.render_add_entry_button(user_interface, "Add a new union variant.") {
+                if is_union_layout
+                    && render_symbol_layout_add_entry_button(
+                        self.app_context.clone(),
+                        user_interface,
+                        "Add a new union variant.",
+                        Self::ICON_BUTTON_WIDTH,
+                        Self::FIELD_ROW_HEIGHT,
+                    )
+                {
                     should_append_field.set(true);
                 }
             },
@@ -83,7 +94,7 @@ impl SymbolLayoutEditorView {
                 if show_layout_name_editor {
                     user_interface.add(
                         GroupBox::new_from_theme(&self.app_context.theme, "Size", |user_interface| {
-                            self.render_layout_size_editor(user_interface, &mut edited_draft);
+                            render_symbol_layout_size_editor(self.app_context.clone(), user_interface, &mut edited_draft, Self::FIELD_ROW_HEIGHT);
                         })
                         .desired_width(user_interface.available_width()),
                     );
@@ -101,7 +112,8 @@ impl SymbolLayoutEditorView {
                                     let combo_width = Self::LAYOUT_KIND_COMBO_WIDTH.min(user_interface.available_width().max(1.0));
                                     let layout_id_width = (user_interface.available_width() - combo_width - Self::FIELD_INPUT_SPACING).max(1.0);
 
-                                    self.render_string_value_box(
+                                    render_symbol_layout_string_value_box(
+                                        self.app_context.clone(),
                                         user_interface,
                                         &mut edited_draft.layout_id,
                                         "module.type",
@@ -109,7 +121,14 @@ impl SymbolLayoutEditorView {
                                         layout_id_width,
                                         Self::FIELD_ROW_HEIGHT,
                                     );
-                                    self.render_layout_kind_combo(user_interface, &mut edited_draft.layout_kind, "symbol_layout_editor_layout_kind");
+                                    render_symbol_layout_kind_combo(
+                                        self.app_context.clone(),
+                                        user_interface,
+                                        &mut edited_draft.layout_kind,
+                                        "symbol_layout_editor_layout_kind",
+                                        combo_width,
+                                        Self::FIELD_ROW_HEIGHT,
+                                    );
                                 });
 
                                 if previous_layout_kind != edited_draft.layout_kind && edited_draft.layout_kind.is_union() {
@@ -152,7 +171,15 @@ impl SymbolLayoutEditorView {
                                 if !is_union_layout {
                                     user_interface.add_space(Self::TAKE_OVER_GROUPBOX_SPACING);
                                     let tail_unassigned_offset = self.resolve_draft_tail_unassigned_offset(&effective_project_symbol_catalog, &edited_draft);
-                                    if self.render_centered_add_entry_button(user_interface, "Add a new field entry.", tail_unassigned_offset.is_some()) {
+                                    if render_symbol_layout_centered_add_entry_button(
+                                        self.app_context.clone(),
+                                        user_interface,
+                                        "Add a new field entry.",
+                                        tail_unassigned_offset.is_some(),
+                                        Self::TAKE_OVER_ACTION_BUTTON_WIDTH,
+                                        Self::FIELD_ROW_HEIGHT,
+                                        Self::FIELD_ADD_BUTTON_CORNER_RADIUS,
+                                    ) {
                                         append_field_tail_offset.set(tail_unassigned_offset);
                                         should_append_field.set(true);
                                     }
@@ -169,7 +196,7 @@ impl SymbolLayoutEditorView {
                             theme,
                             if is_union_layout { "Edit Union Variants" } else { "Edit Symbol Layout" },
                             |user_interface| {
-                                self.render_layout_size_editor(user_interface, &mut edited_draft);
+                                render_symbol_layout_size_editor(self.app_context.clone(), user_interface, &mut edited_draft, Self::FIELD_ROW_HEIGHT);
                                 user_interface.add_space(Self::TAKE_OVER_GROUPBOX_SPACING);
                                 SymbolLayoutDraftFieldTreeView::new(
                                     self,
@@ -183,7 +210,15 @@ impl SymbolLayoutEditorView {
                                 if !is_union_layout {
                                     user_interface.add_space(Self::TAKE_OVER_GROUPBOX_SPACING);
                                     let tail_unassigned_offset = self.resolve_draft_tail_unassigned_offset(&effective_project_symbol_catalog, &edited_draft);
-                                    if self.render_centered_add_entry_button(user_interface, "Add a new field entry.", tail_unassigned_offset.is_some()) {
+                                    if render_symbol_layout_centered_add_entry_button(
+                                        self.app_context.clone(),
+                                        user_interface,
+                                        "Add a new field entry.",
+                                        tail_unassigned_offset.is_some(),
+                                        Self::TAKE_OVER_ACTION_BUTTON_WIDTH,
+                                        Self::FIELD_ROW_HEIGHT,
+                                        Self::FIELD_ADD_BUTTON_CORNER_RADIUS,
+                                    ) {
                                         append_field_tail_offset.set(tail_unassigned_offset);
                                         should_append_field.set(true);
                                     }

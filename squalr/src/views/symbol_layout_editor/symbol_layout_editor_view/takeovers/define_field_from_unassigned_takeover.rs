@@ -1,4 +1,7 @@
 use super::super::SymbolLayoutEditorView;
+use super::super::controls::symbol_layout_define_field_container_selector::render_define_field_container_selector;
+use super::super::controls::symbol_layout_define_field_type_combo::render_define_field_type_combo;
+use super::super::controls::symbol_layout_value_box::render_symbol_layout_string_value_box;
 use super::super::details::symbol_layout_details_focus::focus_unassigned_span_in_struct_viewer;
 use super::super::rows::symbol_layout_field_row_action::focus_field_in_struct_viewer;
 use crate::ui::widgets::controls::groupbox::GroupBox;
@@ -50,7 +53,8 @@ impl SymbolLayoutEditorView {
 
                                 user_interface.label(RichText::new("Name").color(theme.foreground));
                                 user_interface.add_space(2.0);
-                                self.render_string_value_box(
+                                render_symbol_layout_string_value_box(
+                                    self.app_context.clone(),
                                     user_interface,
                                     &mut edited_define_field_draft.field_name,
                                     "field_name",
@@ -63,7 +67,8 @@ impl SymbolLayoutEditorView {
                                 let max_relative_offset = span_size_in_bytes.saturating_sub(1);
                                 user_interface.label(RichText::new(format!("Offset in UNASSIGNED (0 to {})", max_relative_offset)).color(theme.foreground));
                                 user_interface.add_space(2.0);
-                                self.render_string_value_box(
+                                render_symbol_layout_string_value_box(
+                                    self.app_context.clone(),
                                     user_interface,
                                     &mut edited_define_field_draft.static_offset_in_bytes,
                                     "0",
@@ -89,20 +94,24 @@ impl SymbolLayoutEditorView {
                                 user_interface.horizontal(|user_interface| {
                                     user_interface.spacing_mut().item_spacing.x = 4.0;
                                     let selector_width = Self::DEFINE_FIELD_CONTAINER_SELECTOR_WIDTH.min(user_interface.available_width());
-                                    self.render_define_field_container_selector(
+                                    render_define_field_container_selector(
+                                        self.app_context.clone(),
                                         user_interface,
                                         &mut edited_define_field_draft.container_edit,
                                         &format!("symbol_layout_define_field_container_{}_{}", layout_id, span_offset_in_bytes),
                                         selector_width,
+                                        Self::TOOLBAR_HEIGHT,
                                     );
 
                                     let type_selector_width = user_interface.available_width();
-                                    self.render_define_field_type_combo(
+                                    render_define_field_type_combo(
+                                        self.app_context.clone(),
                                         user_interface,
                                         project_symbol_catalog,
                                         &mut edited_define_field_draft,
                                         &format!("symbol_layout_define_field_type_{}_{}", layout_id, span_offset_in_bytes),
                                         type_selector_width,
+                                        Self::TOOLBAR_HEIGHT,
                                     );
                                 });
 

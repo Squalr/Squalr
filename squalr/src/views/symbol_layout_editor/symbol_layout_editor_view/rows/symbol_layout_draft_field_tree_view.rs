@@ -6,6 +6,7 @@ use super::symbol_layout_unassigned_context_menu::render_unassigned_context_menu
 use super::symbol_layout_unassigned_row_action::{SymbolLayoutUnassignedRowAction, apply_unassigned_row_action};
 use super::symbol_layout_unassigned_row_view::SymbolLayoutUnassignedRowView;
 use super::union_variant_preview_row_view::UnionVariantPreviewRowView;
+use crate::views::symbol_layout_editor::symbol_layout_editor_view::controls::symbol_layout_add_entry_button::render_symbol_layout_centered_add_entry_button;
 use crate::views::symbol_layout_editor::view_data::symbol_layout_editor_view_data::{SymbolLayoutEditDraft, SymbolLayoutFieldEditDraft};
 use eframe::egui::{Align, Layout, Ui, vec2};
 use squalr_engine_api::structures::{
@@ -372,10 +373,14 @@ impl<'view, 'draft> SymbolLayoutDraftFieldTreeView<'view, 'draft> {
                     .symbol_layout_editor_view
                     .resolve_variant_tail_unassigned_offset(self.project_symbol_catalog, &union_draft_preview, field_index, &variant_field_preview_draft);
                 if Self::render_union_variant_child_row(user_interface, |user_interface| {
-                    self.symbol_layout_editor_view.render_centered_add_entry_button(
+                    render_symbol_layout_centered_add_entry_button(
+                        self.symbol_layout_editor_view.app_context.clone(),
                         user_interface,
                         "Add a new field to this union variant.",
                         variant_tail_unassigned_offset.is_some(),
+                        SymbolLayoutEditorView::TAKE_OVER_ACTION_BUTTON_WIDTH,
+                        SymbolLayoutEditorView::FIELD_ROW_HEIGHT,
+                        SymbolLayoutEditorView::FIELD_ADD_BUTTON_CORNER_RADIUS,
                     )
                 }) {
                     pending_field_row_action = Some((field_index, SymbolLayoutFieldRowAction::InsertFieldIntoVariant));
