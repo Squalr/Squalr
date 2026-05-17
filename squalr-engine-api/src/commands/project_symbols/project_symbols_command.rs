@@ -3,11 +3,13 @@ use crate::commands::project_symbols::{
     create_module::project_symbols_create_module_request::ProjectSymbolsCreateModuleRequest,
     delete::project_symbols_delete_request::ProjectSymbolsDeleteRequest,
     delete_layout::project_symbols_delete_layout_request::ProjectSymbolsDeleteLayoutRequest,
+    delete_resolver::project_symbols_delete_resolver_request::ProjectSymbolsDeleteResolverRequest,
     execute_plugin_action::project_symbols_execute_plugin_action_request::ProjectSymbolsExecutePluginActionRequest,
     list::project_symbols_list_request::ProjectSymbolsListRequest, rename::project_symbols_rename_request::ProjectSymbolsRenameRequest,
     rename_module::project_symbols_rename_module_request::ProjectSymbolsRenameModuleRequest,
-    set_catalog::project_symbols_set_catalog_request::ProjectSymbolsSetCatalogRequest, update::project_symbols_update_request::ProjectSymbolsUpdateRequest,
+    update::project_symbols_update_request::ProjectSymbolsUpdateRequest,
     upsert_layout::project_symbols_upsert_layout_request::ProjectSymbolsUpsertLayoutRequest,
+    upsert_resolver::project_symbols_upsert_resolver_request::ProjectSymbolsUpsertResolverRequest,
     write_value::project_symbols_write_value_request::ProjectSymbolsWriteValueRequest,
 };
 use serde::{Deserialize, Serialize};
@@ -35,6 +37,11 @@ pub enum ProjectSymbolsCommand {
         #[structopt(flatten)]
         project_symbols_delete_layout_request: ProjectSymbolsDeleteLayoutRequest,
     },
+    /// Deletes a reusable symbol resolver.
+    DeleteResolver {
+        #[structopt(flatten)]
+        project_symbols_delete_resolver_request: ProjectSymbolsDeleteResolverRequest,
+    },
     /// Executes a Symbol Tree plugin action.
     ExecutePluginAction {
         #[structopt(flatten)]
@@ -55,11 +62,6 @@ pub enum ProjectSymbolsCommand {
         #[structopt(flatten)]
         project_symbols_rename_module_request: ProjectSymbolsRenameModuleRequest,
     },
-    /// Replaces the opened project's entire symbol catalog.
-    SetCatalog {
-        #[structopt(flatten)]
-        project_symbols_set_catalog_request: ProjectSymbolsSetCatalogRequest,
-    },
     /// Updates project symbol claim properties.
     Update {
         #[structopt(flatten)]
@@ -69,6 +71,11 @@ pub enum ProjectSymbolsCommand {
     UpsertLayout {
         #[structopt(flatten)]
         project_symbols_upsert_layout_request: ProjectSymbolsUpsertLayoutRequest,
+    },
+    /// Creates or replaces a reusable symbol resolver.
+    UpsertResolver {
+        #[structopt(flatten)]
+        project_symbols_upsert_resolver_request: ProjectSymbolsUpsertResolverRequest,
     },
     /// Writes an edited project symbol runtime value to process memory.
     WriteValue {

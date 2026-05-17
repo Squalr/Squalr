@@ -21,11 +21,15 @@ use eframe::egui::{
 };
 use epaint::{Color32, CornerRadius, Stroke, StrokeKind};
 use squalr_engine_api::commands::{
-    project_symbols::set_catalog::project_symbols_set_catalog_request::ProjectSymbolsSetCatalogRequest,
+    project_symbols::{
+        delete_resolver::project_symbols_delete_resolver_request::ProjectSymbolsDeleteResolverRequest,
+        upsert_resolver::project_symbols_upsert_resolver_request::ProjectSymbolsUpsertResolverRequest,
+    },
     unprivileged_command_request::UnprivilegedCommandRequest,
 };
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
+use squalr_engine_api::registries::symbols::symbolic_resolver_descriptor::SymbolicResolverDescriptor;
 use squalr_engine_api::structures::{
     data_types::{
         built_in_types::{i64::data_type_i64::DataTypeI64, string::utf8::data_type_string_utf8::DataTypeStringUtf8},
@@ -116,21 +120,47 @@ impl SymbolResolverEditorView {
         })
     }
 
-    fn persist_project_symbol_catalog(
-        &self,
-        updated_project_symbol_catalog: ProjectSymbolCatalog,
-    ) {
-        Self::persist_project_symbol_catalog_with_context(&self.app_context, updated_project_symbol_catalog);
-    }
-
-    fn persist_project_symbol_catalog_with_context(
+    fn persist_symbol_resolver_descriptor_with_context(
         app_context: &Arc<AppContext>,
-        updated_project_symbol_catalog: ProjectSymbolCatalog,
+        original_resolver_id: Option<String>,
+        resolver_descriptor: &SymbolicResolverDescriptor,
     ) {
-        ProjectSymbolsSetCatalogRequest::new(updated_project_symbol_catalog).send(&app_context.engine_unprivileged_state, |response| {
+        let Ok(request) = ProjectSymbolsUpsertResolverRequest::from_resolver_descriptor(original_resolver_id, resolver_descriptor) else {
+            log::error!(
+                "Failed to serialize symbol resolver `{}` for persistence.",
+                resolver_descriptor.get_resolver_id()
+            );
+            return;
+        };
+
+        request.send(&app_context.engine_unprivileged_state, |response| {
             if !response.success {
                 log::error!(
-                    "Failed to persist symbol resolver changes through project-symbols command: {}.",
+                    "Failed to persist symbol resolver `{}` through project-symbols upsert-resolver command: {}.",
+                    response.resolver_id,
+                    response.error.as_deref().unwrap_or("unknown error")
+                );
+            }
+        });
+    }
+
+    fn persist_symbol_resolver_descriptor(
+        &self,
+        original_resolver_id: Option<String>,
+        resolver_descriptor: &SymbolicResolverDescriptor,
+    ) {
+        Self::persist_symbol_resolver_descriptor_with_context(&self.app_context, original_resolver_id, resolver_descriptor);
+    }
+
+    fn delete_symbol_resolver(
+        &self,
+        resolver_id: &str,
+    ) {
+        ProjectSymbolsDeleteResolverRequest::new(resolver_id).send(&self.app_context.engine_unprivileged_state, |response| {
+            if !response.success {
+                log::error!(
+                    "Failed to delete symbol resolver `{}` through project-symbols delete-resolver command: {}.",
+                    response.resolver_id,
                     response.error.as_deref().unwrap_or("unknown error")
                 );
             }
@@ -1079,13 +1109,14 @@ impl SymbolResolverEditorView {
             let Some(project_symbol_catalog) = Self::get_opened_project_symbol_catalog_from_context(&app_context) else {
                 return;
             };
-            let Ok((updated_project_symbol_catalog, saved_resolver_id)) =
-                Self::build_catalog_after_resolver_name_details_edit(&project_symbol_catalog, &resolver_id, &edited_field)
+            let Ok((original_resolver_id, resolver_descriptor)) =
+                Self::build_resolver_descriptor_after_name_details_edit(&project_symbol_catalog, &resolver_id, &edited_field)
             else {
                 return;
             };
+            let saved_resolver_id = resolver_descriptor.get_resolver_id().to_string();
 
-            Self::persist_project_symbol_catalog_with_context(&app_context, updated_project_symbol_catalog);
+            Self::persist_symbol_resolver_descriptor_with_context(&app_context, original_resolver_id, &resolver_descriptor);
 
             if let Some(mut view_data) = symbol_resolver_editor_view_data.write("SymbolResolverEditor apply resolver name details edit") {
                 view_data.select_resolver(Some(saved_resolver_id.clone()));
@@ -1125,11 +1156,11 @@ impl SymbolResolverEditorView {
         })
     }
 
-    fn build_catalog_after_resolver_name_details_edit(
+    fn build_resolver_descriptor_after_name_details_edit(
         project_symbol_catalog: &ProjectSymbolCatalog,
         current_resolver_id: &str,
         edited_field: &ValuedStructField,
-    ) -> Result<(ProjectSymbolCatalog, String), String> {
+    ) -> Result<(Option<String>, SymbolicResolverDescriptor), String> {
         if edited_field.get_name() != StructViewerViewData::VIRTUAL_FIELD_SYMBOL_RESOLVER_ID {
             return Err(String::from("Edited field is not the resolver name."));
         }
@@ -1149,10 +1180,9 @@ impl SymbolResolverEditorView {
             resolver_id: edited_resolver_id,
             resolver_definition: resolver_descriptor.get_resolver_definition().clone(),
         };
-        let saved_resolver_id = draft.resolver_id.trim().to_string();
-        let updated_project_symbol_catalog = SymbolResolverEditorViewData::apply_draft_to_catalog(project_symbol_catalog, &draft)?;
+        let resolver_descriptor = SymbolResolverEditorViewData::build_resolver_descriptor(project_symbol_catalog, &draft)?;
 
-        Ok((updated_project_symbol_catalog, saved_resolver_id))
+        Ok((draft.original_resolver_id.clone(), resolver_descriptor))
     }
 
     fn build_struct_viewer_edit_callback(
@@ -1449,8 +1479,7 @@ impl SymbolResolverEditorView {
                 self.clear_struct_viewer_if_symbol_resolver_focused();
             }
             ResolverFrameAction::ConfirmDeleteResolver(resolver_id) => {
-                let updated_project_symbol_catalog = SymbolResolverEditorViewData::remove_resolver_from_catalog(project_symbol_catalog, &resolver_id);
-                self.persist_project_symbol_catalog(updated_project_symbol_catalog);
+                self.delete_symbol_resolver(&resolver_id);
                 if let Some(mut view_data) = self
                     .symbol_resolver_editor_view_data
                     .write("SymbolResolverEditor delete resolver")
@@ -1486,10 +1515,10 @@ impl SymbolResolverEditorView {
         project_symbol_catalog: &ProjectSymbolCatalog,
         draft: &SymbolResolverEditDraft,
     ) {
-        match SymbolResolverEditorViewData::apply_draft_to_catalog(project_symbol_catalog, draft) {
-            Ok(updated_project_symbol_catalog) => {
+        match SymbolResolverEditorViewData::build_resolver_descriptor(project_symbol_catalog, draft) {
+            Ok(resolver_descriptor) => {
                 let saved_resolver_id = draft.resolver_id.trim().to_string();
-                self.persist_project_symbol_catalog(updated_project_symbol_catalog.clone());
+                self.persist_symbol_resolver_descriptor(draft.original_resolver_id.clone(), &resolver_descriptor);
                 if let Some(mut view_data) = self
                     .symbol_resolver_editor_view_data
                     .write("SymbolResolverEditor save resolver")
@@ -1968,20 +1997,11 @@ mod tests {
         let edited_resolver_id_field = DataTypeStringUtf8::get_value_from_primitive_string("health.max_count")
             .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_RESOLVER_ID.to_string(), false);
 
-        let (updated_project_symbol_catalog, saved_resolver_id) =
-            SymbolResolverEditorView::build_catalog_after_resolver_name_details_edit(&project_symbol_catalog, "health.count", &edited_resolver_id_field)
+        let (original_resolver_id, resolver_descriptor) =
+            SymbolResolverEditorView::build_resolver_descriptor_after_name_details_edit(&project_symbol_catalog, "health.count", &edited_resolver_id_field)
                 .expect("Expected resolver details rename to apply.");
 
-        assert_eq!(saved_resolver_id, "health.max_count");
-        assert!(
-            updated_project_symbol_catalog
-                .find_symbolic_resolver_descriptor("health.count")
-                .is_none()
-        );
-        assert!(
-            updated_project_symbol_catalog
-                .find_symbolic_resolver_descriptor("health.max_count")
-                .is_some()
-        );
+        assert_eq!(original_resolver_id.as_deref(), Some("health.count"));
+        assert_eq!(resolver_descriptor.get_resolver_id(), "health.max_count");
     }
 }

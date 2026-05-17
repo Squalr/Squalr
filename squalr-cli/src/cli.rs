@@ -244,6 +244,36 @@ mod tests {
     }
 
     #[test]
+    fn parse_input_returns_unprivileged_command_for_project_symbols_upsert_resolver_command() {
+        let parsed_input = Cli::parse_input(r#"project_symbols upsert-resolver --id inventory.count --definition-json "{\"root_node\":{\"Literal\":4}}""#)
+            .expect("Expected project_symbols upsert-resolver command to parse successfully");
+
+        let ParsedInput::UnprivilegedCommand(UnprivilegedCommand::ProjectSymbols(ProjectSymbolsCommand::UpsertResolver {
+            project_symbols_upsert_resolver_request,
+        })) = parsed_input
+        else {
+            panic!("Expected project_symbols upsert-resolver command.");
+        };
+
+        assert_eq!(project_symbols_upsert_resolver_request.resolver_id, "inventory.count");
+    }
+
+    #[test]
+    fn parse_input_returns_unprivileged_command_for_project_symbols_delete_resolver_command() {
+        let parsed_input = Cli::parse_input("project_symbols delete-resolver --id inventory.count")
+            .expect("Expected project_symbols delete-resolver command to parse successfully");
+
+        let ParsedInput::UnprivilegedCommand(UnprivilegedCommand::ProjectSymbols(ProjectSymbolsCommand::DeleteResolver {
+            project_symbols_delete_resolver_request,
+        })) = parsed_input
+        else {
+            panic!("Expected project_symbols delete-resolver command.");
+        };
+
+        assert_eq!(project_symbols_delete_resolver_request.resolver_id, "inventory.count");
+    }
+
+    #[test]
     fn parse_input_returns_unprivileged_command_for_project_items_write_value_command() {
         let parsed_input = Cli::parse_input("project_items write-value -p project_items/health.json --field value -v '255;decimal;'")
             .expect("Expected project_items write-value command to parse successfully");

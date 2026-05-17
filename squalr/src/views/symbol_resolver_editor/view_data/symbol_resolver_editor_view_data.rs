@@ -419,49 +419,6 @@ impl SymbolResolverEditorViewData {
             draft.resolver_definition.clone(),
         ))
     }
-
-    pub fn apply_draft_to_catalog(
-        project_symbol_catalog: &ProjectSymbolCatalog,
-        draft: &SymbolResolverEditDraft,
-    ) -> Result<ProjectSymbolCatalog, String> {
-        let resolver_descriptor = Self::build_resolver_descriptor(project_symbol_catalog, draft)?;
-        let mut updated_project_symbol_catalog = project_symbol_catalog.clone();
-        let mut resolver_descriptors = updated_project_symbol_catalog
-            .get_symbolic_resolver_descriptors()
-            .iter()
-            .filter(|existing_resolver_descriptor| draft.original_resolver_id.as_deref() != Some(existing_resolver_descriptor.get_resolver_id()))
-            .cloned()
-            .collect::<Vec<_>>();
-
-        resolver_descriptors.push(resolver_descriptor);
-        resolver_descriptors.sort_by(|left_resolver, right_resolver| {
-            left_resolver
-                .get_resolver_id()
-                .to_ascii_lowercase()
-                .cmp(&right_resolver.get_resolver_id().to_ascii_lowercase())
-        });
-        updated_project_symbol_catalog.set_symbolic_resolver_descriptors(resolver_descriptors);
-        updated_project_symbol_catalog.validate_local_resolver_dependencies()?;
-
-        Ok(updated_project_symbol_catalog)
-    }
-
-    pub fn remove_resolver_from_catalog(
-        project_symbol_catalog: &ProjectSymbolCatalog,
-        resolver_id: &str,
-    ) -> ProjectSymbolCatalog {
-        let mut updated_project_symbol_catalog = project_symbol_catalog.clone();
-        updated_project_symbol_catalog.set_symbolic_resolver_descriptors(
-            updated_project_symbol_catalog
-                .get_symbolic_resolver_descriptors()
-                .iter()
-                .filter(|resolver_descriptor| resolver_descriptor.get_resolver_id() != resolver_id)
-                .cloned()
-                .collect(),
-        );
-
-        updated_project_symbol_catalog
-    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -523,25 +480,6 @@ mod tests {
     }
 
     #[test]
-    fn apply_draft_to_catalog_adds_resolver_descriptor() {
-        let project_symbol_catalog = ProjectSymbolCatalog::default();
-        let draft = SymbolResolverEditDraft {
-            original_resolver_id: None,
-            resolver_id: String::from("inventory.count"),
-            resolver_definition: SymbolicResolverDefinition::new(SymbolicResolverNode::new_local_field(String::from("count"))),
-        };
-
-        let updated_project_symbol_catalog =
-            SymbolResolverEditorViewData::apply_draft_to_catalog(&project_symbol_catalog, &draft).expect("Expected resolver draft to apply.");
-
-        assert!(
-            updated_project_symbol_catalog
-                .find_symbolic_resolver_descriptor("inventory.count")
-                .is_some()
-        );
-    }
-
-    #[test]
     fn build_resolver_descriptor_rejects_duplicate_ids() {
         let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_resolvers_and_symbol_claims(
             Vec::new(),
@@ -561,37 +499,6 @@ mod tests {
         let result = SymbolResolverEditorViewData::build_resolver_descriptor(&project_symbol_catalog, &draft);
 
         assert!(result.is_err());
-    }
-
-    #[test]
-    fn apply_draft_to_catalog_rejects_local_resolver_field_cycles() {
-        let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_resolvers_and_symbol_claims(
-            Vec::new(),
-            vec![StructLayoutDescriptor::new(
-                String::from("cycle"),
-                SymbolicStructDefinition::new(
-                    String::from("cycle"),
-                    vec![
-                        SymbolicFieldDefinition::from_str("left:u8[resolver(read_right)]").expect("Expected left field to parse."),
-                        SymbolicFieldDefinition::from_str("right:u8[resolver(read_left)]").expect("Expected right field to parse."),
-                    ],
-                ),
-            )],
-            vec![SymbolicResolverDescriptor::new(
-                String::from("read_right"),
-                SymbolicResolverDefinition::new(SymbolicResolverNode::new_local_field(String::from("right"))),
-            )],
-            Vec::new(),
-        );
-        let draft = SymbolResolverEditDraft {
-            original_resolver_id: None,
-            resolver_id: String::from("read_left"),
-            resolver_definition: SymbolicResolverDefinition::new(SymbolicResolverNode::new_local_field(String::from("left"))),
-        };
-
-        let result = SymbolResolverEditorViewData::apply_draft_to_catalog(&project_symbol_catalog, &draft);
-
-        assert!(result.is_err_and(|error| error.contains("dependency cycle")));
     }
 
     #[test]

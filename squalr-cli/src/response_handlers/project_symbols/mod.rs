@@ -85,21 +85,6 @@ pub fn handle_project_symbols_response(project_symbols_response: ProjectSymbolsR
                 project_symbols_rename_module_response.module_name
             );
         }
-        ProjectSymbolsResponse::SetCatalog {
-            project_symbols_set_catalog_response,
-        } => {
-            if project_symbols_set_catalog_response.success {
-                log::info!("set project symbol catalog: success=true");
-            } else {
-                log::error!(
-                    "set project symbol catalog: success=false, error={}",
-                    project_symbols_set_catalog_response
-                        .error
-                        .as_deref()
-                        .unwrap_or("unknown error")
-                );
-            }
-        }
         ProjectSymbolsResponse::Update {
             project_symbols_update_response,
         } => {
@@ -151,6 +136,44 @@ pub fn handle_project_symbols_response(project_symbols_response: ProjectSymbolsR
                     "deleted symbol layout: success=false, id={}, error={}",
                     project_symbols_delete_layout_response.struct_layout_id,
                     project_symbols_delete_layout_response
+                        .error
+                        .as_deref()
+                        .unwrap_or("unknown error")
+                );
+            }
+        }
+        ProjectSymbolsResponse::DeleteResolver {
+            project_symbols_delete_resolver_response,
+        } => {
+            if project_symbols_delete_resolver_response.success {
+                log::info!(
+                    "deleted symbol resolver: success=true, id={}",
+                    project_symbols_delete_resolver_response.resolver_id
+                );
+            } else {
+                log::error!(
+                    "deleted symbol resolver: success=false, id={}, error={}",
+                    project_symbols_delete_resolver_response.resolver_id,
+                    project_symbols_delete_resolver_response
+                        .error
+                        .as_deref()
+                        .unwrap_or("unknown error")
+                );
+            }
+        }
+        ProjectSymbolsResponse::UpsertResolver {
+            project_symbols_upsert_resolver_response,
+        } => {
+            if project_symbols_upsert_resolver_response.success {
+                log::info!(
+                    "upserted symbol resolver: success=true, id={}",
+                    project_symbols_upsert_resolver_response.resolver_id
+                );
+            } else {
+                log::error!(
+                    "upserted symbol resolver: success=false, id={}, error={}",
+                    project_symbols_upsert_resolver_response.resolver_id,
+                    project_symbols_upsert_resolver_response
                         .error
                         .as_deref()
                         .unwrap_or("unknown error")

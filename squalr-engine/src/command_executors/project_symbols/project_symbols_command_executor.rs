@@ -36,6 +36,11 @@ impl UnprivilegedCommandExecutor for ProjectSymbolsCommand {
             } => project_symbols_delete_layout_request
                 .execute(engine_unprivileged_state)
                 .to_engine_response(),
+            ProjectSymbolsCommand::DeleteResolver {
+                project_symbols_delete_resolver_request,
+            } => project_symbols_delete_resolver_request
+                .execute(engine_unprivileged_state)
+                .to_engine_response(),
             ProjectSymbolsCommand::ExecutePluginAction {
                 project_symbols_execute_plugin_action_request,
             } => project_symbols_execute_plugin_action_request
@@ -54,11 +59,6 @@ impl UnprivilegedCommandExecutor for ProjectSymbolsCommand {
             } => project_symbols_rename_module_request
                 .execute(engine_unprivileged_state)
                 .to_engine_response(),
-            ProjectSymbolsCommand::SetCatalog {
-                project_symbols_set_catalog_request,
-            } => project_symbols_set_catalog_request
-                .execute(engine_unprivileged_state)
-                .to_engine_response(),
             ProjectSymbolsCommand::Update {
                 project_symbols_update_request,
             } => project_symbols_update_request
@@ -67,6 +67,11 @@ impl UnprivilegedCommandExecutor for ProjectSymbolsCommand {
             ProjectSymbolsCommand::UpsertLayout {
                 project_symbols_upsert_layout_request,
             } => project_symbols_upsert_layout_request
+                .execute(engine_unprivileged_state)
+                .to_engine_response(),
+            ProjectSymbolsCommand::UpsertResolver {
+                project_symbols_upsert_resolver_request,
+            } => project_symbols_upsert_resolver_request
                 .execute(engine_unprivileged_state)
                 .to_engine_response(),
             ProjectSymbolsCommand::WriteValue {

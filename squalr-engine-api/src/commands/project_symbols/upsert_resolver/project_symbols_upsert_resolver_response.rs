@@ -2,25 +2,26 @@ use crate::commands::project_symbols::project_symbols_response::ProjectSymbolsRe
 use crate::commands::unprivileged_command_response::{TypedUnprivilegedCommandResponse, UnprivilegedCommandResponse};
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Default, Debug, Serialize, Deserialize)]
-pub struct ProjectSymbolsSetCatalogResponse {
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct ProjectSymbolsUpsertResolverResponse {
     pub success: bool,
+    pub resolver_id: String,
     pub error: Option<String>,
 }
 
-impl TypedUnprivilegedCommandResponse for ProjectSymbolsSetCatalogResponse {
+impl TypedUnprivilegedCommandResponse for ProjectSymbolsUpsertResolverResponse {
     fn to_engine_response(&self) -> UnprivilegedCommandResponse {
-        UnprivilegedCommandResponse::ProjectSymbols(ProjectSymbolsResponse::SetCatalog {
-            project_symbols_set_catalog_response: self.clone(),
+        UnprivilegedCommandResponse::ProjectSymbols(ProjectSymbolsResponse::UpsertResolver {
+            project_symbols_upsert_resolver_response: self.clone(),
         })
     }
 
     fn from_engine_response(response: UnprivilegedCommandResponse) -> Result<Self, UnprivilegedCommandResponse> {
-        if let UnprivilegedCommandResponse::ProjectSymbols(ProjectSymbolsResponse::SetCatalog {
-            project_symbols_set_catalog_response,
+        if let UnprivilegedCommandResponse::ProjectSymbols(ProjectSymbolsResponse::UpsertResolver {
+            project_symbols_upsert_resolver_response,
         }) = response
         {
-            Ok(project_symbols_set_catalog_response)
+            Ok(project_symbols_upsert_resolver_response)
         } else {
             Err(response)
         }
