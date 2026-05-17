@@ -75,20 +75,19 @@ Our current task, from `README.md`, is:
 
 `squalr/src/views/symbol_layout_editor/symbol_layout_editor_view.rs` should keep only top-level window composition, high-level shortcut routing, and handoff to named subviews/controllers. Do not create vague helper buckets; every extraction below needs an intent-revealing owner.
 
-1. Move Symbol Layout Struct Viewer Details focus out of the parent.
-   - Current offenders: `clear_struct_viewer_if_symbol_layout_focused`, `focus_selected_layout_in_struct_viewer`, `build_struct_viewer_layout_edit_callback`, `focus_unassigned_span_in_struct_viewer`, `build_field_details`, and the test-only `build_field_details_struct`.
-   - Target home: `symbol_layout_editor_view/details/` with named layout, field, and unassigned Details focus/edit handlers.
-   - Notes: `focus_unassigned_span_in_struct_viewer` is read-only Details projection with a no-op edit callback; add a named read-only focus helper or handler instead of scattering `Arc::new(|_details_edit| {})`.
+1. Done: moved Symbol Layout Struct Viewer Details focus out of the parent.
+   - New home: `symbol_layout_editor_view/details/symbol_layout_details_focus.rs`.
+   - Moved `clear_struct_viewer_if_symbol_layout_focused`, `focus_selected_layout_in_struct_viewer`, `build_struct_viewer_layout_edit_callback`, `focus_unassigned_span_in_struct_viewer`, `build_field_details`, and the test-only `build_field_details_struct`.
+   - Notes: unassigned span Details now uses a named read-only edit callback instead of scattering no-op closures.
 
-2. Move unassigned span action handling beside the unassigned row.
-   - Current offenders: `SymbolLayoutUnassignedRowAction`, `render_unassigned_context_menu`, and the large `pending_unassigned_row_action` match inside `render_field_rows`.
-   - Target home: `rows/symbol_layout_unassigned_row_action.rs` plus an unassigned context menu view/action applier.
-   - Notes: the action applier should own select, split, merge, move up/down, define-field handoff, variant-draft persistence, and Struct Viewer focus refresh for unassigned spans.
+2. Done: moved unassigned span action handling beside the unassigned row.
+   - New homes: `rows/symbol_layout_unassigned_row_action.rs` and `rows/symbol_layout_unassigned_context_menu.rs`.
+   - Moved `SymbolLayoutUnassignedRowAction`, `render_unassigned_context_menu`, and the large unassigned action applier out of the parent.
+   - Notes: the parent still collects the selected context target while `render_field_rows` owns traversal; the next tree-view extraction should remove that remaining coordination.
 
-3. Move field context menu handling out of the parent.
-   - Current offender: `render_field_context_menu`.
-   - Target home: field row action/menu module, probably adjacent to `rows/symbol_layout_field_row_action.rs`.
-   - Notes: the menu already emits `SymbolLayoutFieldRowAction`; the parent should not know menu labels, menu ids, delete eligibility, or move eligibility.
+3. Done: moved field context menu handling out of the parent.
+   - New home: `rows/symbol_layout_field_context_menu.rs`.
+   - The menu emits `SymbolLayoutFieldRowAction`; the parent no longer owns menu labels, menu ids, delete eligibility, or move eligibility.
 
 4. Extract the field tree/list renderer.
    - Current offenders: `render_field_rows`, `render_union_variant_layout_rows`, `render_union_variant_child_row`, and `SymbolLayoutVariantLayoutRowAction`.
@@ -306,3 +305,4 @@ Our current task, from `README.md`, is:
 - Current Symbol Layout list-toolbar pass moved `render_list_toolbar` into `symbol_layout_editor_view/toolbars/symbol_layout_list_toolbar_view.rs`. The toolbar now owns its draw chrome and create-layout click handling while the parent list panel composes it as a widget. Parent `symbol_layout_editor_view.rs` is now 3,954 lines. Validated with `cargo fmt --all`, `cargo check -p squalr --locked`, `cargo test -p squalr symbol_layout_editor --lib --locked`, and `git diff --check`. Needs human verification in the GUI.
 - Current Symbol Layout field-details edit pass moved `build_struct_viewer_field_edit_callback`, `build_variant_field_edit_callback`, field Details edit application, and draft auto-grow after field edits out of `SymbolLayoutEditorView` and into `symbol_layout_editor_view/rows/symbol_layout_field_row_action.rs`, beside the field-entry focus/action handling that feeds Struct Viewer. Parent `symbol_layout_editor_view.rs` is now 3,707 lines. Validated with `cargo fmt --all`, `cargo check -p squalr --locked`, `cargo test -p squalr symbol_layout_editor --lib --locked`, and `git diff --check`. Needs human verification in the GUI.
 - Current Symbol Layout editor cleanup audit pass added the "Symbol Layout Editor Cleanup Audit" section so remaining parent-file cleanup targets are tracked in one place: Details focus handlers, unassigned row actions, context menus, field-tree rendering, list panel ownership, define-field controls, draft/session authoring operations, constants, and final root widget shrinkage. Validated with source inspection and `git diff --check`; no code behavior changed.
+- Current Symbol Layout details/unassigned/menu extraction pass moved layout/field/unassigned Struct Viewer Details focus into `symbol_layout_editor_view/details/symbol_layout_details_focus.rs`, moved unassigned row action application into `rows/symbol_layout_unassigned_row_action.rs`, moved unassigned context menu rendering into `rows/symbol_layout_unassigned_context_menu.rs`, and moved field context menu rendering into `rows/symbol_layout_field_context_menu.rs`. Parent `symbol_layout_editor_view.rs` is now 2,991 lines. The next clear bite is extracting `render_field_rows` / union child row traversal into a named draft field tree view. Validated with `cargo fmt --all`, `cargo check -p squalr --locked`, `cargo test -p squalr symbol_layout_editor --lib --locked`, and `git diff --check`. Needs human verification in the GUI.

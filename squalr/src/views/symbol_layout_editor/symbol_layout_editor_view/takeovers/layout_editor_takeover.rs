@@ -1,4 +1,5 @@
 use super::super::SymbolLayoutEditorView;
+use super::super::details::symbol_layout_details_focus::clear_struct_viewer_if_symbol_layout_focused;
 use super::super::rows::symbol_layout_field_row_action::focus_field_in_struct_viewer;
 use crate::ui::widgets::controls::groupbox::GroupBox;
 use crate::views::symbol_layout_editor::view_data::symbol_layout_editor_view_data::{
@@ -231,7 +232,7 @@ impl SymbolLayoutEditorView {
 
         if should_cancel_take_over {
             SymbolLayoutEditorViewData::cancel_take_over_state(self.symbol_layout_editor_view_data.clone());
-            self.clear_struct_viewer_if_symbol_layout_focused();
+            clear_struct_viewer_if_symbol_layout_focused(self.struct_viewer_view_data.clone());
             return;
         }
 
@@ -253,7 +254,7 @@ impl SymbolLayoutEditorView {
                         Some(edited_draft.layout_id.trim().to_string()),
                     );
                     SymbolLayoutEditorViewData::cancel_take_over_state(self.symbol_layout_editor_view_data.clone());
-                    self.clear_struct_viewer_if_symbol_layout_focused();
+                    clear_struct_viewer_if_symbol_layout_focused(self.struct_viewer_view_data.clone());
                     return;
                 }
                 Err(error) => {

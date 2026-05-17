@@ -1,3 +1,4 @@
+mod details;
 mod rows;
 mod takeovers;
 mod toolbars;
@@ -9,23 +10,26 @@ use crate::ui::list_navigation::ListNavigationDirection;
 use crate::ui::widgets::controls::{
     button::Button as ThemeButton,
     combo_box::{combo_box_item_view::ComboBoxItemView, combo_box_view::ComboBoxView},
-    context_menu::context_menu::ContextMenu,
     data_value_box::data_value_box_view::DataValueBoxView,
     list_header::ListHeaderView,
     search_box::SearchBoxView,
-    toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView,
 };
-use crate::views::struct_viewer::view_data::{struct_viewer_focus_target::StructViewerFocusTarget, struct_viewer_view_data::StructViewerViewData};
+use crate::views::struct_viewer::view_data::struct_viewer_view_data::StructViewerViewData;
 use crate::views::symbol_layout_editor::view_data::symbol_layout_editor_view_data::{
-    SymbolLayoutEditDraft, SymbolLayoutEditorTakeOverState, SymbolLayoutEditorViewData, SymbolLayoutFieldContextMenuTarget, SymbolLayoutFieldEditDraft,
-    SymbolLayoutFieldElementType, SymbolLayoutFieldOffsetMode, SymbolLayoutUnassignedContextMenuTarget,
+    SymbolLayoutEditDraft, SymbolLayoutEditorTakeOverState, SymbolLayoutEditorViewData, SymbolLayoutFieldEditDraft, SymbolLayoutFieldOffsetMode,
 };
 use crate::views::symbol_layout_editor::view_data::symbol_layout_field_container_edit::{SymbolLayoutFieldContainerEdit, SymbolLayoutFieldContainerKind};
+use details::symbol_layout_details_focus::{clear_struct_viewer_if_symbol_layout_focused, focus_selected_layout_in_struct_viewer};
 use eframe::egui::{Align, Direction, Grid, Id, Key, Layout, Response, RichText, ScrollArea, Ui, Widget, vec2};
 use epaint::{Color32, CornerRadius};
 use rows::{
-    symbol_layout_field_row_action::SymbolLayoutFieldRowAction, symbol_layout_field_row_view::SymbolLayoutFieldRowView,
-    symbol_layout_row_view::SymbolLayoutRowView, symbol_layout_unassigned_row_view::SymbolLayoutUnassignedRowView,
+    symbol_layout_field_context_menu::render_field_context_menu,
+    symbol_layout_field_row_action::SymbolLayoutFieldRowAction,
+    symbol_layout_field_row_view::SymbolLayoutFieldRowView,
+    symbol_layout_row_view::SymbolLayoutRowView,
+    symbol_layout_unassigned_context_menu::render_unassigned_context_menu,
+    symbol_layout_unassigned_row_action::{SymbolLayoutUnassignedRowAction, apply_unassigned_row_action},
+    symbol_layout_unassigned_row_view::SymbolLayoutUnassignedRowView,
     union_variant_preview_row_view::UnionVariantPreviewRowView,
 };
 use squalr_engine_api::commands::{
@@ -44,35 +48,20 @@ use squalr_engine_api::structures::{
         data_type_ref::DataTypeRef,
     },
     data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
-    details::DetailsEdit,
     pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
     projects::{
         project_symbol_catalog::ProjectSymbolCatalog,
-        symbol_layouts::symbol_layout_details::{
-            SymbolLayoutDetails, SymbolLayoutDetailsEditOperation, SymbolLayoutDetailsFieldElementKind, SymbolLayoutFieldDetails,
-        },
         symbol_layouts::symbol_layout_draft_ops::{
             SymbolLayoutDraftOps, SymbolLayoutFieldSpan, SymbolLayoutUnassignedAdjacentField, SymbolLayoutUnassignedRowContext, SymbolLayoutUnassignedSelection,
         },
     },
     structs::{
         symbolic_field_definition::{SymbolicFieldDefinition, SymbolicFieldOffsetResolution},
-        symbolic_struct_definition::{SymbolicLayoutKind, SymbolicStructDefinition},
+        symbolic_struct_definition::SymbolicLayoutKind,
     },
 };
 use std::{collections::BTreeSet, sync::Arc};
 use toolbars::symbol_layout_list_toolbar_view::SymbolLayoutListToolbarView;
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum SymbolLayoutUnassignedRowAction {
-    SelectSpan,
-    DefineField,
-    MoveUp,
-    MoveDown,
-    SplitRange,
-    MergeAbove,
-    MergeBelow,
-}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum SymbolLayoutVariantLayoutRowAction {
@@ -226,7 +215,7 @@ impl SymbolLayoutEditorView {
             }
         });
         SymbolLayoutEditorViewData::cancel_take_over_state(self.symbol_layout_editor_view_data.clone());
-        self.clear_struct_viewer_if_symbol_layout_focused();
+        clear_struct_viewer_if_symbol_layout_focused(self.struct_viewer_view_data.clone());
     }
 
     fn default_data_type_ref(&self) -> DataTypeRef {
@@ -1207,319 +1196,6 @@ impl SymbolLayoutEditorView {
         edited_draft != baseline_draft || !unassigned_split_offsets.is_empty()
     }
 
-    fn clear_struct_viewer_if_symbol_layout_focused(&self) {
-        let is_symbol_layout_focused = self
-            .struct_viewer_view_data
-            .read("SymbolLayoutEditor check details focus")
-            .and_then(|struct_viewer_view_data| struct_viewer_view_data.get_focus_target().cloned())
-            .is_some_and(|focus_target| matches!(focus_target, StructViewerFocusTarget::SymbolLayoutEditor { .. }));
-
-        if is_symbol_layout_focused {
-            StructViewerViewData::clear_focus(self.struct_viewer_view_data.clone());
-        }
-    }
-
-    fn focus_selected_layout_in_struct_viewer(
-        &self,
-        project_symbol_catalog: &ProjectSymbolCatalog,
-        selected_layout_id: Option<&str>,
-    ) {
-        let Some(selected_layout_id) = selected_layout_id else {
-            self.clear_struct_viewer_if_symbol_layout_focused();
-            return;
-        };
-        let Some(struct_layout_descriptor) = project_symbol_catalog
-            .get_struct_layout_descriptors()
-            .iter()
-            .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == selected_layout_id)
-        else {
-            self.clear_struct_viewer_if_symbol_layout_focused();
-            return;
-        };
-
-        let details_projection = SymbolLayoutDetails::build_layout_projection(
-            struct_layout_descriptor.get_struct_layout_id(),
-            struct_layout_descriptor
-                .get_struct_layout_definition()
-                .get_layout_kind(),
-        );
-        let selection_key = format!("layout|{}", struct_layout_descriptor.get_struct_layout_id());
-        let edit_callback = Self::build_struct_viewer_layout_edit_callback(
-            self.app_context.clone(),
-            self.struct_viewer_view_data.clone(),
-            struct_layout_descriptor.get_struct_layout_id().to_string(),
-        );
-
-        StructViewerViewData::focus_details_projection_with_focus_target(
-            self.struct_viewer_view_data.clone(),
-            self.app_context.engine_unprivileged_state.clone(),
-            details_projection,
-            edit_callback,
-            Some(StructViewerFocusTarget::SymbolLayoutEditor { selection_key }),
-        );
-    }
-
-    fn build_struct_viewer_layout_edit_callback(
-        app_context: Arc<AppContext>,
-        struct_viewer_view_data: Dependency<StructViewerViewData>,
-        layout_id: String,
-    ) -> Arc<dyn Fn(DetailsEdit) + Send + Sync> {
-        Arc::new(move |details_edit: DetailsEdit| {
-            let SymbolLayoutDetailsEditOperation::UpdateLayoutKind(edited_layout_kind) = SymbolLayoutDetails::plan_edit(&details_edit) else {
-                return;
-            };
-            let Some(project_symbol_catalog) = Self::get_opened_project_symbol_catalog_from_context(&app_context) else {
-                return;
-            };
-
-            let mut did_update_layout = false;
-            let updated_struct_layout_descriptors = project_symbol_catalog
-                .get_struct_layout_descriptors()
-                .iter()
-                .map(|struct_layout_descriptor| {
-                    if struct_layout_descriptor.get_struct_layout_id() != layout_id {
-                        return struct_layout_descriptor.clone();
-                    }
-
-                    let struct_layout_definition = struct_layout_descriptor.get_struct_layout_definition();
-                    if struct_layout_definition.get_layout_kind() == edited_layout_kind {
-                        return struct_layout_descriptor.clone();
-                    }
-
-                    did_update_layout = true;
-                    StructLayoutDescriptor::new(
-                        struct_layout_descriptor.get_struct_layout_id().to_string(),
-                        SymbolicStructDefinition::new_with_layout_kind(
-                            struct_layout_definition.get_symbol_namespace().to_string(),
-                            edited_layout_kind,
-                            struct_layout_definition.get_fields().to_vec(),
-                        )
-                        .with_declared_size_in_bytes(struct_layout_definition.get_declared_size_in_bytes()),
-                    )
-                })
-                .collect::<Vec<_>>();
-
-            if !did_update_layout {
-                return;
-            }
-
-            let mut updated_project_symbol_catalog = project_symbol_catalog;
-            updated_project_symbol_catalog.set_struct_layout_descriptors(updated_struct_layout_descriptors);
-
-            let Some(updated_struct_layout_descriptor) = updated_project_symbol_catalog
-                .get_struct_layout_descriptors()
-                .iter()
-                .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == layout_id)
-            else {
-                return;
-            };
-            Self::persist_symbol_layout_descriptor_with_context(&app_context, Some(layout_id.clone()), updated_struct_layout_descriptor);
-            let details_projection = SymbolLayoutDetails::build_layout_projection(
-                updated_struct_layout_descriptor.get_struct_layout_id(),
-                updated_struct_layout_descriptor
-                    .get_struct_layout_definition()
-                    .get_layout_kind(),
-            );
-            let selection_key = format!("layout|{}", updated_struct_layout_descriptor.get_struct_layout_id());
-            let edit_callback = Self::build_struct_viewer_layout_edit_callback(app_context.clone(), struct_viewer_view_data.clone(), layout_id.clone());
-
-            StructViewerViewData::focus_details_projection_with_focus_target(
-                struct_viewer_view_data.clone(),
-                app_context.engine_unprivileged_state.clone(),
-                details_projection,
-                edit_callback,
-                Some(StructViewerFocusTarget::SymbolLayoutEditor { selection_key }),
-            );
-        })
-    }
-
-    fn focus_unassigned_span_in_struct_viewer(
-        &self,
-        draft: &SymbolLayoutEditDraft,
-        offset_in_bytes: u64,
-        size_in_bytes: u64,
-    ) {
-        let details_projection = SymbolLayoutDetails::build_unassigned_projection(&draft.layout_id, offset_in_bytes, size_in_bytes);
-        let selection_key = format!("unassigned|{}|{}|{}", draft.layout_id, offset_in_bytes, size_in_bytes);
-
-        StructViewerViewData::focus_details_projection_with_focus_target(
-            self.struct_viewer_view_data.clone(),
-            self.app_context.engine_unprivileged_state.clone(),
-            details_projection,
-            Arc::new(|_details_edit| {}),
-            Some(StructViewerFocusTarget::SymbolLayoutEditor { selection_key }),
-        );
-    }
-
-    fn build_field_details(
-        project_symbol_catalog: &ProjectSymbolCatalog,
-        layout_kind: SymbolicLayoutKind,
-        field_draft: &SymbolLayoutFieldEditDraft,
-    ) -> SymbolLayoutFieldDetails {
-        let element_type = SymbolLayoutEditorViewData::resolve_field_element_type(project_symbol_catalog, field_draft);
-        let fixed_array_length = matches!(
-            field_draft.container_edit.kind,
-            SymbolLayoutFieldContainerKind::FixedArray | SymbolLayoutFieldContainerKind::FixedPointerArray
-        )
-        .then(|| {
-            field_draft
-                .container_edit
-                .fixed_array_length
-                .trim()
-                .parse::<u64>()
-                .unwrap_or(1)
-                .max(1)
-        });
-        let uses_count_resolver = matches!(
-            field_draft.container_edit.kind,
-            SymbolLayoutFieldContainerKind::DynamicArray | SymbolLayoutFieldContainerKind::DynamicPointerArray
-        );
-        let uses_display_count_resolver = matches!(
-            field_draft.container_edit.kind,
-            SymbolLayoutFieldContainerKind::FixedArray
-                | SymbolLayoutFieldContainerKind::FixedPointerArray
-                | SymbolLayoutFieldContainerKind::DynamicArray
-                | SymbolLayoutFieldContainerKind::DynamicPointerArray
-        );
-        let uses_pointer_size = matches!(
-            field_draft.container_edit.kind,
-            SymbolLayoutFieldContainerKind::Pointer | SymbolLayoutFieldContainerKind::FixedPointerArray | SymbolLayoutFieldContainerKind::DynamicPointerArray
-        );
-
-        SymbolLayoutFieldDetails {
-            field_name: field_draft.field_name.clone(),
-            data_type_id: field_draft
-                .data_type_selection
-                .visible_data_type()
-                .get_data_type_id()
-                .to_string(),
-            element_kind: match element_type {
-                SymbolLayoutFieldElementType::BuiltInDataType => SymbolLayoutDetailsFieldElementKind::BuiltInDataType,
-                SymbolLayoutFieldElementType::SymbolLayout => SymbolLayoutDetailsFieldElementKind::SymbolLayout,
-            },
-            container_kind_label: field_draft.container_edit.kind.label().to_string(),
-            fixed_array_length,
-            count_resolver_id: uses_count_resolver.then(|| {
-                field_draft
-                    .container_edit
-                    .dynamic_array_count_resolver_id
-                    .clone()
-            }),
-            display_count_resolver_id: uses_display_count_resolver.then(|| field_draft.container_edit.display_count_resolver_id.clone()),
-            active_when_resolver_id: (layout_kind.is_union() || !field_draft.active_when_resolver_id.is_empty())
-                .then(|| field_draft.active_when_resolver_id.clone()),
-            pointer_size_label: uses_pointer_size.then(|| field_draft.container_edit.pointer_size.to_string()),
-            offset_resolver_id: (field_draft.offset_mode == SymbolLayoutFieldOffsetMode::Resolver).then(|| field_draft.offset_resolver_id.clone()),
-        }
-    }
-
-    #[cfg(test)]
-    fn build_field_details_struct(
-        project_symbol_catalog: &ProjectSymbolCatalog,
-        layout_kind: SymbolicLayoutKind,
-        field_draft: &SymbolLayoutFieldEditDraft,
-    ) -> squalr_engine_api::structures::structs::valued_struct::ValuedStruct {
-        use squalr_engine_api::structures::structs::valued_struct::ValuedStruct;
-
-        let element_type = SymbolLayoutEditorViewData::resolve_field_element_type(project_symbol_catalog, field_draft);
-        if layout_kind.is_union() {
-            return ValuedStruct::new_anonymous(vec![
-                DataTypeStringUtf8::get_value_from_primitive_string(&field_draft.field_name)
-                    .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_NAME.to_string(), false),
-                DataTypeStringUtf8::get_value_from_primitive_string(
-                    field_draft
-                        .data_type_selection
-                        .visible_data_type()
-                        .get_data_type_id(),
-                )
-                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_SYMBOL_LAYOUT.to_string(), false),
-                DataTypeStringUtf8::get_value_from_primitive_string(&field_draft.active_when_resolver_id)
-                    .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_ACTIVE_WHEN_RESOLVER.to_string(), false),
-            ]);
-        }
-
-        let mut fields = vec![
-            DataTypeStringUtf8::get_value_from_primitive_string(&field_draft.field_name)
-                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_NAME.to_string(), false),
-            DataTypeStringUtf8::get_value_from_primitive_string(element_type.label())
-                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_ELEMENT_TYPE.to_string(), false),
-            DataTypeStringUtf8::get_value_from_primitive_string(field_draft.container_edit.kind.label())
-                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_CONTAINER_KIND.to_string(), false),
-        ];
-
-        let element_type_field_name = match element_type {
-            SymbolLayoutFieldElementType::BuiltInDataType => StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_DATA_TYPE,
-            SymbolLayoutFieldElementType::SymbolLayout => StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_SYMBOL_LAYOUT,
-        };
-        fields.insert(
-            2,
-            DataTypeStringUtf8::get_value_from_primitive_string(
-                field_draft
-                    .data_type_selection
-                    .visible_data_type()
-                    .get_data_type_id(),
-            )
-            .to_named_valued_struct_field(element_type_field_name.to_string(), false),
-        );
-
-        if matches!(
-            field_draft.container_edit.kind,
-            SymbolLayoutFieldContainerKind::FixedArray | SymbolLayoutFieldContainerKind::FixedPointerArray
-        ) {
-            let length = field_draft
-                .container_edit
-                .fixed_array_length
-                .trim()
-                .parse::<u64>()
-                .unwrap_or(1);
-            fields.push(
-                DataTypeU64::get_value_from_primitive(length)
-                    .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_FIXED_ARRAY_LENGTH.to_string(), false),
-            );
-            fields.push(
-                DataTypeStringUtf8::get_value_from_primitive_string(&field_draft.container_edit.display_count_resolver_id).to_named_valued_struct_field(
-                    StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_DISPLAY_COUNT_RESOLVER.to_string(),
-                    false,
-                ),
-            );
-        }
-
-        if matches!(
-            field_draft.container_edit.kind,
-            SymbolLayoutFieldContainerKind::DynamicArray | SymbolLayoutFieldContainerKind::DynamicPointerArray
-        ) {
-            fields.push(
-                DataTypeStringUtf8::get_value_from_primitive_string(&field_draft.container_edit.dynamic_array_count_resolver_id)
-                    .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_COUNT_RESOLVER.to_string(), false),
-            );
-            fields.push(
-                DataTypeStringUtf8::get_value_from_primitive_string(&field_draft.container_edit.display_count_resolver_id).to_named_valued_struct_field(
-                    StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_DISPLAY_COUNT_RESOLVER.to_string(),
-                    false,
-                ),
-            );
-        }
-
-        if matches!(
-            field_draft.container_edit.kind,
-            SymbolLayoutFieldContainerKind::Pointer | SymbolLayoutFieldContainerKind::FixedPointerArray | SymbolLayoutFieldContainerKind::DynamicPointerArray
-        ) {
-            fields.push(
-                DataTypeStringUtf8::get_value_from_primitive_string(&field_draft.container_edit.pointer_size.to_string())
-                    .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_POINTER_SIZE.to_string(), false),
-            );
-        }
-
-        if field_draft.offset_mode == SymbolLayoutFieldOffsetMode::Resolver {
-            fields.push(
-                DataTypeStringUtf8::get_value_from_primitive_string(&field_draft.offset_resolver_id)
-                    .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_OFFSET_RESOLVER.to_string(), false),
-            );
-        }
-
-        ValuedStruct::new_anonymous(fields)
-    }
-
     fn render_filter_text_box(
         &self,
         user_interface: &mut Ui,
@@ -1597,7 +1273,12 @@ impl SymbolLayoutEditorView {
                     match row_action {
                         Some(SymbolLayoutRowAction::Select) => {
                             SymbolLayoutEditorViewData::select_symbol_layout(self.symbol_layout_editor_view_data.clone(), Some(struct_layout_id.to_string()));
-                            self.focus_selected_layout_in_struct_viewer(project_symbol_catalog, Some(struct_layout_id));
+                            focus_selected_layout_in_struct_viewer(
+                                self.app_context.clone(),
+                                self.struct_viewer_view_data.clone(),
+                                project_symbol_catalog,
+                                Some(struct_layout_id),
+                            );
                         }
                         Some(SymbolLayoutRowAction::Open) if !is_take_over_active => {
                             SymbolLayoutEditorViewData::begin_open_symbol_layout(
@@ -1858,7 +1539,8 @@ impl SymbolLayoutEditorView {
         if let Some(field_context_menu_target) = field_context_menu_target
             && field_context_menu_target.get_layout_id() == Some(variant_layout_id.as_str())
             && field_context_menu_target.get_field_index() < variant_draft.field_drafts.len()
-            && let Some(field_row_action) = self.render_field_context_menu(
+            && let Some(field_row_action) = render_field_context_menu(
+                self,
                 user_interface,
                 SymbolicLayoutKind::Struct,
                 &field_context_menu_target,
@@ -1874,123 +1556,6 @@ impl SymbolLayoutEditorView {
         }
 
         pending_variant_layout_action
-    }
-
-    fn render_field_context_menu(
-        &self,
-        user_interface: &mut Ui,
-        layout_kind: SymbolicLayoutKind,
-        context_menu_target: &SymbolLayoutFieldContextMenuTarget,
-        field_count: usize,
-        can_delete_final_field: bool,
-    ) -> Option<SymbolLayoutFieldRowAction> {
-        let theme = &self.app_context.theme;
-        let field_index = context_menu_target.get_field_index();
-        let can_remove_field = can_delete_final_field || field_count > 1;
-        let can_move_up = field_index > 0;
-        let can_move_down = field_index + 1 < field_count;
-        let mut open = true;
-        let mut pending_field_row_action = None;
-        let entry_name = if layout_kind.is_union() { "variant" } else { "field" };
-        let context_menu_id = context_menu_target
-            .get_layout_id()
-            .map(|layout_id| format!("symbol_layout_field_context_menu_{}", layout_id))
-            .unwrap_or_else(|| String::from("symbol_layout_field_context_menu"));
-
-        ContextMenu::new(
-            self.app_context.clone(),
-            &context_menu_id,
-            context_menu_target.get_position(),
-            |user_interface, should_close| {
-                if user_interface
-                    .add(
-                        ToolbarMenuItemView::new(
-                            self.app_context.clone(),
-                            &format!("Move {} up", entry_name),
-                            "symbol_layout_field_ctx_move_up",
-                            &None,
-                            Self::FIELD_CONTEXT_MENU_WIDTH,
-                        )
-                        .icon(theme.icon_library.icon_handle_navigation_up_arrow_small.clone())
-                        .disabled(!can_move_up),
-                    )
-                    .clicked()
-                {
-                    pending_field_row_action = Some(SymbolLayoutFieldRowAction::MoveUp);
-                    *should_close = true;
-                }
-
-                if user_interface
-                    .add(
-                        ToolbarMenuItemView::new(
-                            self.app_context.clone(),
-                            &format!("Move {} down", entry_name),
-                            "symbol_layout_field_ctx_move_down",
-                            &None,
-                            Self::FIELD_CONTEXT_MENU_WIDTH,
-                        )
-                        .icon(
-                            theme
-                                .icon_library
-                                .icon_handle_navigation_down_arrow_small
-                                .clone(),
-                        )
-                        .disabled(!can_move_down),
-                    )
-                    .clicked()
-                {
-                    pending_field_row_action = Some(SymbolLayoutFieldRowAction::MoveDown);
-                    *should_close = true;
-                }
-
-                if user_interface
-                    .add(
-                        ToolbarMenuItemView::new(
-                            self.app_context.clone(),
-                            &format!("Insert new {} below", entry_name),
-                            "symbol_layout_field_ctx_insert_below",
-                            &None,
-                            Self::FIELD_CONTEXT_MENU_WIDTH,
-                        )
-                        .icon(theme.icon_library.icon_handle_common_add.clone()),
-                    )
-                    .clicked()
-                {
-                    pending_field_row_action = Some(SymbolLayoutFieldRowAction::InsertAfter);
-                    *should_close = true;
-                }
-
-                user_interface.separator();
-
-                if user_interface
-                    .add(
-                        ToolbarMenuItemView::new(
-                            self.app_context.clone(),
-                            "Delete",
-                            "symbol_layout_field_ctx_delete",
-                            &None,
-                            Self::FIELD_CONTEXT_MENU_WIDTH,
-                        )
-                        .icon(theme.icon_library.icon_handle_common_delete.clone())
-                        .icon_background(theme.background_control_danger, theme.background_control_danger_dark)
-                        .disabled(!can_remove_field),
-                    )
-                    .clicked()
-                {
-                    pending_field_row_action = Some(SymbolLayoutFieldRowAction::RequestRemoveFieldConfirmation);
-                    *should_close = true;
-                }
-            },
-        )
-        .width(Self::FIELD_CONTEXT_MENU_WIDTH)
-        .corner_radius(8)
-        .show(user_interface, &mut open);
-
-        if !open {
-            SymbolLayoutEditorViewData::hide_field_context_menu(self.symbol_layout_editor_view_data.clone());
-        }
-
-        pending_field_row_action
     }
 
     fn render_layout_size_editor(
@@ -2064,106 +1629,6 @@ impl SymbolLayoutEditorView {
         }
 
         Some((layout_size_in_bytes, field_spans))
-    }
-
-    fn render_unassigned_context_menu(
-        &self,
-        user_interface: &mut Ui,
-        context_menu_target: &SymbolLayoutUnassignedContextMenuTarget,
-        can_define_field: bool,
-    ) -> Option<SymbolLayoutUnassignedRowAction> {
-        let theme = &self.app_context.theme;
-        let mut open = true;
-        let mut pending_unassigned_row_action = None;
-
-        ContextMenu::new(
-            self.app_context.clone(),
-            "symbol_layout_unassigned_context_menu",
-            context_menu_target.get_position(),
-            |user_interface, should_close| {
-                if user_interface
-                    .add(
-                        ToolbarMenuItemView::new(
-                            self.app_context.clone(),
-                            "Split Range",
-                            "symbol_layout_unassigned_ctx_split_range",
-                            &None,
-                            Self::FIELD_CONTEXT_MENU_WIDTH,
-                        )
-                        .icon(theme.icon_library.icon_handle_common_add.clone())
-                        .disabled(context_menu_target.get_size_in_bytes() < 2),
-                    )
-                    .clicked()
-                {
-                    pending_unassigned_row_action = Some(SymbolLayoutUnassignedRowAction::SplitRange);
-                    *should_close = true;
-                }
-
-                if user_interface
-                    .add(
-                        ToolbarMenuItemView::new(
-                            self.app_context.clone(),
-                            "Merge with Above",
-                            "symbol_layout_unassigned_ctx_merge_above",
-                            &None,
-                            Self::FIELD_CONTEXT_MENU_WIDTH,
-                        )
-                        .disabled(context_menu_target.get_merge_above_span().is_none()),
-                    )
-                    .clicked()
-                {
-                    pending_unassigned_row_action = Some(SymbolLayoutUnassignedRowAction::MergeAbove);
-                    *should_close = true;
-                }
-
-                if user_interface
-                    .add(
-                        ToolbarMenuItemView::new(
-                            self.app_context.clone(),
-                            "Merge with Below",
-                            "symbol_layout_unassigned_ctx_merge_below",
-                            &None,
-                            Self::FIELD_CONTEXT_MENU_WIDTH,
-                        )
-                        .disabled(context_menu_target.get_merge_below_span().is_none()),
-                    )
-                    .clicked()
-                {
-                    pending_unassigned_row_action = Some(SymbolLayoutUnassignedRowAction::MergeBelow);
-                    *should_close = true;
-                }
-
-                if can_define_field {
-                    user_interface.separator();
-
-                    if user_interface
-                        .add(
-                            ToolbarMenuItemView::new(
-                                self.app_context.clone(),
-                                "Define Field...",
-                                "symbol_layout_unassigned_ctx_define_field_at",
-                                &None,
-                                Self::FIELD_CONTEXT_MENU_WIDTH,
-                            )
-                            .icon(theme.icon_library.icon_handle_common_add.clone()),
-                        )
-                        .clicked()
-                    {
-                        pending_unassigned_row_action = Some(SymbolLayoutUnassignedRowAction::DefineField);
-                        *should_close = true;
-                    }
-                }
-            },
-        )
-        .width(Self::FIELD_CONTEXT_MENU_WIDTH)
-        .corner_radius(8)
-        .show(user_interface, &mut open);
-
-        if !open {
-            SymbolLayoutEditorViewData::hide_unassigned_context_menu(self.symbol_layout_editor_view_data.clone());
-        }
-
-        pending_unassigned_row_action
     }
 
     fn render_field_rows(
@@ -2404,13 +1869,14 @@ impl SymbolLayoutEditorView {
         if let Some(field_context_menu_target) = field_context_menu_target
             && field_context_menu_target.get_layout_id().is_none()
             && field_context_menu_target.get_field_index() < field_count
-            && let Some(field_row_action) = self.render_field_context_menu(user_interface, draft.layout_kind, &field_context_menu_target, field_count, false)
+            && let Some(field_row_action) = render_field_context_menu(self, user_interface, draft.layout_kind, &field_context_menu_target, field_count, false)
         {
             pending_field_row_action = Some((field_context_menu_target.get_field_index(), field_row_action));
         }
 
         if let Some(unassigned_context_menu_target) = unassigned_context_menu_target
-            && let Some(unassigned_row_action) = self.render_unassigned_context_menu(
+            && let Some(unassigned_row_action) = render_unassigned_context_menu(
+                self,
                 user_interface,
                 &unassigned_context_menu_target,
                 unassigned_context_menu_target.get_layout_id().is_none(),
@@ -2436,205 +1902,14 @@ impl SymbolLayoutEditorView {
         }
 
         if let Some((target_layout_id, unassigned_row_context, unassigned_row_action)) = pending_unassigned_row_action {
-            let mut target_variant_draft = target_layout_id
-                .as_deref()
-                .map(|target_layout_id| self.create_union_variant_layout_draft_for_id_with_pending(project_symbol_catalog, draft, target_layout_id));
-            let mut persist_target_variant_draft = false;
-            match unassigned_row_action {
-                SymbolLayoutUnassignedRowAction::SelectSpan => {
-                    SymbolLayoutEditorViewData::select_unassigned_span_for_layout(
-                        self.symbol_layout_editor_view_data.clone(),
-                        target_layout_id.clone(),
-                        unassigned_row_context.offset_in_bytes,
-                        unassigned_row_context.size_in_bytes,
-                    );
-                    let focus_draft = target_variant_draft.as_ref().unwrap_or(draft);
-                    self.focus_unassigned_span_in_struct_viewer(focus_draft, unassigned_row_context.offset_in_bytes, unassigned_row_context.size_in_bytes);
-                }
-                SymbolLayoutUnassignedRowAction::DefineField => {
-                    if target_layout_id.is_some() {
-                        log::warn!("Ignoring Define Field action for nested union variant unassigned span.");
-                        return;
-                    }
-                    let mut field_draft = self.create_field_draft_for_unassigned_span(
-                        project_symbol_catalog,
-                        draft.layout_kind,
-                        &draft.layout_id,
-                        0,
-                        unassigned_row_context.offset_in_bytes,
-                    );
-                    field_draft.field_name = format!("field_{:08X}", unassigned_row_context.offset_in_bytes);
-                    field_draft.field_name = SymbolLayoutDraftOps::build_unique_field_name(draft, &field_draft.field_name);
-                    SymbolLayoutEditorViewData::begin_define_field_from_unassigned_span(
-                        self.symbol_layout_editor_view_data.clone(),
-                        draft.layout_id.clone(),
-                        unassigned_row_context.offset_in_bytes,
-                        unassigned_row_context.size_in_bytes,
-                        self.default_data_type_ref(),
-                    );
-                    SymbolLayoutEditorViewData::replace_define_field_draft(self.symbol_layout_editor_view_data.clone(), field_draft);
-                }
-                SymbolLayoutUnassignedRowAction::MoveUp => {
-                    let updated_unassigned_selection = if let Some(target_variant_draft) = target_variant_draft.as_mut() {
-                        SymbolLayoutDraftOps::move_unassigned_span_up(target_variant_draft, unassigned_row_context.clone())
-                    } else {
-                        SymbolLayoutDraftOps::move_unassigned_span_up(draft, unassigned_row_context.clone())
-                    };
-
-                    if let Some(updated_unassigned_selection) = updated_unassigned_selection {
-                        persist_target_variant_draft = target_layout_id.is_some();
-                        if let Some(split_offset_in_bytes) = SymbolLayoutDraftOps::split_offset_to_preserve_unassigned_move_up(&updated_unassigned_selection) {
-                            SymbolLayoutEditorViewData::insert_unassigned_split_offset_for_layout(
-                                self.symbol_layout_editor_view_data.clone(),
-                                target_layout_id.clone(),
-                                split_offset_in_bytes,
-                            );
-                        }
-                        SymbolLayoutEditorViewData::select_unassigned_span_for_layout(
-                            self.symbol_layout_editor_view_data.clone(),
-                            target_layout_id.clone(),
-                            updated_unassigned_selection.get_offset_in_bytes(),
-                            updated_unassigned_selection.get_size_in_bytes(),
-                        );
-                        let focus_draft = target_variant_draft.as_ref().unwrap_or(draft);
-                        self.focus_unassigned_span_in_struct_viewer(
-                            focus_draft,
-                            updated_unassigned_selection.get_offset_in_bytes(),
-                            updated_unassigned_selection.get_size_in_bytes(),
-                        );
-                    } else if let Some(move_up_unassigned_span) = unassigned_row_context.move_up_unassigned_span.as_ref() {
-                        let old_split_offset = unassigned_row_context.offset_in_bytes;
-                        let new_split_offset = move_up_unassigned_span
-                            .get_offset_in_bytes()
-                            .saturating_add(unassigned_row_context.size_in_bytes);
-                        SymbolLayoutEditorViewData::move_unassigned_split_offset_for_layout(
-                            self.symbol_layout_editor_view_data.clone(),
-                            target_layout_id.clone(),
-                            old_split_offset,
-                            new_split_offset,
-                        );
-                        SymbolLayoutEditorViewData::select_unassigned_span_for_layout(
-                            self.symbol_layout_editor_view_data.clone(),
-                            target_layout_id.clone(),
-                            move_up_unassigned_span.get_offset_in_bytes(),
-                            unassigned_row_context.size_in_bytes,
-                        );
-                        let focus_draft = target_variant_draft.as_ref().unwrap_or(draft);
-                        self.focus_unassigned_span_in_struct_viewer(
-                            focus_draft,
-                            move_up_unassigned_span.get_offset_in_bytes(),
-                            unassigned_row_context.size_in_bytes,
-                        );
-                    }
-                }
-                SymbolLayoutUnassignedRowAction::MoveDown => {
-                    let updated_unassigned_selection = if let Some(target_variant_draft) = target_variant_draft.as_mut() {
-                        SymbolLayoutDraftOps::move_unassigned_span_down(target_variant_draft, unassigned_row_context.clone())
-                    } else {
-                        SymbolLayoutDraftOps::move_unassigned_span_down(draft, unassigned_row_context.clone())
-                    };
-
-                    if let Some(updated_unassigned_selection) = updated_unassigned_selection {
-                        persist_target_variant_draft = target_layout_id.is_some();
-                        if let Some(split_offset_in_bytes) = SymbolLayoutDraftOps::split_offset_to_preserve_unassigned_move_down(&updated_unassigned_selection)
-                        {
-                            SymbolLayoutEditorViewData::insert_unassigned_split_offset_for_layout(
-                                self.symbol_layout_editor_view_data.clone(),
-                                target_layout_id.clone(),
-                                split_offset_in_bytes,
-                            );
-                        }
-                        SymbolLayoutEditorViewData::select_unassigned_span_for_layout(
-                            self.symbol_layout_editor_view_data.clone(),
-                            target_layout_id.clone(),
-                            updated_unassigned_selection.get_offset_in_bytes(),
-                            updated_unassigned_selection.get_size_in_bytes(),
-                        );
-                        let focus_draft = target_variant_draft.as_ref().unwrap_or(draft);
-                        self.focus_unassigned_span_in_struct_viewer(
-                            focus_draft,
-                            updated_unassigned_selection.get_offset_in_bytes(),
-                            updated_unassigned_selection.get_size_in_bytes(),
-                        );
-                    } else if let Some(move_down_unassigned_span) = unassigned_row_context.move_down_unassigned_span.as_ref() {
-                        let old_split_offset = unassigned_row_context
-                            .offset_in_bytes
-                            .saturating_add(unassigned_row_context.size_in_bytes);
-                        let new_unassigned_offset = unassigned_row_context
-                            .offset_in_bytes
-                            .saturating_add(move_down_unassigned_span.get_size_in_bytes());
-                        SymbolLayoutEditorViewData::move_unassigned_split_offset_for_layout(
-                            self.symbol_layout_editor_view_data.clone(),
-                            target_layout_id.clone(),
-                            old_split_offset,
-                            new_unassigned_offset,
-                        );
-                        SymbolLayoutEditorViewData::select_unassigned_span_for_layout(
-                            self.symbol_layout_editor_view_data.clone(),
-                            target_layout_id.clone(),
-                            new_unassigned_offset,
-                            unassigned_row_context.size_in_bytes,
-                        );
-                        let focus_draft = target_variant_draft.as_ref().unwrap_or(draft);
-                        self.focus_unassigned_span_in_struct_viewer(focus_draft, new_unassigned_offset, unassigned_row_context.size_in_bytes);
-                    }
-                }
-                SymbolLayoutUnassignedRowAction::SplitRange => {
-                    if let Some(updated_unassigned_selection) = SymbolLayoutEditorViewData::split_unassigned_span_for_layout(
-                        self.symbol_layout_editor_view_data.clone(),
-                        target_layout_id.clone(),
-                        unassigned_row_context.offset_in_bytes,
-                        unassigned_row_context.size_in_bytes,
-                    ) {
-                        let focus_draft = target_variant_draft.as_ref().unwrap_or(draft);
-                        self.focus_unassigned_span_in_struct_viewer(
-                            focus_draft,
-                            updated_unassigned_selection.get_offset_in_bytes(),
-                            updated_unassigned_selection.get_size_in_bytes(),
-                        );
-                    }
-                }
-                SymbolLayoutUnassignedRowAction::MergeAbove => {
-                    if let Some(merge_above_span) = unassigned_row_context.merge_above_span.as_ref() {
-                        SymbolLayoutEditorViewData::remove_unassigned_split_offset_for_layout(
-                            self.symbol_layout_editor_view_data.clone(),
-                            target_layout_id.clone(),
-                            unassigned_row_context.offset_in_bytes,
-                        );
-                        SymbolLayoutEditorViewData::select_unassigned_span_for_layout(
-                            self.symbol_layout_editor_view_data.clone(),
-                            target_layout_id.clone(),
-                            merge_above_span.get_offset_in_bytes(),
-                            merge_above_span.get_size_in_bytes(),
-                        );
-                        let focus_draft = target_variant_draft.as_ref().unwrap_or(draft);
-                        self.focus_unassigned_span_in_struct_viewer(focus_draft, merge_above_span.get_offset_in_bytes(), merge_above_span.get_size_in_bytes());
-                    }
-                }
-                SymbolLayoutUnassignedRowAction::MergeBelow => {
-                    if let Some(merge_below_span) = unassigned_row_context.merge_below_span.as_ref() {
-                        SymbolLayoutEditorViewData::remove_unassigned_split_offset_for_layout(
-                            self.symbol_layout_editor_view_data.clone(),
-                            target_layout_id.clone(),
-                            unassigned_row_context
-                                .offset_in_bytes
-                                .saturating_add(unassigned_row_context.size_in_bytes),
-                        );
-                        SymbolLayoutEditorViewData::select_unassigned_span_for_layout(
-                            self.symbol_layout_editor_view_data.clone(),
-                            target_layout_id.clone(),
-                            merge_below_span.get_offset_in_bytes(),
-                            merge_below_span.get_size_in_bytes(),
-                        );
-                        let focus_draft = target_variant_draft.as_ref().unwrap_or(draft);
-                        self.focus_unassigned_span_in_struct_viewer(focus_draft, merge_below_span.get_offset_in_bytes(), merge_below_span.get_size_in_bytes());
-                    }
-                }
-            }
-
-            if persist_target_variant_draft && let Some(target_variant_draft) = target_variant_draft.as_ref() {
-                self.persist_variant_layout_draft(target_variant_draft);
-            }
+            apply_unassigned_row_action(
+                self,
+                project_symbol_catalog,
+                draft,
+                target_layout_id,
+                unassigned_row_context,
+                unassigned_row_action,
+            );
         }
 
         if let Some((variant_layout_id, field_index, field_row_action)) = pending_variant_field_row_action {
@@ -2656,6 +1931,7 @@ impl SymbolLayoutEditorView {
 
 #[cfg(test)]
 mod tests {
+    use super::details::symbol_layout_details_focus::build_field_details_struct;
     use super::rows::symbol_layout_field_row_action::grow_draft_size_to_fit_fields;
     use super::rows::symbol_layout_field_row_view::SymbolLayoutFieldRowView;
     use super::{SymbolLayoutEditorView, SymbolLayoutFieldContainerKind, SymbolLayoutFieldEditDraft};
@@ -2703,7 +1979,7 @@ mod tests {
     #[test]
     fn build_field_details_struct_hides_static_offset_authoring_rows() {
         let field_draft = create_static_field_draft("health", 16);
-        let details_struct = SymbolLayoutEditorView::build_field_details_struct(&ProjectSymbolCatalog::default(), SymbolicLayoutKind::Struct, &field_draft);
+        let details_struct = build_field_details_struct(&ProjectSymbolCatalog::default(), SymbolicLayoutKind::Struct, &field_draft);
 
         assert!(
             !details_struct
@@ -3441,10 +2717,8 @@ mod tests {
         let builtin_field_draft = SymbolLayoutFieldEditDraft::new(DataTypeRef::new(DataTypeU32::DATA_TYPE_ID));
         let symbol_layout_field_draft = SymbolLayoutFieldEditDraft::new(DataTypeRef::new("player.stats"));
 
-        let builtin_details_struct =
-            SymbolLayoutEditorView::build_field_details_struct(&project_symbol_catalog, SymbolicLayoutKind::Struct, &builtin_field_draft);
-        let symbol_layout_details_struct =
-            SymbolLayoutEditorView::build_field_details_struct(&project_symbol_catalog, SymbolicLayoutKind::Struct, &symbol_layout_field_draft);
+        let builtin_details_struct = build_field_details_struct(&project_symbol_catalog, SymbolicLayoutKind::Struct, &builtin_field_draft);
+        let symbol_layout_details_struct = build_field_details_struct(&project_symbol_catalog, SymbolicLayoutKind::Struct, &symbol_layout_field_draft);
 
         assert!(
             builtin_details_struct
@@ -3476,7 +2750,7 @@ mod tests {
         )]);
         let variant_field_draft = SymbolLayoutFieldEditDraft::new(DataTypeRef::new("player.stats"));
 
-        let details_struct = SymbolLayoutEditorView::build_field_details_struct(&project_symbol_catalog, SymbolicLayoutKind::Union, &variant_field_draft);
+        let details_struct = build_field_details_struct(&project_symbol_catalog, SymbolicLayoutKind::Union, &variant_field_draft);
 
         assert!(
             details_struct
@@ -3574,7 +2848,7 @@ impl Widget for SymbolLayoutEditorView {
                 SymbolLayoutEditorViewData::return_to_define_field_source(self.symbol_layout_editor_view_data.clone(), return_state.clone());
             } else {
                 SymbolLayoutEditorViewData::cancel_take_over_state(self.symbol_layout_editor_view_data.clone());
-                self.clear_struct_viewer_if_symbol_layout_focused();
+                clear_struct_viewer_if_symbol_layout_focused(self.struct_viewer_view_data.clone());
             }
         }
 
@@ -3590,7 +2864,12 @@ impl Widget for SymbolLayoutEditorView {
                 &project_symbol_catalog,
                 ListNavigationDirection::Up,
             );
-            self.focus_selected_layout_in_struct_viewer(&project_symbol_catalog, next_layout_id.as_deref());
+            focus_selected_layout_in_struct_viewer(
+                self.app_context.clone(),
+                self.struct_viewer_view_data.clone(),
+                &project_symbol_catalog,
+                next_layout_id.as_deref(),
+            );
         }
 
         if !is_take_over_active && can_handle_window_shortcuts && user_interface.input(|input_state| input_state.key_pressed(Key::ArrowDown)) {
@@ -3599,7 +2878,12 @@ impl Widget for SymbolLayoutEditorView {
                 &project_symbol_catalog,
                 ListNavigationDirection::Down,
             );
-            self.focus_selected_layout_in_struct_viewer(&project_symbol_catalog, next_layout_id.as_deref());
+            focus_selected_layout_in_struct_viewer(
+                self.app_context.clone(),
+                self.struct_viewer_view_data.clone(),
+                &project_symbol_catalog,
+                next_layout_id.as_deref(),
+            );
         }
 
         if !is_take_over_active && can_handle_window_shortcuts && user_interface.input(|input_state| input_state.key_pressed(Key::Delete)) {

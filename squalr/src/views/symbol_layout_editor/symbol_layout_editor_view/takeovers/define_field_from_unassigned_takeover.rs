@@ -1,4 +1,5 @@
 use super::super::SymbolLayoutEditorView;
+use super::super::details::symbol_layout_details_focus::focus_unassigned_span_in_struct_viewer;
 use super::super::rows::symbol_layout_field_row_action::focus_field_in_struct_viewer;
 use crate::ui::widgets::controls::groupbox::GroupBox;
 use crate::views::symbol_layout_editor::view_data::symbol_layout_editor_view_data::{
@@ -176,7 +177,13 @@ impl SymbolLayoutEditorView {
 
         if should_cancel {
             SymbolLayoutEditorViewData::return_to_define_field_source(self.symbol_layout_editor_view_data.clone(), return_state.clone());
-            self.focus_unassigned_span_in_struct_viewer(draft, span_offset_in_bytes, span_size_in_bytes);
+            focus_unassigned_span_in_struct_viewer(
+                self.app_context.clone(),
+                self.struct_viewer_view_data.clone(),
+                draft,
+                span_offset_in_bytes,
+                span_size_in_bytes,
+            );
             return;
         }
 

@@ -9,7 +9,8 @@ use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::structures::projects::symbol_layouts::symbol_layout_draft_ops::SymbolLayoutUnassignedRowContext;
 use std::sync::Arc;
 
-use super::super::{SymbolLayoutEditorView, SymbolLayoutUnassignedRowAction};
+use super::super::SymbolLayoutEditorView;
+use super::symbol_layout_unassigned_row_action::SymbolLayoutUnassignedRowAction;
 
 pub(in crate::views::symbol_layout_editor::symbol_layout_editor_view) struct SymbolLayoutUnassignedRowView<'view> {
     app_context: Arc<AppContext>,

@@ -22,6 +22,9 @@ use squalr_engine_api::structures::{
 use std::{collections::BTreeSet, str::FromStr, sync::Arc};
 
 use super::super::SymbolLayoutEditorView;
+use super::super::details::symbol_layout_details_focus::{
+    build_field_details, clear_struct_viewer_if_symbol_layout_focused, focus_unassigned_span_in_struct_viewer,
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::views::symbol_layout_editor::symbol_layout_editor_view) enum SymbolLayoutFieldRowAction {
@@ -267,10 +270,16 @@ fn delete_variant_field(
             0,
             layout_size_in_bytes,
         );
-        symbol_layout_editor_view.focus_unassigned_span_in_struct_viewer(variant_draft, 0, layout_size_in_bytes);
+        focus_unassigned_span_in_struct_viewer(
+            symbol_layout_editor_view.app_context.clone(),
+            symbol_layout_editor_view.struct_viewer_view_data.clone(),
+            variant_draft,
+            0,
+            layout_size_in_bytes,
+        );
     } else {
         SymbolLayoutEditorViewData::clear_field_selection(symbol_layout_editor_view.symbol_layout_editor_view_data.clone());
-        symbol_layout_editor_view.clear_struct_viewer_if_symbol_layout_focused();
+        clear_struct_viewer_if_symbol_layout_focused(symbol_layout_editor_view.struct_viewer_view_data.clone());
     }
 }
 
@@ -281,7 +290,7 @@ pub(in crate::views::symbol_layout_editor::symbol_layout_editor_view) fn focus_f
     field_index: usize,
 ) {
     let Some(field_draft) = draft.field_drafts.get(field_index) else {
-        symbol_layout_editor_view.clear_struct_viewer_if_symbol_layout_focused();
+        clear_struct_viewer_if_symbol_layout_focused(symbol_layout_editor_view.struct_viewer_view_data.clone());
         return;
     };
 
@@ -289,7 +298,7 @@ pub(in crate::views::symbol_layout_editor::symbol_layout_editor_view) fn focus_f
         &draft.layout_id,
         field_index,
         draft.layout_kind,
-        &SymbolLayoutEditorView::build_field_details(project_symbol_catalog, draft.layout_kind, field_draft),
+        &build_field_details(project_symbol_catalog, draft.layout_kind, field_draft),
     );
     let selection_key = format!("field|{}|{}", draft.layout_id, field_index);
     let edit_callback = build_struct_viewer_field_edit_callback(
@@ -315,7 +324,7 @@ fn focus_variant_field_in_struct_viewer(
     field_index: usize,
 ) {
     let Some(field_draft) = variant_draft.field_drafts.get(field_index) else {
-        symbol_layout_editor_view.clear_struct_viewer_if_symbol_layout_focused();
+        clear_struct_viewer_if_symbol_layout_focused(symbol_layout_editor_view.struct_viewer_view_data.clone());
         return;
     };
 
@@ -323,7 +332,7 @@ fn focus_variant_field_in_struct_viewer(
         &variant_draft.layout_id,
         field_index,
         SymbolicLayoutKind::Struct,
-        &SymbolLayoutEditorView::build_field_details(project_symbol_catalog, SymbolicLayoutKind::Struct, field_draft),
+        &build_field_details(project_symbol_catalog, SymbolicLayoutKind::Struct, field_draft),
     );
     let selection_key = format!("field|{}|{}", variant_draft.layout_id, field_index);
     let edit_callback = build_variant_field_edit_callback(
@@ -376,7 +385,7 @@ fn build_struct_viewer_field_edit_callback(
             &updated_draft.layout_id,
             field_index,
             updated_draft.layout_kind,
-            &SymbolLayoutEditorView::build_field_details(&project_symbol_catalog, updated_draft.layout_kind, updated_field_draft),
+            &build_field_details(&project_symbol_catalog, updated_draft.layout_kind, updated_field_draft),
         );
         let selection_key = format!("field|{}|{}", updated_draft.layout_id, field_index);
         let edit_callback = build_struct_viewer_field_edit_callback(
@@ -434,7 +443,7 @@ fn build_variant_field_edit_callback(
                     &updated_variant_draft.layout_id,
                     field_index,
                     SymbolicLayoutKind::Struct,
-                    &SymbolLayoutEditorView::build_field_details(&updated_project_symbol_catalog, SymbolicLayoutKind::Struct, field_draft),
+                    &build_field_details(&updated_project_symbol_catalog, SymbolicLayoutKind::Struct, field_draft),
                 )
             });
         let Some(details_projection) = details_projection else {
