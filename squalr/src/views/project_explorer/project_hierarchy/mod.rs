@@ -1,4 +1,7 @@
+pub mod project_hierarchy_create_item_menu_view;
 pub mod project_hierarchy_details_focus;
+pub mod project_hierarchy_list_view;
+pub mod project_hierarchy_project_item_context_menu_view;
 pub mod project_hierarchy_runtime_preview_controller;
 pub mod project_hierarchy_takeover_host_view;
 pub mod project_hierarchy_toolbar_view;
