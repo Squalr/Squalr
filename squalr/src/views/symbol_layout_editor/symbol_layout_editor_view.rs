@@ -1,4 +1,4 @@
-mod take_over_views;
+mod takeovers;
 
 use crate::app_context::AppContext;
 use crate::ui::converters::{data_type_to_icon_converter::DataTypeToIconConverter, data_type_to_string_converter::DataTypeToStringConverter};
