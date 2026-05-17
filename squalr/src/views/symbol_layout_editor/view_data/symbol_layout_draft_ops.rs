@@ -364,6 +364,18 @@ impl SymbolLayoutDraftOps {
             .then(|| SymbolLayoutUnassignedSelection::new(moved_unassigned_offset, row_context.size_in_bytes))
     }
 
+    pub fn split_offset_to_preserve_unassigned_move_up(updated_unassigned_selection: &SymbolLayoutUnassignedSelection) -> Option<u64> {
+        let split_offset_in_bytes = updated_unassigned_selection.get_offset_in_bytes();
+
+        (split_offset_in_bytes > 0).then_some(split_offset_in_bytes)
+    }
+
+    pub fn split_offset_to_preserve_unassigned_move_down(updated_unassigned_selection: &SymbolLayoutUnassignedSelection) -> Option<u64> {
+        updated_unassigned_selection
+            .get_offset_in_bytes()
+            .checked_add(updated_unassigned_selection.get_size_in_bytes())
+    }
+
     pub fn build_unassigned_row_contexts(
         offset_in_bytes: u64,
         size_in_bytes: u64,

@@ -3647,6 +3647,13 @@ impl SymbolLayoutEditorView {
 
                     if let Some(updated_unassigned_selection) = updated_unassigned_selection {
                         persist_target_variant_draft = target_layout_id.is_some();
+                        if let Some(split_offset_in_bytes) = SymbolLayoutDraftOps::split_offset_to_preserve_unassigned_move_up(&updated_unassigned_selection) {
+                            SymbolLayoutEditorViewData::insert_unassigned_split_offset_for_layout(
+                                self.symbol_layout_editor_view_data.clone(),
+                                target_layout_id.clone(),
+                                split_offset_in_bytes,
+                            );
+                        }
                         SymbolLayoutEditorViewData::select_unassigned_span_for_layout(
                             self.symbol_layout_editor_view_data.clone(),
                             target_layout_id.clone(),
@@ -3693,6 +3700,14 @@ impl SymbolLayoutEditorView {
 
                     if let Some(updated_unassigned_selection) = updated_unassigned_selection {
                         persist_target_variant_draft = target_layout_id.is_some();
+                        if let Some(split_offset_in_bytes) = SymbolLayoutDraftOps::split_offset_to_preserve_unassigned_move_down(&updated_unassigned_selection)
+                        {
+                            SymbolLayoutEditorViewData::insert_unassigned_split_offset_for_layout(
+                                self.symbol_layout_editor_view_data.clone(),
+                                target_layout_id.clone(),
+                                split_offset_in_bytes,
+                            );
+                        }
                         SymbolLayoutEditorViewData::select_unassigned_span_for_layout(
                             self.symbol_layout_editor_view_data.clone(),
                             target_layout_id.clone(),
@@ -4691,6 +4706,55 @@ mod tests {
     }
 
     #[test]
+    fn move_unassigned_span_up_preserves_previous_unassigned_boundary() {
+        let project_symbol_catalog = ProjectSymbolCatalog::default();
+        let mut draft = SymbolLayoutEditDraft {
+            original_layout_id: None,
+            layout_id: String::from("player"),
+            layout_kind: SymbolicLayoutKind::Struct,
+            size_text: String::from("32"),
+            size_format: AnonymousValueStringFormat::Decimal,
+            field_drafts: vec![
+                create_static_field_draft("health", 12),
+                create_static_field_draft("mana", 28),
+            ],
+        };
+        let row_context = SymbolLayoutUnassignedRowContext {
+            offset_in_bytes: 16,
+            size_in_bytes: 12,
+            move_up_field: Some(SymbolLayoutUnassignedAdjacentField {
+                field_position: 0,
+                offset_in_bytes: 12,
+                size_in_bytes: 4,
+            }),
+            move_down_field: None,
+            move_up_unassigned_span: None,
+            move_down_unassigned_span: None,
+            merge_above_span: None,
+            merge_below_span: None,
+        };
+        let updated_unassigned_selection = SymbolLayoutDraftOps::move_unassigned_span_up(&mut draft, row_context).expect("Expected span to move.");
+        let mut split_offsets = BTreeSet::new();
+
+        if let Some(split_offset_to_preserve) = SymbolLayoutDraftOps::split_offset_to_preserve_unassigned_move_up(&updated_unassigned_selection) {
+            split_offsets.insert(split_offset_to_preserve);
+        }
+        let descriptor =
+            SymbolLayoutEditorViewData::build_symbol_layout_descriptor_with_unassigned_split_offsets(&project_symbol_catalog, &draft, &split_offsets)
+                .expect("Expected moved unassigned descriptor to build.");
+        let fields = descriptor.get_struct_layout_definition().get_fields();
+
+        assert_eq!(updated_unassigned_selection.get_offset_in_bytes(), 12);
+        assert_eq!(updated_unassigned_selection.get_size_in_bytes(), 12);
+        assert_eq!(split_offsets, BTreeSet::from([12]));
+        assert_eq!(fields.len(), 4);
+        assert_eq!(fields[0].to_string(), "unassigned[12]");
+        assert_eq!(fields[1].to_string(), "unassigned[12]");
+        assert_eq!(fields[2].to_string(), "health:u32");
+        assert_eq!(fields[3].to_string(), "mana:u32");
+    }
+
+    #[test]
     fn move_unassigned_span_down_places_next_field_before_gap() {
         let mut draft = SymbolLayoutEditDraft {
             original_layout_id: None,
@@ -4724,6 +4788,55 @@ mod tests {
         assert_eq!(updated_unassigned_selection.get_size_in_bytes(), 12);
         assert_eq!(draft.field_drafts[1].offset_mode, SymbolLayoutFieldOffsetMode::Static);
         assert_eq!(draft.field_drafts[1].static_offset_in_bytes, "4");
+    }
+
+    #[test]
+    fn move_unassigned_span_down_preserves_next_unassigned_boundary() {
+        let project_symbol_catalog = ProjectSymbolCatalog::default();
+        let mut draft = SymbolLayoutEditDraft {
+            original_layout_id: None,
+            layout_id: String::from("player"),
+            layout_kind: SymbolicLayoutKind::Struct,
+            size_text: String::from("32"),
+            size_format: AnonymousValueStringFormat::Decimal,
+            field_drafts: vec![
+                create_static_field_draft("health", 0),
+                create_static_field_draft("mana", 16),
+            ],
+        };
+        let row_context = SymbolLayoutUnassignedRowContext {
+            offset_in_bytes: 4,
+            size_in_bytes: 12,
+            move_up_field: None,
+            move_down_field: Some(SymbolLayoutUnassignedAdjacentField {
+                field_position: 1,
+                offset_in_bytes: 16,
+                size_in_bytes: 4,
+            }),
+            move_up_unassigned_span: None,
+            move_down_unassigned_span: None,
+            merge_above_span: None,
+            merge_below_span: None,
+        };
+        let updated_unassigned_selection = SymbolLayoutDraftOps::move_unassigned_span_down(&mut draft, row_context).expect("Expected span to move.");
+        let mut split_offsets = BTreeSet::new();
+
+        if let Some(split_offset_to_preserve) = SymbolLayoutDraftOps::split_offset_to_preserve_unassigned_move_down(&updated_unassigned_selection) {
+            split_offsets.insert(split_offset_to_preserve);
+        }
+        let descriptor =
+            SymbolLayoutEditorViewData::build_symbol_layout_descriptor_with_unassigned_split_offsets(&project_symbol_catalog, &draft, &split_offsets)
+                .expect("Expected moved unassigned descriptor to build.");
+        let fields = descriptor.get_struct_layout_definition().get_fields();
+
+        assert_eq!(updated_unassigned_selection.get_offset_in_bytes(), 8);
+        assert_eq!(updated_unassigned_selection.get_size_in_bytes(), 12);
+        assert_eq!(split_offsets, BTreeSet::from([20]));
+        assert_eq!(fields.len(), 4);
+        assert_eq!(fields[0].to_string(), "health:u32");
+        assert_eq!(fields[1].to_string(), "mana:u32");
+        assert_eq!(fields[2].to_string(), "unassigned[12]");
+        assert_eq!(fields[3].to_string(), "unassigned[12]");
     }
 
     #[test]
