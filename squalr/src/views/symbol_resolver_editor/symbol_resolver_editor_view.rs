@@ -3,6 +3,7 @@ use crate::{
     ui::{
         draw::icon_draw::IconDraw,
         list_navigation::ListNavigationDirection,
+        text::text_fitting::{measure_text_width, truncate_text_to_width},
         widgets::controls::{
             button::Button as ThemeButton, context_menu::context_menu::ContextMenu, data_value_box::data_value_box_view::DataValueBoxView, groupbox::GroupBox,
             state_layer::StateLayer, toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView,
@@ -526,7 +527,7 @@ impl SymbolResolverEditorView {
         IconDraw::draw(user_interface, edit_response.rect, &theme.icon_library.icon_handle_common_edit);
 
         let usage_text = Self::resolver_usage_preview_text(usage_count);
-        let usage_text_width = Self::measure_text_width(
+        let usage_text_width = measure_text_width(
             user_interface,
             &usage_text,
             &theme.font_library.font_noto_sans.font_normal,
@@ -972,15 +973,15 @@ impl SymbolResolverEditorView {
         let preview_width = if preview.is_empty() {
             0.0
         } else {
-            Self::measure_text_width(user_interface, preview, &theme.font_library.font_noto_sans.font_small, theme.foreground_preview)
+            measure_text_width(user_interface, preview, &theme.font_library.font_noto_sans.font_small, theme.foreground_preview)
         };
         let label_max_width = (allocated_size_rectangle.max.x - label_position.x - preview_width - 18.0).max(0.0);
-        let label_text = Self::truncate_text_to_width(
+        let label_text = truncate_text_to_width(
             user_interface,
             label,
-            label_max_width,
             &theme.font_library.font_noto_sans.font_normal,
             theme.foreground,
+            label_max_width,
         );
 
         user_interface.painter().text(
@@ -995,12 +996,12 @@ impl SymbolResolverEditorView {
             user_interface.painter().text(
                 pos2(allocated_size_rectangle.max.x - 8.0, allocated_size_rectangle.center().y),
                 Align2::RIGHT_CENTER,
-                Self::truncate_text_to_width(
+                truncate_text_to_width(
                     user_interface,
                     preview,
-                    (allocated_size_rectangle.max.x - label_position.x - 48.0).max(0.0),
                     &theme.font_library.font_noto_sans.font_small,
                     theme.foreground_preview,
+                    (allocated_size_rectangle.max.x - label_position.x - 48.0).max(0.0),
                 ),
                 theme.font_library.font_noto_sans.font_small.clone(),
                 theme.foreground_preview,
@@ -1691,59 +1692,6 @@ impl SymbolResolverEditorView {
         let value_bytes: [u8; 8] = value_bytes.as_slice().try_into().ok()?;
 
         Some(i64::from_le_bytes(value_bytes))
-    }
-
-    fn measure_text_width(
-        user_interface: &Ui,
-        text: &str,
-        font_id: &eframe::egui::FontId,
-        text_color: Color32,
-    ) -> f32 {
-        if text.is_empty() {
-            return 0.0;
-        }
-
-        user_interface.ctx().fonts_mut(|fonts| {
-            fonts
-                .layout_no_wrap(text.to_string(), font_id.clone(), text_color)
-                .size()
-                .x
-        })
-    }
-
-    fn truncate_text_to_width(
-        user_interface: &Ui,
-        text: &str,
-        max_text_width: f32,
-        font_id: &eframe::egui::FontId,
-        text_color: Color32,
-    ) -> String {
-        if text.is_empty() || max_text_width <= 0.0 {
-            return String::new();
-        }
-
-        let full_text_width = Self::measure_text_width(user_interface, text, font_id, text_color);
-        if full_text_width <= max_text_width {
-            return text.to_string();
-        }
-
-        let ellipsis = "...";
-        let ellipsis_width = Self::measure_text_width(user_interface, ellipsis, font_id, text_color);
-        if ellipsis_width > max_text_width {
-            return String::new();
-        }
-
-        let mut truncated_text = text.to_string();
-        while !truncated_text.is_empty() {
-            truncated_text.pop();
-            let candidate_text = format!("{}{}", truncated_text, ellipsis);
-            let candidate_width = Self::measure_text_width(user_interface, &candidate_text, font_id, text_color);
-            if candidate_width <= max_text_width {
-                return candidate_text;
-            }
-        }
-
-        String::new()
     }
 
     fn render_empty_project_message(

@@ -3,11 +3,12 @@ use crate::{
     ui::{
         draw::icon_draw::IconDraw,
         geometry::safe_clamp_f32,
+        text::text_fitting::{measure_text_width, truncate_text_to_width},
         widgets::controls::{checkbox::Checkbox, state_layer::StateLayer, tooltip::ThemedTooltip},
     },
     views::project_explorer::project_hierarchy::view_data::project_hierarchy_frame_action::ProjectHierarchyFrameAction,
 };
-use eframe::egui::{Align2, Color32, FontId, Rect, Response, Sense, TextureHandle, Ui, Widget, pos2, vec2};
+use eframe::egui::{Align2, Color32, Rect, Response, Sense, TextureHandle, Ui, Widget, pos2, vec2};
 use epaint::{CornerRadius, Stroke, StrokeKind};
 use std::{path::PathBuf, sync::Arc};
 
@@ -179,7 +180,7 @@ impl<'lifetime> ProjectItemEntryView<'lifetime> {
         let display_name_font = theme.font_library.font_noto_sans.font_normal.clone();
         let preview_path_font = theme.font_library.font_noto_sans.font_small.clone();
         let preview_value_font = theme.font_library.font_noto_sans.font_small.clone();
-        let preview_value_width = Self::measure_text_width(user_interface, self.preview_value, &preview_value_font, row_foreground_preview);
+        let preview_value_width = measure_text_width(user_interface, self.preview_value, &preview_value_font, row_foreground_preview);
         let left_text_max_x = preview_pos.x - preview_value_width - 12.0;
         let max_left_text_width = (left_text_max_x - text_pos.x).max(0.0);
         let value_hit_box_left = safe_clamp_f32(left_text_max_x, text_pos.x, allocated_size_rectangle.max.x);
@@ -193,13 +194,13 @@ impl<'lifetime> ProjectItemEntryView<'lifetime> {
             IconDraw::draw_sized_tinted(user_interface, icon_rect.center(), icon_size, icon, row_icon_tint);
         }
 
-        let full_display_name_width = Self::measure_text_width(user_interface, self.display_name, &display_name_font, row_foreground);
+        let full_display_name_width = measure_text_width(user_interface, self.display_name, &display_name_font, row_foreground);
         let display_name_text = if self.preview_path.is_empty() || full_display_name_width >= max_left_text_width {
-            Self::truncate_text_to_width(user_interface, self.display_name, &display_name_font, row_foreground, max_left_text_width)
+            truncate_text_to_width(user_interface, self.display_name, &display_name_font, row_foreground, max_left_text_width)
         } else {
             self.display_name.to_string()
         };
-        let display_name_width = Self::measure_text_width(user_interface, &display_name_text, &display_name_font, row_foreground);
+        let display_name_width = measure_text_width(user_interface, &display_name_text, &display_name_font, row_foreground);
 
         user_interface
             .painter()
@@ -209,7 +210,7 @@ impl<'lifetime> ProjectItemEntryView<'lifetime> {
             let preview_path_gap = 10.0;
             let preview_path_pos = pos2(text_pos.x + display_name_width + preview_path_gap, allocated_size_rectangle.center().y);
             let max_preview_path_width = (max_left_text_width - display_name_width - preview_path_gap).max(0.0);
-            let preview_path_text = Self::truncate_text_to_width(
+            let preview_path_text = truncate_text_to_width(
                 user_interface,
                 self.preview_path,
                 &preview_path_font,
@@ -269,61 +270,4 @@ impl<'lifetime> ProjectItemEntryView<'lifetime> {
     }
 }
 
-impl<'lifetime> ProjectItemEntryView<'lifetime> {
-    fn measure_text_width(
-        user_interface: &mut Ui,
-        text: &str,
-        font_id: &FontId,
-        text_color: Color32,
-    ) -> f32 {
-        if text.is_empty() {
-            return 0.0;
-        }
-
-        user_interface.ctx().fonts_mut(|fonts| {
-            fonts
-                .layout_no_wrap(text.to_string(), font_id.clone(), text_color)
-                .size()
-                .x
-        })
-    }
-
-    fn truncate_text_to_width(
-        user_interface: &mut Ui,
-        text: &str,
-        font_id: &FontId,
-        text_color: Color32,
-        max_text_width: f32,
-    ) -> String {
-        if text.is_empty() || max_text_width <= 0.0 {
-            return String::new();
-        }
-
-        let text_width = Self::measure_text_width(user_interface, text, font_id, text_color);
-
-        if text_width <= max_text_width {
-            return text.to_string();
-        }
-
-        let ellipsis = "...";
-        let ellipsis_width = Self::measure_text_width(user_interface, ellipsis, font_id, text_color);
-
-        if ellipsis_width > max_text_width {
-            return String::new();
-        }
-
-        let mut truncated_text = text.to_string();
-        while !truncated_text.is_empty() {
-            truncated_text.pop();
-
-            let candidate_text = format!("{}{}", truncated_text, ellipsis);
-            let candidate_width = Self::measure_text_width(user_interface, &candidate_text, font_id, text_color);
-
-            if candidate_width <= max_text_width {
-                return candidate_text;
-            }
-        }
-
-        String::new()
-    }
-}
+impl<'lifetime> ProjectItemEntryView<'lifetime> {}

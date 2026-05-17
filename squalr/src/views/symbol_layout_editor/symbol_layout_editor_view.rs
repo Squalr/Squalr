@@ -4,6 +4,7 @@ use crate::app_context::AppContext;
 use crate::ui::converters::{data_type_to_icon_converter::DataTypeToIconConverter, data_type_to_string_converter::DataTypeToStringConverter};
 use crate::ui::draw::icon_draw::IconDraw;
 use crate::ui::list_navigation::ListNavigationDirection;
+use crate::ui::text::text_fitting::{measure_text_width, truncate_text_to_width};
 use crate::ui::widgets::controls::{
     button::Button as ThemeButton,
     combo_box::{combo_box_item_view::ComboBoxItemView, combo_box_view::ComboBoxView},
@@ -2078,59 +2079,6 @@ impl SymbolLayoutEditorView {
             .find(|container_kind| container_kind.label() == label)
     }
 
-    fn measure_text_width(
-        user_interface: &Ui,
-        text: &str,
-        font_id: &eframe::egui::FontId,
-        text_color: Color32,
-    ) -> f32 {
-        if text.is_empty() {
-            return 0.0;
-        }
-
-        user_interface.ctx().fonts_mut(|fonts| {
-            fonts
-                .layout_no_wrap(text.to_string(), font_id.clone(), text_color)
-                .size()
-                .x
-        })
-    }
-
-    fn truncate_text_to_width(
-        user_interface: &Ui,
-        text: &str,
-        max_text_width: f32,
-        font_id: &eframe::egui::FontId,
-        text_color: Color32,
-    ) -> String {
-        if text.is_empty() || max_text_width <= 0.0 {
-            return String::new();
-        }
-
-        let full_text_width = Self::measure_text_width(user_interface, text, font_id, text_color);
-        if full_text_width <= max_text_width {
-            return text.to_string();
-        }
-
-        let ellipsis = "...";
-        let ellipsis_width = Self::measure_text_width(user_interface, ellipsis, font_id, text_color);
-        if ellipsis_width > max_text_width {
-            return String::new();
-        }
-
-        let mut truncated_text = text.to_string();
-        while !truncated_text.is_empty() {
-            truncated_text.pop();
-            let candidate_text = format!("{}{}", truncated_text, ellipsis);
-            let candidate_width = Self::measure_text_width(user_interface, &candidate_text, font_id, text_color);
-            if candidate_width <= max_text_width {
-                return candidate_text;
-            }
-        }
-
-        String::new()
-    }
-
     fn render_symbol_layout_row(
         &self,
         user_interface: &mut Ui,
@@ -2476,21 +2424,21 @@ impl SymbolLayoutEditorView {
         let preview_right = button_area_left - Self::FIELD_ROW_LEFT_PADDING;
         let label_position = pos2(icon_rect.max.x + Self::FIELD_ROW_ICON_GAP, row_rect.center().y);
         let label_max_width = (preview_right - label_position.x).max(0.0);
-        let label_text = Self::truncate_text_to_width(
+        let label_text = truncate_text_to_width(
             user_interface,
             &field_name,
-            label_max_width,
             &theme.font_library.font_noto_sans.font_normal,
             theme.foreground,
+            label_max_width,
         );
-        let label_width = Self::measure_text_width(user_interface, &label_text, &theme.font_library.font_noto_sans.font_normal, theme.foreground);
+        let label_width = measure_text_width(user_interface, &label_text, &theme.font_library.font_noto_sans.font_normal, theme.foreground);
         let preview_max_width = (preview_right - label_position.x - label_width - Self::FIELD_ROW_PREVIEW_GAP).max(0.0);
-        let preview_text = Self::truncate_text_to_width(
+        let preview_text = truncate_text_to_width(
             user_interface,
             &preview_text,
-            preview_max_width,
             &theme.font_library.font_noto_sans.font_small,
             theme.foreground_preview,
+            preview_max_width,
         );
         user_interface.painter().text(
             label_position,
@@ -2581,12 +2529,12 @@ impl SymbolLayoutEditorView {
         user_interface.painter().text(
             label_position,
             Align2::LEFT_CENTER,
-            Self::truncate_text_to_width(
+            truncate_text_to_width(
                 user_interface,
                 label_text,
-                (row_rect.width() * 0.6).max(0.0),
                 &theme.font_library.font_noto_sans.font_normal,
                 theme.foreground,
+                (row_rect.width() * 0.6).max(0.0),
             ),
             theme.font_library.font_noto_sans.font_normal.clone(),
             theme.foreground,
@@ -2594,12 +2542,12 @@ impl SymbolLayoutEditorView {
         user_interface.painter().text(
             preview_position,
             Align2::RIGHT_CENTER,
-            Self::truncate_text_to_width(
+            truncate_text_to_width(
                 user_interface,
                 preview_text,
-                (row_rect.width() * 0.35).max(0.0),
                 &theme.font_library.font_noto_sans.font_small,
                 theme.foreground_preview,
+                (row_rect.width() * 0.35).max(0.0),
             ),
             theme.font_library.font_noto_sans.font_small.clone(),
             theme.foreground_preview,
@@ -3096,21 +3044,21 @@ impl SymbolLayoutEditorView {
         let right_text_x = button_area_left - Self::FIELD_ROW_LEFT_PADDING;
         let left_max_width = (right_text_x - label_position.x).max(0.0);
         let left_color = if can_define_field { theme.foreground } else { theme.foreground_preview };
-        let left_text = Self::truncate_text_to_width(
+        let left_text = truncate_text_to_width(
             user_interface,
             &left_text,
-            left_max_width,
             &theme.font_library.font_noto_sans.font_normal,
             left_color,
+            left_max_width,
         );
-        let left_width = Self::measure_text_width(user_interface, &left_text, &theme.font_library.font_noto_sans.font_normal, left_color);
+        let left_width = measure_text_width(user_interface, &left_text, &theme.font_library.font_noto_sans.font_normal, left_color);
         let right_max_width = (right_text_x - label_position.x - left_width - Self::FIELD_ROW_PREVIEW_GAP).max(0.0);
-        let right_text = Self::truncate_text_to_width(
+        let right_text = truncate_text_to_width(
             user_interface,
             &right_text,
-            right_max_width,
             &theme.font_library.font_noto_sans.font_small,
             theme.foreground_preview,
+            right_max_width,
         );
 
         user_interface.painter().text(

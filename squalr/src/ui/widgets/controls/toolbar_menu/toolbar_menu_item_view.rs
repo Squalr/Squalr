@@ -1,5 +1,8 @@
-use crate::{app_context::AppContext, ui::widgets::controls::state_layer::StateLayer};
-use eframe::egui::{Align2, FontId, Rect, Response, Sense, TextureHandle, Ui, Widget, pos2, vec2};
+use crate::{
+    app_context::AppContext,
+    ui::{text::text_fitting::truncate_text_to_width, widgets::controls::state_layer::StateLayer},
+};
+use eframe::egui::{Align2, Rect, Response, Sense, TextureHandle, Ui, Widget, pos2, vec2};
 use epaint::{Color32, CornerRadius, StrokeKind};
 use std::sync::Arc;
 
@@ -184,7 +187,7 @@ impl<'a> Widget for ToolbarMenuItemView<'a> {
             pos2(text_left, allocated_size_rectangle.min.y),
             pos2(allocated_size_rectangle.max.x - text_right_padding, allocated_size_rectangle.max.y),
         );
-        let text_to_render = Self::truncate_text_to_width(
+        let text_to_render = truncate_text_to_width(
             user_interface,
             self.label,
             &theme.font_library.font_noto_sans.font_normal,
@@ -214,54 +217,6 @@ impl<'lifetime> ToolbarMenuItemView<'lifetime> {
 
     pub fn row_width_from_text_width(text_width: f32) -> f32 {
         (text_width + Self::ICON_WIDTH + Self::ICON_LEFT_PADDING * 2.0 + Self::TEXT_LEFT_PADDING + Self::TEXT_RIGHT_PADDING).max(Self::MIN_MENU_WIDTH)
-    }
-
-    fn measure_text_width(
-        user_interface: &mut Ui,
-        text: &str,
-        font_id: &FontId,
-        text_color: Color32,
-    ) -> f32 {
-        user_interface.ctx().fonts_mut(|fonts| {
-            fonts
-                .layout_no_wrap(text.to_string(), font_id.clone(), text_color)
-                .size()
-                .x
-        })
-    }
-
-    fn truncate_text_to_width(
-        user_interface: &mut Ui,
-        label: &str,
-        font_id: &FontId,
-        text_color: Color32,
-        max_text_width: f32,
-    ) -> String {
-        if max_text_width <= 0.0 {
-            return String::new();
-        }
-
-        let full_text_width = Self::measure_text_width(user_interface, label, font_id, text_color);
-        if full_text_width <= max_text_width {
-            return label.to_string();
-        }
-
-        let ellipsis = "...";
-        let ellipsis_width = Self::measure_text_width(user_interface, ellipsis, font_id, text_color);
-        if ellipsis_width > max_text_width {
-            return String::new();
-        }
-
-        let mut truncated_label = label.to_string();
-        while !truncated_label.is_empty() {
-            truncated_label.pop();
-            let candidate_label = format!("{}{}", truncated_label, ellipsis);
-            if Self::measure_text_width(user_interface, &candidate_label, font_id, text_color) <= max_text_width {
-                return candidate_label;
-            }
-        }
-
-        ellipsis.to_string()
     }
 }
 

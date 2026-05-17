@@ -1,8 +1,13 @@
 use crate::{
     app_context::AppContext,
-    ui::{converters::data_type_to_icon_converter::DataTypeToIconConverter, draw::icon_draw::IconDraw, widgets::controls::state_layer::StateLayer},
+    ui::{
+        converters::data_type_to_icon_converter::DataTypeToIconConverter,
+        draw::icon_draw::IconDraw,
+        text::text_fitting::{measure_text_width, truncate_text_to_width},
+        widgets::controls::state_layer::StateLayer,
+    },
 };
-use eframe::egui::{Align, Align2, Area, Color32, FontId, Frame, Id, Layout, Order, Rect, Response, RichText, Sense, Ui, Widget, pos2, vec2};
+use eframe::egui::{Align, Align2, Area, Frame, Id, Layout, Order, Rect, Response, RichText, Sense, Ui, Widget, pos2, vec2};
 use epaint::{CornerRadius, Margin, Stroke, StrokeKind};
 use squalr_engine_api::structures::projects::symbol_tree::symbol_tree_node::{SymbolTreeNode, SymbolTreeNodeKind};
 use std::{sync::Arc, time::Duration};
@@ -130,20 +135,20 @@ impl<'lifetime> SymbolTreeEntryView<'lifetime> {
         let size_preview_font = theme.font_library.font_noto_sans.font_small.clone();
         let preview_value_font = theme.font_library.font_noto_sans.font_small.clone();
         let max_preview_text_width = (allocated_size_rectangle.max.x - text_position.x - 24.0).max(0.0);
-        let preview_value_text = Self::truncate_text_to_width(
+        let preview_value_text = truncate_text_to_width(
             user_interface,
             self.preview_value,
             &preview_value_font,
             theme.foreground_preview,
             max_preview_text_width,
         );
-        let preview_value_width = Self::measure_text_width(user_interface, &preview_value_text, &preview_value_font, theme.foreground_preview);
+        let preview_value_width = measure_text_width(user_interface, &preview_value_text, &preview_value_font, theme.foreground_preview);
         let left_text_max_x = preview_position.x - preview_value_width - 12.0;
         let max_left_text_width = (left_text_max_x - text_position.x).max(0.0);
-        let display_name_width = Self::measure_text_width(user_interface, self.symbol_tree_entry.get_display_name(), &display_name_font, theme.foreground);
+        let display_name_width = measure_text_width(user_interface, self.symbol_tree_entry.get_display_name(), &display_name_font, theme.foreground);
 
         let display_name_text = if self.size_preview_text.is_empty() || display_name_width >= max_left_text_width {
-            Self::truncate_text_to_width(
+            truncate_text_to_width(
                 user_interface,
                 self.symbol_tree_entry.get_display_name(),
                 &display_name_font,
@@ -153,7 +158,7 @@ impl<'lifetime> SymbolTreeEntryView<'lifetime> {
         } else {
             self.symbol_tree_entry.get_display_name().to_string()
         };
-        let display_name_text_width = Self::measure_text_width(user_interface, &display_name_text, &display_name_font, theme.foreground);
+        let display_name_text_width = measure_text_width(user_interface, &display_name_text, &display_name_font, theme.foreground);
         user_interface.painter().text(
             text_position,
             Align2::LEFT_CENTER,
@@ -169,7 +174,7 @@ impl<'lifetime> SymbolTreeEntryView<'lifetime> {
                 allocated_size_rectangle.center().y,
             );
             let max_size_preview_width = (max_left_text_width - display_name_text_width - size_preview_gap).max(0.0);
-            let size_preview_text = Self::truncate_text_to_width(
+            let size_preview_text = truncate_text_to_width(
                 user_interface,
                 self.size_preview_text,
                 &size_preview_font,
@@ -304,60 +309,6 @@ impl<'lifetime> SymbolTreeEntryView<'lifetime> {
         }
 
         hover_rows
-    }
-
-    fn measure_text_width(
-        user_interface: &mut Ui,
-        text: &str,
-        font_id: &FontId,
-        text_color: Color32,
-    ) -> f32 {
-        if text.is_empty() {
-            return 0.0;
-        }
-
-        user_interface.ctx().fonts_mut(|fonts| {
-            fonts
-                .layout_no_wrap(text.to_string(), font_id.clone(), text_color)
-                .size()
-                .x
-        })
-    }
-
-    fn truncate_text_to_width(
-        user_interface: &mut Ui,
-        text: &str,
-        font_id: &FontId,
-        text_color: Color32,
-        max_text_width: f32,
-    ) -> String {
-        if text.is_empty() || max_text_width <= 0.0 {
-            return String::new();
-        }
-
-        let text_width = Self::measure_text_width(user_interface, text, font_id, text_color);
-        if text_width <= max_text_width {
-            return text.to_string();
-        }
-
-        let ellipsis = "...";
-        let ellipsis_width = Self::measure_text_width(user_interface, ellipsis, font_id, text_color);
-        if ellipsis_width > max_text_width {
-            return String::new();
-        }
-
-        let mut truncated_text = text.to_string();
-        while !truncated_text.is_empty() {
-            truncated_text.pop();
-            let candidate_text = format!("{}{}", truncated_text, ellipsis);
-            let candidate_width = Self::measure_text_width(user_interface, &candidate_text, font_id, text_color);
-
-            if candidate_width <= max_text_width {
-                return candidate_text;
-            }
-        }
-
-        String::new()
     }
 }
 
