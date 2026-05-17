@@ -1,4 +1,5 @@
 use super::super::SymbolLayoutEditorView;
+use super::super::rows::symbol_layout_field_row_action::focus_field_in_struct_viewer;
 use crate::ui::widgets::controls::groupbox::GroupBox;
 use crate::views::symbol_layout_editor::view_data::symbol_layout_editor_view_data::{
     SymbolLayoutDefineFieldReturnState, SymbolLayoutEditDraft, SymbolLayoutEditorViewData, SymbolLayoutFieldEditDraft, SymbolLayoutFieldOffsetMode,
@@ -195,7 +196,7 @@ impl SymbolLayoutEditorView {
             SymbolLayoutEditorViewData::update_draft(self.symbol_layout_editor_view_data.clone(), updated_draft.clone());
             SymbolLayoutEditorViewData::return_to_define_field_source(self.symbol_layout_editor_view_data.clone(), return_state.clone());
             SymbolLayoutEditorViewData::select_field(self.symbol_layout_editor_view_data.clone(), insert_index);
-            self.focus_field_in_struct_viewer(project_symbol_catalog, &updated_draft, insert_index);
+            focus_field_in_struct_viewer(self, project_symbol_catalog, &updated_draft, insert_index);
             return;
         }
 

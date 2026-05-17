@@ -1,4 +1,5 @@
 use super::super::SymbolLayoutEditorView;
+use super::super::rows::symbol_layout_field_row_action::focus_field_in_struct_viewer;
 use crate::ui::widgets::controls::groupbox::GroupBox;
 use crate::views::symbol_layout_editor::view_data::symbol_layout_editor_view_data::{SymbolLayoutEditDraft, SymbolLayoutEditorViewData};
 use eframe::egui::{Key, RichText, Ui};
@@ -81,7 +82,7 @@ impl SymbolLayoutEditorView {
                 SymbolLayoutEditorViewData::update_draft(self.symbol_layout_editor_view_data.clone(), edited_draft.clone());
                 SymbolLayoutEditorViewData::return_to_open_symbol_layout(self.symbol_layout_editor_view_data.clone(), layout_id.to_string());
                 SymbolLayoutEditorViewData::select_field(self.symbol_layout_editor_view_data.clone(), field_index_to_focus);
-                self.focus_field_in_struct_viewer(project_symbol_catalog, &edited_draft, field_index_to_focus);
+                focus_field_in_struct_viewer(self, project_symbol_catalog, &edited_draft, field_index_to_focus);
             } else {
                 SymbolLayoutEditorViewData::return_to_open_symbol_layout(self.symbol_layout_editor_view_data.clone(), layout_id.to_string());
             }

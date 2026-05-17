@@ -14,7 +14,8 @@ use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymb
 use squalr_engine_api::structures::structs::symbolic_struct_definition::SymbolicLayoutKind;
 use std::sync::Arc;
 
-use super::super::{SymbolLayoutEditorView, SymbolLayoutFieldRowAction};
+use super::super::SymbolLayoutEditorView;
+use super::symbol_layout_field_row_action::SymbolLayoutFieldRowAction;
 
 pub(in crate::views::symbol_layout_editor::symbol_layout_editor_view) struct SymbolLayoutFieldRowView<'view> {
     app_context: Arc<AppContext>,

@@ -22,8 +22,9 @@ use crate::views::symbol_layout_editor::view_data::symbol_layout_field_container
 use eframe::egui::{Align, Align2, Direction, Grid, Id, Key, Layout, Response, RichText, ScrollArea, Sense, Ui, UiBuilder, Widget, pos2, vec2};
 use epaint::{Color32, CornerRadius};
 use rows::{
-    symbol_layout_field_row_view::SymbolLayoutFieldRowView, symbol_layout_row_view::SymbolLayoutRowView,
-    symbol_layout_unassigned_row_view::SymbolLayoutUnassignedRowView, union_variant_preview_row_view::UnionVariantPreviewRowView,
+    symbol_layout_field_row_action::SymbolLayoutFieldRowAction, symbol_layout_field_row_view::SymbolLayoutFieldRowView,
+    symbol_layout_row_view::SymbolLayoutRowView, symbol_layout_unassigned_row_view::SymbolLayoutUnassignedRowView,
+    union_variant_preview_row_view::UnionVariantPreviewRowView,
 };
 use squalr_engine_api::commands::{
     project_symbols::{
@@ -58,16 +59,6 @@ use squalr_engine_api::structures::{
     },
 };
 use std::{collections::BTreeSet, str::FromStr, sync::Arc};
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum SymbolLayoutFieldRowAction {
-    InsertAfter,
-    InsertFieldIntoVariant,
-    RequestRemoveFieldConfirmation,
-    MoveUp,
-    MoveDown,
-    SelectField,
-}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum SymbolLayoutUnassignedRowAction {
@@ -742,138 +733,6 @@ impl SymbolLayoutEditorView {
         self.cache_variant_layout_draft(variant_draft)
     }
 
-    fn handle_variant_field_row_action(
-        &self,
-        project_symbol_catalog: &ProjectSymbolCatalog,
-        union_draft: &SymbolLayoutEditDraft,
-        variant_layout_id: String,
-        field_index: usize,
-        field_row_action: SymbolLayoutFieldRowAction,
-    ) {
-        let mut variant_draft = self.create_union_variant_layout_draft_for_id_with_pending(project_symbol_catalog, union_draft, &variant_layout_id);
-        let unassigned_split_offsets = self
-            .symbol_layout_editor_view_data
-            .read("SymbolLayoutEditor variant field split offsets")
-            .map(|symbol_layout_editor_view_data| symbol_layout_editor_view_data.get_unassigned_split_offsets_for_layout(Some(&variant_layout_id)))
-            .unwrap_or_default();
-        let mut field_index_to_focus = None;
-        let mut should_persist_variant_draft = false;
-
-        match field_row_action {
-            SymbolLayoutFieldRowAction::SelectField => {
-                field_index_to_focus = Some(field_index);
-            }
-            SymbolLayoutFieldRowAction::MoveUp => {
-                if let Some((layout_size_in_bytes, field_spans)) = self.resolve_draft_field_spans(project_symbol_catalog, &variant_draft)
-                    && SymbolLayoutDraftOps::move_struct_field_up(&mut variant_draft, &field_spans, &unassigned_split_offsets, field_index)
-                {
-                    if let Some(split_offset_in_bytes) =
-                        SymbolLayoutDraftOps::split_offset_to_preserve_field_move_up(&field_spans, layout_size_in_bytes, &unassigned_split_offsets, field_index)
-                    {
-                        SymbolLayoutEditorViewData::insert_unassigned_split_offset_for_layout(
-                            self.symbol_layout_editor_view_data.clone(),
-                            Some(variant_layout_id.clone()),
-                            split_offset_in_bytes,
-                        );
-                    }
-                    field_index_to_focus = Some(field_index);
-                    should_persist_variant_draft = true;
-                }
-            }
-            SymbolLayoutFieldRowAction::MoveDown => {
-                if let Some((layout_size_in_bytes, field_spans)) = self.resolve_draft_field_spans(project_symbol_catalog, &variant_draft)
-                    && SymbolLayoutDraftOps::move_struct_field_down(
-                        &mut variant_draft,
-                        &field_spans,
-                        layout_size_in_bytes,
-                        &unassigned_split_offsets,
-                        field_index,
-                    )
-                {
-                    if let Some(split_offset_in_bytes) = SymbolLayoutDraftOps::split_offset_to_preserve_field_move_down(
-                        &field_spans,
-                        layout_size_in_bytes,
-                        &unassigned_split_offsets,
-                        field_index,
-                    ) {
-                        SymbolLayoutEditorViewData::insert_unassigned_split_offset_for_layout(
-                            self.symbol_layout_editor_view_data.clone(),
-                            Some(variant_layout_id.clone()),
-                            split_offset_in_bytes,
-                        );
-                    }
-                    field_index_to_focus = Some(field_index);
-                    should_persist_variant_draft = true;
-                }
-            }
-            SymbolLayoutFieldRowAction::InsertAfter => {
-                let insert_index = field_index
-                    .saturating_add(1)
-                    .min(variant_draft.field_drafts.len());
-                let mut field_draft =
-                    self.create_field_draft_for_layout_kind(project_symbol_catalog, SymbolicLayoutKind::Struct, &variant_draft.layout_id, insert_index);
-                field_draft.field_name = SymbolLayoutDraftOps::build_unique_field_name(&variant_draft, &field_draft.field_name);
-                variant_draft.field_drafts.insert(insert_index, field_draft);
-                field_index_to_focus = Some(insert_index);
-                should_persist_variant_draft = true;
-            }
-            SymbolLayoutFieldRowAction::RequestRemoveFieldConfirmation => {
-                self.delete_variant_field(project_symbol_catalog, &mut variant_draft, field_index);
-                return;
-            }
-            SymbolLayoutFieldRowAction::InsertFieldIntoVariant => {}
-        }
-
-        if should_persist_variant_draft {
-            self.persist_variant_layout_draft(&variant_draft);
-        }
-
-        if let Some(field_index_to_focus) = field_index_to_focus {
-            SymbolLayoutEditorViewData::select_field_for_layout(self.symbol_layout_editor_view_data.clone(), Some(variant_layout_id), field_index_to_focus);
-            self.focus_variant_field_in_struct_viewer(project_symbol_catalog, &variant_draft, field_index_to_focus);
-        }
-    }
-
-    fn delete_variant_field(
-        &self,
-        project_symbol_catalog: &ProjectSymbolCatalog,
-        variant_draft: &mut SymbolLayoutEditDraft,
-        field_index: usize,
-    ) {
-        if field_index >= variant_draft.field_drafts.len() {
-            return;
-        }
-
-        variant_draft.field_drafts.remove(field_index);
-        if !self.persist_variant_layout_draft(variant_draft) {
-            return;
-        }
-
-        if !variant_draft.field_drafts.is_empty() {
-            let field_index_to_focus = field_index.min(variant_draft.field_drafts.len().saturating_sub(1));
-            SymbolLayoutEditorViewData::select_field_for_layout(
-                self.symbol_layout_editor_view_data.clone(),
-                Some(variant_draft.layout_id.clone()),
-                field_index_to_focus,
-            );
-            self.focus_variant_field_in_struct_viewer(project_symbol_catalog, variant_draft, field_index_to_focus);
-            return;
-        }
-
-        if let Ok(layout_size_in_bytes) = SymbolLayoutEditorViewData::parse_layout_size_text(&variant_draft.size_text, variant_draft.size_format) {
-            SymbolLayoutEditorViewData::select_unassigned_span_for_layout(
-                self.symbol_layout_editor_view_data.clone(),
-                Some(variant_draft.layout_id.clone()),
-                0,
-                layout_size_in_bytes,
-            );
-            self.focus_unassigned_span_in_struct_viewer(variant_draft, 0, layout_size_in_bytes);
-        } else {
-            SymbolLayoutEditorViewData::clear_field_selection(self.symbol_layout_editor_view_data.clone());
-            self.clear_struct_viewer_if_symbol_layout_focused();
-        }
-    }
-
     fn build_symbolic_field_definition_from_draft(field_draft: &SymbolLayoutFieldEditDraft) -> Result<SymbolicFieldDefinition, String> {
         let trimmed_data_type_id = field_draft
             .data_type_selection
@@ -1469,75 +1328,6 @@ impl SymbolLayoutEditorView {
                 Some(StructViewerFocusTarget::SymbolLayoutEditor { selection_key }),
             );
         })
-    }
-
-    fn focus_field_in_struct_viewer(
-        &self,
-        project_symbol_catalog: &ProjectSymbolCatalog,
-        draft: &SymbolLayoutEditDraft,
-        field_index: usize,
-    ) {
-        let Some(field_draft) = draft.field_drafts.get(field_index) else {
-            self.clear_struct_viewer_if_symbol_layout_focused();
-            return;
-        };
-
-        let details_projection = SymbolLayoutDetails::build_field_projection(
-            &draft.layout_id,
-            field_index,
-            draft.layout_kind,
-            &Self::build_field_details(project_symbol_catalog, draft.layout_kind, field_draft),
-        );
-        let selection_key = format!("field|{}|{}", draft.layout_id, field_index);
-        let edit_callback = Self::build_struct_viewer_field_edit_callback(
-            self.symbol_layout_editor_view_data.clone(),
-            self.struct_viewer_view_data.clone(),
-            self.app_context.clone(),
-            field_index,
-        );
-
-        StructViewerViewData::focus_details_projection_with_focus_target(
-            self.struct_viewer_view_data.clone(),
-            self.app_context.engine_unprivileged_state.clone(),
-            details_projection,
-            edit_callback,
-            Some(StructViewerFocusTarget::SymbolLayoutEditor { selection_key }),
-        );
-    }
-
-    fn focus_variant_field_in_struct_viewer(
-        &self,
-        project_symbol_catalog: &ProjectSymbolCatalog,
-        variant_draft: &SymbolLayoutEditDraft,
-        field_index: usize,
-    ) {
-        let Some(field_draft) = variant_draft.field_drafts.get(field_index) else {
-            self.clear_struct_viewer_if_symbol_layout_focused();
-            return;
-        };
-
-        let details_projection = SymbolLayoutDetails::build_field_projection(
-            &variant_draft.layout_id,
-            field_index,
-            SymbolicLayoutKind::Struct,
-            &Self::build_field_details(project_symbol_catalog, SymbolicLayoutKind::Struct, field_draft),
-        );
-        let selection_key = format!("field|{}|{}", variant_draft.layout_id, field_index);
-        let edit_callback = Self::build_variant_field_edit_callback(
-            self.symbol_layout_editor_view_data.clone(),
-            self.struct_viewer_view_data.clone(),
-            self.app_context.clone(),
-            variant_draft.layout_id.clone(),
-            field_index,
-        );
-
-        StructViewerViewData::focus_details_projection_with_focus_target(
-            self.struct_viewer_view_data.clone(),
-            self.app_context.engine_unprivileged_state.clone(),
-            details_projection,
-            edit_callback,
-            Some(StructViewerFocusTarget::SymbolLayoutEditor { selection_key }),
-        );
     }
 
     fn focus_unassigned_span_in_struct_viewer(
@@ -3140,94 +2930,18 @@ impl SymbolLayoutEditorView {
         }
 
         if let Some((variant_layout_id, field_index, field_row_action)) = pending_variant_field_row_action {
-            self.handle_variant_field_row_action(project_symbol_catalog, draft, variant_layout_id, field_index, field_row_action);
+            field_row_action.apply_to_variant_layout(self, project_symbol_catalog, draft, variant_layout_id, field_index);
         }
 
         if let Some((field_index, field_row_action)) = pending_field_row_action {
-            let mut field_index_to_focus = None;
-            match field_row_action {
-                SymbolLayoutFieldRowAction::InsertAfter => {
-                    let insert_index = field_index.saturating_add(1).min(draft.field_drafts.len());
-                    let mut field_draft = self.create_field_draft_for_layout_kind(project_symbol_catalog, draft.layout_kind, &draft.layout_id, insert_index);
-                    field_draft.field_name = SymbolLayoutDraftOps::build_unique_field_name(draft, &field_draft.field_name);
-                    draft.field_drafts.insert(insert_index, field_draft);
-                    field_index_to_focus = Some(insert_index);
-                }
-                SymbolLayoutFieldRowAction::InsertFieldIntoVariant => {
-                    if let Some((variant_draft, variant_field_index)) = self.append_field_to_variant_layout(project_symbol_catalog, draft, field_index) {
-                        SymbolLayoutEditorViewData::select_field_for_layout(
-                            self.symbol_layout_editor_view_data.clone(),
-                            Some(variant_draft.layout_id.clone()),
-                            variant_field_index,
-                        );
-                        self.focus_variant_field_in_struct_viewer(project_symbol_catalog, &variant_draft, variant_field_index);
-                    }
-                }
-                SymbolLayoutFieldRowAction::RequestRemoveFieldConfirmation => {
-                    SymbolLayoutEditorViewData::request_field_delete_confirmation(
-                        self.symbol_layout_editor_view_data.clone(),
-                        draft.layout_id.clone(),
-                        field_index,
-                    );
-                    field_index_to_focus = Some(field_index);
-                }
-                SymbolLayoutFieldRowAction::MoveUp => {
-                    if !draft.layout_kind.is_union() {
-                        if let Some((layout_size_in_bytes, field_spans)) = field_spans.as_ref()
-                            && SymbolLayoutDraftOps::move_struct_field_up(draft, field_spans, &unassigned_split_offsets, field_index)
-                        {
-                            if let Some(split_offset_in_bytes) = SymbolLayoutDraftOps::split_offset_to_preserve_field_move_up(
-                                field_spans,
-                                *layout_size_in_bytes,
-                                &unassigned_split_offsets,
-                                field_index,
-                            ) {
-                                SymbolLayoutEditorViewData::insert_unassigned_split_offset_for_layout(
-                                    self.symbol_layout_editor_view_data.clone(),
-                                    None,
-                                    split_offset_in_bytes,
-                                );
-                            }
-                            field_index_to_focus = Some(field_index);
-                        }
-                    } else if field_index > 0 {
-                        draft.field_drafts.swap(field_index, field_index - 1);
-                        field_index_to_focus = Some(field_index - 1);
-                    }
-                }
-                SymbolLayoutFieldRowAction::MoveDown => {
-                    if !draft.layout_kind.is_union() {
-                        if let Some((layout_size_in_bytes, field_spans)) = field_spans.as_ref()
-                            && SymbolLayoutDraftOps::move_struct_field_down(draft, field_spans, *layout_size_in_bytes, &unassigned_split_offsets, field_index)
-                        {
-                            if let Some(split_offset_in_bytes) = SymbolLayoutDraftOps::split_offset_to_preserve_field_move_down(
-                                field_spans,
-                                *layout_size_in_bytes,
-                                &unassigned_split_offsets,
-                                field_index,
-                            ) {
-                                SymbolLayoutEditorViewData::insert_unassigned_split_offset_for_layout(
-                                    self.symbol_layout_editor_view_data.clone(),
-                                    None,
-                                    split_offset_in_bytes,
-                                );
-                            }
-                            field_index_to_focus = Some(field_index);
-                        }
-                    } else if field_index + 1 < draft.field_drafts.len() {
-                        draft.field_drafts.swap(field_index, field_index + 1);
-                        field_index_to_focus = Some(field_index + 1);
-                    }
-                }
-                SymbolLayoutFieldRowAction::SelectField => {
-                    field_index_to_focus = Some(field_index);
-                }
-            }
-
-            if let Some(field_index_to_focus) = field_index_to_focus {
-                SymbolLayoutEditorViewData::select_field(self.symbol_layout_editor_view_data.clone(), field_index_to_focus);
-                self.focus_field_in_struct_viewer(project_symbol_catalog, draft, field_index_to_focus);
-            }
+            field_row_action.apply_to_layout_draft(
+                self,
+                project_symbol_catalog,
+                draft,
+                field_index,
+                field_spans.as_ref(),
+                &unassigned_split_offsets,
+            );
         }
     }
 }
