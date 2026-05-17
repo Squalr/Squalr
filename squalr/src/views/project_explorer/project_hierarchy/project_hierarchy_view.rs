@@ -2,11 +2,9 @@ use crate::{
     app_context::AppContext,
     ui::{
         converters::data_type_to_icon_converter::DataTypeToIconConverter,
-        geometry::{safe_clamp_f32, safe_clamp_ord},
         list_navigation::ListNavigationDirection,
         widgets::controls::{
             context_menu::context_menu::{ContextMenu, ContextMenuSizing},
-            groupbox::GroupBox,
             toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView,
         },
     },
@@ -17,11 +15,14 @@ use crate::{
     views::project_explorer::{
         project_explorer_view::ProjectExplorerView,
         project_hierarchy::{
+            project_hierarchy_details_focus::ProjectHierarchyDetailsFocus,
+            project_hierarchy_runtime_preview_controller::ProjectHierarchyRuntimePreviewController,
+            project_hierarchy_takeover_host_view::{ProjectHierarchyTakeoverHostAction, ProjectHierarchyTakeoverHostView},
             project_hierarchy_toolbar_view::ProjectHierarchyToolbarView,
             project_item_details::ProjectItemDetails,
             project_item_entry_view::ProjectItemEntryView,
             project_item_inline_rename_view::ProjectItemInlineRenameView,
-            project_item_value_edit_take_over_view::ProjectItemValueEditTakeOverView,
+            project_item_rename_request_builder::ProjectItemRenameRequestBuilder,
             view_data::{
                 project_hierarchy_create_item_kind::ProjectHierarchyCreateItemKind, project_hierarchy_drop_target::ProjectHierarchyDropTarget,
                 project_hierarchy_frame_action::ProjectHierarchyFrameAction, project_hierarchy_menu_target::ProjectHierarchyMenuTarget,
@@ -32,35 +33,26 @@ use crate::{
     },
     views::struct_viewer::view_data::{struct_viewer_focus_target::StructViewerFocusTarget, struct_viewer_view_data::StructViewerViewData},
 };
-use eframe::egui::{Align, CursorIcon, Direction, Id, Key, Layout, Pos2, Rect, Response, RichText, ScrollArea, TextureHandle, Ui, Widget, vec2};
+use eframe::egui::{Align, CursorIcon, Id, Key, Layout, Pos2, Rect, Response, ScrollArea, TextureHandle, Ui, Widget};
 use epaint::{CornerRadius, Stroke, StrokeKind};
 use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRequest;
 use squalr_engine_api::commands::project::save::project_save_request::ProjectSaveRequest;
-use squalr_engine_api::commands::project_items::rename::project_items_rename_request::ProjectItemsRenameRequest;
 use squalr_engine_api::commands::project_items::write_value::project_items_write_value_request::ProjectItemsWriteValueRequest;
 use squalr_engine_api::commands::settings::scan::list::scan_settings_list_request::ScanSettingsListRequest;
 use squalr_engine_api::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
-use squalr_engine_api::structures::data_values::{
-    anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType,
-    data_value::DataValue,
-};
-use squalr_engine_api::structures::details::{DetailsEdit, DetailsEditOperation, DetailsEditPlan, DetailsFieldSource, DetailsValue};
+use squalr_engine_api::structures::data_values::anonymous_value_string::AnonymousValueString;
 use squalr_engine_api::structures::memory::address_display::try_resolve_virtual_module_address;
 use squalr_engine_api::structures::memory::pointer::Pointer;
-use squalr_engine_api::structures::projects::project::Project;
 use squalr_engine_api::structures::projects::project_info::ProjectInfo;
 use squalr_engine_api::structures::projects::project_items::built_in_types::{
     project_item_type_address::ProjectItemTypeAddress, project_item_type_directory::ProjectItemTypeDirectory, project_item_type_pointer::ProjectItemTypePointer,
 };
 use squalr_engine_api::structures::projects::project_items::{
-    details::{ProjectItemDetailsEditApplier, ProjectItemDetailsEditPlanner, ProjectItemDetailsProjection},
-    project_item::ProjectItem,
-    project_item_ref::ProjectItemRef,
+    details::ProjectItemDetailsProjection, project_item::ProjectItem, project_item_ref::ProjectItemRef,
 };
-use squalr_engine_session::virtual_snapshots::virtual_snapshot_query::VirtualSnapshotQuery;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -158,6 +150,18 @@ impl ProjectHierarchyView {
             struct_viewer_view_data,
         }
     }
+
+    fn details_focus(&self) -> ProjectHierarchyDetailsFocus {
+        ProjectHierarchyDetailsFocus::new(
+            self.app_context.clone(),
+            self.project_hierarchy_view_data.clone(),
+            self.struct_viewer_view_data.clone(),
+        )
+    }
+
+    fn runtime_preview_controller(&self) -> ProjectHierarchyRuntimePreviewController {
+        ProjectHierarchyRuntimePreviewController::new(self.app_context.clone(), self.project_hierarchy_view_data.clone(), self.details_focus())
+    }
 }
 impl Widget for ProjectHierarchyView {
     fn ui(
@@ -165,13 +169,14 @@ impl Widget for ProjectHierarchyView {
         user_interface: &mut Ui,
     ) -> Response {
         self.sync_scan_settings_if_needed();
-        let project_read_interval = self.get_project_read_interval();
+        let runtime_preview_controller = self.runtime_preview_controller();
+        let project_read_interval = runtime_preview_controller.get_project_read_interval();
         user_interface
             .ctx()
             .request_repaint_after(project_read_interval);
 
         self.refresh_if_project_changed();
-        self.refresh_if_project_preview_values_stale(project_read_interval);
+        runtime_preview_controller.refresh_if_project_preview_values_stale(project_read_interval);
 
         let project_hierarchy_toolbar_view = self.project_hierarchy_toolbar_view.clone();
         let mut project_hierarchy_frame_action = ProjectHierarchyFrameAction::None;
@@ -248,7 +253,9 @@ impl Widget for ProjectHierarchyView {
                     _ => None,
                 };
                 is_value_edit_take_over_active = active_value_edit_project_item_path.is_some();
-                match take_over_state {
+                is_delete_confirmation_active = matches!(take_over_state, ProjectHierarchyTakeOverState::DeleteConfirmation { .. });
+                is_promote_symbol_conflict_active = matches!(take_over_state, ProjectHierarchyTakeOverState::PromoteSymbolConflict { .. });
+                match &take_over_state {
                     ProjectHierarchyTakeOverState::None | ProjectHierarchyTakeOverState::RenameProjectItem { .. } => {
                         ScrollArea::vertical()
                             .id_salt("project_hierarchy")
@@ -726,216 +733,37 @@ impl Widget for ProjectHierarchyView {
                                 }
                             });
                     }
-                    ProjectHierarchyTakeOverState::EditProjectItemValue { project_item_path } => {
-                        is_value_edit_take_over_active = true;
-
-                        let project_item = tree_entries
-                            .iter()
-                            .find(|tree_entry| tree_entry.project_item_path == project_item_path)
-                            .map(|tree_entry| tree_entry.project_item.clone());
-                        let Some(project_item) = project_item else {
-                            should_cancel_take_over = true;
-                            return;
-                        };
-                        let Some(value_edit_context) = ProjectItemDetails::build_project_item_value_edit_context(
-                            &self.app_context.engine_unprivileged_state,
+                    ProjectHierarchyTakeOverState::EditProjectItemValue { .. }
+                    | ProjectHierarchyTakeOverState::DeleteConfirmation { .. }
+                    | ProjectHierarchyTakeOverState::PromoteSymbolConflict { .. } => {
+                        match ProjectHierarchyTakeoverHostView::new(
+                            self.app_context.clone(),
                             project_hierarchy_view_data.opened_project_info.as_ref(),
-                            &project_item,
+                            &tree_entries,
+                            &take_over_state,
                         )
-                        else {
-                            should_cancel_take_over = true;
-                            return;
-                        };
-                        let value_edit_storage_id = Self::project_item_value_edit_storage_id(&project_item_path);
-                        let mut value_edit = user_interface
-                            .ctx()
-                            .data_mut(|data| data.get_temp::<AnonymousValueString>(value_edit_storage_id))
-                            .unwrap_or_else(|| value_edit_context.initial_value_edit.clone());
-                        let value_edit_display_values = ProjectItemDetails::build_project_item_value_edit_display_values(
-                            &self.app_context.engine_unprivileged_state,
-                            &value_edit_context.validation_data_type_ref,
-                            &value_edit,
-                        );
-                        let value_editor_id = format!("project_hierarchy_value_editor_{}", project_item_path.to_string_lossy());
-                        let panel_width = safe_clamp_f32(user_interface.available_width(), 320.0, 560.0);
-
-                        user_interface.add_space(12.0);
-                        user_interface.horizontal(|user_interface| {
-                            let side_spacing = ((user_interface.available_width() - panel_width) * 0.5).max(0.0);
-                            user_interface.add_space(side_spacing);
-                            user_interface.allocate_ui_with_layout(vec2(panel_width, 0.0), Layout::top_down(Align::Min), |user_interface| {
-                                let value_edit_take_over_response = ProjectItemValueEditTakeOverView::new(
-                                    self.app_context.clone(),
-                                    &value_edit_context.project_item_name,
-                                    &mut value_edit,
-                                    &value_edit_context.validation_data_type_ref,
-                                    &value_edit_display_values,
-                                    &value_editor_id,
-                                )
-                                .show(user_interface);
-
-                                if value_edit_take_over_response.should_commit {
-                                    value_edit_project_item_submission = Some((
-                                        project_item_path.clone(),
-                                        value_edit_context.value_field_name.clone(),
-                                        value_edit_context.validation_data_type_ref.clone(),
-                                        value_edit.clone(),
-                                    ));
-                                }
-
-                                if value_edit_take_over_response.should_cancel {
-                                    should_cancel_take_over = true;
-                                }
-                            });
-                        });
-
-                        user_interface
-                            .ctx()
-                            .data_mut(|data| data.insert_temp(value_edit_storage_id, value_edit));
-                    }
-                    ProjectHierarchyTakeOverState::DeleteConfirmation { project_item_paths } => {
-                        is_delete_confirmation_active = true;
-                        let theme = &self.app_context.theme;
-
-                        user_interface.allocate_ui_with_layout(
-                            user_interface.available_size(),
-                            Layout::centered_and_justified(Direction::TopDown),
-                            |user_interface| {
-                                let groupbox_side_padding = 8.0;
-                                let panel_width = (user_interface.available_width() - groupbox_side_padding * 2.0).max(0.0);
-
-                                user_interface.horizontal(|user_interface| {
-                                    user_interface.add_space(groupbox_side_padding);
-                                    user_interface.add(
-                                        GroupBox::new_from_theme(theme, "Delete project item(s)", |user_interface| {
-                                            ScrollArea::vertical()
-                                                .id_salt("project_hierarchy_delete_confirmation")
-                                                .max_height(160.0)
-                                                .auto_shrink([false, false])
-                                                .show(user_interface, |user_interface| {
-                                                    user_interface.vertical_centered(|user_interface| {
-                                                        for project_item_path in &project_item_paths {
-                                                            let project_item_name = project_item_path
-                                                                .file_name()
-                                                                .and_then(|value| value.to_str())
-                                                                .unwrap_or_default();
-                                                            user_interface.label(
-                                                                RichText::new(project_item_name)
-                                                                    .font(theme.font_library.font_ubuntu_mono_bold.font_header.clone())
-                                                                    .color(theme.foreground),
-                                                            );
-                                                        }
-                                                    });
-                                                });
-
-                                            user_interface.add_space(12.0);
-                                            user_interface.allocate_ui(vec2(user_interface.available_width(), 32.0), |user_interface| {
-                                                let button_size = vec2(120.0, 28.0);
-                                                let button_spacing = 12.0;
-                                                let total_button_row_width = button_size.x * 2.0 + button_spacing;
-                                                let side_spacing = ((user_interface.available_width() - total_button_row_width) * 0.5).max(0.0);
-
-                                                user_interface.horizontal(|user_interface| {
-                                                    user_interface.add_space(side_spacing);
-                                                    user_interface.spacing_mut().item_spacing.x = button_spacing;
-
-                                                    let button_confirm_delete = user_interface.add_sized(
-                                                        button_size,
-                                                        eframe::egui::Button::new(RichText::new("Delete").color(theme.foreground))
-                                                            .fill(theme.background_control_danger)
-                                                            .stroke(Stroke::new(1.0, theme.background_control_danger_dark)),
-                                                    );
-
-                                                    if button_confirm_delete.clicked() {
-                                                        delete_confirmation_project_item_paths = Some(project_item_paths);
-                                                    }
-
-                                                    let button_cancel = user_interface.add_sized(
-                                                        button_size,
-                                                        eframe::egui::Button::new(RichText::new("Cancel").color(theme.foreground))
-                                                            .fill(theme.background_control_secondary)
-                                                            .stroke(Stroke::new(1.0, theme.background_control_secondary_dark)),
-                                                    );
-
-                                                    if button_cancel.clicked() {
-                                                        should_cancel_take_over = true;
-                                                    }
-                                                });
-                                            });
-                                        })
-                                        .desired_width(panel_width),
-                                    );
-                                });
-                            },
-                        );
-                    }
-                    ProjectHierarchyTakeOverState::PromoteSymbolConflict { project_item_paths, conflicts } => {
-                        is_promote_symbol_conflict_active = true;
-                        let theme = &self.app_context.theme;
-
-                        user_interface.add_space(12.0);
-                        user_interface.vertical_centered(|user_interface| {
-                            user_interface.label(
-                                RichText::new("Overwrite conflicting symbol claim(s)?")
-                                    .font(theme.font_library.font_noto_sans.font_normal.clone())
-                                    .color(theme.foreground),
-                            );
-                        });
-                        user_interface.add_space(8.0);
-
-                        ScrollArea::vertical()
-                            .id_salt("project_hierarchy_promote_symbol_conflicts")
-                            .max_height(180.0)
-                            .auto_shrink([false, false])
-                            .show(user_interface, |user_interface| {
-                                user_interface.vertical(|user_interface| {
-                                    for conflict in &conflicts {
-                                        user_interface.label(
-                                            RichText::new(format!(
-                                                "{} -> {} ({})",
-                                                conflict.requested_display_name, conflict.symbol_locator_key, conflict.existing_locator_display
-                                            ))
-                                            .font(theme.font_library.font_ubuntu_mono_bold.font_normal.clone())
-                                            .color(theme.foreground),
-                                        );
-                                    }
-                                });
-                            });
-
-                        user_interface.add_space(8.0);
-                        user_interface.allocate_ui(vec2(user_interface.available_width(), 32.0), |user_interface| {
-                            let button_size = vec2(120.0, 28.0);
-                            let button_spacing = 12.0;
-                            let total_button_row_width = button_size.x * 2.0 + button_spacing;
-                            let side_spacing = ((user_interface.available_width() - total_button_row_width) * 0.5).max(0.0);
-
-                            user_interface.horizontal(|user_interface| {
-                                user_interface.add_space(side_spacing);
-                                user_interface.spacing_mut().item_spacing.x = button_spacing;
-
-                                let button_cancel = user_interface.add_sized(
-                                    button_size,
-                                    eframe::egui::Button::new(RichText::new("Cancel").color(theme.foreground))
-                                        .fill(theme.background_control_secondary)
-                                        .stroke(Stroke::new(1.0, theme.background_control_secondary_dark)),
-                                );
-
-                                if button_cancel.clicked() {
-                                    should_cancel_take_over = true;
-                                }
-
-                                let button_confirm_overwrite = user_interface.add_sized(
-                                    button_size,
-                                    eframe::egui::Button::new(RichText::new("Overwrite").color(theme.foreground))
-                                        .fill(theme.background_control_secondary)
-                                        .stroke(Stroke::new(1.0, theme.background_control_secondary_dark)),
-                                );
-
-                                if button_confirm_overwrite.clicked() {
-                                    promote_symbol_overwrite_project_item_paths = Some(project_item_paths);
-                                }
-                            });
-                        });
+                        .show(user_interface)
+                        {
+                            ProjectHierarchyTakeoverHostAction::None => {}
+                            ProjectHierarchyTakeoverHostAction::Cancel => {
+                                should_cancel_take_over = true;
+                            }
+                            ProjectHierarchyTakeoverHostAction::DeleteProjectItems(project_item_paths) => {
+                                delete_confirmation_project_item_paths = Some(project_item_paths);
+                            }
+                            ProjectHierarchyTakeoverHostAction::PromoteSymbolOverwrite(project_item_paths) => {
+                                promote_symbol_overwrite_project_item_paths = Some(project_item_paths);
+                            }
+                            ProjectHierarchyTakeoverHostAction::SubmitValueEdit {
+                                project_item_path,
+                                value_field_name,
+                                validation_data_type_ref,
+                                value_edit,
+                            } => {
+                                value_edit_project_item_submission =
+                                    Some((project_item_path, value_field_name, validation_data_type_ref, value_edit));
+                            }
+                        }
                     }
                 }
             })
@@ -1118,7 +946,8 @@ impl Widget for ProjectHierarchyView {
             && !is_value_edit_take_over_active
             && ProjectHierarchyViewData::set_visible_preview_project_item_paths(self.project_hierarchy_view_data.clone(), visible_preview_project_item_paths)
         {
-            self.sync_project_item_virtual_snapshot(project_read_interval);
+            self.runtime_preview_controller()
+                .sync_project_item_virtual_snapshot(project_read_interval);
         }
 
         if should_cancel_take_over {
@@ -1140,7 +969,7 @@ impl Widget for ProjectHierarchyView {
                     _ => None,
                 })
             {
-                Self::clear_project_item_value_edit_state(user_interface, &project_item_path);
+                ProjectHierarchyTakeoverHostView::clear_project_item_value_edit_state(user_interface, &project_item_path);
             }
             ProjectHierarchyViewData::cancel_take_over(self.project_hierarchy_view_data.clone());
         }
@@ -1150,7 +979,9 @@ impl Widget for ProjectHierarchyView {
         }
 
         if let Some(project_item_paths) = promote_symbol_overwrite_project_item_paths {
-            let details_refresh_callback = self.build_project_item_details_refresh_callback(project_item_paths.clone());
+            let details_refresh_callback = self
+                .details_focus()
+                .build_project_item_details_refresh_callback(project_item_paths.clone());
             ProjectHierarchyViewData::promote_project_items_to_symbols(
                 self.project_hierarchy_view_data.clone(),
                 self.app_context.clone(),
@@ -1163,7 +994,7 @@ impl Widget for ProjectHierarchyView {
         if let Some((project_item_path, project_item_type_id, edited_name)) = rename_project_item_submission {
             Self::clear_project_item_rename_state(user_interface, &project_item_path);
 
-            if let Some(project_item_rename_request) = Self::build_project_item_rename_request(&project_item_path, &project_item_type_id, edited_name.trim()) {
+            if let Some(project_item_rename_request) = ProjectItemRenameRequestBuilder::build(&project_item_path, &project_item_type_id, edited_name.trim()) {
                 let project_hierarchy_view_data = self.project_hierarchy_view_data.clone();
                 let app_context = self.app_context.clone();
                 let previous_project_item_path = project_item_path.clone();
@@ -1203,7 +1034,7 @@ impl Widget for ProjectHierarchyView {
                             log::warn!("Project item write-value command failed while committing value edit takeover.");
                         }
                     });
-                    Self::clear_project_item_value_edit_state(user_interface, &project_item_path);
+                    ProjectHierarchyTakeoverHostView::clear_project_item_value_edit_state(user_interface, &project_item_path);
                     ProjectHierarchyViewData::cancel_take_over(self.project_hierarchy_view_data.clone());
                 }
                 Err(error) => {
@@ -1387,7 +1218,9 @@ impl Widget for ProjectHierarchyView {
                     return response;
                 }
 
-                let details_refresh_callback = self.build_project_item_details_refresh_callback(project_item_paths.clone());
+                let details_refresh_callback = self
+                    .details_focus()
+                    .build_project_item_details_refresh_callback(project_item_paths.clone());
                 ProjectHierarchyViewData::promote_project_items_to_symbols(
                     self.project_hierarchy_view_data.clone(),
                     self.app_context.clone(),
@@ -1401,7 +1234,9 @@ impl Widget for ProjectHierarchyView {
                     return response;
                 }
 
-                let details_refresh_callback = self.build_project_item_details_refresh_callback(project_item_paths.clone());
+                let details_refresh_callback = self
+                    .details_focus()
+                    .build_project_item_details_refresh_callback(project_item_paths.clone());
 
                 Self::strip_symbol_information_from_project_items(
                     self.app_context.clone(),
@@ -1447,12 +1282,9 @@ impl Widget for ProjectHierarchyView {
 }
 
 impl ProjectHierarchyView {
-    const MIN_PROJECT_READ_INTERVAL_MS: u64 = 50;
-    const MAX_PROJECT_READ_INTERVAL_MS: u64 = 5_000;
     const SCAN_SETTINGS_SYNC_INTERVAL_MS: u64 = 1_000;
     const DROP_INSERTION_BAND_HEIGHT: f32 = 7.0;
     const PROJECT_ITEM_ROW_HEIGHT: f32 = 28.0;
-    const PROJECT_ITEM_PREVIEW_VIRTUAL_SNAPSHOT_ID: &str = "project_hierarchy_preview";
 
     fn show_toolbar_add_menu(
         &self,
@@ -1692,569 +1524,8 @@ impl ProjectHierarchyView {
         });
     }
 
-    fn get_project_read_interval(&self) -> Duration {
-        let configured_project_read_interval_ms = self
-            .project_hierarchy_view_data
-            .read("Project hierarchy project read interval")
-            .map(|project_hierarchy_view_data| project_hierarchy_view_data.project_read_interval_ms)
-            .unwrap_or(200);
-        let bounded_project_read_interval_ms = safe_clamp_ord(
-            configured_project_read_interval_ms,
-            Self::MIN_PROJECT_READ_INTERVAL_MS,
-            Self::MAX_PROJECT_READ_INTERVAL_MS,
-        );
-
-        Duration::from_millis(bounded_project_read_interval_ms)
-    }
-
-    fn refresh_if_project_preview_values_stale(
-        &self,
-        project_read_interval: Duration,
-    ) {
-        let should_refresh_project_items = self
-            .project_hierarchy_view_data
-            .write("Project hierarchy periodic project read check")
-            .map(|mut project_hierarchy_view_data| {
-                let has_open_project = project_hierarchy_view_data.opened_project_info.is_some();
-                if !has_open_project || project_hierarchy_view_data.pending_operation != ProjectHierarchyPendingOperation::None {
-                    return false;
-                }
-
-                let now = Instant::now();
-                let has_refresh_interval_elapsed = project_hierarchy_view_data
-                    .last_project_read_timestamp
-                    .map(|last_project_read_timestamp| now.duration_since(last_project_read_timestamp) >= project_read_interval)
-                    .unwrap_or(true);
-
-                if !has_refresh_interval_elapsed {
-                    return false;
-                }
-
-                project_hierarchy_view_data.last_project_read_timestamp = Some(now);
-
-                true
-            })
-            .unwrap_or(false);
-
-        if should_refresh_project_items {
-            self.sync_project_item_virtual_snapshot(project_read_interval);
-        }
-    }
-
-    fn sync_project_item_virtual_snapshot(
-        &self,
-        project_read_interval: Duration,
-    ) {
-        let virtual_snapshot_queries = self
-            .project_hierarchy_view_data
-            .read("Project hierarchy build virtual snapshot queries")
-            .map(|project_hierarchy_view_data| {
-                if project_hierarchy_view_data.opened_project_info.is_none() {
-                    return Vec::new();
-                }
-
-                let requested_preview_project_item_paths = project_hierarchy_view_data.collect_requested_preview_project_item_paths();
-
-                requested_preview_project_item_paths
-                    .into_iter()
-                    .filter_map(|project_item_path| {
-                        project_hierarchy_view_data
-                            .project_items
-                            .iter()
-                            .find(|(project_item_ref, _)| project_item_ref.get_project_item_path() == &project_item_path)
-                            .and_then(|(_, project_item)| {
-                                ProjectItemDetails::build_project_item_virtual_snapshot_query(
-                                    project_hierarchy_view_data.opened_project_info.as_ref(),
-                                    &project_item_path,
-                                    project_item,
-                                    &self.app_context.engine_unprivileged_state,
-                                )
-                            })
-                    })
-                    .collect::<Vec<VirtualSnapshotQuery>>()
-            })
-            .unwrap_or_default();
-
-        self.app_context
-            .engine_unprivileged_state
-            .set_virtual_snapshot_queries(Self::PROJECT_ITEM_PREVIEW_VIRTUAL_SNAPSHOT_ID, project_read_interval, virtual_snapshot_queries);
-        self.app_context
-            .engine_unprivileged_state
-            .request_virtual_snapshot_refresh(Self::PROJECT_ITEM_PREVIEW_VIRTUAL_SNAPSHOT_ID);
-        self.apply_project_item_virtual_snapshot_results();
-    }
-
-    fn apply_project_item_virtual_snapshot_results(&self) {
-        let Some(virtual_snapshot) = self
-            .app_context
-            .engine_unprivileged_state
-            .get_virtual_snapshot(Self::PROJECT_ITEM_PREVIEW_VIRTUAL_SNAPSHOT_ID)
-        else {
-            return;
-        };
-        let preview_fields_by_project_item_path = self
-            .project_hierarchy_view_data
-            .read("Project hierarchy apply virtual snapshot results")
-            .map(|project_hierarchy_view_data| {
-                project_hierarchy_view_data
-                    .project_items
-                    .iter()
-                    .filter_map(|(project_item_ref, project_item)| {
-                        let project_item_path = project_item_ref.get_project_item_path();
-                        let query_id = project_item_path.to_string_lossy().to_string();
-                        let query_result = virtual_snapshot.get_query_results().get(&query_id)?;
-                        let preview_value = ProjectItemDetails::build_project_item_preview_value_from_virtual_snapshot_result(
-                            &self.app_context.engine_unprivileged_state,
-                            project_hierarchy_view_data.opened_project_info.as_ref(),
-                            project_item,
-                            query_result,
-                        );
-                        let preview_path = if project_item.get_item_type().get_project_item_type_id() == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
-                            query_result.evaluated_pointer_path.clone()
-                        } else {
-                            String::new()
-                        };
-
-                        Some((project_item_path.clone(), (preview_value, preview_path)))
-                    })
-                    .collect::<HashMap<PathBuf, (String, String)>>()
-            })
-            .unwrap_or_default();
-
-        if !preview_fields_by_project_item_path.is_empty() {
-            let did_update_preview_fields =
-                ProjectHierarchyViewData::set_project_item_preview_fields(self.project_hierarchy_view_data.clone(), &preview_fields_by_project_item_path);
-
-            if did_update_preview_fields {
-                self.refocus_project_item_details_if_preview_changed(&preview_fields_by_project_item_path);
-            }
-        }
-    }
-
     fn focus_selected_project_items_in_struct_viewer(&self) {
-        let selected_project_item_paths = self
-            .project_hierarchy_view_data
-            .read("Project hierarchy selected project items for struct viewer focus")
-            .map(|project_hierarchy_view_data| project_hierarchy_view_data.collect_selected_project_item_paths_in_tree_order())
-            .unwrap_or_default();
-
-        Self::focus_project_item_paths_in_struct_viewer(
-            self.app_context.clone(),
-            self.project_hierarchy_view_data.clone(),
-            self.struct_viewer_view_data.clone(),
-            selected_project_item_paths,
-        );
-    }
-
-    fn refocus_project_item_details_if_preview_changed(
-        &self,
-        preview_fields_by_project_item_path: &HashMap<PathBuf, (String, String)>,
-    ) {
-        let focused_project_item_paths = self
-            .struct_viewer_view_data
-            .read("Project hierarchy details preview refresh focus target")
-            .and_then(|struct_viewer_view_data| match struct_viewer_view_data.get_focus_target() {
-                Some(StructViewerFocusTarget::ProjectHierarchy { project_item_paths }) => Some(project_item_paths.clone()),
-                _ => None,
-            })
-            .unwrap_or_default();
-
-        if focused_project_item_paths.is_empty()
-            || !focused_project_item_paths
-                .iter()
-                .any(|project_item_path| preview_fields_by_project_item_path.contains_key(project_item_path))
-        {
-            return;
-        }
-
-        Self::focus_project_item_paths_in_struct_viewer(
-            self.app_context.clone(),
-            self.project_hierarchy_view_data.clone(),
-            self.struct_viewer_view_data.clone(),
-            focused_project_item_paths,
-        );
-    }
-
-    fn build_project_item_details_refresh_callback(
-        &self,
-        project_item_paths: Vec<PathBuf>,
-    ) -> Arc<dyn Fn() + Send + Sync> {
-        let app_context = self.app_context.clone();
-        let project_hierarchy_view_data = self.project_hierarchy_view_data.clone();
-        let struct_viewer_view_data = self.struct_viewer_view_data.clone();
-
-        Arc::new(move || {
-            Self::focus_project_item_paths_in_struct_viewer(
-                app_context.clone(),
-                project_hierarchy_view_data.clone(),
-                struct_viewer_view_data.clone(),
-                project_item_paths.clone(),
-            );
-        })
-    }
-
-    fn focus_project_item_paths_in_struct_viewer(
-        app_context: Arc<AppContext>,
-        project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
-        struct_viewer_view_data: Dependency<StructViewerViewData>,
-        project_item_paths: Vec<PathBuf>,
-    ) {
-        if project_item_paths.is_empty() {
-            StructViewerViewData::clear_focus(struct_viewer_view_data);
-            return;
-        }
-        let project_manager = app_context.engine_unprivileged_state.get_project_manager();
-        let opened_project_lock = project_manager.get_opened_project();
-        let opened_project_guard = match opened_project_lock.read() {
-            Ok(opened_project_guard) => opened_project_guard,
-            Err(error) => {
-                log::error!("Failed to acquire opened project lock while focusing project item details: {}", error);
-                return;
-            }
-        };
-        let Some(opened_project) = opened_project_guard.as_ref() else {
-            StructViewerViewData::clear_focus(struct_viewer_view_data);
-            return;
-        };
-        let preview_project_item_map = project_hierarchy_view_data
-            .read("Project hierarchy details preview project items")
-            .map(|project_hierarchy_view_data| {
-                project_hierarchy_view_data
-                    .project_items
-                    .iter()
-                    .map(|(project_item_ref, project_item)| (project_item_ref.get_project_item_path().clone(), project_item.clone()))
-                    .collect::<HashMap<PathBuf, ProjectItem>>()
-            })
-            .unwrap_or_default();
-        let selected_project_items = project_item_paths
-            .iter()
-            .filter_map(|project_item_path| {
-                let mut selected_project_item = opened_project
-                    .get_project_items()
-                    .get(&ProjectItemRef::new(project_item_path.clone()))
-                    .cloned()?;
-
-                if let Some(preview_project_item) = preview_project_item_map.get(project_item_path) {
-                    ProjectItemDetails::copy_project_item_preview_fields(preview_project_item, &mut selected_project_item);
-                }
-
-                Some(selected_project_item)
-            })
-            .collect::<Vec<ProjectItem>>();
-
-        if selected_project_items.is_empty() {
-            StructViewerViewData::clear_focus(struct_viewer_view_data);
-            return;
-        }
-
-        if selected_project_items.len() == 1 {
-            if let Some(selected_project_item) = selected_project_items.into_iter().next() {
-                let details_edit_callback = Self::build_project_item_details_projection_edit_callback(
-                    app_context.clone(),
-                    project_hierarchy_view_data.clone(),
-                    struct_viewer_view_data.clone(),
-                    project_item_paths.clone(),
-                );
-                let details_projection = ProjectItemDetailsProjection::build(&selected_project_item, project_item_paths[0].to_string_lossy().to_string());
-
-                StructViewerViewData::focus_details_projection_with_focus_target(
-                    struct_viewer_view_data,
-                    app_context.engine_unprivileged_state.clone(),
-                    details_projection,
-                    details_edit_callback,
-                    Some(StructViewerFocusTarget::ProjectHierarchy { project_item_paths }),
-                );
-            }
-        } else {
-            let details_edit_callback = Self::build_project_item_details_projection_edit_callback(
-                app_context.clone(),
-                project_hierarchy_view_data.clone(),
-                struct_viewer_view_data.clone(),
-                project_item_paths.clone(),
-            );
-            let selected_project_item_details_projections = selected_project_items
-                .into_iter()
-                .zip(project_item_paths.iter())
-                .map(|(selected_project_item, project_item_path)| {
-                    ProjectItemDetailsProjection::build(&selected_project_item, project_item_path.to_string_lossy().to_string())
-                })
-                .collect::<Vec<_>>();
-            StructViewerViewData::focus_details_projections_with_focus_target(
-                struct_viewer_view_data,
-                app_context.engine_unprivileged_state.clone(),
-                selected_project_item_details_projections,
-                details_edit_callback,
-                Some(StructViewerFocusTarget::ProjectHierarchy { project_item_paths }),
-            );
-        }
-    }
-
-    fn build_project_item_details_projection_edit_callback(
-        app_context: Arc<AppContext>,
-        project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
-        struct_viewer_view_data: Dependency<StructViewerViewData>,
-        project_item_paths: Vec<PathBuf>,
-    ) -> Arc<dyn Fn(DetailsEdit) + Send + Sync> {
-        Arc::new(move |details_edit: DetailsEdit| {
-            let Some(edit_plan) = Self::plan_project_item_details_edit(app_context.clone(), &project_item_paths, &details_edit) else {
-                return;
-            };
-            let should_refocus_details = edit_plan
-                .get_operations()
-                .iter()
-                .any(|operation| matches!(operation, DetailsEditOperation::RefreshProjection { .. }));
-
-            for operation in edit_plan.get_operations() {
-                match operation {
-                    DetailsEditOperation::Noop { reason } => {
-                        if let Some(reason) = reason {
-                            log::debug!("Skipping project item details edit: {}", reason);
-                        }
-                    }
-                    DetailsEditOperation::Reject { reason } => {
-                        log::warn!("Rejected project item details edit: {}", reason);
-                    }
-                    DetailsEditOperation::RefreshProjection { .. } => {}
-                    DetailsEditOperation::RenameTarget { name, .. } => {
-                        Self::dispatch_project_item_details_rename(app_context.clone(), &project_item_paths, name);
-                    }
-                    DetailsEditOperation::UpdateStoredField { source, value, .. } => {
-                        Self::apply_project_item_details_stored_field_update(app_context.clone(), &project_item_paths, source, value);
-                    }
-                    DetailsEditOperation::WriteRuntimeValue { source, value, .. } => {
-                        let Some(project_items_write_value_request) =
-                            Self::build_project_item_write_value_request(app_context.clone(), &project_item_paths, source, value)
-                        else {
-                            log::warn!("Failed to build project item write-value command for details operation: {:?}", operation);
-                            continue;
-                        };
-
-                        project_items_write_value_request.send(&app_context.engine_unprivileged_state, |project_items_write_value_response| {
-                            if !project_items_write_value_response.success {
-                                log::warn!("Project item write-value command failed while committing details edit.");
-                            }
-                        });
-                    }
-                }
-            }
-
-            if should_refocus_details {
-                Self::focus_project_item_paths_in_struct_viewer(
-                    app_context.clone(),
-                    project_hierarchy_view_data.clone(),
-                    struct_viewer_view_data.clone(),
-                    project_item_paths.clone(),
-                );
-            }
-        })
-    }
-
-    fn plan_project_item_details_edit(
-        app_context: Arc<AppContext>,
-        project_item_paths: &[PathBuf],
-        details_edit: &DetailsEdit,
-    ) -> Option<DetailsEditPlan> {
-        let project_item_path = project_item_paths.first()?;
-        let project_manager = app_context.engine_unprivileged_state.get_project_manager();
-        let opened_project_lock = project_manager.get_opened_project();
-        let opened_project_guard = match opened_project_lock.read() {
-            Ok(opened_project_guard) => opened_project_guard,
-            Err(error) => {
-                log::error!("Failed to acquire opened project lock while planning project item details edit: {}", error);
-                return None;
-            }
-        };
-        let opened_project = match opened_project_guard.as_ref() {
-            Some(opened_project) => opened_project,
-            None => {
-                log::warn!("Cannot plan project item details edit without an opened project.");
-                return None;
-            }
-        };
-        let project_item_ref = ProjectItemRef::new(project_item_path.clone());
-        let project_item = match opened_project.get_project_items().get(&project_item_ref) {
-            Some(project_item) => project_item,
-            None => {
-                log::warn!("Cannot plan project item details edit, project item was not found: {:?}", project_item_path);
-                return None;
-            }
-        };
-
-        Some(ProjectItemDetailsEditPlanner::plan_edit(project_item, details_edit))
-    }
-
-    fn build_project_item_write_value_request(
-        app_context: Arc<AppContext>,
-        project_item_paths: &[PathBuf],
-        details_field_source: &DetailsFieldSource,
-        details_value: &DetailsValue,
-    ) -> Option<ProjectItemsWriteValueRequest> {
-        let project_item_path = project_item_paths.first()?.clone();
-        let DetailsFieldSource::ProjectItemRuntimeValue { field_path } = details_field_source else {
-            return None;
-        };
-        let field_name = field_path
-            .last()
-            .cloned()
-            .unwrap_or_else(|| String::from("value"));
-        let anonymous_value_string = Self::details_value_to_anonymous_value_string(app_context, details_value)?;
-
-        Some(ProjectItemsWriteValueRequest {
-            project_item_path,
-            field_name,
-            anonymous_value_string,
-        })
-    }
-
-    fn apply_project_item_details_stored_field_update(
-        app_context: Arc<AppContext>,
-        project_item_paths: &[PathBuf],
-        details_field_source: &DetailsFieldSource,
-        details_value: &DetailsValue,
-    ) {
-        let project_manager = app_context.engine_unprivileged_state.get_project_manager();
-        let opened_project_lock = project_manager.get_opened_project();
-        let mut opened_project_guard = match opened_project_lock.write() {
-            Ok(opened_project_guard) => opened_project_guard,
-            Err(error) => {
-                log::error!("Failed to acquire opened project lock for project item details update: {}", error);
-                return;
-            }
-        };
-        let Some(opened_project) = opened_project_guard.as_mut() else {
-            log::warn!("Cannot apply project item details update without an opened project.");
-            return;
-        };
-        let mut has_persisted_property_edits = false;
-
-        for project_item_path in project_item_paths {
-            let project_item_ref = ProjectItemRef::new(project_item_path.clone());
-            let Some(project_item) = opened_project.get_project_item_mut(&project_item_ref) else {
-                log::warn!("Cannot apply project item details update, project item was not found: {:?}", project_item_path);
-                continue;
-            };
-
-            match ProjectItemDetailsEditApplier::apply_update(project_item, details_field_source, details_value) {
-                Ok(true) => {
-                    project_item.set_has_unsaved_changes(true);
-                    has_persisted_property_edits = true;
-                }
-                Ok(false) => {}
-                Err(error) => log::warn!("Failed to apply project item details update: {}", error),
-            }
-        }
-
-        if !has_persisted_property_edits {
-            return;
-        }
-
-        opened_project
-            .get_project_info_mut()
-            .set_has_unsaved_changes(true);
-        drop(opened_project_guard);
-
-        let project_save_request = ProjectSaveRequest {};
-
-        project_save_request.send(&app_context.engine_unprivileged_state, |project_save_response| {
-            if !project_save_response.success {
-                log::error!("Failed to persist project item details update through project save command.");
-            }
-        });
-        project_manager.notify_project_items_changed();
-    }
-
-    fn dispatch_project_item_details_rename(
-        app_context: Arc<AppContext>,
-        project_item_paths: &[PathBuf],
-        edited_name: &str,
-    ) {
-        let project_manager = app_context.engine_unprivileged_state.get_project_manager();
-        let opened_project_lock = project_manager.get_opened_project();
-        let opened_project_guard = match opened_project_lock.read() {
-            Ok(opened_project_guard) => opened_project_guard,
-            Err(error) => {
-                log::error!("Failed to acquire opened project lock for project item details rename: {}", error);
-                return;
-            }
-        };
-        let Some(opened_project) = opened_project_guard.as_ref() else {
-            log::warn!("Cannot rename project item from details without an opened project.");
-            return;
-        };
-        let project_items_rename_requests = project_item_paths
-            .iter()
-            .filter_map(|project_item_path| {
-                let project_item_ref = ProjectItemRef::new(project_item_path.clone());
-                let Some(project_item) = opened_project.get_project_items().get(&project_item_ref) else {
-                    log::warn!("Cannot rename project item from details, project item was not found: {:?}", project_item_path);
-                    return None;
-                };
-                let project_item_type_id = project_item
-                    .get_item_type()
-                    .get_project_item_type_id()
-                    .to_string();
-
-                Self::build_project_item_rename_request(project_item_path, &project_item_type_id, edited_name)
-            })
-            .collect::<Vec<_>>();
-        drop(opened_project_guard);
-
-        for project_items_rename_request in project_items_rename_requests {
-            project_items_rename_request.send(&app_context.engine_unprivileged_state, |project_items_rename_response| {
-                if !project_items_rename_response.success {
-                    log::warn!("Project item rename command failed while committing details edit.");
-                }
-            });
-        }
-    }
-
-    fn details_value_to_anonymous_value_string(
-        app_context: Arc<AppContext>,
-        details_value: &DetailsValue,
-    ) -> Option<AnonymousValueString> {
-        match details_value {
-            DetailsValue::AnonymousValue(anonymous_value_string) => Some(anonymous_value_string.clone()),
-            DetailsValue::DataValue(data_value) => Self::data_value_to_anonymous_value_string(&app_context, data_value),
-            DetailsValue::Text(text) => Some(AnonymousValueString::new(text.clone(), AnonymousValueStringFormat::String, ContainerType::None)),
-            DetailsValue::Boolean(value) => Some(AnonymousValueString::new(
-                value.to_string(),
-                AnonymousValueStringFormat::Bool,
-                ContainerType::None,
-            )),
-            DetailsValue::UnsignedInteger(value) => Some(AnonymousValueString::new(
-                value.to_string(),
-                AnonymousValueStringFormat::Decimal,
-                ContainerType::None,
-            )),
-            DetailsValue::SignedInteger(value) => Some(AnonymousValueString::new(
-                value.to_string(),
-                AnonymousValueStringFormat::Decimal,
-                ContainerType::None,
-            )),
-            DetailsValue::Empty => Some(AnonymousValueString::new(
-                String::new(),
-                AnonymousValueStringFormat::String,
-                ContainerType::None,
-            )),
-        }
-    }
-
-    fn data_value_to_anonymous_value_string(
-        app_context: &Arc<AppContext>,
-        data_value: &DataValue,
-    ) -> Option<AnonymousValueString> {
-        let anonymous_value_string_format = app_context
-            .engine_unprivileged_state
-            .get_default_anonymous_value_string_format(data_value.get_data_type_ref());
-
-        app_context
-            .engine_unprivileged_state
-            .anonymize_value(data_value, anonymous_value_string_format)
-            .map_err(|error| {
-                log::warn!("Failed to anonymize project item runtime value edit: {}", error);
-                error
-            })
-            .ok()
+        self.details_focus().focus_selected_project_items();
     }
 
     fn strip_symbol_information_from_project_items(
@@ -2682,65 +1953,5 @@ impl ProjectHierarchyView {
         if let Some(active_project_item_path) = active_project_item_path {
             Self::clear_project_item_rename_state(user_interface, &active_project_item_path);
         }
-    }
-
-    fn project_item_value_edit_storage_id(project_item_path: &Path) -> Id {
-        Id::new(("project_hierarchy_value_edit", project_item_path.to_path_buf()))
-    }
-
-    fn clear_project_item_value_edit_state(
-        user_interface: &Ui,
-        project_item_path: &Path,
-    ) {
-        let value_edit_storage_id = Self::project_item_value_edit_storage_id(project_item_path);
-
-        user_interface.ctx().data_mut(|data| {
-            data.remove::<AnonymousValueString>(value_edit_storage_id);
-        });
-    }
-
-    fn build_project_item_rename_request(
-        project_item_path: &Path,
-        project_item_type_id: &str,
-        edited_name: &str,
-    ) -> Option<ProjectItemsRenameRequest> {
-        let sanitized_file_name = Path::new(edited_name)
-            .file_name()
-            .and_then(|file_name| file_name.to_str())
-            .map(str::trim)
-            .filter(|file_name| !file_name.is_empty())?
-            .to_string();
-        let is_directory_project_item = project_item_type_id == ProjectItemTypeDirectory::PROJECT_ITEM_TYPE_ID;
-        let renamed_project_item_name = if is_directory_project_item {
-            sanitized_file_name
-        } else {
-            let mut file_name_with_extension = sanitized_file_name.clone();
-            let expected_extension = Project::PROJECT_ITEM_EXTENSION.trim_start_matches('.');
-            let has_expected_extension = Path::new(&sanitized_file_name)
-                .extension()
-                .and_then(|extension| extension.to_str())
-                .map(|extension| extension.eq_ignore_ascii_case(expected_extension))
-                .unwrap_or(false);
-
-            if !has_expected_extension {
-                file_name_with_extension.push('.');
-                file_name_with_extension.push_str(expected_extension);
-            }
-
-            file_name_with_extension
-        };
-        let current_file_name = project_item_path
-            .file_name()
-            .and_then(|file_name| file_name.to_str())
-            .unwrap_or_default();
-
-        if current_file_name == renamed_project_item_name {
-            return None;
-        }
-
-        Some(ProjectItemsRenameRequest {
-            project_item_path: project_item_path.to_path_buf(),
-            project_item_name: renamed_project_item_name,
-        })
     }
 }
