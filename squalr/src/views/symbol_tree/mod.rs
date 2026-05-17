@@ -2,6 +2,7 @@ pub mod symbol_tree_define_field_view;
 pub mod symbol_tree_delete_confirmation_view;
 pub mod symbol_tree_entry_view;
 pub mod symbol_tree_inline_rename_view;
+pub mod symbol_tree_list_view;
 pub mod symbol_tree_module_create_view;
 pub mod symbol_tree_take_over_view_helpers;
 pub mod symbol_tree_toolbar_view;
