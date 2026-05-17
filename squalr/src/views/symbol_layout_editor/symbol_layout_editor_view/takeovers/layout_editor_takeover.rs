@@ -1,4 +1,6 @@
 use super::super::SymbolLayoutEditorView;
+use super::super::authoring::symbol_layout_field_draft_factory::SymbolLayoutFieldDraftFactory;
+use super::super::authoring::symbol_layout_variant_session::SymbolLayoutVariantSession;
 use super::super::controls::symbol_layout_add_entry_button::{render_symbol_layout_add_entry_button, render_symbol_layout_centered_add_entry_button};
 use super::super::controls::symbol_layout_kind_combo::render_symbol_layout_kind_combo;
 use super::super::controls::symbol_layout_value_box::{render_symbol_layout_size_editor, render_symbol_layout_string_value_box};
@@ -37,15 +39,17 @@ impl SymbolLayoutEditorView {
         let baseline_draft = baseline_draft.unwrap_or(draft);
 
         let mut edited_draft = draft.clone();
-        let pending_variant_drafts = self.pending_variant_drafts_for_union(Some(&edited_draft));
+        let pending_variant_drafts =
+            SymbolLayoutVariantSession::pending_variant_drafts_for_union(self.symbol_layout_editor_view_data.clone(), Some(&edited_draft));
         let effective_project_symbol_catalog =
-            Self::build_effective_project_symbol_catalog_from_pending_drafts(project_symbol_catalog, &pending_variant_drafts);
+            SymbolLayoutVariantSession::build_effective_project_symbol_catalog_from_pending_drafts(project_symbol_catalog, &pending_variant_drafts);
         let validation_result = SymbolLayoutEditorViewData::build_symbol_layout_descriptor_with_unassigned_split_offsets(
             &effective_project_symbol_catalog,
             &edited_draft,
             unassigned_split_offsets,
         );
-        let pending_variant_validation_result = Self::build_pending_variant_layout_descriptors(project_symbol_catalog, &pending_variant_drafts);
+        let pending_variant_validation_result =
+            SymbolLayoutVariantSession::build_pending_variant_layout_descriptors(project_symbol_catalog, &pending_variant_drafts);
         let usage_count = edited_draft
             .original_layout_id
             .as_deref()
@@ -132,7 +136,7 @@ impl SymbolLayoutEditorView {
                                 });
 
                                 if previous_layout_kind != edited_draft.layout_kind && edited_draft.layout_kind.is_union() {
-                                    self.normalize_union_field_drafts(&effective_project_symbol_catalog, &mut edited_draft);
+                                    SymbolLayoutFieldDraftFactory::normalize_union_field_drafts(&effective_project_symbol_catalog, &mut edited_draft);
                                 } else if previous_layout_kind != edited_draft.layout_kind {
                                     SymbolLayoutEditorViewData::clear_pending_variant_drafts_for_take_over(self.symbol_layout_editor_view_data.clone());
                                 }
@@ -251,7 +255,8 @@ impl SymbolLayoutEditorView {
 
         if should_append_field.get() {
             let field_index_to_focus = edited_draft.field_drafts.len();
-            let mut field_draft = self.create_field_draft_for_layout_kind(
+            let mut field_draft = SymbolLayoutFieldDraftFactory::create_field_draft_for_layout_kind(
+                &self.app_context,
                 &effective_project_symbol_catalog,
                 edited_draft.layout_kind,
                 &edited_draft.layout_id,

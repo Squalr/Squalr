@@ -1,4 +1,5 @@
 use super::super::SymbolLayoutEditorView;
+use super::super::authoring::symbol_layout_variant_session::SymbolLayoutVariantSession;
 use super::symbol_layout_field_context_menu::render_field_context_menu;
 use super::symbol_layout_field_row_action::SymbolLayoutFieldRowAction;
 use super::symbol_layout_field_row_view::SymbolLayoutFieldRowView;
@@ -84,9 +85,15 @@ impl<'view, 'draft> SymbolLayoutDraftFieldTreeView<'view, 'draft> {
         variant_index: usize,
         variant_field_draft: &SymbolLayoutFieldEditDraft,
     ) -> Option<SymbolLayoutVariantLayoutRowAction> {
-        let mut variant_draft = self
-            .symbol_layout_editor_view
-            .create_union_variant_layout_draft_with_pending(self.project_symbol_catalog, union_draft, variant_index, variant_field_draft);
+        let mut variant_draft = SymbolLayoutVariantSession::create_union_variant_layout_draft_with_pending(
+            self.project_symbol_catalog,
+            self.symbol_layout_editor_view
+                .symbol_layout_editor_view_data
+                .clone(),
+            union_draft,
+            variant_index,
+            variant_field_draft,
+        );
         let variant_layout_id = variant_draft.layout_id.clone();
 
         let Some((layout_size_in_bytes, mut field_spans)) = self

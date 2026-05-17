@@ -22,6 +22,8 @@ use squalr_engine_api::structures::{
 use std::{collections::BTreeSet, str::FromStr, sync::Arc};
 
 use super::super::SymbolLayoutEditorView;
+use super::super::authoring::symbol_layout_field_draft_factory::SymbolLayoutFieldDraftFactory;
+use super::super::authoring::symbol_layout_variant_session::SymbolLayoutVariantSession;
 use super::super::details::symbol_layout_details_focus::{
     build_field_details, clear_struct_viewer_if_symbol_layout_focused, focus_unassigned_span_in_struct_viewer,
 };
@@ -45,8 +47,12 @@ impl SymbolLayoutFieldRowAction {
         variant_layout_id: String,
         field_index: usize,
     ) {
-        let mut variant_draft =
-            symbol_layout_editor_view.create_union_variant_layout_draft_for_id_with_pending(project_symbol_catalog, union_draft, &variant_layout_id);
+        let mut variant_draft = SymbolLayoutVariantSession::create_union_variant_layout_draft_for_id_with_pending(
+            project_symbol_catalog,
+            symbol_layout_editor_view.symbol_layout_editor_view_data.clone(),
+            union_draft,
+            &variant_layout_id,
+        );
         let unassigned_split_offsets = symbol_layout_editor_view
             .symbol_layout_editor_view_data
             .read("SymbolLayoutEditor variant field split offsets")
@@ -106,7 +112,8 @@ impl SymbolLayoutFieldRowAction {
                 let insert_index = field_index
                     .saturating_add(1)
                     .min(variant_draft.field_drafts.len());
-                let mut field_draft = symbol_layout_editor_view.create_field_draft_for_layout_kind(
+                let mut field_draft = SymbolLayoutFieldDraftFactory::create_field_draft_for_layout_kind(
+                    &symbol_layout_editor_view.app_context,
                     project_symbol_catalog,
                     SymbolicLayoutKind::Struct,
                     &variant_draft.layout_id,
@@ -125,7 +132,7 @@ impl SymbolLayoutFieldRowAction {
         }
 
         if should_persist_variant_draft {
-            symbol_layout_editor_view.persist_variant_layout_draft(&variant_draft);
+            SymbolLayoutVariantSession::persist_variant_layout_draft(symbol_layout_editor_view.symbol_layout_editor_view_data.clone(), &variant_draft);
         }
 
         if let Some(field_index_to_focus) = field_index_to_focus {
@@ -151,8 +158,13 @@ impl SymbolLayoutFieldRowAction {
         match self {
             SymbolLayoutFieldRowAction::InsertAfter => {
                 let insert_index = field_index.saturating_add(1).min(draft.field_drafts.len());
-                let mut field_draft =
-                    symbol_layout_editor_view.create_field_draft_for_layout_kind(project_symbol_catalog, draft.layout_kind, &draft.layout_id, insert_index);
+                let mut field_draft = SymbolLayoutFieldDraftFactory::create_field_draft_for_layout_kind(
+                    &symbol_layout_editor_view.app_context,
+                    project_symbol_catalog,
+                    draft.layout_kind,
+                    &draft.layout_id,
+                    insert_index,
+                );
                 field_draft.field_name = SymbolLayoutDraftOps::build_unique_field_name(draft, &field_draft.field_name);
                 draft.field_drafts.insert(insert_index, field_draft);
                 field_index_to_focus = Some(insert_index);
@@ -248,7 +260,7 @@ fn delete_variant_field(
     }
 
     variant_draft.field_drafts.remove(field_index);
-    if !symbol_layout_editor_view.persist_variant_layout_draft(variant_draft) {
+    if !SymbolLayoutVariantSession::persist_variant_layout_draft(symbol_layout_editor_view.symbol_layout_editor_view_data.clone(), variant_draft) {
         return;
     }
 
@@ -418,7 +430,9 @@ fn build_variant_field_edit_callback(
             let mut variant_draft = view_data
                 .get_pending_variant_draft(&variant_layout_id)
                 .cloned()
-                .unwrap_or_else(|| SymbolLayoutEditorView::create_union_variant_layout_draft_for_id(&project_symbol_catalog, &union_draft, &variant_layout_id));
+                .unwrap_or_else(|| {
+                    SymbolLayoutVariantSession::create_union_variant_layout_draft_for_id(&project_symbol_catalog, &union_draft, &variant_layout_id)
+                });
             let Some(field_draft) = variant_draft.field_drafts.get_mut(field_index) else {
                 return;
             };
@@ -430,7 +444,7 @@ fn build_variant_field_edit_callback(
         };
         SymbolLayoutEditorViewData::select_field_for_layout(symbol_layout_editor_view_data.clone(), Some(variant_layout_id.clone()), field_index);
 
-        let updated_project_symbol_catalog = SymbolLayoutEditorView::build_effective_project_symbol_catalog_from_view_data(
+        let updated_project_symbol_catalog = SymbolLayoutVariantSession::build_effective_project_symbol_catalog_from_view_data(
             &project_symbol_catalog,
             symbol_layout_editor_view_data.clone(),
             Some(&variant_layout_id),

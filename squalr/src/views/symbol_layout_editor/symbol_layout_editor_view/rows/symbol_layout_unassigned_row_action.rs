@@ -1,4 +1,6 @@
 use super::super::SymbolLayoutEditorView;
+use super::super::authoring::symbol_layout_field_draft_factory::SymbolLayoutFieldDraftFactory;
+use super::super::authoring::symbol_layout_variant_session::SymbolLayoutVariantSession;
 use super::super::details::symbol_layout_details_focus::focus_unassigned_span_in_struct_viewer;
 use crate::views::symbol_layout_editor::view_data::symbol_layout_editor_view_data::{SymbolLayoutEditDraft, SymbolLayoutEditorViewData};
 use squalr_engine_api::structures::projects::{
@@ -26,7 +28,12 @@ pub(in crate::views::symbol_layout_editor::symbol_layout_editor_view) fn apply_u
     unassigned_row_action: SymbolLayoutUnassignedRowAction,
 ) {
     let mut target_variant_draft = target_layout_id.as_deref().map(|target_layout_id| {
-        symbol_layout_editor_view.create_union_variant_layout_draft_for_id_with_pending(project_symbol_catalog, draft, target_layout_id)
+        SymbolLayoutVariantSession::create_union_variant_layout_draft_for_id_with_pending(
+            project_symbol_catalog,
+            symbol_layout_editor_view.symbol_layout_editor_view_data.clone(),
+            draft,
+            target_layout_id,
+        )
     });
     let mut persist_target_variant_draft = false;
     let focus_unassigned_span = |focus_draft: &SymbolLayoutEditDraft, offset_in_bytes: u64, size_in_bytes: u64| {
@@ -55,7 +62,8 @@ pub(in crate::views::symbol_layout_editor::symbol_layout_editor_view) fn apply_u
                 log::warn!("Ignoring Define Field action for nested union variant unassigned span.");
                 return;
             }
-            let mut field_draft = symbol_layout_editor_view.create_field_draft_for_unassigned_span(
+            let mut field_draft = SymbolLayoutFieldDraftFactory::create_field_draft_for_unassigned_span(
+                &symbol_layout_editor_view.app_context,
                 project_symbol_catalog,
                 draft.layout_kind,
                 &draft.layout_id,
@@ -69,7 +77,7 @@ pub(in crate::views::symbol_layout_editor::symbol_layout_editor_view) fn apply_u
                 draft.layout_id.clone(),
                 unassigned_row_context.offset_in_bytes,
                 unassigned_row_context.size_in_bytes,
-                symbol_layout_editor_view.default_data_type_ref(),
+                SymbolLayoutFieldDraftFactory::default_data_type_ref(&symbol_layout_editor_view.app_context),
             );
             SymbolLayoutEditorViewData::replace_define_field_draft(symbol_layout_editor_view.symbol_layout_editor_view_data.clone(), field_draft);
         }
@@ -227,6 +235,6 @@ pub(in crate::views::symbol_layout_editor::symbol_layout_editor_view) fn apply_u
     }
 
     if persist_target_variant_draft && let Some(target_variant_draft) = target_variant_draft.as_ref() {
-        symbol_layout_editor_view.persist_variant_layout_draft(target_variant_draft);
+        SymbolLayoutVariantSession::persist_variant_layout_draft(symbol_layout_editor_view.symbol_layout_editor_view_data.clone(), target_variant_draft);
     }
 }

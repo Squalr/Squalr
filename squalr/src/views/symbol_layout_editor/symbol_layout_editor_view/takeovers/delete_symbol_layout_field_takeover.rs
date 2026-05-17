@@ -1,4 +1,5 @@
 use super::super::SymbolLayoutEditorView;
+use super::super::authoring::symbol_layout_field_draft_factory::SymbolLayoutFieldDraftFactory;
 use super::super::rows::symbol_layout_field_row_action::focus_field_in_struct_viewer;
 use crate::ui::widgets::controls::groupbox::GroupBox;
 use crate::views::symbol_layout_editor::view_data::symbol_layout_editor_view_data::{SymbolLayoutEditDraft, SymbolLayoutEditorViewData};
@@ -76,9 +77,11 @@ impl SymbolLayoutEditorView {
 
         if should_delete_field {
             let mut edited_draft = draft.clone();
-            if let Some(field_index_to_focus) =
-                SymbolLayoutEditorViewData::remove_field_from_draft(&mut edited_draft, field_index, self.default_data_type_ref())
-            {
+            if let Some(field_index_to_focus) = SymbolLayoutEditorViewData::remove_field_from_draft(
+                &mut edited_draft,
+                field_index,
+                SymbolLayoutFieldDraftFactory::default_data_type_ref(&self.app_context),
+            ) {
                 SymbolLayoutEditorViewData::update_draft(self.symbol_layout_editor_view_data.clone(), edited_draft.clone());
                 SymbolLayoutEditorViewData::return_to_open_symbol_layout(self.symbol_layout_editor_view_data.clone(), layout_id.to_string());
                 SymbolLayoutEditorViewData::select_field(self.symbol_layout_editor_view_data.clone(), field_index_to_focus);
