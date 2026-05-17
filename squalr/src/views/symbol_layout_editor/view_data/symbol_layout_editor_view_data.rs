@@ -276,6 +276,7 @@ pub struct SymbolLayoutEditorViewData {
     baseline_project_symbol_catalog: Option<ProjectSymbolCatalog>,
     baseline_draft: Option<SymbolLayoutEditDraft>,
     draft: Option<SymbolLayoutEditDraft>,
+    pending_variant_drafts: BTreeMap<String, SymbolLayoutEditDraft>,
     selected_field_layout_id: Option<String>,
     selected_field_index: Option<usize>,
     selected_unassigned_span: Option<SymbolLayoutUnassignedSelection>,
@@ -284,7 +285,6 @@ pub struct SymbolLayoutEditorViewData {
     unassigned_context_menu_target: Option<SymbolLayoutUnassignedContextMenuTarget>,
     unassigned_split_offsets: BTreeSet<u64>,
     unassigned_split_offsets_by_layout: BTreeMap<String, BTreeSet<u64>>,
-    has_take_over_catalog_side_effects: bool,
 }
 
 impl SymbolLayoutEditorViewData {
@@ -296,6 +296,7 @@ impl SymbolLayoutEditorViewData {
             baseline_project_symbol_catalog: None,
             baseline_draft: None,
             draft: None,
+            pending_variant_drafts: BTreeMap::new(),
             selected_field_layout_id: None,
             selected_field_index: None,
             selected_unassigned_span: None,
@@ -304,7 +305,6 @@ impl SymbolLayoutEditorViewData {
             unassigned_context_menu_target: None,
             unassigned_split_offsets: BTreeSet::new(),
             unassigned_split_offsets_by_layout: BTreeMap::new(),
-            has_take_over_catalog_side_effects: false,
         }
     }
 
@@ -332,16 +332,34 @@ impl SymbolLayoutEditorViewData {
         self.baseline_project_symbol_catalog.as_ref()
     }
 
-    pub fn has_take_over_catalog_side_effects(&self) -> bool {
-        self.has_take_over_catalog_side_effects
+    pub fn get_pending_variant_draft(
+        &self,
+        layout_id: &str,
+    ) -> Option<&SymbolLayoutEditDraft> {
+        self.pending_variant_drafts.get(layout_id)
     }
 
-    pub fn mark_take_over_catalog_side_effect(symbol_layout_editor_view_data: Dependency<Self>) {
-        if let Some(mut symbol_layout_editor_view_data) = symbol_layout_editor_view_data.write("SymbolLayoutEditor mark take over catalog side effect") {
-            if symbol_layout_editor_view_data.take_over_state.is_some() {
-                symbol_layout_editor_view_data.has_take_over_catalog_side_effects = true;
-            }
-        }
+    pub fn get_pending_variant_drafts_with_split_offsets(&self) -> Vec<(SymbolLayoutEditDraft, BTreeSet<u64>)> {
+        self.pending_variant_drafts
+            .iter()
+            .map(|(layout_id, draft)| {
+                (
+                    draft.clone(),
+                    self.unassigned_split_offsets_by_layout
+                        .get(layout_id)
+                        .cloned()
+                        .unwrap_or_default(),
+                )
+            })
+            .collect()
+    }
+
+    pub fn replace_pending_variant_draft(
+        &mut self,
+        variant_draft: SymbolLayoutEditDraft,
+    ) {
+        self.pending_variant_drafts
+            .insert(variant_draft.layout_id.clone(), variant_draft);
     }
 
     pub fn get_selected_field_index(&self) -> Option<usize> {
@@ -415,6 +433,16 @@ impl SymbolLayoutEditorViewData {
     fn clear_unassigned_split_offsets(&mut self) {
         self.unassigned_split_offsets.clear();
         self.unassigned_split_offsets_by_layout.clear();
+    }
+
+    fn clear_pending_variant_drafts(&mut self) {
+        self.pending_variant_drafts.clear();
+    }
+
+    pub fn clear_pending_variant_drafts_for_take_over(symbol_layout_editor_view_data: Dependency<Self>) {
+        if let Some(mut symbol_layout_editor_view_data) = symbol_layout_editor_view_data.write("SymbolLayoutEditor clear pending variant drafts") {
+            symbol_layout_editor_view_data.clear_pending_variant_drafts();
+        }
     }
 
     fn collect_unassigned_split_offsets_from_descriptor(
@@ -663,8 +691,8 @@ impl SymbolLayoutEditorViewData {
             symbol_layout_editor_view_data.field_context_menu_target = None;
             symbol_layout_editor_view_data.unassigned_context_menu_target = None;
             symbol_layout_editor_view_data.clear_unassigned_split_offsets();
+            symbol_layout_editor_view_data.clear_pending_variant_drafts();
             symbol_layout_editor_view_data.baseline_project_symbol_catalog = Some(project_symbol_catalog.clone());
-            symbol_layout_editor_view_data.has_take_over_catalog_side_effects = false;
             let baseline_draft = Self::create_default_new_draft(project_symbol_catalog, default_data_type_ref);
             symbol_layout_editor_view_data.baseline_draft = Some(baseline_draft.clone());
             symbol_layout_editor_view_data.draft = Some(baseline_draft);
@@ -688,8 +716,8 @@ impl SymbolLayoutEditorViewData {
             symbol_layout_editor_view_data.field_context_menu_target = None;
             symbol_layout_editor_view_data.unassigned_context_menu_target = None;
             symbol_layout_editor_view_data.clear_unassigned_split_offsets();
+            symbol_layout_editor_view_data.clear_pending_variant_drafts();
             symbol_layout_editor_view_data.baseline_project_symbol_catalog = Some(project_symbol_catalog.clone());
-            symbol_layout_editor_view_data.has_take_over_catalog_side_effects = false;
             let selected_struct_layout_descriptor = project_symbol_catalog
                 .get_struct_layout_descriptors()
                 .iter()
@@ -721,8 +749,8 @@ impl SymbolLayoutEditorViewData {
             symbol_layout_editor_view_data.field_context_menu_target = None;
             symbol_layout_editor_view_data.unassigned_context_menu_target = None;
             symbol_layout_editor_view_data.clear_unassigned_split_offsets();
+            symbol_layout_editor_view_data.clear_pending_variant_drafts();
             symbol_layout_editor_view_data.baseline_project_symbol_catalog = Some(project_symbol_catalog.clone());
-            symbol_layout_editor_view_data.has_take_over_catalog_side_effects = false;
             let selected_struct_layout_descriptor = project_symbol_catalog
                 .get_struct_layout_descriptors()
                 .iter()
@@ -975,7 +1003,7 @@ impl SymbolLayoutEditorViewData {
             symbol_layout_editor_view_data.field_context_menu_target = None;
             symbol_layout_editor_view_data.unassigned_context_menu_target = None;
             symbol_layout_editor_view_data.clear_unassigned_split_offsets();
-            symbol_layout_editor_view_data.has_take_over_catalog_side_effects = false;
+            symbol_layout_editor_view_data.clear_pending_variant_drafts();
         }
     }
 
@@ -1040,6 +1068,7 @@ impl SymbolLayoutEditorViewData {
             symbol_layout_editor_view_data.field_context_menu_target = None;
             symbol_layout_editor_view_data.unassigned_context_menu_target = None;
             symbol_layout_editor_view_data.clear_unassigned_split_offsets();
+            symbol_layout_editor_view_data.clear_pending_variant_drafts();
         }
 
         let stale_field_delete_layout_id = match symbol_layout_editor_view_data.take_over_state.as_ref() {
@@ -1058,7 +1087,6 @@ impl SymbolLayoutEditorViewData {
             symbol_layout_editor_view_data.take_over_state = Some(SymbolLayoutEditorTakeOverState::OpenSymbolLayout { layout_id });
             symbol_layout_editor_view_data.field_context_menu_target = None;
             symbol_layout_editor_view_data.unassigned_context_menu_target = None;
-            symbol_layout_editor_view_data.has_take_over_catalog_side_effects = false;
         }
 
         if symbol_layout_editor_view_data
@@ -2024,6 +2052,36 @@ mod tests {
         assert_eq!(view_data_read.get_unassigned_split_offsets_for_layout(None), BTreeSet::new());
         assert_eq!(view_data_read.get_unassigned_split_offsets_for_layout(Some("variant.a")), BTreeSet::from([8]));
         assert_eq!(view_data_read.get_unassigned_split_offsets_for_layout(Some("variant.b")), BTreeSet::new());
+    }
+
+    #[test]
+    fn cancel_take_over_state_clears_pending_variant_drafts() {
+        let dependency_container = DependencyContainer::new();
+        let view_data = dependency_container.register(SymbolLayoutEditorViewData::new());
+        {
+            let mut view_data_write = view_data
+                .write("Symbol layout pending variant test write")
+                .expect("Expected symbol layout view data write access in test.");
+            view_data_write.replace_pending_variant_draft(SymbolLayoutEditDraft {
+                original_layout_id: None,
+                layout_id: String::from("actor.state.variant_1"),
+                layout_kind: SymbolicLayoutKind::Struct,
+                size_text: String::from("16"),
+                size_format: AnonymousValueStringFormat::Decimal,
+                field_drafts: Vec::new(),
+            });
+        }
+
+        SymbolLayoutEditorViewData::cancel_take_over_state(view_data.clone());
+
+        let view_data_read = view_data
+            .read("Symbol layout pending variant test read")
+            .expect("Expected symbol layout view data read access in test.");
+        assert!(
+            view_data_read
+                .get_pending_variant_drafts_with_split_offsets()
+                .is_empty()
+        );
     }
 
     #[test]
