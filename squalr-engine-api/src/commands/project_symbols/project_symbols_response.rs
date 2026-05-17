@@ -2,10 +2,12 @@ use crate::commands::project_symbols::{
     create::project_symbols_create_response::ProjectSymbolsCreateResponse,
     create_module::project_symbols_create_module_response::ProjectSymbolsCreateModuleResponse,
     delete::project_symbols_delete_response::ProjectSymbolsDeleteResponse,
+    delete_layout::project_symbols_delete_layout_response::ProjectSymbolsDeleteLayoutResponse,
     execute_plugin_action::project_symbols_execute_plugin_action_response::ProjectSymbolsExecutePluginActionResponse,
     list::project_symbols_list_response::ProjectSymbolsListResponse, rename::project_symbols_rename_response::ProjectSymbolsRenameResponse,
     rename_module::project_symbols_rename_module_response::ProjectSymbolsRenameModuleResponse,
     set_catalog::project_symbols_set_catalog_response::ProjectSymbolsSetCatalogResponse, update::project_symbols_update_response::ProjectSymbolsUpdateResponse,
+    upsert_layout::project_symbols_upsert_layout_response::ProjectSymbolsUpsertLayoutResponse,
     write_value::project_symbols_write_value_response::ProjectSymbolsWriteValueResponse,
 };
 use serde::{Deserialize, Serialize};
@@ -20,6 +22,9 @@ pub enum ProjectSymbolsResponse {
     },
     Delete {
         project_symbols_delete_response: ProjectSymbolsDeleteResponse,
+    },
+    DeleteLayout {
+        project_symbols_delete_layout_response: ProjectSymbolsDeleteLayoutResponse,
     },
     ExecutePluginAction {
         project_symbols_execute_plugin_action_response: ProjectSymbolsExecutePluginActionResponse,
@@ -38,6 +43,9 @@ pub enum ProjectSymbolsResponse {
     },
     Update {
         project_symbols_update_response: ProjectSymbolsUpdateResponse,
+    },
+    UpsertLayout {
+        project_symbols_upsert_layout_response: ProjectSymbolsUpsertLayoutResponse,
     },
     WriteValue {
         project_symbols_write_value_response: ProjectSymbolsWriteValueResponse,

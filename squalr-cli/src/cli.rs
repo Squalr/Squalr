@@ -211,6 +211,39 @@ mod tests {
     }
 
     #[test]
+    fn parse_input_returns_unprivileged_command_for_project_symbols_upsert_layout_command() {
+        let parsed_input = Cli::parse_input("project_symbols upsert-layout --id player.stats --field health:u32 --field unassigned[4] --size 8")
+            .expect("Expected project_symbols upsert-layout command to parse successfully");
+
+        let ParsedInput::UnprivilegedCommand(UnprivilegedCommand::ProjectSymbols(ProjectSymbolsCommand::UpsertLayout {
+            project_symbols_upsert_layout_request,
+        })) = parsed_input
+        else {
+            panic!("Expected project_symbols upsert-layout command.");
+        };
+
+        assert_eq!(project_symbols_upsert_layout_request.struct_layout_id, "player.stats");
+        assert_eq!(project_symbols_upsert_layout_request.size_in_bytes, Some(8));
+        assert_eq!(project_symbols_upsert_layout_request.field_definitions.len(), 2);
+    }
+
+    #[test]
+    fn parse_input_returns_unprivileged_command_for_project_symbols_delete_layout_command() {
+        let parsed_input =
+            Cli::parse_input("project_symbols delete-layout --id player.stats").expect("Expected project_symbols delete-layout command to parse successfully");
+
+        let ParsedInput::UnprivilegedCommand(UnprivilegedCommand::ProjectSymbols(ProjectSymbolsCommand::DeleteLayout {
+            project_symbols_delete_layout_request,
+        })) = parsed_input
+        else {
+            panic!("Expected project_symbols delete-layout command.");
+        };
+
+        assert_eq!(project_symbols_delete_layout_request.struct_layout_id, "player.stats");
+        assert_eq!(project_symbols_delete_layout_request.replacement_data_type_id, "u8");
+    }
+
+    #[test]
     fn parse_input_returns_unprivileged_command_for_project_items_write_value_command() {
         let parsed_input = Cli::parse_input("project_items write-value -p project_items/health.json --field value -v '255;decimal;'")
             .expect("Expected project_items write-value command to parse successfully");

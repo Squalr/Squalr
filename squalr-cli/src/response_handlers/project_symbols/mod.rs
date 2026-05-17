@@ -109,6 +109,25 @@ pub fn handle_project_symbols_response(project_symbols_response: ProjectSymbolsR
                 project_symbols_update_response.symbol_locator_key
             );
         }
+        ProjectSymbolsResponse::UpsertLayout {
+            project_symbols_upsert_layout_response,
+        } => {
+            if project_symbols_upsert_layout_response.success {
+                log::info!(
+                    "upserted symbol layout: success=true, id={}",
+                    project_symbols_upsert_layout_response.struct_layout_id
+                );
+            } else {
+                log::error!(
+                    "upserted symbol layout: success=false, id={}, error={}",
+                    project_symbols_upsert_layout_response.struct_layout_id,
+                    project_symbols_upsert_layout_response
+                        .error
+                        .as_deref()
+                        .unwrap_or("unknown error")
+                );
+            }
+        }
         ProjectSymbolsResponse::Delete {
             project_symbols_delete_response,
         } => {
@@ -118,6 +137,25 @@ pub fn handle_project_symbols_response(project_symbols_response: ProjectSymbolsR
                 project_symbols_delete_response.deleted_module_count,
                 project_symbols_delete_response.deleted_symbol_count
             );
+        }
+        ProjectSymbolsResponse::DeleteLayout {
+            project_symbols_delete_layout_response,
+        } => {
+            if project_symbols_delete_layout_response.success {
+                log::info!(
+                    "deleted symbol layout: success=true, id={}",
+                    project_symbols_delete_layout_response.struct_layout_id
+                );
+            } else {
+                log::error!(
+                    "deleted symbol layout: success=false, id={}, error={}",
+                    project_symbols_delete_layout_response.struct_layout_id,
+                    project_symbols_delete_layout_response
+                        .error
+                        .as_deref()
+                        .unwrap_or("unknown error")
+                );
+            }
         }
         ProjectSymbolsResponse::ExecutePluginAction {
             project_symbols_execute_plugin_action_response,

@@ -27,11 +27,16 @@ use eframe::egui::{
 };
 use epaint::{Color32, CornerRadius, Rect, StrokeKind};
 use squalr_engine_api::commands::{
-    project_symbols::set_catalog::project_symbols_set_catalog_request::ProjectSymbolsSetCatalogRequest,
+    project_symbols::{
+        delete_layout::project_symbols_delete_layout_request::ProjectSymbolsDeleteLayoutRequest,
+        set_catalog::project_symbols_set_catalog_request::ProjectSymbolsSetCatalogRequest,
+        upsert_layout::project_symbols_upsert_layout_request::ProjectSymbolsUpsertLayoutRequest,
+    },
     unprivileged_command_request::UnprivilegedCommandRequest,
 };
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
+use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
 use squalr_engine_api::structures::{
     data_types::{
         built_in_types::{i32::data_type_i32::DataTypeI32, string::utf8::data_type_string_utf8::DataTypeStringUtf8, u64::data_type_u64::DataTypeU64},
@@ -211,21 +216,49 @@ impl SymbolLayoutEditorView {
         });
     }
 
+    fn persist_symbol_layout_descriptor_with_context(
+        app_context: &AppContext,
+        original_struct_layout_id: Option<String>,
+        struct_layout_descriptor: &StructLayoutDescriptor,
+    ) {
+        ProjectSymbolsUpsertLayoutRequest::from_struct_layout_descriptor(original_struct_layout_id, struct_layout_descriptor).send(
+            &app_context.engine_unprivileged_state,
+            |response| {
+                if !response.success {
+                    log::error!(
+                        "Failed to persist symbol layout `{}` through project-symbols upsert-layout command: {}.",
+                        response.struct_layout_id,
+                        response.error.as_deref().unwrap_or("unknown error")
+                    );
+                }
+            },
+        );
+    }
+
+    fn persist_symbol_layout_descriptor(
+        &self,
+        original_struct_layout_id: Option<String>,
+        struct_layout_descriptor: &StructLayoutDescriptor,
+    ) {
+        Self::persist_symbol_layout_descriptor_with_context(&self.app_context, original_struct_layout_id, struct_layout_descriptor);
+    }
+
     fn delete_symbol_layout(
         &self,
-        project_symbol_catalog: &ProjectSymbolCatalog,
+        _project_symbol_catalog: &ProjectSymbolCatalog,
         layout_id: &str,
     ) {
-        match SymbolLayoutEditorViewData::remove_symbol_layout_from_catalog(project_symbol_catalog, layout_id) {
-            Ok(updated_project_symbol_catalog) => {
-                self.persist_project_symbol_catalog(updated_project_symbol_catalog);
-                SymbolLayoutEditorViewData::cancel_take_over_state(self.symbol_layout_editor_view_data.clone());
-                self.clear_struct_viewer_if_symbol_layout_focused();
+        ProjectSymbolsDeleteLayoutRequest::new(layout_id).send(&self.app_context.engine_unprivileged_state, |response| {
+            if !response.success {
+                log::error!(
+                    "Failed to delete symbol layout `{}` through project-symbols delete-layout command: {}.",
+                    response.struct_layout_id,
+                    response.error.as_deref().unwrap_or("unknown error")
+                );
             }
-            Err(error) => {
-                log::error!("Failed to delete symbol layout: {}.", error);
-            }
-        }
+        });
+        SymbolLayoutEditorViewData::cancel_take_over_state(self.symbol_layout_editor_view_data.clone());
+        self.clear_struct_viewer_if_symbol_layout_focused();
     }
 
     fn default_data_type_ref(&self) -> DataTypeRef {
@@ -543,10 +576,13 @@ impl SymbolLayoutEditorView {
             .map(|symbol_layout_editor_view_data| symbol_layout_editor_view_data.get_unassigned_split_offsets_for_layout(Some(&variant_draft.layout_id)))
             .unwrap_or_default();
 
-        match SymbolLayoutEditorViewData::apply_draft_to_catalog_with_unassigned_split_offsets(project_symbol_catalog, variant_draft, &unassigned_split_offsets)
-        {
-            Ok(updated_project_symbol_catalog) => {
-                self.persist_project_symbol_catalog(updated_project_symbol_catalog);
+        match SymbolLayoutEditorViewData::build_symbol_layout_descriptor_with_unassigned_split_offsets(
+            project_symbol_catalog,
+            variant_draft,
+            &unassigned_split_offsets,
+        ) {
+            Ok(struct_layout_descriptor) => {
+                self.persist_symbol_layout_descriptor(variant_draft.original_layout_id.clone(), &struct_layout_descriptor);
                 SymbolLayoutEditorViewData::mark_take_over_catalog_side_effect(self.symbol_layout_editor_view_data.clone());
                 true
             }
@@ -1451,13 +1487,14 @@ impl SymbolLayoutEditorView {
                     }
 
                     did_update_layout = true;
-                    squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor::new(
+                    StructLayoutDescriptor::new(
                         struct_layout_descriptor.get_struct_layout_id().to_string(),
                         SymbolicStructDefinition::new_with_layout_kind(
                             struct_layout_definition.get_symbol_namespace().to_string(),
                             edited_layout_kind,
                             struct_layout_definition.get_fields().to_vec(),
-                        ),
+                        )
+                        .with_declared_size_in_bytes(struct_layout_definition.get_declared_size_in_bytes()),
                     )
                 })
                 .collect::<Vec<_>>();
@@ -1468,7 +1505,6 @@ impl SymbolLayoutEditorView {
 
             let mut updated_project_symbol_catalog = project_symbol_catalog;
             updated_project_symbol_catalog.set_struct_layout_descriptors(updated_struct_layout_descriptors);
-            Self::persist_project_symbol_catalog_with_context(&app_context, updated_project_symbol_catalog.clone());
 
             let Some(updated_struct_layout_descriptor) = updated_project_symbol_catalog
                 .get_struct_layout_descriptors()
@@ -1477,6 +1513,7 @@ impl SymbolLayoutEditorView {
             else {
                 return;
             };
+            Self::persist_symbol_layout_descriptor_with_context(&app_context, Some(layout_id.clone()), updated_struct_layout_descriptor);
             let details_struct = ValuedStruct::new_anonymous(vec![
                 DataTypeStringUtf8::get_value_from_primitive_string(updated_struct_layout_descriptor.get_struct_layout_id())
                     .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_LAYOUT_ID.to_string(), false),
@@ -1758,14 +1795,28 @@ impl SymbolLayoutEditorView {
 
             Self::apply_field_details_edit(&project_symbol_catalog, field_draft, &edited_field);
             Self::grow_draft_size_to_fit_fields(&project_symbol_catalog, &mut variant_draft);
-            let Ok(updated_project_symbol_catalog) = SymbolLayoutEditorViewData::apply_draft_to_catalog(&project_symbol_catalog, &variant_draft) else {
+            let Ok(updated_struct_layout_descriptor) = SymbolLayoutEditorViewData::build_symbol_layout_descriptor(&project_symbol_catalog, &variant_draft)
+            else {
                 return;
             };
 
-            Self::persist_project_symbol_catalog_with_context(&app_context, updated_project_symbol_catalog.clone());
+            Self::persist_symbol_layout_descriptor_with_context(&app_context, variant_draft.original_layout_id.clone(), &updated_struct_layout_descriptor);
             SymbolLayoutEditorViewData::mark_take_over_catalog_side_effect(symbol_layout_editor_view_data.clone());
             SymbolLayoutEditorViewData::select_field_for_layout(symbol_layout_editor_view_data.clone(), Some(variant_layout_id.clone()), field_index);
 
+            let mut updated_project_symbol_catalog = project_symbol_catalog.clone();
+            let updated_struct_layout_id = updated_struct_layout_descriptor
+                .get_struct_layout_id()
+                .to_string();
+            updated_project_symbol_catalog.set_struct_layout_descriptors(
+                updated_project_symbol_catalog
+                    .get_struct_layout_descriptors()
+                    .iter()
+                    .filter(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() != updated_struct_layout_id)
+                    .cloned()
+                    .chain(std::iter::once(updated_struct_layout_descriptor))
+                    .collect(),
+            );
             let details_struct = variant_draft
                 .field_drafts
                 .get(field_index)
@@ -3906,13 +3957,13 @@ impl SymbolLayoutEditorView {
         }
 
         if should_save_draft {
-            match SymbolLayoutEditorViewData::apply_draft_to_catalog_with_unassigned_split_offsets(
+            match SymbolLayoutEditorViewData::build_symbol_layout_descriptor_with_unassigned_split_offsets(
                 project_symbol_catalog,
                 &edited_draft,
                 unassigned_split_offsets,
             ) {
-                Ok(updated_project_symbol_catalog) => {
-                    self.persist_project_symbol_catalog(updated_project_symbol_catalog.clone());
+                Ok(struct_layout_descriptor) => {
+                    self.persist_symbol_layout_descriptor(edited_draft.original_layout_id.clone(), &struct_layout_descriptor);
                     SymbolLayoutEditorViewData::select_symbol_layout(
                         self.symbol_layout_editor_view_data.clone(),
                         Some(edited_draft.layout_id.trim().to_string()),

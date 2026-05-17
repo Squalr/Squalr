@@ -1,6 +1,7 @@
 use squalr_engine_api::commands::project_symbols::delete::project_symbols_delete_request::{
     ProjectSymbolsDeleteModuleRange, ProjectSymbolsDeleteModuleRangeMode,
 };
+use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::projects::{
     project_symbol_catalog::ProjectSymbolCatalog, project_symbol_claim::ProjectSymbolClaim, project_symbol_locator::ProjectSymbolLocator,
@@ -37,6 +38,83 @@ impl ProjectSymbolLayoutMutationSummary {
 pub struct ProjectSymbolLayoutMutation;
 
 impl ProjectSymbolLayoutMutation {
+    pub fn upsert_struct_layout_descriptor(
+        project_symbol_catalog: &mut ProjectSymbolCatalog,
+        original_struct_layout_id: Option<&str>,
+        struct_layout_descriptor: StructLayoutDescriptor,
+    ) -> Result<ProjectSymbolLayoutMutationSummary, String> {
+        let struct_layout_id = struct_layout_descriptor.get_struct_layout_id();
+        let conflicts_with_existing_layout = original_struct_layout_id.is_some_and(|original_struct_layout_id| {
+            original_struct_layout_id != struct_layout_id
+                && project_symbol_catalog
+                    .get_struct_layout_descriptors()
+                    .iter()
+                    .any(|existing_struct_layout_descriptor| existing_struct_layout_descriptor.get_struct_layout_id() == struct_layout_id)
+        });
+
+        if conflicts_with_existing_layout {
+            return Err(format!("Symbol layout id `{}` is already used.", struct_layout_id));
+        }
+
+        let replacement_struct_layout_id = struct_layout_id.to_string();
+        let mut updated_struct_layout_descriptors = project_symbol_catalog
+            .get_struct_layout_descriptors()
+            .iter()
+            .filter(|existing_struct_layout_descriptor| {
+                Some(existing_struct_layout_descriptor.get_struct_layout_id()) != original_struct_layout_id
+                    && existing_struct_layout_descriptor.get_struct_layout_id() != replacement_struct_layout_id
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+
+        updated_struct_layout_descriptors.push(struct_layout_descriptor);
+        Self::sort_struct_layout_descriptors(&mut updated_struct_layout_descriptors);
+        project_symbol_catalog.set_struct_layout_descriptors(updated_struct_layout_descriptors);
+
+        if let Some(original_struct_layout_id) = original_struct_layout_id {
+            if original_struct_layout_id != replacement_struct_layout_id {
+                Self::retarget_catalog_struct_layout_references(
+                    project_symbol_catalog,
+                    original_struct_layout_id,
+                    &DataTypeRef::new(&replacement_struct_layout_id),
+                );
+            }
+        }
+
+        Ok(ProjectSymbolLayoutMutationSummary {
+            changed: true,
+            deleted_module_field_count: 0,
+            deleted_module_range_count: 0,
+        })
+    }
+
+    pub fn delete_struct_layout(
+        project_symbol_catalog: &mut ProjectSymbolCatalog,
+        struct_layout_id: &str,
+        replacement_data_type_ref: DataTypeRef,
+    ) -> Result<ProjectSymbolLayoutMutationSummary, String> {
+        let struct_layout_count_before_delete = project_symbol_catalog.get_struct_layout_descriptors().len();
+        let updated_struct_layout_descriptors = project_symbol_catalog
+            .get_struct_layout_descriptors()
+            .iter()
+            .filter(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() != struct_layout_id)
+            .cloned()
+            .collect::<Vec<_>>();
+
+        if updated_struct_layout_descriptors.len() == struct_layout_count_before_delete {
+            return Err(format!("Symbol layout `{}` does not exist.", struct_layout_id));
+        }
+
+        project_symbol_catalog.set_struct_layout_descriptors(updated_struct_layout_descriptors);
+        Self::retarget_catalog_struct_layout_references(project_symbol_catalog, struct_layout_id, &replacement_data_type_ref);
+
+        Ok(ProjectSymbolLayoutMutationSummary {
+            changed: true,
+            deleted_module_field_count: 0,
+            deleted_module_range_count: 0,
+        })
+    }
+
     pub fn resolve_struct_layout_id_size_in_bytes<ResolvePrimitiveSize, ResolveStructLayout>(
         struct_layout_id: &str,
         resolve_primitive_size_in_bytes: ResolvePrimitiveSize,
@@ -490,15 +568,102 @@ impl ProjectSymbolLayoutMutation {
                 })
         });
     }
+
+    fn sort_struct_layout_descriptors(struct_layout_descriptors: &mut [StructLayoutDescriptor]) {
+        struct_layout_descriptors.sort_by(|left_layout, right_layout| {
+            left_layout
+                .get_struct_layout_id()
+                .to_ascii_lowercase()
+                .cmp(&right_layout.get_struct_layout_id().to_ascii_lowercase())
+        });
+    }
+
+    fn retarget_catalog_struct_layout_references(
+        project_symbol_catalog: &mut ProjectSymbolCatalog,
+        source_struct_layout_id: &str,
+        replacement_data_type_ref: &DataTypeRef,
+    ) {
+        for symbol_claim in project_symbol_catalog.get_symbol_claims_mut() {
+            if symbol_claim.get_struct_layout_id() == source_struct_layout_id {
+                symbol_claim.set_struct_layout_id(replacement_data_type_ref.get_data_type_id().to_string());
+            }
+        }
+
+        for symbol_module in project_symbol_catalog.get_symbol_modules_mut() {
+            for module_field in symbol_module.get_fields_mut() {
+                if module_field.get_struct_layout_id() == source_struct_layout_id {
+                    module_field.set_struct_layout_id(replacement_data_type_ref.get_data_type_id().to_string());
+                }
+            }
+        }
+
+        let retargeted_struct_layout_descriptors = project_symbol_catalog
+            .get_struct_layout_descriptors()
+            .iter()
+            .map(|struct_layout_descriptor| {
+                let retargeted_fields = struct_layout_descriptor
+                    .get_struct_layout_definition()
+                    .get_fields()
+                    .iter()
+                    .map(|symbolic_field_definition| {
+                        Self::retarget_symbolic_field_definition_type(symbolic_field_definition, source_struct_layout_id, replacement_data_type_ref)
+                    })
+                    .collect();
+
+                StructLayoutDescriptor::new(
+                    struct_layout_descriptor.get_struct_layout_id().to_string(),
+                    SymbolicStructDefinition::new_with_layout_kind(
+                        struct_layout_descriptor
+                            .get_struct_layout_definition()
+                            .get_symbol_namespace()
+                            .to_string(),
+                        struct_layout_descriptor
+                            .get_struct_layout_definition()
+                            .get_layout_kind(),
+                        retargeted_fields,
+                    )
+                    .with_declared_size_in_bytes(
+                        struct_layout_descriptor
+                            .get_struct_layout_definition()
+                            .get_declared_size_in_bytes(),
+                    ),
+                )
+            })
+            .collect();
+
+        project_symbol_catalog.set_struct_layout_descriptors(retargeted_struct_layout_descriptors);
+    }
+
+    fn retarget_symbolic_field_definition_type(
+        symbolic_field_definition: &SymbolicFieldDefinition,
+        source_struct_layout_id: &str,
+        replacement_data_type_ref: &DataTypeRef,
+    ) -> SymbolicFieldDefinition {
+        if symbolic_field_definition.get_data_type_ref().get_data_type_id() != source_struct_layout_id {
+            return symbolic_field_definition.clone();
+        }
+
+        SymbolicFieldDefinition::new_named_with_resolutions_and_display_count(
+            symbolic_field_definition.get_field_name().to_string(),
+            replacement_data_type_ref.clone(),
+            symbolic_field_definition.get_container_type(),
+            symbolic_field_definition.get_count_resolution().clone(),
+            symbolic_field_definition.get_display_count_resolution().clone(),
+            symbolic_field_definition.get_offset_resolution().clone(),
+        )
+        .with_active_when_resolver(symbolic_field_definition.get_active_when_resolver().cloned())
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::ProjectSymbolLayoutMutation;
+    use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
     use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
     use squalr_engine_api::structures::data_values::container_type::ContainerType;
     use squalr_engine_api::structures::projects::{
-        project_symbol_catalog::ProjectSymbolCatalog, project_symbol_module::ProjectSymbolModule, project_symbol_module_field::ProjectSymbolModuleField,
+        project_symbol_catalog::ProjectSymbolCatalog, project_symbol_claim::ProjectSymbolClaim, project_symbol_module::ProjectSymbolModule,
+        project_symbol_module_field::ProjectSymbolModuleField,
     };
     use squalr_engine_api::structures::structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition};
     use std::str::FromStr;
@@ -707,5 +872,131 @@ mod tests {
         assert_eq!(fields.len(), 1);
         assert_eq!(fields[0].get_offset(), 0x08);
         assert_eq!(fields[0].get_struct_layout_id(), "player.stats");
+    }
+
+    #[test]
+    fn upsert_struct_layout_descriptor_rename_retargets_module_fields_and_nested_layout_fields() {
+        let mut symbol_module = ProjectSymbolModule::new(String::from("game.exe"), 0x1000);
+        symbol_module
+            .get_fields_mut()
+            .push(ProjectSymbolModuleField::new(String::from("Player"), 0, String::from("player.stats")));
+        let mut project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_and_symbol_claims(
+            vec![symbol_module],
+            vec![
+                StructLayoutDescriptor::new(
+                    String::from("player.stats"),
+                    SymbolicStructDefinition::new(
+                        String::from("player.stats"),
+                        vec![SymbolicFieldDefinition::new_named(
+                            String::from("health"),
+                            DataTypeRef::new("u32"),
+                            ContainerType::None,
+                        )],
+                    ),
+                ),
+                StructLayoutDescriptor::new(
+                    String::from("player.container"),
+                    SymbolicStructDefinition::new(
+                        String::from("player.container"),
+                        vec![SymbolicFieldDefinition::new_named(
+                            String::from("Stats"),
+                            DataTypeRef::new("player.stats"),
+                            ContainerType::None,
+                        )],
+                    ),
+                ),
+            ],
+            vec![ProjectSymbolClaim::new_absolute_address(
+                String::from("Player"),
+                0x1234,
+                String::from("player.stats"),
+            )],
+        );
+
+        ProjectSymbolLayoutMutation::upsert_struct_layout_descriptor(
+            &mut project_symbol_catalog,
+            Some("player.stats"),
+            StructLayoutDescriptor::new(
+                String::from("player.profile"),
+                SymbolicStructDefinition::new(
+                    String::from("player.profile"),
+                    vec![SymbolicFieldDefinition::new_named(
+                        String::from("health"),
+                        DataTypeRef::new("u32"),
+                        ContainerType::None,
+                    )],
+                ),
+            ),
+        )
+        .expect("Expected struct layout rename to apply.");
+
+        assert_eq!(project_symbol_catalog.get_symbol_claims()[0].get_struct_layout_id(), "player.profile");
+        assert_eq!(
+            project_symbol_catalog.get_symbol_modules()[0].get_fields()[0].get_struct_layout_id(),
+            "player.profile"
+        );
+        assert_eq!(
+            project_symbol_catalog.get_struct_layout_descriptors()[0]
+                .get_struct_layout_definition()
+                .get_fields()[0]
+                .get_data_type_ref()
+                .get_data_type_id(),
+            "player.profile"
+        );
+    }
+
+    #[test]
+    fn delete_struct_layout_retargets_module_fields_and_nested_layout_fields() {
+        let mut symbol_module = ProjectSymbolModule::new(String::from("game.exe"), 0x1000);
+        symbol_module
+            .get_fields_mut()
+            .push(ProjectSymbolModuleField::new(String::from("Player"), 0, String::from("player.stats")));
+        let mut project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_and_symbol_claims(
+            vec![symbol_module],
+            vec![
+                StructLayoutDescriptor::new(
+                    String::from("player.stats"),
+                    SymbolicStructDefinition::new(
+                        String::from("player.stats"),
+                        vec![SymbolicFieldDefinition::new_named(
+                            String::from("health"),
+                            DataTypeRef::new("u32"),
+                            ContainerType::None,
+                        )],
+                    ),
+                ),
+                StructLayoutDescriptor::new(
+                    String::from("player.container"),
+                    SymbolicStructDefinition::new(
+                        String::from("player.container"),
+                        vec![SymbolicFieldDefinition::new_named(
+                            String::from("Stats"),
+                            DataTypeRef::new("player.stats"),
+                            ContainerType::None,
+                        )],
+                    ),
+                ),
+            ],
+            vec![ProjectSymbolClaim::new_absolute_address(
+                String::from("Player"),
+                0x1234,
+                String::from("player.stats"),
+            )],
+        );
+
+        ProjectSymbolLayoutMutation::delete_struct_layout(&mut project_symbol_catalog, "player.stats", DataTypeRef::new("u8"))
+            .expect("Expected struct layout delete to apply.");
+
+        assert_eq!(project_symbol_catalog.get_struct_layout_descriptors().len(), 1);
+        assert_eq!(project_symbol_catalog.get_symbol_claims()[0].get_struct_layout_id(), "u8");
+        assert_eq!(project_symbol_catalog.get_symbol_modules()[0].get_fields()[0].get_struct_layout_id(), "u8");
+        assert_eq!(
+            project_symbol_catalog.get_struct_layout_descriptors()[0]
+                .get_struct_layout_definition()
+                .get_fields()[0]
+                .get_data_type_ref()
+                .get_data_type_id(),
+            "u8"
+        );
     }
 }
