@@ -1,3 +1,4 @@
+use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
 use crate::views::struct_viewer::view_data::struct_viewer_field_presentation::{StructViewerFieldEditorKind, StructViewerFieldPresentation};
 use squalr_engine_api::structures::{
     data_types::{built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8, data_type_ref::DataTypeRef},
@@ -22,6 +23,7 @@ pub struct DetailsProjectionAdapterState {
     rendered_field_sources: HashMap<String, DetailsFieldSource>,
     field_presentations: HashMap<String, StructViewerFieldPresentation>,
     field_validation_data_type_refs: HashMap<String, DataTypeRef>,
+    field_data_type_selections: HashMap<String, DataTypeSelection>,
 }
 
 impl DetailsProjectionAdapterState {
@@ -64,6 +66,15 @@ impl DetailsProjectionAdapterState {
         }
     }
 
+    pub fn apply_field_data_type_selections(
+        &self,
+        field_data_type_selections: &mut HashMap<String, DataTypeSelection>,
+    ) {
+        for (rendered_field_name, data_type_selection) in &self.field_data_type_selections {
+            field_data_type_selections.insert(rendered_field_name.clone(), data_type_selection.clone());
+        }
+    }
+
     pub fn build_details_edit(
         &self,
         edited_field: &ValuedStructField,
@@ -103,21 +114,33 @@ impl DetailsProjectionAdapter {
         let mut rendered_field_sources = HashMap::new();
         let mut field_presentations = HashMap::new();
         let mut field_validation_data_type_refs = HashMap::new();
+        let mut field_data_type_selections = HashMap::new();
         let mut rendered_field_names = HashSet::new();
 
         for (field_index, details_field) in details_projection.get_fields().iter().enumerate() {
             let rendered_field_name = Self::rendered_field_name(field_index, details_field, &mut rendered_field_names);
             let valued_struct_field = Self::valued_struct_field_from_details_field(engine_unprivileged_state, details_field, &rendered_field_name);
+            let editor_kind = Self::editor_kind_from_details_field(details_field);
 
             rendered_field_ids.insert(rendered_field_name.clone(), details_field.get_id().clone());
             rendered_field_sources.insert(rendered_field_name.clone(), details_field.get_source().clone());
             field_presentations.insert(
                 rendered_field_name.clone(),
-                StructViewerFieldPresentation::new(details_field.get_label().to_string(), Self::editor_kind_from_details_field(details_field)),
+                StructViewerFieldPresentation::new(details_field.get_label().to_string(), editor_kind.clone()),
             );
 
             if let Some(validation_data_type_ref) = Self::validation_data_type_ref_from_details_field(details_field) {
-                field_validation_data_type_refs.insert(rendered_field_name, validation_data_type_ref);
+                field_validation_data_type_refs.insert(rendered_field_name.clone(), validation_data_type_ref);
+            }
+
+            if matches!(
+                editor_kind,
+                StructViewerFieldEditorKind::DataTypeSelector
+                    | StructViewerFieldEditorKind::SymbolResolverDataTypeSelector
+                    | StructViewerFieldEditorKind::SymbolLayoutFieldDataTypeSelector
+            ) && let Some(data_type_ref) = Self::selected_data_type_ref_from_details_field(details_field)
+            {
+                field_data_type_selections.insert(rendered_field_name.clone(), DataTypeSelection::new(data_type_ref));
             }
 
             fields.push(valued_struct_field);
@@ -131,6 +154,7 @@ impl DetailsProjectionAdapter {
                 rendered_field_sources,
                 field_presentations,
                 field_validation_data_type_refs,
+                field_data_type_selections,
             },
         }
     }
@@ -235,6 +259,21 @@ impl DetailsProjectionAdapter {
     }
 
     fn editor_kind_from_details_field(details_field: &DetailsField) -> StructViewerFieldEditorKind {
+        if let DetailsFieldSource::SymbolLayoutMetadata { metadata_name } = details_field.get_source() {
+            match metadata_name.as_str() {
+                "layout.kind" => return StructViewerFieldEditorKind::SymbolLayoutKindSelector,
+                "field.element_type" => return StructViewerFieldEditorKind::SymbolLayoutFieldElementTypeSelector,
+                "field.data_type" => return StructViewerFieldEditorKind::SymbolLayoutFieldDataTypeSelector,
+                "field.symbol_layout" => return StructViewerFieldEditorKind::SymbolLayoutFieldSymbolLayoutSelector,
+                "field.count_resolver" | "field.display_count_resolver" | "field.active_when_resolver" | "field.offset_resolver" => {
+                    return StructViewerFieldEditorKind::SymbolLayoutFieldResolverSelector;
+                }
+                "field.container_kind" => return StructViewerFieldEditorKind::SymbolLayoutFieldContainerKindSelector,
+                "field.pointer_size" => return StructViewerFieldEditorKind::SymbolLayoutFieldPointerSizeSelector,
+                _ => {}
+            }
+        }
+
         match details_field.get_editor_hint() {
             DetailsEditorHint::Value | DetailsEditorHint::Address | DetailsEditorHint::Text | DetailsEditorHint::Boolean => {
                 StructViewerFieldEditorKind::ValueBox
@@ -245,15 +284,30 @@ impl DetailsProjectionAdapter {
             DetailsEditorHint::PointerSize => StructViewerFieldEditorKind::ProjectItemPointerSizeSelector,
         }
     }
+
+    fn selected_data_type_ref_from_details_field(details_field: &DetailsField) -> Option<DataTypeRef> {
+        match details_field.get_value() {
+            DetailsValue::Text(text) => Some(DataTypeRef::new(text.trim())),
+            DetailsValue::DataValue(data_value) => String::from_utf8(data_value.get_value_bytes().clone())
+                .ok()
+                .map(|text| DataTypeRef::new(text.trim())),
+            DetailsValue::AnonymousValue(anonymous_value_string) => Some(DataTypeRef::new(anonymous_value_string.get_anonymous_value_string().trim())),
+            _ => details_field.get_validation_data_type_ref().cloned(),
+        }
+        .filter(|data_type_ref| !data_type_ref.get_data_type_id().trim().is_empty())
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::DetailsProjectionAdapter;
-    use crate::views::struct_viewer::view_data::struct_viewer_field_presentation::StructViewerFieldEditorKind;
+    use crate::views::struct_viewer::view_data::struct_viewer_field_presentation::{StructViewerFieldEditorKind, StructViewerFieldPresentation};
     use crossbeam_channel::{Receiver, unbounded};
     use squalr_engine_api::structures::{
-        data_types::{built_in_types::u32::data_type_u32::DataTypeU32, data_type_ref::DataTypeRef},
+        data_types::{
+            built_in_types::{string::utf8::data_type_string_utf8::DataTypeStringUtf8, u32::data_type_u32::DataTypeU32},
+            data_type_ref::DataTypeRef,
+        },
         data_values::container_type::ContainerType,
         details::{DetailsEditorHint, DetailsField, DetailsFieldId, DetailsFieldSource, DetailsProjection, DetailsTarget, DetailsValue},
         projects::project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress,
@@ -384,6 +438,77 @@ mod tests {
 
         assert_eq!(rendered_field.get_name(), ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE);
         assert_eq!(field_presentation.editor_kind(), &StructViewerFieldEditorKind::ValueBox);
+    }
+
+    #[test]
+    fn details_projection_adapter_maps_symbol_layout_metadata_to_custom_editors() {
+        let details_projection = DetailsProjection::new(
+            DetailsTarget::new("symbol_layout_field", "player.stats:0"),
+            "health",
+            vec![
+                DetailsField::new(
+                    DetailsFieldId::new("field.data_type"),
+                    "Data Type",
+                    DetailsValue::Text(String::from(DataTypeU32::DATA_TYPE_ID)),
+                    false,
+                    DetailsEditorHint::DataType,
+                    Some(DataTypeRef::new(DataTypeStringUtf8::DATA_TYPE_ID)),
+                    ContainerType::None,
+                    DetailsFieldSource::SymbolLayoutMetadata {
+                        metadata_name: String::from("field.data_type"),
+                    },
+                ),
+                DetailsField::new(
+                    DetailsFieldId::new("field.count_resolver"),
+                    "Count Resolver",
+                    DetailsValue::Text(String::from("inventory.count")),
+                    false,
+                    DetailsEditorHint::Text,
+                    Some(DataTypeRef::new(DataTypeStringUtf8::DATA_TYPE_ID)),
+                    ContainerType::None,
+                    DetailsFieldSource::SymbolLayoutMetadata {
+                        metadata_name: String::from("field.count_resolver"),
+                    },
+                ),
+            ],
+        );
+        let engine_unprivileged_state = create_test_engine_unprivileged_state();
+        let adapter = DetailsProjectionAdapter::adapt_projection(&engine_unprivileged_state, &details_projection);
+        let (valued_struct, adapter_state) = adapter.into_parts();
+        let data_type_field_name = valued_struct
+            .get_fields()
+            .first()
+            .expect("Expected data type field.")
+            .get_name()
+            .to_string();
+        let resolver_field_name = valued_struct
+            .get_fields()
+            .get(1)
+            .expect("Expected resolver field.")
+            .get_name()
+            .to_string();
+
+        assert_eq!(
+            adapter_state
+                .field_presentations
+                .get(&data_type_field_name)
+                .map(StructViewerFieldPresentation::editor_kind),
+            Some(&StructViewerFieldEditorKind::SymbolLayoutFieldDataTypeSelector)
+        );
+        assert_eq!(
+            adapter_state
+                .field_data_type_selections
+                .get(&data_type_field_name)
+                .map(|selection| selection.visible_data_type()),
+            Some(&DataTypeRef::new(DataTypeU32::DATA_TYPE_ID))
+        );
+        assert_eq!(
+            adapter_state
+                .field_presentations
+                .get(&resolver_field_name)
+                .map(StructViewerFieldPresentation::editor_kind),
+            Some(&StructViewerFieldEditorKind::SymbolLayoutFieldResolverSelector)
+        );
     }
 
     #[test]

@@ -38,9 +38,13 @@ use squalr_engine_api::structures::{
         data_type_ref::DataTypeRef,
     },
     data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
+    details::DetailsEdit,
     pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
     projects::{
         project_symbol_catalog::ProjectSymbolCatalog,
+        symbol_layouts::symbol_layout_details::{
+            SymbolLayoutDetails, SymbolLayoutDetailsEditOperation, SymbolLayoutDetailsFieldElementKind, SymbolLayoutFieldDetails,
+        },
         symbol_layouts::symbol_layout_draft_ops::{
             SymbolLayoutDraftOps, SymbolLayoutFieldSpan, SymbolLayoutUnassignedAdjacentField, SymbolLayoutUnassignedRowContext, SymbolLayoutUnassignedSelection,
         },
@@ -48,8 +52,6 @@ use squalr_engine_api::structures::{
     structs::{
         symbolic_field_definition::{SymbolicFieldDefinition, SymbolicFieldOffsetResolution},
         symbolic_struct_definition::{SymbolicLayoutKind, SymbolicStructDefinition},
-        valued_struct::ValuedStruct,
-        valued_struct_field::ValuedStructField,
     },
 };
 use std::{cell::Cell, collections::BTreeSet, str::FromStr, sync::Arc};
@@ -1511,13 +1513,6 @@ impl SymbolLayoutEditorView {
         }
     }
 
-    fn layout_kind_from_label(label: &str) -> Option<SymbolicLayoutKind> {
-        SymbolicLayoutKind::ALL
-            .iter()
-            .copied()
-            .find(|layout_kind| layout_kind.label() == label.trim())
-    }
-
     fn symbol_layout_take_over_has_unsaved_changes(
         baseline_project_symbol_catalog: Option<&ProjectSymbolCatalog>,
         baseline_draft: &SymbolLayoutEditDraft,
@@ -1571,17 +1566,12 @@ impl SymbolLayoutEditorView {
             return;
         };
 
-        let details_struct = ValuedStruct::new_anonymous(vec![
-            DataTypeStringUtf8::get_value_from_primitive_string(struct_layout_descriptor.get_struct_layout_id())
-                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_LAYOUT_ID.to_string(), false),
-            DataTypeStringUtf8::get_value_from_primitive_string(
-                struct_layout_descriptor
-                    .get_struct_layout_definition()
-                    .get_layout_kind()
-                    .label(),
-            )
-            .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_KIND.to_string(), false),
-        ]);
+        let details_projection = SymbolLayoutDetails::build_layout_projection(
+            struct_layout_descriptor.get_struct_layout_id(),
+            struct_layout_descriptor
+                .get_struct_layout_definition()
+                .get_layout_kind(),
+        );
         let selection_key = format!("layout|{}", struct_layout_descriptor.get_struct_layout_id());
         let edit_callback = Self::build_struct_viewer_layout_edit_callback(
             self.app_context.clone(),
@@ -1589,10 +1579,10 @@ impl SymbolLayoutEditorView {
             struct_layout_descriptor.get_struct_layout_id().to_string(),
         );
 
-        StructViewerViewData::focus_valued_struct_with_focus_target(
+        StructViewerViewData::focus_details_projection_with_focus_target(
             self.struct_viewer_view_data.clone(),
             self.app_context.engine_unprivileged_state.clone(),
-            details_struct,
+            details_projection,
             edit_callback,
             Some(StructViewerFocusTarget::SymbolLayoutEditor { selection_key }),
         );
@@ -1602,14 +1592,9 @@ impl SymbolLayoutEditorView {
         app_context: Arc<AppContext>,
         struct_viewer_view_data: Dependency<StructViewerViewData>,
         layout_id: String,
-    ) -> Arc<dyn Fn(ValuedStructField) + Send + Sync> {
-        Arc::new(move |edited_field: ValuedStructField| {
-            if edited_field.get_name() != StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_KIND {
-                return;
-            }
-
-            let edited_text = StructViewerViewData::read_utf8_field_text(&edited_field);
-            let Some(edited_layout_kind) = Self::layout_kind_from_label(&edited_text) else {
+    ) -> Arc<dyn Fn(DetailsEdit) + Send + Sync> {
+        Arc::new(move |details_edit: DetailsEdit| {
+            let SymbolLayoutDetailsEditOperation::UpdateLayoutKind(edited_layout_kind) = SymbolLayoutDetails::plan_edit(&details_edit) else {
                 return;
             };
             let Some(project_symbol_catalog) = Self::get_opened_project_symbol_catalog_from_context(&app_context) else {
@@ -1658,24 +1643,19 @@ impl SymbolLayoutEditorView {
                 return;
             };
             Self::persist_symbol_layout_descriptor_with_context(&app_context, Some(layout_id.clone()), updated_struct_layout_descriptor);
-            let details_struct = ValuedStruct::new_anonymous(vec![
-                DataTypeStringUtf8::get_value_from_primitive_string(updated_struct_layout_descriptor.get_struct_layout_id())
-                    .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_LAYOUT_ID.to_string(), false),
-                DataTypeStringUtf8::get_value_from_primitive_string(
-                    updated_struct_layout_descriptor
-                        .get_struct_layout_definition()
-                        .get_layout_kind()
-                        .label(),
-                )
-                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_KIND.to_string(), false),
-            ]);
+            let details_projection = SymbolLayoutDetails::build_layout_projection(
+                updated_struct_layout_descriptor.get_struct_layout_id(),
+                updated_struct_layout_descriptor
+                    .get_struct_layout_definition()
+                    .get_layout_kind(),
+            );
             let selection_key = format!("layout|{}", updated_struct_layout_descriptor.get_struct_layout_id());
             let edit_callback = Self::build_struct_viewer_layout_edit_callback(app_context.clone(), struct_viewer_view_data.clone(), layout_id.clone());
 
-            StructViewerViewData::focus_valued_struct_with_focus_target(
+            StructViewerViewData::focus_details_projection_with_focus_target(
                 struct_viewer_view_data.clone(),
                 app_context.engine_unprivileged_state.clone(),
-                details_struct,
+                details_projection,
                 edit_callback,
                 Some(StructViewerFocusTarget::SymbolLayoutEditor { selection_key }),
             );
@@ -1693,7 +1673,12 @@ impl SymbolLayoutEditorView {
             return;
         };
 
-        let details_struct = Self::build_field_details_struct(project_symbol_catalog, draft.layout_kind, field_draft);
+        let details_projection = SymbolLayoutDetails::build_field_projection(
+            &draft.layout_id,
+            field_index,
+            draft.layout_kind,
+            &Self::build_field_details(project_symbol_catalog, draft.layout_kind, field_draft),
+        );
         let selection_key = format!("field|{}|{}", draft.layout_id, field_index);
         let edit_callback = Self::build_struct_viewer_field_edit_callback(
             self.symbol_layout_editor_view_data.clone(),
@@ -1702,10 +1687,10 @@ impl SymbolLayoutEditorView {
             field_index,
         );
 
-        StructViewerViewData::focus_valued_struct_with_focus_target(
+        StructViewerViewData::focus_details_projection_with_focus_target(
             self.struct_viewer_view_data.clone(),
             self.app_context.engine_unprivileged_state.clone(),
-            details_struct,
+            details_projection,
             edit_callback,
             Some(StructViewerFocusTarget::SymbolLayoutEditor { selection_key }),
         );
@@ -1722,7 +1707,12 @@ impl SymbolLayoutEditorView {
             return;
         };
 
-        let details_struct = Self::build_field_details_struct(project_symbol_catalog, SymbolicLayoutKind::Struct, field_draft);
+        let details_projection = SymbolLayoutDetails::build_field_projection(
+            &variant_draft.layout_id,
+            field_index,
+            SymbolicLayoutKind::Struct,
+            &Self::build_field_details(project_symbol_catalog, SymbolicLayoutKind::Struct, field_draft),
+        );
         let selection_key = format!("field|{}|{}", variant_draft.layout_id, field_index);
         let edit_callback = Self::build_variant_field_edit_callback(
             self.symbol_layout_editor_view_data.clone(),
@@ -1732,10 +1722,10 @@ impl SymbolLayoutEditorView {
             field_index,
         );
 
-        StructViewerViewData::focus_valued_struct_with_focus_target(
+        StructViewerViewData::focus_details_projection_with_focus_target(
             self.struct_viewer_view_data.clone(),
             self.app_context.engine_unprivileged_state.clone(),
-            details_struct,
+            details_projection,
             edit_callback,
             Some(StructViewerFocusTarget::SymbolLayoutEditor { selection_key }),
         );
@@ -1747,28 +1737,88 @@ impl SymbolLayoutEditorView {
         offset_in_bytes: u64,
         size_in_bytes: u64,
     ) {
-        let details_struct = ValuedStruct::new_anonymous(vec![
-            DataTypeStringUtf8::get_value_from_primitive_string("UNASSIGNED").to_named_valued_struct_field(String::from("kind"), true),
-            DataTypeStringUtf8::get_value_from_primitive_string(&draft.layout_id).to_named_valued_struct_field(String::from("layout"), true),
-            DataTypeU64::get_value_from_primitive(offset_in_bytes).to_named_valued_struct_field(String::from("offset"), true),
-            DataTypeU64::get_value_from_primitive(size_in_bytes).to_named_valued_struct_field(String::from("size"), true),
-        ]);
+        let details_projection = SymbolLayoutDetails::build_unassigned_projection(&draft.layout_id, offset_in_bytes, size_in_bytes);
         let selection_key = format!("unassigned|{}|{}|{}", draft.layout_id, offset_in_bytes, size_in_bytes);
 
-        StructViewerViewData::focus_valued_struct_with_focus_target(
+        StructViewerViewData::focus_details_projection_with_focus_target(
             self.struct_viewer_view_data.clone(),
             self.app_context.engine_unprivileged_state.clone(),
-            details_struct,
-            Arc::new(|_edited_field| {}),
+            details_projection,
+            Arc::new(|_details_edit| {}),
             Some(StructViewerFocusTarget::SymbolLayoutEditor { selection_key }),
         );
     }
 
+    fn build_field_details(
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        layout_kind: SymbolicLayoutKind,
+        field_draft: &SymbolLayoutFieldEditDraft,
+    ) -> SymbolLayoutFieldDetails {
+        let element_type = SymbolLayoutEditorViewData::resolve_field_element_type(project_symbol_catalog, field_draft);
+        let fixed_array_length = matches!(
+            field_draft.container_edit.kind,
+            SymbolLayoutFieldContainerKind::FixedArray | SymbolLayoutFieldContainerKind::FixedPointerArray
+        )
+        .then(|| {
+            field_draft
+                .container_edit
+                .fixed_array_length
+                .trim()
+                .parse::<u64>()
+                .unwrap_or(1)
+                .max(1)
+        });
+        let uses_count_resolver = matches!(
+            field_draft.container_edit.kind,
+            SymbolLayoutFieldContainerKind::DynamicArray | SymbolLayoutFieldContainerKind::DynamicPointerArray
+        );
+        let uses_display_count_resolver = matches!(
+            field_draft.container_edit.kind,
+            SymbolLayoutFieldContainerKind::FixedArray
+                | SymbolLayoutFieldContainerKind::FixedPointerArray
+                | SymbolLayoutFieldContainerKind::DynamicArray
+                | SymbolLayoutFieldContainerKind::DynamicPointerArray
+        );
+        let uses_pointer_size = matches!(
+            field_draft.container_edit.kind,
+            SymbolLayoutFieldContainerKind::Pointer | SymbolLayoutFieldContainerKind::FixedPointerArray | SymbolLayoutFieldContainerKind::DynamicPointerArray
+        );
+
+        SymbolLayoutFieldDetails {
+            field_name: field_draft.field_name.clone(),
+            data_type_id: field_draft
+                .data_type_selection
+                .visible_data_type()
+                .get_data_type_id()
+                .to_string(),
+            element_kind: match element_type {
+                SymbolLayoutFieldElementType::BuiltInDataType => SymbolLayoutDetailsFieldElementKind::BuiltInDataType,
+                SymbolLayoutFieldElementType::SymbolLayout => SymbolLayoutDetailsFieldElementKind::SymbolLayout,
+            },
+            container_kind_label: field_draft.container_edit.kind.label().to_string(),
+            fixed_array_length,
+            count_resolver_id: uses_count_resolver.then(|| {
+                field_draft
+                    .container_edit
+                    .dynamic_array_count_resolver_id
+                    .clone()
+            }),
+            display_count_resolver_id: uses_display_count_resolver.then(|| field_draft.container_edit.display_count_resolver_id.clone()),
+            active_when_resolver_id: (layout_kind.is_union() || !field_draft.active_when_resolver_id.is_empty())
+                .then(|| field_draft.active_when_resolver_id.clone()),
+            pointer_size_label: uses_pointer_size.then(|| field_draft.container_edit.pointer_size.to_string()),
+            offset_resolver_id: (field_draft.offset_mode == SymbolLayoutFieldOffsetMode::Resolver).then(|| field_draft.offset_resolver_id.clone()),
+        }
+    }
+
+    #[cfg(test)]
     fn build_field_details_struct(
         project_symbol_catalog: &ProjectSymbolCatalog,
         layout_kind: SymbolicLayoutKind,
         field_draft: &SymbolLayoutFieldEditDraft,
-    ) -> ValuedStruct {
+    ) -> squalr_engine_api::structures::structs::valued_struct::ValuedStruct {
+        use squalr_engine_api::structures::structs::valued_struct::ValuedStruct;
+
         let element_type = SymbolLayoutEditorViewData::resolve_field_element_type(project_symbol_catalog, field_draft);
         if layout_kind.is_union() {
             return ValuedStruct::new_anonymous(vec![
@@ -1873,8 +1923,8 @@ impl SymbolLayoutEditorView {
         struct_viewer_view_data: Dependency<StructViewerViewData>,
         app_context: Arc<AppContext>,
         field_index: usize,
-    ) -> Arc<dyn Fn(ValuedStructField) + Send + Sync> {
-        Arc::new(move |edited_field: ValuedStructField| {
+    ) -> Arc<dyn Fn(DetailsEdit) + Send + Sync> {
+        Arc::new(move |details_edit: DetailsEdit| {
             let updated_draft = {
                 let Some(mut view_data) = symbol_layout_editor_view_data.write("SymbolLayoutEditor apply field details edit") else {
                     return;
@@ -1887,7 +1937,7 @@ impl SymbolLayoutEditorView {
                 };
 
                 let project_symbol_catalog = Self::get_opened_project_symbol_catalog_from_context(&app_context).unwrap_or_default();
-                Self::apply_field_details_edit(&project_symbol_catalog, field_draft, &edited_field);
+                Self::apply_field_details_operation(&project_symbol_catalog, field_draft, SymbolLayoutDetails::plan_edit(&details_edit));
                 Self::grow_draft_size_to_fit_fields(&project_symbol_catalog, &mut draft);
                 view_data.replace_draft(draft.clone());
                 draft
@@ -1897,7 +1947,12 @@ impl SymbolLayoutEditorView {
                 return;
             };
             let project_symbol_catalog = Self::get_opened_project_symbol_catalog_from_context(&app_context).unwrap_or_default();
-            let details_struct = Self::build_field_details_struct(&project_symbol_catalog, updated_draft.layout_kind, updated_field_draft);
+            let details_projection = SymbolLayoutDetails::build_field_projection(
+                &updated_draft.layout_id,
+                field_index,
+                updated_draft.layout_kind,
+                &Self::build_field_details(&project_symbol_catalog, updated_draft.layout_kind, updated_field_draft),
+            );
             let selection_key = format!("field|{}|{}", updated_draft.layout_id, field_index);
             let edit_callback = Self::build_struct_viewer_field_edit_callback(
                 symbol_layout_editor_view_data.clone(),
@@ -1906,10 +1961,10 @@ impl SymbolLayoutEditorView {
                 field_index,
             );
 
-            StructViewerViewData::focus_valued_struct_with_focus_target(
+            StructViewerViewData::focus_details_projection_with_focus_target(
                 struct_viewer_view_data.clone(),
                 app_context.engine_unprivileged_state.clone(),
-                details_struct,
+                details_projection,
                 edit_callback,
                 Some(StructViewerFocusTarget::SymbolLayoutEditor { selection_key }),
             );
@@ -1922,8 +1977,8 @@ impl SymbolLayoutEditorView {
         app_context: Arc<AppContext>,
         variant_layout_id: String,
         field_index: usize,
-    ) -> Arc<dyn Fn(ValuedStructField) + Send + Sync> {
-        Arc::new(move |edited_field: ValuedStructField| {
+    ) -> Arc<dyn Fn(DetailsEdit) + Send + Sync> {
+        Arc::new(move |details_edit: DetailsEdit| {
             let project_symbol_catalog = Self::get_opened_project_symbol_catalog_from_context(&app_context).unwrap_or_default();
             let updated_variant_draft = {
                 let Some(mut view_data) = symbol_layout_editor_view_data.write("SymbolLayoutEditor apply variant field details edit") else {
@@ -1940,7 +1995,7 @@ impl SymbolLayoutEditorView {
                     return;
                 };
 
-                Self::apply_field_details_edit(&project_symbol_catalog, field_draft, &edited_field);
+                Self::apply_field_details_operation(&project_symbol_catalog, field_draft, SymbolLayoutDetails::plan_edit(&details_edit));
                 Self::grow_draft_size_to_fit_fields(&project_symbol_catalog, &mut variant_draft);
                 view_data.replace_pending_variant_draft(variant_draft.clone());
                 variant_draft
@@ -1952,11 +2007,18 @@ impl SymbolLayoutEditorView {
                 symbol_layout_editor_view_data.clone(),
                 Some(&variant_layout_id),
             );
-            let details_struct = updated_variant_draft
+            let details_projection = updated_variant_draft
                 .field_drafts
                 .get(field_index)
-                .map(|field_draft| Self::build_field_details_struct(&updated_project_symbol_catalog, SymbolicLayoutKind::Struct, field_draft));
-            let Some(details_struct) = details_struct else {
+                .map(|field_draft| {
+                    SymbolLayoutDetails::build_field_projection(
+                        &updated_variant_draft.layout_id,
+                        field_index,
+                        SymbolicLayoutKind::Struct,
+                        &Self::build_field_details(&updated_project_symbol_catalog, SymbolicLayoutKind::Struct, field_draft),
+                    )
+                });
+            let Some(details_projection) = details_projection else {
                 return;
             };
             let selection_key = format!("field|{}|{}", variant_layout_id, field_index);
@@ -1968,68 +2030,59 @@ impl SymbolLayoutEditorView {
                 field_index,
             );
 
-            StructViewerViewData::focus_valued_struct_with_focus_target(
+            StructViewerViewData::focus_details_projection_with_focus_target(
                 struct_viewer_view_data.clone(),
                 app_context.engine_unprivileged_state.clone(),
-                details_struct,
+                details_projection,
                 edit_callback,
                 Some(StructViewerFocusTarget::SymbolLayoutEditor { selection_key }),
             );
         })
     }
 
-    fn apply_field_details_edit(
+    fn apply_field_details_operation(
         project_symbol_catalog: &ProjectSymbolCatalog,
         field_draft: &mut SymbolLayoutFieldEditDraft,
-        edited_field: &ValuedStructField,
+        edit_operation: SymbolLayoutDetailsEditOperation,
     ) {
-        let edited_text = StructViewerViewData::read_utf8_field_text(edited_field);
-
-        match edited_field.get_name() {
-            StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_NAME => {
-                field_draft.field_name = edited_text;
+        match edit_operation {
+            SymbolLayoutDetailsEditOperation::UpdateFieldName(field_name) => {
+                field_draft.field_name = field_name;
             }
-            StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_ELEMENT_TYPE => {
-                Self::apply_field_element_type_edit(project_symbol_catalog, field_draft, &edited_text);
+            SymbolLayoutDetailsEditOperation::UpdateFieldElementKind(element_kind) => {
+                Self::apply_field_element_type_edit(project_symbol_catalog, field_draft, element_kind.label());
             }
-            StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_DATA_TYPE => {
+            SymbolLayoutDetailsEditOperation::UpdateFieldDataType(data_type_id) | SymbolLayoutDetailsEditOperation::UpdateFieldSymbolLayout(data_type_id) => {
                 field_draft
                     .data_type_selection
-                    .replace_selected_data_types(vec![DataTypeRef::new(edited_text.trim())]);
+                    .replace_selected_data_types(vec![DataTypeRef::new(data_type_id.trim())]);
             }
-            StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_SYMBOL_LAYOUT => {
-                field_draft
-                    .data_type_selection
-                    .replace_selected_data_types(vec![DataTypeRef::new(edited_text.trim())]);
-            }
-            StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_CONTAINER_KIND => {
-                if let Some(container_kind) = Self::container_kind_from_label(&edited_text) {
+            SymbolLayoutDetailsEditOperation::UpdateFieldContainerKind(container_kind_label) => {
+                if let Some(container_kind) = Self::container_kind_from_label(&container_kind_label) {
                     field_draft.container_edit.kind = container_kind;
                 }
             }
-            StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_FIXED_ARRAY_LENGTH => {
-                if let Some(length) = Self::read_u64_field_value(edited_field) {
-                    field_draft.container_edit.fixed_array_length = length.max(1).to_string();
-                }
+            SymbolLayoutDetailsEditOperation::UpdateFieldFixedArrayLength(length) => {
+                field_draft.container_edit.fixed_array_length = length.max(1).to_string();
             }
-            StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_COUNT_RESOLVER => {
-                field_draft.container_edit.dynamic_array_count_resolver_id = edited_text;
+            SymbolLayoutDetailsEditOperation::UpdateFieldCountResolver(count_resolver_id) => {
+                field_draft.container_edit.dynamic_array_count_resolver_id = count_resolver_id;
             }
-            StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_DISPLAY_COUNT_RESOLVER => {
-                field_draft.container_edit.display_count_resolver_id = edited_text;
+            SymbolLayoutDetailsEditOperation::UpdateFieldDisplayCountResolver(display_count_resolver_id) => {
+                field_draft.container_edit.display_count_resolver_id = display_count_resolver_id;
             }
-            StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_ACTIVE_WHEN_RESOLVER => {
-                field_draft.active_when_resolver_id = edited_text;
+            SymbolLayoutDetailsEditOperation::UpdateFieldActiveWhenResolver(active_when_resolver_id) => {
+                field_draft.active_when_resolver_id = active_when_resolver_id;
             }
-            StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_POINTER_SIZE => {
-                if let Ok(pointer_size) = PointerScanPointerSize::from_str(edited_text.trim()) {
+            SymbolLayoutDetailsEditOperation::UpdateFieldPointerSize(pointer_size_label) => {
+                if let Ok(pointer_size) = PointerScanPointerSize::from_str(pointer_size_label.trim()) {
                     field_draft.container_edit.pointer_size = pointer_size;
                 }
             }
-            StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_OFFSET_RESOLVER => {
-                field_draft.offset_resolver_id = edited_text;
+            SymbolLayoutDetailsEditOperation::UpdateFieldOffsetResolver(offset_resolver_id) => {
+                field_draft.offset_resolver_id = offset_resolver_id;
             }
-            _ => {}
+            SymbolLayoutDetailsEditOperation::UpdateLayoutKind(_) | SymbolLayoutDetailsEditOperation::NoOp | SymbolLayoutDetailsEditOperation::Reject(_) => {}
         }
     }
 
@@ -2111,13 +2164,6 @@ impl SymbolLayoutEditorView {
             .iter()
             .copied()
             .find(|container_kind| container_kind.label() == label)
-    }
-
-    fn read_u64_field_value(valued_struct_field: &ValuedStructField) -> Option<u64> {
-        let value_bytes = valued_struct_field.get_data_value()?.get_value_bytes();
-        let value_bytes: [u8; 8] = value_bytes.as_slice().try_into().ok()?;
-
-        Some(u64::from_le_bytes(value_bytes))
     }
 
     fn measure_text_width(

@@ -397,6 +397,9 @@ impl StructViewerViewData {
         self.field_display_values = Self::create_field_display_values(&struct_under_view, &field_validation_data_type_refs, engine_unprivileged_state);
         self.field_validation_data_type_refs = field_validation_data_type_refs;
         self.field_data_type_selections = Self::create_field_data_type_selections(&struct_under_view);
+        if let Some(details_projection_adapter_state) = &self.details_projection_adapter_state {
+            details_projection_adapter_state.apply_field_data_type_selections(&mut self.field_data_type_selections);
+        }
     }
 
     pub fn resolve_source_field_edit(
