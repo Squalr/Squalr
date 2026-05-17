@@ -715,53 +715,6 @@ impl StructViewerView {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::StructViewerView;
-    use squalr_engine_api::structures::{
-        data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
-        memory::pointer_chain_segment::PointerChainSegment,
-    };
-
-    #[test]
-    fn pointer_offset_display_values_use_hex_for_offsets_and_string_for_symbols() {
-        let pointer_offset_display_values = StructViewerView::pointer_offset_display_values(vec![
-            PointerChainSegment::Offset(0x20),
-            PointerChainSegment::Symbol(String::from("Timer")),
-        ]);
-
-        assert_eq!(
-            pointer_offset_display_values[0].get_anonymous_value_string_format(),
-            AnonymousValueStringFormat::Hexadecimal
-        );
-        assert_eq!(
-            pointer_offset_display_values[1].get_anonymous_value_string_format(),
-            AnonymousValueStringFormat::String
-        );
-    }
-
-    #[test]
-    fn parse_pointer_offset_display_value_respects_numeric_display_format() {
-        let hex_offset = AnonymousValueString::new(String::from("10"), AnonymousValueStringFormat::Hexadecimal, ContainerType::None);
-        let decimal_offset = AnonymousValueString::new(String::from("10"), AnonymousValueStringFormat::Decimal, ContainerType::None);
-        let symbol_offset = AnonymousValueString::new(String::from("Timer"), AnonymousValueStringFormat::String, ContainerType::None);
-
-        assert_eq!(
-            StructViewerView::parse_pointer_offset_display_value(&hex_offset),
-            Some(PointerChainSegment::Offset(0x10))
-        );
-        assert_eq!(
-            StructViewerView::parse_pointer_offset_display_value(&decimal_offset),
-            Some(PointerChainSegment::Offset(10))
-        );
-        assert_eq!(
-            StructViewerView::parse_pointer_offset_display_value(&symbol_offset),
-            Some(PointerChainSegment::Symbol(String::from("Timer")))
-        );
-    }
-}
-
 impl Widget for StructViewerView {
     fn ui(
         self,

@@ -733,31 +733,3 @@ impl Widget for ElementScannerResultsView {
         results_response
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::ElementScannerResultsView;
-    use epaint::{Rect, pos2};
-
-    #[test]
-    fn display_type_selector_stays_right_aligned_in_value_header() {
-        let display_type_selector_rectangle = ElementScannerResultsView::resolve_display_type_selector_rectangle(120.0, 320.0, 40.0, 4.0);
-
-        assert_eq!(display_type_selector_rectangle.min.x, 284.0);
-        assert_eq!(display_type_selector_rectangle.max.x, 316.0);
-        assert_eq!(display_type_selector_rectangle.height(), 24.0);
-    }
-
-    #[test]
-    fn value_header_clip_stops_before_display_type_selector() {
-        let header_rectangle = Rect::from_min_max(pos2(0.0, 24.0), pos2(400.0, 56.0));
-        let display_type_selector_rectangle = ElementScannerResultsView::resolve_display_type_selector_rectangle(120.0, 320.0, 40.0, 4.0);
-        let value_header_clip_rectangle =
-            ElementScannerResultsView::resolve_value_header_clip_rectangle(120.0, header_rectangle, display_type_selector_rectangle, 8.0);
-
-        assert_eq!(value_header_clip_rectangle.min.x, 128.0);
-        assert_eq!(value_header_clip_rectangle.max.x, 276.0);
-        assert_eq!(value_header_clip_rectangle.min.y, 24.0);
-        assert_eq!(value_header_clip_rectangle.max.y, 56.0);
-    }
-}

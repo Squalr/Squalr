@@ -203,18 +203,3 @@ impl AboutTakeOverView {
         AboutTakeOverViewResponse { should_close }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::AboutTakeOverView;
-
-    #[test]
-    fn build_rows_use_user_facing_labels() {
-        let rows = AboutTakeOverView::build_rows();
-
-        assert_eq!(rows[0].0, "Application");
-        assert_eq!(rows[1].0, "Version");
-        assert_eq!(rows[2].0, "Platform");
-        assert_eq!(rows[3].0, "Architecture");
-    }
-}

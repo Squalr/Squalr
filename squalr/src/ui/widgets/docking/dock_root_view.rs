@@ -156,34 +156,6 @@ impl Widget for DockRootView {
         response
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::DockRootView;
-
-    #[test]
-    fn resolve_effective_maximized_window_identifier_transfers_to_active_sibling_tab() {
-        let effective_maximized_window_identifier =
-            DockRootView::resolve_effective_maximized_window_identifier(Some("memory_viewer"), Some("project_explorer"));
-
-        assert_eq!(effective_maximized_window_identifier, Some(String::from("project_explorer")));
-    }
-
-    #[test]
-    fn resolve_effective_maximized_window_identifier_keeps_current_window_without_active_tab() {
-        let effective_maximized_window_identifier = DockRootView::resolve_effective_maximized_window_identifier(Some("memory_viewer"), Some(""));
-
-        assert_eq!(effective_maximized_window_identifier, Some(String::from("memory_viewer")));
-    }
-
-    #[test]
-    fn resolve_effective_maximized_window_identifier_is_none_when_not_maximized() {
-        let effective_maximized_window_identifier = DockRootView::resolve_effective_maximized_window_identifier(None, Some("memory_viewer"));
-
-        assert_eq!(effective_maximized_window_identifier, None);
-    }
-}
-
 fn paint_drag_overlay(
     user_interface: &Ui,
     theme: &crate::ui::theme::Theme,

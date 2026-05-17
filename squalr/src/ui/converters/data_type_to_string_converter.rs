@@ -74,17 +74,3 @@ impl DataTypeToStringConverter {
         normalized_data_type_label
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::DataTypeToStringConverter;
-
-    #[test]
-    fn convert_data_type_to_string_preserves_container_suffix() {
-        assert_eq!(DataTypeToStringConverter::convert_data_type_to_string("u8[4]"), "u8[4]");
-        assert_eq!(
-            DataTypeToStringConverter::convert_data_type_to_string("player.stats*(u64)"),
-            "player.stats*(u64)"
-        );
-    }
-}

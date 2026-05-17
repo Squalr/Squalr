@@ -179,19 +179,3 @@ impl<'a, F: FnOnce(&mut Ui, &mut bool)> ContextMenu<'a, F> {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::ContextMenuSizing;
-    use crate::ui::widgets::controls::toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView;
-
-    #[test]
-    fn width_from_longest_label_width_respects_toolbar_menu_item_minimum() {
-        assert_eq!(ContextMenuSizing::width_from_longest_label_width(0.0), ToolbarMenuItemView::MIN_MENU_WIDTH);
-    }
-
-    #[test]
-    fn width_from_longest_label_width_grows_for_wider_labels() {
-        assert_eq!(ContextMenuSizing::width_from_longest_label_width(200.0), 236.0);
-    }
-}

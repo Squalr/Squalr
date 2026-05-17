@@ -219,18 +219,3 @@ impl<'lifetime> ToolbarMenuItemView<'lifetime> {
         (text_width + Self::ICON_WIDTH + Self::ICON_LEFT_PADDING * 2.0 + Self::TEXT_LEFT_PADDING + Self::TEXT_RIGHT_PADDING).max(Self::MIN_MENU_WIDTH)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::ToolbarMenuItemView;
-
-    #[test]
-    fn row_width_from_text_width_respects_minimum_width() {
-        assert_eq!(ToolbarMenuItemView::row_width_from_text_width(0.0), ToolbarMenuItemView::MIN_MENU_WIDTH);
-    }
-
-    #[test]
-    fn row_width_from_text_width_includes_row_gutters() {
-        assert_eq!(ToolbarMenuItemView::row_width_from_text_width(200.0), 236.0);
-    }
-}

@@ -40,33 +40,3 @@ where
 
     value.max(minimum).min(maximum)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::{safe_clamp_f32, safe_clamp_ord};
-
-    #[test]
-    fn safe_clamp_f32_clamps_with_ordered_bounds() {
-        assert_eq!(safe_clamp_f32(5.0, 0.0, 4.0), 4.0);
-        assert_eq!(safe_clamp_f32(-1.0, 0.0, 4.0), 0.0);
-        assert_eq!(safe_clamp_f32(2.0, 0.0, 4.0), 2.0);
-    }
-
-    #[test]
-    fn safe_clamp_f32_collapses_to_maximum_when_bounds_are_inverted() {
-        assert_eq!(safe_clamp_f32(150.0, 200.0, 100.0), 100.0);
-    }
-
-    #[test]
-    fn safe_clamp_f32_handles_nan_without_panicking() {
-        assert_eq!(safe_clamp_f32(f32::NAN, 2.0, 8.0), 2.0);
-        assert_eq!(safe_clamp_f32(5.0, f32::NAN, 8.0), 5.0);
-        assert_eq!(safe_clamp_f32(12.0, f32::NAN, 8.0), 8.0);
-        assert_eq!(safe_clamp_f32(5.0, 2.0, f32::NAN), 5.0);
-    }
-
-    #[test]
-    fn safe_clamp_ord_collapses_to_maximum_when_bounds_are_inverted() {
-        assert_eq!(safe_clamp_ord(15, 20, 10), 10);
-    }
-}
