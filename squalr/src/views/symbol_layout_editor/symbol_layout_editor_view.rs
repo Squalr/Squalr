@@ -1,17 +1,16 @@
+mod rows;
 mod takeovers;
 
 use crate::app_context::AppContext;
 use crate::ui::converters::{data_type_to_icon_converter::DataTypeToIconConverter, data_type_to_string_converter::DataTypeToStringConverter};
 use crate::ui::draw::icon_draw::IconDraw;
 use crate::ui::list_navigation::ListNavigationDirection;
-use crate::ui::text::text_fitting::{measure_text_width, truncate_text_to_width};
 use crate::ui::widgets::controls::{
     button::Button as ThemeButton,
     combo_box::{combo_box_item_view::ComboBoxItemView, combo_box_view::ComboBoxView},
     context_menu::context_menu::ContextMenu,
     data_value_box::data_value_box_view::DataValueBoxView,
     search_box::SearchBoxView,
-    state_layer::StateLayer,
     toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView,
 };
 use crate::views::struct_viewer::view_data::{struct_viewer_focus_target::StructViewerFocusTarget, struct_viewer_view_data::StructViewerViewData};
@@ -20,8 +19,12 @@ use crate::views::symbol_layout_editor::view_data::symbol_layout_editor_view_dat
     SymbolLayoutFieldElementType, SymbolLayoutFieldOffsetMode, SymbolLayoutUnassignedContextMenuTarget,
 };
 use crate::views::symbol_layout_editor::view_data::symbol_layout_field_container_edit::{SymbolLayoutFieldContainerEdit, SymbolLayoutFieldContainerKind};
-use eframe::egui::{Align, Align2, Direction, Grid, Id, Key, Layout, Response, RichText, ScrollArea, Sense, Stroke, Ui, UiBuilder, Widget, pos2, vec2};
-use epaint::{Color32, CornerRadius, Rect, StrokeKind};
+use eframe::egui::{Align, Align2, Direction, Grid, Id, Key, Layout, Response, RichText, ScrollArea, Sense, Ui, UiBuilder, Widget, pos2, vec2};
+use epaint::{Color32, CornerRadius};
+use rows::{
+    symbol_layout_field_row_view::SymbolLayoutFieldRowView, symbol_layout_row_view::SymbolLayoutRowView,
+    symbol_layout_unassigned_row_view::SymbolLayoutUnassignedRowView, union_variant_preview_row_view::UnionVariantPreviewRowView,
+};
 use squalr_engine_api::commands::{
     project_symbols::{
         delete_layout::project_symbols_delete_layout_request::ProjectSymbolsDeleteLayoutRequest,
@@ -989,113 +992,6 @@ impl SymbolLayoutEditorView {
 
     fn string_data_type_ref() -> DataTypeRef {
         DataTypeRef::new(DataTypeStringUtf8::DATA_TYPE_ID)
-    }
-
-    fn format_field_data_type_preview(field_draft: &SymbolLayoutFieldEditDraft) -> String {
-        let data_type_id = field_draft
-            .data_type_selection
-            .visible_data_type()
-            .get_data_type_id()
-            .trim();
-        let container_suffix = match field_draft.container_edit.kind {
-            SymbolLayoutFieldContainerKind::Element => String::new(),
-            SymbolLayoutFieldContainerKind::Array => ContainerType::Array.to_string(),
-            SymbolLayoutFieldContainerKind::FixedArray => {
-                let fixed_array_length = field_draft.container_edit.fixed_array_length.trim();
-
-                if fixed_array_length.is_empty() {
-                    String::from("[?]")
-                } else if !field_draft
-                    .container_edit
-                    .display_count_resolver_id
-                    .trim()
-                    .is_empty()
-                {
-                    format!(
-                        "[{}] display resolver({})",
-                        fixed_array_length,
-                        field_draft.container_edit.display_count_resolver_id.trim()
-                    )
-                } else {
-                    format!("[{}]", fixed_array_length)
-                }
-            }
-            SymbolLayoutFieldContainerKind::DynamicArray => {
-                let resolver_id = field_draft
-                    .container_edit
-                    .dynamic_array_count_resolver_id
-                    .trim();
-
-                if resolver_id.is_empty() {
-                    ContainerType::Array.to_string()
-                } else {
-                    format!("[resolver({})]", resolver_id)
-                }
-            }
-            SymbolLayoutFieldContainerKind::Pointer => ContainerType::Pointer(field_draft.container_edit.pointer_size).to_string(),
-            SymbolLayoutFieldContainerKind::FixedPointerArray => {
-                let fixed_array_length = field_draft.container_edit.fixed_array_length.trim();
-
-                if fixed_array_length.is_empty() {
-                    format!("*({})[?]", field_draft.container_edit.pointer_size)
-                } else if !field_draft
-                    .container_edit
-                    .display_count_resolver_id
-                    .trim()
-                    .is_empty()
-                {
-                    format!(
-                        "*({})[{}] display resolver({})",
-                        field_draft.container_edit.pointer_size,
-                        fixed_array_length,
-                        field_draft.container_edit.display_count_resolver_id.trim()
-                    )
-                } else {
-                    format!("*({})[{}]", field_draft.container_edit.pointer_size, fixed_array_length)
-                }
-            }
-            SymbolLayoutFieldContainerKind::DynamicPointerArray => {
-                let resolver_id = field_draft
-                    .container_edit
-                    .dynamic_array_count_resolver_id
-                    .trim();
-
-                if resolver_id.is_empty() {
-                    format!("*({})[]", field_draft.container_edit.pointer_size)
-                } else {
-                    format!("*({})[resolver({})]", field_draft.container_edit.pointer_size, resolver_id)
-                }
-            }
-        };
-
-        format!("{}{}", data_type_id, container_suffix)
-    }
-
-    fn render_flat_icon_button_at(
-        &self,
-        user_interface: &mut Ui,
-        button_rect: Rect,
-        icon_handle: &eframe::egui::TextureHandle,
-        tooltip_text: &str,
-        is_disabled: bool,
-    ) -> Response {
-        let theme = &self.app_context.theme;
-        let button_response = user_interface.put(
-            button_rect,
-            ThemeButton::new_from_theme(theme)
-                .with_tooltip_text(tooltip_text)
-                .background_color(Color32::TRANSPARENT)
-                .disabled(is_disabled),
-        );
-
-        IconDraw::draw_tinted(
-            user_interface,
-            button_response.rect,
-            icon_handle,
-            if is_disabled { theme.foreground_preview } else { theme.foreground },
-        );
-
-        button_response
     }
 
     fn render_flat_icon_button(
@@ -2079,91 +1975,6 @@ impl SymbolLayoutEditorView {
             .find(|container_kind| container_kind.label() == label)
     }
 
-    fn render_symbol_layout_row(
-        &self,
-        user_interface: &mut Ui,
-        layout_id: &str,
-        layout_kind: SymbolicLayoutKind,
-        field_count: usize,
-        usage_count: usize,
-        is_selected: bool,
-    ) -> Option<SymbolLayoutRowAction> {
-        let theme = &self.app_context.theme;
-        let (row_rect, row_response) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), Self::LIST_ROW_HEIGHT), Sense::click());
-        let mut row_action = None;
-
-        if is_selected {
-            user_interface
-                .painter()
-                .rect_filled(row_rect, CornerRadius::ZERO, theme.selected_background);
-            user_interface
-                .painter()
-                .rect_stroke(row_rect, CornerRadius::ZERO, Stroke::new(1.0, theme.selected_border), StrokeKind::Inside);
-        }
-
-        StateLayer {
-            bounds_min: row_rect.min,
-            bounds_max: row_rect.max,
-            enabled: true,
-            pressed: row_response.is_pointer_button_down_on(),
-            has_hover: row_response.hovered(),
-            has_focus: false,
-            corner_radius: CornerRadius::ZERO,
-            border_width: 0.0,
-            hover_color: theme.hover_tint,
-            pressed_color: theme.pressed_tint,
-            border_color: theme.background_control_secondary_dark,
-            border_color_focused: theme.background_control_secondary_dark,
-        }
-        .ui(user_interface);
-
-        user_interface.painter().text(
-            pos2(row_rect.min.x + 8.0, row_rect.center().y),
-            Align2::LEFT_CENTER,
-            layout_id,
-            theme.font_library.font_noto_sans.font_normal.clone(),
-            theme.foreground,
-        );
-
-        let mut row_user_interface = user_interface.new_child(
-            UiBuilder::new()
-                .max_rect(row_rect)
-                .layout(Layout::right_to_left(Align::Center)),
-        );
-        row_user_interface.set_clip_rect(row_rect);
-
-        let rename_response = self.render_flat_icon_button(
-            &mut row_user_interface,
-            &theme.icon_library.icon_handle_common_edit,
-            "Rename this symbol layout.",
-            false,
-        );
-        if rename_response.clicked() {
-            row_action = Some(SymbolLayoutRowAction::Rename);
-        }
-
-        row_user_interface.add_space(Self::FIELD_INPUT_SPACING);
-        let entry_count_label = if layout_kind.is_union() { "variants" } else { "fields" };
-        row_user_interface.label(
-            RichText::new(format!(
-                "{} | {} {} | {} uses",
-                layout_kind.label(),
-                field_count,
-                entry_count_label,
-                usage_count
-            ))
-            .color(if is_selected { theme.foreground } else { theme.foreground_preview }),
-        );
-
-        if row_response.double_clicked() && row_action.is_none() {
-            row_action = Some(SymbolLayoutRowAction::Open);
-        } else if row_response.clicked() && row_action.is_none() {
-            row_action = Some(SymbolLayoutRowAction::Select);
-        }
-
-        row_action
-    }
-
     fn render_list_header(
         &self,
         user_interface: &mut Ui,
@@ -2274,8 +2085,8 @@ impl SymbolLayoutEditorView {
                         .get_struct_layout_definition()
                         .get_fields()
                         .len();
-                    let row_action = self.render_symbol_layout_row(
-                        user_interface,
+                    let row_action = SymbolLayoutRowView::new(
+                        self.app_context.clone(),
                         struct_layout_id,
                         struct_layout_descriptor
                             .get_struct_layout_definition()
@@ -2283,7 +2094,8 @@ impl SymbolLayoutEditorView {
                         field_count,
                         usage_count,
                         selected_layout_id == Some(struct_layout_id),
-                    );
+                    )
+                    .show(user_interface);
                     match row_action {
                         Some(SymbolLayoutRowAction::Select) => {
                             SymbolLayoutEditorViewData::select_symbol_layout(self.symbol_layout_editor_view_data.clone(), Some(struct_layout_id.to_string()));
@@ -2314,155 +2126,6 @@ impl SymbolLayoutEditorView {
                     user_interface.label(RichText::new("No symbol layouts yet.").color(self.app_context.theme.foreground_preview));
                 }
             });
-    }
-
-    fn render_field_editor_section(
-        &self,
-        user_interface: &mut Ui,
-        project_symbol_catalog: &ProjectSymbolCatalog,
-        layout_kind: SymbolicLayoutKind,
-        field_draft: &mut SymbolLayoutFieldEditDraft,
-        field_index: usize,
-        is_selected: bool,
-        can_move_up: bool,
-        can_move_down: bool,
-        context_layout_id: Option<&str>,
-        can_show_context_menu: bool,
-    ) -> Option<SymbolLayoutFieldRowAction> {
-        let theme = &self.app_context.theme;
-        let mut pending_field_row_action = None;
-
-        let (row_rect, row_response) =
-            user_interface.allocate_exact_size(vec2(user_interface.available_width().max(1.0), Self::LIST_ROW_HEIGHT), Sense::click());
-        if is_selected {
-            user_interface
-                .painter()
-                .rect_filled(row_rect, CornerRadius::ZERO, theme.selected_background);
-            user_interface
-                .painter()
-                .rect_stroke(row_rect, CornerRadius::ZERO, Stroke::new(1.0, theme.selected_border), StrokeKind::Inside);
-        }
-
-        StateLayer {
-            bounds_min: row_rect.min,
-            bounds_max: row_rect.max,
-            enabled: true,
-            pressed: row_response.is_pointer_button_down_on(),
-            has_hover: row_response.hovered(),
-            has_focus: row_response.has_focus(),
-            corner_radius: CornerRadius::ZERO,
-            border_width: 0.0,
-            hover_color: theme.hover_tint,
-            pressed_color: theme.pressed_tint,
-            border_color: theme.background_control_secondary_dark,
-            border_color_focused: theme.background_control_secondary_dark,
-        }
-        .ui(user_interface);
-
-        let button_area_width = Self::ICON_BUTTON_WIDTH * 2.0;
-        let button_area_left = (row_rect.max.x - button_area_width).max(row_rect.min.x);
-        let mut button_min_x = button_area_left;
-        let mut render_next_button = |icon_handle: &eframe::egui::TextureHandle, tooltip_text: &str, is_disabled: bool| -> Response {
-            let button_rect = Rect::from_min_size(pos2(button_min_x, row_rect.min.y), vec2(Self::ICON_BUTTON_WIDTH, Self::LIST_ROW_HEIGHT));
-            button_min_x += Self::ICON_BUTTON_WIDTH;
-
-            self.render_flat_icon_button_at(user_interface, button_rect, icon_handle, tooltip_text, is_disabled)
-        };
-
-        let entry_name = if layout_kind.is_union() { "variant" } else { "field" };
-        let move_up_response = render_next_button(
-            &theme.icon_library.icon_handle_navigation_up_arrow_small,
-            &format!("Move this {} up.", entry_name),
-            !can_move_up,
-        );
-        if move_up_response.clicked() {
-            pending_field_row_action = Some(SymbolLayoutFieldRowAction::MoveUp);
-        }
-
-        let move_down_response = render_next_button(
-            &theme.icon_library.icon_handle_navigation_down_arrow_small,
-            &format!("Move this {} down.", entry_name),
-            !can_move_down,
-        );
-        if move_down_response.clicked() {
-            pending_field_row_action = Some(SymbolLayoutFieldRowAction::MoveDown);
-        }
-
-        let row_was_secondary_clicked = can_show_context_menu && row_response.secondary_clicked();
-        if row_was_secondary_clicked {
-            let context_menu_position = row_response
-                .interact_pointer_pos()
-                .unwrap_or_else(|| row_rect.left_bottom());
-            SymbolLayoutEditorViewData::show_field_context_menu_for_layout(
-                self.symbol_layout_editor_view_data.clone(),
-                context_layout_id.map(str::to_string),
-                field_index,
-                context_menu_position,
-            );
-        } else if row_response.clicked() {
-            SymbolLayoutEditorViewData::hide_field_context_menu(self.symbol_layout_editor_view_data.clone());
-        }
-
-        let trimmed_field_name = field_draft.field_name.trim();
-        let field_name = if trimmed_field_name.is_empty() {
-            String::from("<unnamed>")
-        } else {
-            trimmed_field_name.to_string()
-        };
-        let data_type_ref = field_draft.data_type_selection.visible_data_type();
-        let is_symbol_layout = project_symbol_catalog.contains_struct_layout_id(data_type_ref.get_data_type_id());
-        let data_type_icon =
-            DataTypeToIconConverter::convert_data_type_or_symbol_layout_to_icon(data_type_ref.get_data_type_id(), is_symbol_layout, &theme.icon_library);
-        let icon_size = vec2(Self::FIELD_ROW_ICON_SIZE, Self::FIELD_ROW_ICON_SIZE);
-        let icon_rect = Rect::from_min_size(
-            pos2(row_rect.min.x + Self::FIELD_ROW_LEFT_PADDING, row_rect.center().y - icon_size.y * 0.5),
-            icon_size,
-        );
-        IconDraw::draw_sized_tinted(user_interface, icon_rect.center(), icon_size, &data_type_icon, Color32::WHITE);
-
-        let preview_text = Self::format_field_data_type_preview(field_draft);
-        let preview_right = button_area_left - Self::FIELD_ROW_LEFT_PADDING;
-        let label_position = pos2(icon_rect.max.x + Self::FIELD_ROW_ICON_GAP, row_rect.center().y);
-        let label_max_width = (preview_right - label_position.x).max(0.0);
-        let label_text = truncate_text_to_width(
-            user_interface,
-            &field_name,
-            &theme.font_library.font_noto_sans.font_normal,
-            theme.foreground,
-            label_max_width,
-        );
-        let label_width = measure_text_width(user_interface, &label_text, &theme.font_library.font_noto_sans.font_normal, theme.foreground);
-        let preview_max_width = (preview_right - label_position.x - label_width - Self::FIELD_ROW_PREVIEW_GAP).max(0.0);
-        let preview_text = truncate_text_to_width(
-            user_interface,
-            &preview_text,
-            &theme.font_library.font_noto_sans.font_small,
-            theme.foreground_preview,
-            preview_max_width,
-        );
-        user_interface.painter().text(
-            label_position,
-            Align2::LEFT_CENTER,
-            label_text,
-            theme.font_library.font_noto_sans.font_normal.clone(),
-            theme.foreground,
-        );
-
-        if !preview_text.is_empty() {
-            user_interface.painter().text(
-                pos2(preview_right, row_rect.center().y),
-                Align2::RIGHT_CENTER,
-                preview_text,
-                theme.font_library.font_noto_sans.font_small.clone(),
-                theme.foreground_preview,
-            );
-        }
-
-        if row_response.clicked() && !row_was_secondary_clicked && pending_field_row_action.is_none() {
-            pending_field_row_action = Some(SymbolLayoutFieldRowAction::SelectField);
-        }
-
-        pending_field_row_action
     }
 
     fn render_add_entry_button(
@@ -2515,45 +2178,6 @@ impl SymbolLayoutEditorView {
             .inner
     }
 
-    fn render_union_variant_preview_row(
-        &self,
-        user_interface: &mut Ui,
-        label_text: &str,
-        preview_text: &str,
-    ) {
-        let theme = &self.app_context.theme;
-        let (row_rect, _) = user_interface.allocate_exact_size(vec2(user_interface.available_width().max(1.0), Self::LIST_ROW_HEIGHT), Sense::hover());
-        let label_position = pos2(row_rect.min.x + Self::FIELD_ROW_LEFT_PADDING, row_rect.center().y);
-        let preview_position = pos2(row_rect.max.x - Self::FIELD_ROW_LEFT_PADDING, row_rect.center().y);
-
-        user_interface.painter().text(
-            label_position,
-            Align2::LEFT_CENTER,
-            truncate_text_to_width(
-                user_interface,
-                label_text,
-                &theme.font_library.font_noto_sans.font_normal,
-                theme.foreground,
-                (row_rect.width() * 0.6).max(0.0),
-            ),
-            theme.font_library.font_noto_sans.font_normal.clone(),
-            theme.foreground,
-        );
-        user_interface.painter().text(
-            preview_position,
-            Align2::RIGHT_CENTER,
-            truncate_text_to_width(
-                user_interface,
-                preview_text,
-                &theme.font_library.font_noto_sans.font_small,
-                theme.foreground_preview,
-                (row_rect.width() * 0.35).max(0.0),
-            ),
-            theme.font_library.font_noto_sans.font_small.clone(),
-            theme.foreground_preview,
-        );
-    }
-
     fn render_union_variant_child_row<R>(
         user_interface: &mut Ui,
         add_contents: impl FnOnce(&mut Ui) -> R,
@@ -2585,7 +2209,7 @@ impl SymbolLayoutEditorView {
 
         let Some((layout_size_in_bytes, mut field_spans)) = self.resolve_draft_field_spans(project_symbol_catalog, &variant_draft) else {
             Self::render_union_variant_child_row(user_interface, |user_interface| {
-                self.render_union_variant_preview_row(user_interface, "UNASSIGNED", "variant layout unresolved");
+                UnionVariantPreviewRowView::new(self.app_context.clone(), "UNASSIGNED", "variant layout unresolved").show(user_interface);
             });
             return None;
         };
@@ -2623,14 +2247,16 @@ impl SymbolLayoutEditorView {
                         )
                     });
                     let unassigned_row_action = Self::render_union_variant_child_row(user_interface, |user_interface| {
-                        self.render_unassigned_layout_row(
-                            user_interface,
+                        SymbolLayoutUnassignedRowView::new(
+                            self.app_context.clone(),
+                            self.symbol_layout_editor_view_data.clone(),
                             Some(variant_layout_id.as_str()),
-                            unassigned_row_context.clone(),
+                            &unassigned_row_context,
                             true,
                             false,
                             is_selected,
                         )
+                        .show(user_interface)
                     });
                     if let Some(unassigned_row_action) = unassigned_row_action {
                         pending_variant_layout_action = Some(SymbolLayoutVariantLayoutRowAction::Unassigned {
@@ -2648,8 +2274,9 @@ impl SymbolLayoutEditorView {
             let is_selected = selected_field_layout_id == Some(variant_layout_id.as_str()) && selected_field_index == Some(field_span.field_position);
             if let Some(field_draft) = variant_draft.field_drafts.get_mut(field_span.field_position) {
                 let field_row_action = Self::render_union_variant_child_row(user_interface, |user_interface| {
-                    self.render_field_editor_section(
-                        user_interface,
+                    SymbolLayoutFieldRowView::new(
+                        self.app_context.clone(),
+                        self.symbol_layout_editor_view_data.clone(),
                         project_symbol_catalog,
                         SymbolicLayoutKind::Struct,
                         field_draft,
@@ -2660,6 +2287,7 @@ impl SymbolLayoutEditorView {
                         Some(variant_layout_id.as_str()),
                         true,
                     )
+                    .show(user_interface)
                 });
                 if let Some(field_row_action) = field_row_action {
                     pending_variant_layout_action = Some(SymbolLayoutVariantLayoutRowAction::Field {
@@ -2699,14 +2327,16 @@ impl SymbolLayoutEditorView {
                     )
                 });
                 let unassigned_row_action = Self::render_union_variant_child_row(user_interface, |user_interface| {
-                    self.render_unassigned_layout_row(
-                        user_interface,
+                    SymbolLayoutUnassignedRowView::new(
+                        self.app_context.clone(),
+                        self.symbol_layout_editor_view_data.clone(),
                         Some(variant_layout_id.as_str()),
-                        unassigned_row_context.clone(),
+                        &unassigned_row_context,
                         true,
                         false,
                         is_selected,
                     )
+                    .show(user_interface)
                 });
                 if let Some(unassigned_row_action) = unassigned_row_action {
                     pending_variant_layout_action = Some(SymbolLayoutVariantLayoutRowAction::Unassigned {
@@ -2938,149 +2568,6 @@ impl SymbolLayoutEditorView {
         Some((layout_size_in_bytes, field_spans))
     }
 
-    fn render_unassigned_layout_row(
-        &self,
-        user_interface: &mut Ui,
-        layout_id: Option<&str>,
-        row_context: SymbolLayoutUnassignedRowContext,
-        can_show_context_menu: bool,
-        can_define_field: bool,
-        is_selected: bool,
-    ) -> Option<SymbolLayoutUnassignedRowAction> {
-        if row_context.size_in_bytes == 0 {
-            return None;
-        }
-
-        let theme = &self.app_context.theme;
-        let can_move_up = row_context.move_up_field.is_some() || row_context.move_up_unassigned_span.is_some();
-        let can_move_down = row_context.move_down_field.is_some() || row_context.move_down_unassigned_span.is_some();
-        let row_sense = if can_show_context_menu || can_move_up || can_move_down {
-            Sense::click()
-        } else {
-            Sense::hover()
-        };
-        let (row_rect, row_response) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), Self::FIELD_ROW_HEIGHT), row_sense);
-        let mut pending_unassigned_row_action = None;
-
-        if is_selected {
-            user_interface
-                .painter()
-                .rect_filled(row_rect, CornerRadius::ZERO, theme.selected_background);
-            user_interface
-                .painter()
-                .rect_stroke(row_rect, CornerRadius::ZERO, Stroke::new(1.0, theme.selected_border), StrokeKind::Inside);
-        }
-
-        StateLayer {
-            bounds_min: row_rect.min,
-            bounds_max: row_rect.max,
-            enabled: true,
-            pressed: row_response.is_pointer_button_down_on(),
-            has_hover: row_response.hovered(),
-            has_focus: row_response.has_focus(),
-            corner_radius: CornerRadius::ZERO,
-            border_width: 0.0,
-            hover_color: theme.hover_tint,
-            pressed_color: theme.pressed_tint,
-            border_color: theme.background_control_secondary_dark,
-            border_color_focused: theme.background_control_secondary_dark,
-        }
-        .ui(user_interface);
-
-        let button_area_width = Self::ICON_BUTTON_WIDTH * 2.0;
-        let button_area_left = (row_rect.max.x - button_area_width).max(row_rect.min.x);
-        let mut button_min_x = button_area_left;
-        let mut render_next_button = |icon_handle: &eframe::egui::TextureHandle, tooltip_text: &str, is_disabled: bool| -> Response {
-            let button_rect = Rect::from_min_size(pos2(button_min_x, row_rect.min.y), vec2(Self::ICON_BUTTON_WIDTH, Self::FIELD_ROW_HEIGHT));
-            button_min_x += Self::ICON_BUTTON_WIDTH;
-
-            self.render_flat_icon_button_at(user_interface, button_rect, icon_handle, tooltip_text, is_disabled)
-        };
-
-        let move_up_response = render_next_button(
-            &theme.icon_library.icon_handle_navigation_up_arrow_small,
-            "Move this unassigned span up.",
-            !can_move_up,
-        );
-        if move_up_response.clicked() {
-            pending_unassigned_row_action = Some(SymbolLayoutUnassignedRowAction::MoveUp);
-        }
-
-        let move_down_response = render_next_button(
-            &theme.icon_library.icon_handle_navigation_down_arrow_small,
-            "Move this unassigned span down.",
-            !can_move_down,
-        );
-        if move_down_response.clicked() {
-            pending_unassigned_row_action = Some(SymbolLayoutUnassignedRowAction::MoveDown);
-        }
-
-        if can_show_context_menu && row_response.secondary_clicked() {
-            let position = row_response
-                .interact_pointer_pos()
-                .unwrap_or_else(|| pos2(row_rect.left(), row_rect.center().y));
-            SymbolLayoutEditorViewData::show_unassigned_context_menu_for_layout(
-                self.symbol_layout_editor_view_data.clone(),
-                layout_id.map(str::to_string),
-                row_context.offset_in_bytes,
-                row_context.size_in_bytes,
-                position,
-                row_context.merge_above_span.clone(),
-                row_context.merge_below_span.clone(),
-            );
-            if pending_unassigned_row_action.is_none() {
-                pending_unassigned_row_action = Some(SymbolLayoutUnassignedRowAction::SelectSpan);
-            }
-        } else if can_show_context_menu && row_response.clicked() && pending_unassigned_row_action.is_none() {
-            pending_unassigned_row_action = Some(SymbolLayoutUnassignedRowAction::SelectSpan);
-        } else if row_response.clicked() && pending_unassigned_row_action.is_none() {
-            SymbolLayoutEditorViewData::hide_unassigned_context_menu(self.symbol_layout_editor_view_data.clone());
-            SymbolLayoutEditorViewData::hide_field_context_menu(self.symbol_layout_editor_view_data.clone());
-        }
-
-        let left_text = format!("UNASSIGNED[{}]", row_context.size_in_bytes);
-        let right_text = format!("0x{:X}", row_context.offset_in_bytes);
-        let label_position = pos2(row_rect.min.x + Self::FIELD_ROW_LEFT_PADDING, row_rect.center().y);
-        let right_text_x = button_area_left - Self::FIELD_ROW_LEFT_PADDING;
-        let left_max_width = (right_text_x - label_position.x).max(0.0);
-        let left_color = if can_define_field { theme.foreground } else { theme.foreground_preview };
-        let left_text = truncate_text_to_width(
-            user_interface,
-            &left_text,
-            &theme.font_library.font_noto_sans.font_normal,
-            left_color,
-            left_max_width,
-        );
-        let left_width = measure_text_width(user_interface, &left_text, &theme.font_library.font_noto_sans.font_normal, left_color);
-        let right_max_width = (right_text_x - label_position.x - left_width - Self::FIELD_ROW_PREVIEW_GAP).max(0.0);
-        let right_text = truncate_text_to_width(
-            user_interface,
-            &right_text,
-            &theme.font_library.font_noto_sans.font_small,
-            theme.foreground_preview,
-            right_max_width,
-        );
-
-        user_interface.painter().text(
-            label_position,
-            Align2::LEFT_CENTER,
-            left_text,
-            theme.font_library.font_noto_sans.font_normal.clone(),
-            left_color,
-        );
-        if !right_text.is_empty() {
-            user_interface.painter().text(
-                pos2(right_text_x, row_rect.center().y),
-                Align2::RIGHT_CENTER,
-                right_text,
-                theme.font_library.font_noto_sans.font_small.clone(),
-                theme.foreground_preview,
-            );
-        }
-
-        pending_unassigned_row_action
-    }
-
     fn render_unassigned_context_menu(
         &self,
         user_interface: &mut Ui,
@@ -3233,8 +2720,9 @@ impl SymbolLayoutEditorView {
                     continue;
                 };
 
-                if let Some(field_row_action) = self.render_field_editor_section(
-                    user_interface,
+                if let Some(field_row_action) = SymbolLayoutFieldRowView::new(
+                    self.app_context.clone(),
+                    self.symbol_layout_editor_view_data.clone(),
                     project_symbol_catalog,
                     layout_kind,
                     field_draft,
@@ -3244,7 +2732,9 @@ impl SymbolLayoutEditorView {
                     field_index + 1 < field_count,
                     None,
                     true,
-                ) {
+                )
+                .show(user_interface)
+                {
                     pending_field_row_action = Some((field_index, field_row_action));
                 }
 
@@ -3316,8 +2806,16 @@ impl SymbolLayoutEditorView {
                             let is_selected = selected_unassigned_span.is_some_and(|selected_unassigned_span| {
                                 selected_unassigned_span.matches(None, unassigned_row_context.offset_in_bytes, unassigned_row_context.size_in_bytes)
                             });
-                            if let Some(unassigned_row_action) =
-                                self.render_unassigned_layout_row(user_interface, None, unassigned_row_context.clone(), true, true, is_selected)
+                            if let Some(unassigned_row_action) = SymbolLayoutUnassignedRowView::new(
+                                self.app_context.clone(),
+                                self.symbol_layout_editor_view_data.clone(),
+                                None,
+                                &unassigned_row_context,
+                                true,
+                                true,
+                                is_selected,
+                            )
+                            .show(user_interface)
                             {
                                 pending_unassigned_row_action = Some((None, unassigned_row_context, unassigned_row_action));
                             }
@@ -3342,8 +2840,9 @@ impl SymbolLayoutEditorView {
                 } else {
                     (false, false)
                 };
-                if let Some(field_row_action) = self.render_field_editor_section(
-                    user_interface,
+                if let Some(field_row_action) = SymbolLayoutFieldRowView::new(
+                    self.app_context.clone(),
+                    self.symbol_layout_editor_view_data.clone(),
                     project_symbol_catalog,
                     layout_kind,
                     field_draft,
@@ -3353,7 +2852,9 @@ impl SymbolLayoutEditorView {
                     can_move_down,
                     None,
                     true,
-                ) {
+                )
+                .show(user_interface)
+                {
                     pending_field_row_action = Some((field_index, field_row_action));
                 }
             }
@@ -3371,8 +2872,16 @@ impl SymbolLayoutEditorView {
                 let is_selected = selected_unassigned_span.is_some_and(|selected_unassigned_span| {
                     selected_unassigned_span.matches(None, unassigned_row_context.offset_in_bytes, unassigned_row_context.size_in_bytes)
                 });
-                if let Some(unassigned_row_action) =
-                    self.render_unassigned_layout_row(user_interface, None, unassigned_row_context.clone(), true, true, is_selected)
+                if let Some(unassigned_row_action) = SymbolLayoutUnassignedRowView::new(
+                    self.app_context.clone(),
+                    self.symbol_layout_editor_view_data.clone(),
+                    None,
+                    &unassigned_row_context,
+                    true,
+                    true,
+                    is_selected,
+                )
+                .show(user_interface)
                 {
                     pending_unassigned_row_action = Some((None, unassigned_row_context, unassigned_row_action));
                 }
@@ -3725,6 +3234,7 @@ impl SymbolLayoutEditorView {
 
 #[cfg(test)]
 mod tests {
+    use super::rows::symbol_layout_field_row_view::SymbolLayoutFieldRowView;
     use super::{SymbolLayoutEditorView, SymbolLayoutFieldContainerKind, SymbolLayoutFieldEditDraft};
     use crate::views::struct_viewer::view_data::struct_viewer_view_data::StructViewerViewData;
     use crate::views::symbol_layout_editor::view_data::symbol_layout_editor_view_data::{
@@ -3764,7 +3274,7 @@ mod tests {
         field_draft.container_edit.kind = SymbolLayoutFieldContainerKind::FixedArray;
         field_draft.container_edit.fixed_array_length = String::from("4");
 
-        assert_eq!(SymbolLayoutEditorView::format_field_data_type_preview(&field_draft), "u16[4]");
+        assert_eq!(SymbolLayoutFieldRowView::format_data_type_preview(&field_draft), "u16[4]");
     }
 
     #[test]
@@ -4456,7 +3966,7 @@ mod tests {
         field_draft.container_edit.display_count_resolver_id = String::from("entity.count");
 
         assert_eq!(
-            SymbolLayoutEditorView::format_field_data_type_preview(&field_draft),
+            SymbolLayoutFieldRowView::format_data_type_preview(&field_draft),
             "u64[1024] display resolver(entity.count)"
         );
     }
@@ -4468,7 +3978,7 @@ mod tests {
         field_draft.container_edit.kind = SymbolLayoutFieldContainerKind::Pointer;
         field_draft.container_edit.pointer_size = PointerScanPointerSize::Pointer64;
 
-        assert_eq!(SymbolLayoutEditorView::format_field_data_type_preview(&field_draft), "u32*(u64)");
+        assert_eq!(SymbolLayoutFieldRowView::format_data_type_preview(&field_draft), "u32*(u64)");
     }
 
     #[test]
@@ -4481,7 +3991,7 @@ mod tests {
         field_draft.container_edit.display_count_resolver_id = String::from("entity.count");
 
         assert_eq!(
-            SymbolLayoutEditorView::format_field_data_type_preview(&field_draft),
+            SymbolLayoutFieldRowView::format_data_type_preview(&field_draft),
             "Entity*(u64)[1024] display resolver(entity.count)"
         );
     }
@@ -4494,7 +4004,7 @@ mod tests {
         field_draft.container_edit.dynamic_array_count_resolver_id = String::from("inventory.count");
 
         assert_eq!(
-            SymbolLayoutEditorView::format_field_data_type_preview(&field_draft),
+            SymbolLayoutFieldRowView::format_data_type_preview(&field_draft),
             "game.item[resolver(inventory.count)]"
         );
     }
