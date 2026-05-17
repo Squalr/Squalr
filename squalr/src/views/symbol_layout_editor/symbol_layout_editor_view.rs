@@ -1,5 +1,6 @@
 mod rows;
 mod takeovers;
+mod toolbars;
 
 use crate::app_context::AppContext;
 use crate::ui::converters::{data_type_to_icon_converter::DataTypeToIconConverter, data_type_to_string_converter::DataTypeToStringConverter};
@@ -20,7 +21,7 @@ use crate::views::symbol_layout_editor::view_data::symbol_layout_editor_view_dat
     SymbolLayoutFieldElementType, SymbolLayoutFieldOffsetMode, SymbolLayoutUnassignedContextMenuTarget,
 };
 use crate::views::symbol_layout_editor::view_data::symbol_layout_field_container_edit::{SymbolLayoutFieldContainerEdit, SymbolLayoutFieldContainerKind};
-use eframe::egui::{Align, Direction, Grid, Id, Key, Layout, Response, RichText, ScrollArea, Sense, Ui, UiBuilder, Widget, vec2};
+use eframe::egui::{Align, Direction, Grid, Id, Key, Layout, Response, RichText, ScrollArea, Ui, Widget, vec2};
 use epaint::{Color32, CornerRadius};
 use rows::{
     symbol_layout_field_row_action::SymbolLayoutFieldRowAction, symbol_layout_field_row_view::SymbolLayoutFieldRowView,
@@ -60,6 +61,7 @@ use squalr_engine_api::structures::{
     },
 };
 use std::{collections::BTreeSet, str::FromStr, sync::Arc};
+use toolbars::symbol_layout_list_toolbar_view::SymbolLayoutListToolbarView;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum SymbolLayoutUnassignedRowAction {
@@ -1766,41 +1768,6 @@ impl SymbolLayoutEditorView {
             .find(|container_kind| container_kind.label() == label)
     }
 
-    fn render_list_toolbar(
-        &self,
-        user_interface: &mut Ui,
-        project_symbol_catalog: &ProjectSymbolCatalog,
-        is_take_over_active: bool,
-    ) {
-        let theme = &self.app_context.theme;
-        let (toolbar_rect, _) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), Self::TOOLBAR_HEIGHT), Sense::empty());
-
-        user_interface
-            .painter()
-            .rect_filled(toolbar_rect, CornerRadius::ZERO, theme.background_primary);
-
-        let mut toolbar_user_interface = user_interface.new_child(
-            UiBuilder::new()
-                .max_rect(toolbar_rect)
-                .layout(Layout::left_to_right(Align::Center)),
-        );
-        toolbar_user_interface.set_clip_rect(toolbar_rect);
-
-        let new_layout_response = self.render_flat_icon_button(
-            &mut toolbar_user_interface,
-            &theme.icon_library.icon_handle_common_add,
-            "Create a new reusable symbol layout.",
-            is_take_over_active,
-        );
-        if new_layout_response.clicked() {
-            SymbolLayoutEditorViewData::begin_create_symbol_layout(
-                self.symbol_layout_editor_view_data.clone(),
-                project_symbol_catalog,
-                self.default_data_type_ref(),
-            );
-        }
-    }
-
     fn render_filter_text_box(
         &self,
         user_interface: &mut Ui,
@@ -1830,7 +1797,17 @@ impl SymbolLayoutEditorView {
         filter_text: &str,
         is_take_over_active: bool,
     ) {
-        self.render_list_toolbar(user_interface, project_symbol_catalog, is_take_over_active);
+        user_interface.add(
+            SymbolLayoutListToolbarView::new(
+                self.app_context.clone(),
+                self.symbol_layout_editor_view_data.clone(),
+                project_symbol_catalog,
+                self.default_data_type_ref(),
+                is_take_over_active,
+            )
+            .height(Self::TOOLBAR_HEIGHT)
+            .icon_button_size(Self::ICON_BUTTON_WIDTH, Self::FIELD_ROW_HEIGHT),
+        );
 
         self.render_filter_text_box(user_interface, filter_text);
 
