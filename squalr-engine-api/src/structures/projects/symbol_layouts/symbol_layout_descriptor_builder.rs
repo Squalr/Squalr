@@ -1,4 +1,5 @@
 use crate::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
+use crate::structures::projects::symbol_layouts::symbol_layout_size_resolver::SymbolLayoutSizeResolver;
 use crate::structures::{
     data_types::data_type_ref::DataTypeRef,
     data_values::{anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
@@ -206,11 +207,19 @@ impl SymbolLayoutDescriptorBuilder {
         symbolic_struct_definition: &SymbolicStructDefinition,
         visited_struct_layout_ids: &mut HashSet<String>,
     ) -> u64 {
-        Self::resolve_symbolic_struct_field_span_in_bytes(project_symbol_catalog, symbolic_struct_definition, visited_struct_layout_ids).max(
-            symbolic_struct_definition
-                .get_declared_size_in_bytes()
-                .unwrap_or(0),
+        SymbolLayoutSizeResolver::resolve_symbolic_struct_field_span_in_bytes(
+            symbolic_struct_definition,
+            |data_type_ref| Self::resolve_primitive_data_type_size_in_bytes(data_type_ref.get_data_type_id()),
+            |struct_layout_id| {
+                project_symbol_catalog
+                    .get_struct_layout_descriptors()
+                    .iter()
+                    .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == struct_layout_id)
+                    .map(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_definition().clone())
+            },
+            visited_struct_layout_ids,
         )
+        .unwrap_or(0)
     }
 
     pub fn resolve_symbolic_struct_field_span_in_bytes(
@@ -218,33 +227,19 @@ impl SymbolLayoutDescriptorBuilder {
         symbolic_struct_definition: &SymbolicStructDefinition,
         visited_struct_layout_ids: &mut HashSet<String>,
     ) -> u64 {
-        let mut next_sequential_offset = 0_u64;
-
-        for symbolic_field_definition in symbolic_struct_definition.get_fields() {
-            if symbolic_field_definition.is_unassigned() {
-                next_sequential_offset = next_sequential_offset.saturating_add(
-                    symbolic_field_definition
-                        .get_unassigned_size_in_bytes()
-                        .unwrap_or(0),
-                );
-                continue;
-            }
-
-            let field_offset = match symbolic_field_definition.get_offset_resolution() {
-                SymbolicFieldOffsetResolution::Static(offset_in_bytes) => *offset_in_bytes,
-                SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_)
-                    if symbolic_struct_definition.get_layout_kind().is_union() =>
-                {
-                    0
-                }
-                SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_) => next_sequential_offset,
-            };
-            let field_size_in_bytes = Self::resolve_symbolic_field_size_in_bytes(project_symbol_catalog, symbolic_field_definition, visited_struct_layout_ids);
-
-            next_sequential_offset = next_sequential_offset.max(field_offset.saturating_add(field_size_in_bytes));
-        }
-
-        next_sequential_offset
+        SymbolLayoutSizeResolver::resolve_symbolic_struct_size_in_bytes(
+            symbolic_struct_definition,
+            |data_type_ref| Self::resolve_primitive_data_type_size_in_bytes(data_type_ref.get_data_type_id()),
+            |struct_layout_id| {
+                project_symbol_catalog
+                    .get_struct_layout_descriptors()
+                    .iter()
+                    .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == struct_layout_id)
+                    .map(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_definition().clone())
+            },
+            visited_struct_layout_ids,
+        )
+        .unwrap_or(0)
     }
 
     pub fn resolve_symbolic_field_size_in_bytes(
@@ -252,19 +247,19 @@ impl SymbolLayoutDescriptorBuilder {
         symbolic_field_definition: &SymbolicFieldDefinition,
         visited_struct_layout_ids: &mut HashSet<String>,
     ) -> u64 {
-        if let Some(pointer_size) = symbolic_field_definition
-            .get_container_type()
-            .get_pointer_size()
-        {
-            return pointer_size.get_size_in_bytes();
-        }
-
-        let data_type_id = symbolic_field_definition.get_data_type_ref().get_data_type_id();
-        let unit_size_in_bytes = Self::resolve_data_type_size_in_bytes(project_symbol_catalog, data_type_id, visited_struct_layout_ids);
-
-        symbolic_field_definition
-            .get_container_type()
-            .get_total_size_in_bytes(unit_size_in_bytes)
+        SymbolLayoutSizeResolver::resolve_symbolic_field_size_in_bytes(
+            symbolic_field_definition,
+            |data_type_ref| Self::resolve_primitive_data_type_size_in_bytes(data_type_ref.get_data_type_id()),
+            |struct_layout_id| {
+                project_symbol_catalog
+                    .get_struct_layout_descriptors()
+                    .iter()
+                    .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == struct_layout_id)
+                    .map(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_definition().clone())
+            },
+            visited_struct_layout_ids,
+        )
+        .unwrap_or(1)
     }
 
     pub fn resolve_primitive_data_type_size_in_bytes(data_type_id: &str) -> Option<u64> {
@@ -313,34 +308,6 @@ impl SymbolLayoutDescriptorBuilder {
                 end_offset_in_bytes.saturating_sub(previous_offset_in_bytes),
             ));
         }
-    }
-
-    fn resolve_data_type_size_in_bytes(
-        project_symbol_catalog: &ProjectSymbolCatalog,
-        data_type_id: &str,
-        visited_struct_layout_ids: &mut HashSet<String>,
-    ) -> u64 {
-        if !visited_struct_layout_ids.insert(data_type_id.to_string()) {
-            return 0;
-        }
-
-        let size_in_bytes = project_symbol_catalog
-            .get_struct_layout_descriptors()
-            .iter()
-            .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == data_type_id)
-            .map(|struct_layout_descriptor| {
-                Self::resolve_symbolic_struct_size_in_bytes(
-                    project_symbol_catalog,
-                    struct_layout_descriptor.get_struct_layout_definition(),
-                    visited_struct_layout_ids,
-                )
-            })
-            .or_else(|| Self::resolve_primitive_data_type_size_in_bytes(data_type_id))
-            .unwrap_or(1);
-
-        visited_struct_layout_ids.remove(data_type_id);
-
-        size_in_bytes
     }
 }
 

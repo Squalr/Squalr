@@ -2,7 +2,9 @@ use squalr_engine_api::commands::memory::write::memory_write_request::MemoryWrit
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::{anonymous_value_string::AnonymousValueString, container_type::ContainerType};
-use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
+use squalr_engine_api::structures::projects::{
+    project_symbol_catalog::ProjectSymbolCatalog, symbol_layouts::symbol_layout_size_resolver::SymbolLayoutSizeResolver,
+};
 use squalr_engine_api::structures::structs::{
     symbolic_field_definition::{SymbolicFieldDefinition, SymbolicFieldOffsetResolution},
     symbolic_struct_definition::SymbolicStructDefinition,
@@ -191,72 +193,14 @@ fn resolve_symbolic_field_size_in_bytes(
     symbolic_field_definition: &SymbolicFieldDefinition,
     visited_type_ids: &mut HashSet<String>,
 ) -> Option<u64> {
-    if let Some(pointer_size) = symbolic_field_definition
-        .get_container_type()
-        .get_pointer_size()
-    {
-        return Some(pointer_size.get_size_in_bytes());
-    }
-
-    let data_type_id = symbolic_field_definition
-        .get_data_type_ref()
-        .get_data_type_id()
-        .to_string();
-    let unit_size_in_bytes = if let Some(nested_symbolic_struct_definition) = engine_execution_context.resolve_struct_layout_definition(&data_type_id) {
-        if !visited_type_ids.insert(data_type_id.clone()) {
-            return None;
-        }
-
-        let nested_size_in_bytes = resolve_symbolic_struct_size_in_bytes(engine_execution_context, &nested_symbolic_struct_definition, visited_type_ids)?;
-
-        visited_type_ids.remove(&data_type_id);
-
-        nested_size_in_bytes
-    } else if let Some(default_value) = engine_execution_context.get_default_value(symbolic_field_definition.get_data_type_ref()) {
-        default_value.get_size_in_bytes()
-    } else {
-        return None;
-    };
-
-    Some(
-        symbolic_field_definition
-            .get_container_type()
-            .get_total_size_in_bytes(unit_size_in_bytes),
-    )
-}
-
-fn resolve_symbolic_struct_size_in_bytes(
-    engine_execution_context: &Arc<dyn EngineExecutionContext>,
-    symbolic_struct_definition: &SymbolicStructDefinition,
-    visited_type_ids: &mut HashSet<String>,
-) -> Option<u64> {
-    let mut next_sequential_offset = 0_u64;
-
-    for symbolic_field_definition in symbolic_struct_definition.get_fields() {
-        if symbolic_field_definition.is_unassigned() {
-            next_sequential_offset = next_sequential_offset.saturating_add(symbolic_field_definition.get_unassigned_size_in_bytes()?);
-            continue;
-        }
-
-        let field_offset = match symbolic_field_definition.get_offset_resolution() {
-            SymbolicFieldOffsetResolution::Static(offset_in_bytes) => *offset_in_bytes,
-            SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_)
-                if symbolic_struct_definition.get_layout_kind().is_union() =>
-            {
-                0
-            }
-            SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_) => next_sequential_offset,
-        };
-        let field_size_in_bytes = resolve_symbolic_field_size_in_bytes(engine_execution_context, symbolic_field_definition, visited_type_ids)?;
-
-        next_sequential_offset = next_sequential_offset.max(field_offset.checked_add(field_size_in_bytes)?);
-    }
-
-    Some(
-        next_sequential_offset.max(
-            symbolic_struct_definition
-                .get_declared_size_in_bytes()
-                .unwrap_or(0),
-        ),
+    SymbolLayoutSizeResolver::resolve_symbolic_field_size_in_bytes(
+        symbolic_field_definition,
+        |data_type_ref| {
+            engine_execution_context
+                .get_default_value(data_type_ref)
+                .map(|default_value| default_value.get_size_in_bytes())
+        },
+        |struct_layout_id| engine_execution_context.resolve_struct_layout_definition(struct_layout_id),
+        visited_type_ids,
     )
 }

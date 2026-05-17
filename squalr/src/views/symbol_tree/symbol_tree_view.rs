@@ -57,6 +57,7 @@ use squalr_engine_api::structures::memory::{
 use squalr_engine_api::structures::projects::{
     project_symbol_catalog::ProjectSymbolCatalog,
     project_symbol_locator::ProjectSymbolLocator,
+    symbol_layouts::symbol_layout_size_resolver::SymbolLayoutSizeResolver,
     symbol_tree::details::SymbolTreeDetailsProjection,
     symbol_tree::operations::{
         add_symbol_to_project::{AddSymbolToProjectTarget, build_add_symbol_project_item_create_request, build_add_symbol_to_project_target},
@@ -68,8 +69,7 @@ use squalr_engine_api::structures::projects::{
     symbol_tree::symbol_tree_node::{ResolvedPointerTarget, SymbolTreeNode, SymbolTreeNodeKind, resolve_symbol_tree_node_size_in_bytes},
 };
 use squalr_engine_api::structures::structs::{
-    symbolic_field_definition::{SymbolicFieldDefinition, SymbolicFieldOffsetResolution},
-    symbolic_resolver_definition::SymbolicResolverEvaluationError,
+    symbolic_field_definition::SymbolicFieldDefinition, symbolic_resolver_definition::SymbolicResolverEvaluationError,
     symbolic_struct_definition::SymbolicStructDefinition,
 };
 use squalr_engine_session::virtual_snapshots::virtual_snapshot_query::VirtualSnapshotQuery;
@@ -695,69 +695,15 @@ impl SymbolTreeView {
         symbolic_field_definition: &SymbolicFieldDefinition,
         visited_type_ids: &mut HashSet<String>,
     ) -> Option<u64> {
-        if let Some(pointer_size) = symbolic_field_definition
-            .get_container_type()
-            .get_pointer_size()
-        {
-            return Some(pointer_size.get_size_in_bytes());
-        }
-
-        let data_type_id = symbolic_field_definition
-            .get_data_type_ref()
-            .get_data_type_id()
-            .to_string();
-        let unit_size_in_bytes = if let Some(nested_symbolic_struct_definition) = engine_execution_context.resolve_struct_layout_definition(&data_type_id) {
-            if !visited_type_ids.insert(data_type_id.clone()) {
-                return None;
-            }
-
-            let nested_size_in_bytes =
-                Self::resolve_symbolic_struct_size_in_bytes(engine_execution_context, &nested_symbolic_struct_definition, visited_type_ids)?;
-
-            visited_type_ids.remove(&data_type_id);
-
-            nested_size_in_bytes
-        } else if let Some(default_value) = engine_execution_context.get_default_value(symbolic_field_definition.get_data_type_ref()) {
-            default_value.get_size_in_bytes()
-        } else {
-            return None;
-        };
-
-        Some(
-            symbolic_field_definition
-                .get_container_type()
-                .get_total_size_in_bytes(unit_size_in_bytes),
-        )
-    }
-
-    fn resolve_symbolic_struct_size_in_bytes(
-        engine_execution_context: &Arc<dyn EngineExecutionContext>,
-        symbolic_struct_definition: &SymbolicStructDefinition,
-        visited_type_ids: &mut HashSet<String>,
-    ) -> Option<u64> {
-        let mut next_sequential_offset = 0_u64;
-
-        for symbolic_field_definition in symbolic_struct_definition.get_fields() {
-            let field_offset = match symbolic_field_definition.get_offset_resolution() {
-                SymbolicFieldOffsetResolution::Static(offset_in_bytes) => *offset_in_bytes,
-                SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_)
-                    if symbolic_struct_definition.get_layout_kind().is_union() =>
-                {
-                    0
-                }
-                SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_) => next_sequential_offset,
-            };
-            let field_size_in_bytes = Self::resolve_symbolic_field_size_in_bytes(engine_execution_context, symbolic_field_definition, visited_type_ids)?;
-
-            next_sequential_offset = next_sequential_offset.max(field_offset.checked_add(field_size_in_bytes)?);
-        }
-
-        Some(
-            next_sequential_offset.max(
-                symbolic_struct_definition
-                    .get_declared_size_in_bytes()
-                    .unwrap_or(0),
-            ),
+        SymbolLayoutSizeResolver::resolve_symbolic_field_size_in_bytes(
+            symbolic_field_definition,
+            |data_type_ref| {
+                engine_execution_context
+                    .get_default_value(data_type_ref)
+                    .map(|default_value| default_value.get_size_in_bytes())
+            },
+            |struct_layout_id| engine_execution_context.resolve_struct_layout_definition(struct_layout_id),
+            visited_type_ids,
         )
     }
 
