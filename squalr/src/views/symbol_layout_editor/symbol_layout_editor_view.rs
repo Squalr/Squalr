@@ -10,6 +10,7 @@ use crate::ui::widgets::controls::{
     combo_box::{combo_box_item_view::ComboBoxItemView, combo_box_view::ComboBoxView},
     context_menu::context_menu::ContextMenu,
     data_value_box::data_value_box_view::DataValueBoxView,
+    list_header::ListHeaderView,
     search_box::SearchBoxView,
     toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView,
 };
@@ -19,7 +20,7 @@ use crate::views::symbol_layout_editor::view_data::symbol_layout_editor_view_dat
     SymbolLayoutFieldElementType, SymbolLayoutFieldOffsetMode, SymbolLayoutUnassignedContextMenuTarget,
 };
 use crate::views::symbol_layout_editor::view_data::symbol_layout_field_container_edit::{SymbolLayoutFieldContainerEdit, SymbolLayoutFieldContainerKind};
-use eframe::egui::{Align, Align2, Direction, Grid, Id, Key, Layout, Response, RichText, ScrollArea, Sense, Ui, UiBuilder, Widget, pos2, vec2};
+use eframe::egui::{Align, Direction, Grid, Id, Key, Layout, Response, RichText, ScrollArea, Sense, Ui, UiBuilder, Widget, vec2};
 use epaint::{Color32, CornerRadius};
 use rows::{
     symbol_layout_field_row_action::SymbolLayoutFieldRowAction, symbol_layout_field_row_view::SymbolLayoutFieldRowView,
@@ -1765,32 +1766,6 @@ impl SymbolLayoutEditorView {
             .find(|container_kind| container_kind.label() == label)
     }
 
-    fn render_list_header(
-        &self,
-        user_interface: &mut Ui,
-    ) {
-        let theme = &self.app_context.theme;
-        let (header_rect, _) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), Self::LIST_ROW_HEIGHT), Sense::hover());
-
-        user_interface
-            .painter()
-            .rect_filled(header_rect, CornerRadius::ZERO, theme.background_primary);
-        user_interface.painter().text(
-            pos2(header_rect.min.x + 8.0, header_rect.center().y),
-            Align2::LEFT_CENTER,
-            "Symbol Layout",
-            theme.font_library.font_noto_sans.font_normal.clone(),
-            theme.foreground_preview,
-        );
-        user_interface.painter().text(
-            pos2(header_rect.max.x - 8.0, header_rect.center().y),
-            Align2::RIGHT_CENTER,
-            "Kind | Entries | Uses",
-            theme.font_library.font_noto_sans.font_normal.clone(),
-            theme.foreground_preview,
-        );
-    }
-
     fn render_list_toolbar(
         &self,
         user_interface: &mut Ui,
@@ -1859,7 +1834,11 @@ impl SymbolLayoutEditorView {
 
         self.render_filter_text_box(user_interface, filter_text);
 
-        self.render_list_header(user_interface);
+        user_interface.add(
+            ListHeaderView::new(self.app_context.clone(), "Symbol Layout", "Kind | Entries | Uses")
+                .height(Self::LIST_ROW_HEIGHT)
+                .horizontal_padding(8.0),
+        );
         ScrollArea::vertical()
             .id_salt("symbol_layout_editor_layout_list")
             .auto_shrink([false, false])

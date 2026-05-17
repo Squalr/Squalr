@@ -6,6 +6,7 @@ pub mod context_menu;
 pub mod data_type_selector;
 pub mod data_value_box;
 pub mod groupbox;
+pub mod list_header;
 pub mod scan_constraint_selector;
 pub mod search_box;
 pub mod slider;
