@@ -167,6 +167,11 @@ Our current task, from `README.md`, is:
    - `SymbolTreeView` should select symbols, render rows/context actions, and route user actions.
    - Neither view should construct Details rows, parse edited field names, or build memory read/write requests directly.
 
+11. In progress: move Symbol Layout authoring behavior out of the GUI view.
+   - Extracted pure symbol-layout draft/span operations into `squalr/src/views/symbol_layout_editor/view_data/symbol_layout_draft_ops.rs`.
+   - `SymbolLayoutEditorView` now keeps rendering, selection, context menus, and command dispatch orchestration, while draft field/unassigned span movement/planning lives outside the view.
+   - This is an intermediate boundary, not the final CLI/TUI command layer. The current draft model still depends on GUI-side data type selection state, so the next durable step is an API-shaped layout edit payload/planner that command executors can consume.
+
 ## Ordering Constraints
 
 - Do not slim views first; that repeats the containment-only mistake.
@@ -221,3 +226,4 @@ Our current task, from `README.md`, is:
 - Current Symbol Layout details icon pass routes the selected field details row and selected combo label for `SymbolLayoutFieldSymbolLayoutSelector` through the shared struct icon instead of resolving the custom layout id as a primitive data type. Validated with `cargo fmt --all`, `cargo test -p squalr struct_viewer --lib --locked`, `cargo test -p squalr symbol_layout_editor --lib --locked`, `cargo check -p squalr --locked`, and `git diff --check`. Needs human verification in the GUI when double-clicking a symbol layout field whose element type is a struct/layout.
 - Current Symbol Tree unassigned Details pass makes explicit `UNASSIGNED` segments metadata-only in Details: the shared projector refuses runtime value fields for unassigned nodes, and the GUI skips memory reads for unassigned selections while still showing size metadata. Validated with `cargo fmt --all`, `cargo test -p squalr-engine-api symbol_tree_details --lib --locked`, `cargo test -p squalr symbol_tree --lib --locked`, `cargo check -p squalr --locked`, and `git diff --check`. Needs human verification in the GUI when clicking an `UNASSIGNED` segment.
 - Current Symbol Tree context-menu ordering pass moves `Edit Symbol Layout...` to the first row when available and adjusts separators around the remaining actions. Validated with `cargo fmt --all`, `cargo test -p squalr symbol_tree --lib --locked`, `cargo check -p squalr --locked`, and `git diff --check`. Needs human verification in the GUI context menu.
+- Current Symbol Layout draft-ops extraction pass moved pure field insertion, unique naming, field move, unassigned-span move, and unassigned-row context planning out of `SymbolLayoutEditorView` into `symbol_layout_draft_ops.rs`. The view now calls `SymbolLayoutDraftOps` for those mutations while keeping GUI rendering/orchestration local. Validated with `cargo fmt --all`, `cargo test -p squalr symbol_layout_editor --lib --locked`, `cargo check -p squalr --locked`, and `git diff --check`. Needs human verification in the GUI.
