@@ -4,6 +4,7 @@ pub mod symbol_tree_entry_view;
 pub mod symbol_tree_inline_rename_view;
 pub mod symbol_tree_list_view;
 pub mod symbol_tree_module_create_view;
+pub mod symbol_tree_runtime_data_controller;
 pub mod symbol_tree_take_over_view_helpers;
 pub mod symbol_tree_toolbar_view;
 pub mod symbol_tree_view;
