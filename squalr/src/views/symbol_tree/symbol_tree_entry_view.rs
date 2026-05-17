@@ -116,7 +116,11 @@ impl<'lifetime> SymbolTreeEntryView<'lifetime> {
             allocated_size_rectangle.min.x + row_left_padding + indentation + expand_arrow_size.x + text_left_padding + data_type_icon_size.x * 0.5,
             allocated_size_rectangle.center().y,
         );
-        let data_type_icon = DataTypeToIconConverter::convert_data_type_to_icon(&self.symbol_tree_entry.get_display_type_id(), &theme.icon_library);
+        let data_type_icon = DataTypeToIconConverter::convert_data_type_or_symbol_layout_to_icon(
+            &self.symbol_tree_entry.get_display_type_id(),
+            self.symbol_tree_entry.uses_symbol_layout_icon(),
+            &theme.icon_library,
+        );
         IconDraw::draw_sized(user_interface, data_type_icon_center, data_type_icon_size, &data_type_icon);
 
         let text_position_x = data_type_icon_center.x + data_type_icon_size.x * 0.5 + data_type_icon_gap;

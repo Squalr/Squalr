@@ -1158,8 +1158,7 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                                     for struct_layout_descriptor in visible_struct_layout_descriptors {
                                         let candidate_layout_id = struct_layout_descriptor.get_struct_layout_id();
 
-                                        let candidate_icon =
-                                            DataTypeToIconConverter::convert_data_type_to_icon(candidate_layout_id, &self.app_context.theme.icon_library);
+                                        let candidate_icon = DataTypeToIconConverter::convert_symbol_layout_to_icon(&self.app_context.theme.icon_library);
                                         let layout_response = scroll_user_interface.add(ComboBoxItemView::new(
                                             self.app_context.clone(),
                                             candidate_layout_id,

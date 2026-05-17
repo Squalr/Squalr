@@ -394,21 +394,25 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
         let single_select = self.single_select;
         let popup_width = Self::selectable_popup_width(selectable_data_type_column_count);
         let combo_data_type_id = data_type_selection.visible_data_type().get_data_type_id();
-        let combo_icon = if Self::should_render_combo_icon(data_type_selection, label_mode) {
-            Some(DataTypeToIconConverter::convert_data_type_to_icon(
-                combo_data_type_id,
-                &app_context.theme.icon_library,
-            ))
-        } else {
-            None
-        };
-        let combo_label = Self::combo_label(data_type_selection, label_mode, show_preview_text);
         let (built_in_selectable_data_types, extra_selectable_data_types) =
             Self::selectable_data_type_groups(available_data_types.as_deref(), |data_type_ref| {
                 app_context
                     .engine_unprivileged_state
                     .is_registered_data_type_ref(data_type_ref)
             });
+        let combo_is_symbol_layout = extra_selectable_data_types
+            .iter()
+            .any(|data_type_ref| data_type_ref.get_data_type_id() == combo_data_type_id);
+        let combo_icon = if Self::should_render_combo_icon(data_type_selection, label_mode) {
+            Some(DataTypeToIconConverter::convert_data_type_or_symbol_layout_to_icon(
+                combo_data_type_id,
+                combo_is_symbol_layout,
+                &app_context.theme.icon_library,
+            ))
+        } else {
+            None
+        };
+        let combo_label = Self::combo_label(data_type_selection, label_mode, show_preview_text);
 
         let combo_box = ComboBoxView::new(
             app_context.clone(),
@@ -483,8 +487,9 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
                             DataTypeItemView::new(
                                 app_context.clone(),
                                 DataTypeToStringConverter::convert_data_type_to_string(data_type_ref.get_data_type_id()),
-                                Some(DataTypeToIconConverter::convert_data_type_to_icon(
+                                Some(DataTypeToIconConverter::convert_data_type_or_symbol_layout_to_icon(
                                     data_type_ref.get_data_type_id(),
+                                    true,
                                     &app_context.theme.icon_library,
                                 )),
                                 popup_width,

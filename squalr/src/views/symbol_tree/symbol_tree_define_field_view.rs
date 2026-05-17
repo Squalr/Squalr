@@ -137,7 +137,20 @@ impl<'a> SymbolTreeDefineFieldView<'a> {
     }
 
     pub fn module_field_type_option_uses_icon(type_option_kind: ModuleFieldTypeOptionKind) -> bool {
-        matches!(type_option_kind, ModuleFieldTypeOptionKind::BuiltIn)
+        matches!(type_option_kind, ModuleFieldTypeOptionKind::BuiltIn | ModuleFieldTypeOptionKind::SymbolLayout)
+    }
+
+    fn module_field_type_option_icon(
+        app_context: &AppContext,
+        type_option: &ModuleFieldTypeOption,
+    ) -> Option<epaint::TextureHandle> {
+        Self::module_field_type_option_uses_icon(type_option.kind).then(|| {
+            DataTypeToIconConverter::convert_data_type_or_symbol_layout_to_icon(
+                type_option.data_type_ref.get_data_type_id(),
+                type_option.kind == ModuleFieldTypeOptionKind::SymbolLayout,
+                &app_context.theme.icon_library,
+            )
+        })
     }
 
     pub fn define_field_type_popup_width(combo_width: f32) -> f32 {
@@ -525,10 +538,7 @@ impl<'a> SymbolTreeDefineFieldView<'a> {
         let combo_label = selected_type_option
             .map(|type_option| type_option.label.clone())
             .unwrap_or_else(|| DataTypeToStringConverter::convert_data_type_to_string(&selected_data_type_id));
-        let combo_icon = selected_type_option.and_then(|type_option| {
-            Self::module_field_type_option_uses_icon(type_option.kind)
-                .then(|| DataTypeToIconConverter::convert_data_type_to_icon(type_option.data_type_ref.get_data_type_id(), &self.app_context.theme.icon_library))
-        });
+        let combo_icon = selected_type_option.and_then(|type_option| Self::module_field_type_option_icon(&self.app_context, type_option));
         let search_storage_id = Self::module_field_type_search_storage_id(menu_id);
         let popup_width = Self::define_field_type_popup_width(width);
         let built_in_type_item_width = Self::define_field_builtin_type_item_width(popup_width);
@@ -614,8 +624,12 @@ impl<'a> SymbolTreeDefineFieldView<'a> {
                             }
 
                             for type_option in symbol_layout_type_options {
-                                let item_response =
-                                    scroll_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), &type_option.label, None, popup_width));
+                                let item_response = scroll_user_interface.add(ComboBoxItemView::new(
+                                    self.app_context.clone(),
+                                    &type_option.label,
+                                    Self::module_field_type_option_icon(&self.app_context, &type_option),
+                                    popup_width,
+                                ));
 
                                 if item_response.clicked() {
                                     data_type_selection.select_single_data_type(type_option.data_type_ref);

@@ -20,6 +20,22 @@ const INSTRUCTION_DATA_TYPE_PREFIX: &str = "i_";
 pub struct DataTypeToIconConverter {}
 
 impl DataTypeToIconConverter {
+    pub fn convert_symbol_layout_to_icon(icon_library: &IconLibrary) -> TextureHandle {
+        icon_library.icon_handle_data_type_struct.clone()
+    }
+
+    pub fn convert_data_type_or_symbol_layout_to_icon(
+        data_type_id: &str,
+        is_symbol_layout: bool,
+        icon_library: &IconLibrary,
+    ) -> TextureHandle {
+        if is_symbol_layout {
+            return Self::convert_symbol_layout_to_icon(icon_library);
+        }
+
+        Self::convert_data_type_to_icon(data_type_id, icon_library)
+    }
+
     pub fn convert_data_type_to_icon(
         data_type_id: &str,
         icon_library: &IconLibrary,

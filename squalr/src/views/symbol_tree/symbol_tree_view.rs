@@ -2990,7 +2990,7 @@ mod tests {
         assert!(
             filtered_type_options
                 .iter()
-                .all(|type_option| { !SymbolTreeDefineFieldView::module_field_type_option_uses_icon(type_option.kind) })
+                .all(|type_option| { SymbolTreeDefineFieldView::module_field_type_option_uses_icon(type_option.kind) })
         );
     }
 

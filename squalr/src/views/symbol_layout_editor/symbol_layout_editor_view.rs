@@ -1585,8 +1585,11 @@ impl SymbolLayoutEditorView {
             .map(|type_option| type_option.label.clone())
             .unwrap_or_else(|| DataTypeToStringConverter::convert_data_type_to_string(&selected_data_type_id));
         let combo_icon = selected_type_option.and_then(|type_option| {
-            (type_option.kind == SymbolLayoutFieldTypeOptionKind::BuiltIn)
-                .then(|| DataTypeToIconConverter::convert_data_type_to_icon(type_option.data_type_ref.get_data_type_id(), &self.app_context.theme.icon_library))
+            Some(DataTypeToIconConverter::convert_data_type_or_symbol_layout_to_icon(
+                type_option.data_type_ref.get_data_type_id(),
+                type_option.kind == SymbolLayoutFieldTypeOptionKind::SymbolLayout,
+                &self.app_context.theme.icon_library,
+            ))
         });
         let search_storage_id = Self::define_field_type_search_storage_id(menu_id);
         let popup_width = Self::define_field_type_popup_width(width);
@@ -1674,8 +1677,12 @@ impl SymbolLayoutEditorView {
                             }
 
                             for type_option in symbol_layout_type_options {
-                                let item_response =
-                                    scroll_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), &type_option.label, None, popup_width));
+                                let item_response = scroll_user_interface.add(ComboBoxItemView::new(
+                                    self.app_context.clone(),
+                                    &type_option.label,
+                                    Some(DataTypeToIconConverter::convert_symbol_layout_to_icon(&self.app_context.theme.icon_library)),
+                                    popup_width,
+                                ));
 
                                 if item_response.clicked() {
                                     field_draft
@@ -2711,6 +2718,7 @@ impl SymbolLayoutEditorView {
     fn render_field_editor_section(
         &self,
         user_interface: &mut Ui,
+        project_symbol_catalog: &ProjectSymbolCatalog,
         layout_kind: SymbolicLayoutKind,
         field_draft: &mut SymbolLayoutFieldEditDraft,
         field_index: usize,
@@ -2801,7 +2809,9 @@ impl SymbolLayoutEditorView {
             trimmed_field_name.to_string()
         };
         let data_type_ref = field_draft.data_type_selection.visible_data_type();
-        let data_type_icon = DataTypeToIconConverter::convert_data_type_to_icon(data_type_ref.get_data_type_id(), &theme.icon_library);
+        let is_symbol_layout = project_symbol_catalog.contains_struct_layout_id(data_type_ref.get_data_type_id());
+        let data_type_icon =
+            DataTypeToIconConverter::convert_data_type_or_symbol_layout_to_icon(data_type_ref.get_data_type_id(), is_symbol_layout, &theme.icon_library);
         let icon_size = vec2(Self::FIELD_ROW_ICON_SIZE, Self::FIELD_ROW_ICON_SIZE);
         let icon_rect = Rect::from_min_size(
             pos2(row_rect.min.x + Self::FIELD_ROW_LEFT_PADDING, row_rect.center().y - icon_size.y * 0.5),
@@ -3038,6 +3048,7 @@ impl SymbolLayoutEditorView {
                 let field_row_action = Self::render_union_variant_child_row(user_interface, |user_interface| {
                     self.render_field_editor_section(
                         user_interface,
+                        project_symbol_catalog,
                         SymbolicLayoutKind::Struct,
                         field_draft,
                         field_span.field_position,
@@ -3618,6 +3629,7 @@ impl SymbolLayoutEditorView {
 
                 if let Some(field_row_action) = self.render_field_editor_section(
                     user_interface,
+                    project_symbol_catalog,
                     layout_kind,
                     field_draft,
                     field_index,
@@ -3726,6 +3738,7 @@ impl SymbolLayoutEditorView {
                 };
                 if let Some(field_row_action) = self.render_field_editor_section(
                     user_interface,
+                    project_symbol_catalog,
                     layout_kind,
                     field_draft,
                     field_index,

@@ -3235,7 +3235,7 @@ impl ProjectHierarchyView {
 
     fn resolve_tree_entry_icon(
         app_context: Arc<AppContext>,
-        _opened_project_info: Option<&ProjectInfo>,
+        opened_project_info: Option<&ProjectInfo>,
         project_item: &ProjectItem,
     ) -> Option<TextureHandle> {
         let icon_library = &app_context.theme.icon_library;
@@ -3245,8 +3245,17 @@ impl ProjectHierarchyView {
             Some(icon_library.icon_handle_file_system_open_folder.clone())
         } else {
             let icon_data_type_id = ProjectItemDetailsProjection::resolve_project_item_icon_data_type_id(project_item).unwrap_or_default();
+            let is_symbol_layout = opened_project_info.is_some_and(|project_info| {
+                project_info
+                    .get_project_symbol_catalog()
+                    .contains_struct_layout_id(&icon_data_type_id)
+            });
 
-            Some(DataTypeToIconConverter::convert_data_type_to_icon(&icon_data_type_id, icon_library))
+            Some(DataTypeToIconConverter::convert_data_type_or_symbol_layout_to_icon(
+                &icon_data_type_id,
+                is_symbol_layout,
+                icon_library,
+            ))
         }
     }
 

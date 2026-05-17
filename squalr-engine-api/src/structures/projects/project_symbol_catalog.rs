@@ -171,6 +171,15 @@ impl ProjectSymbolCatalog {
         &self.struct_layout_descriptors
     }
 
+    pub fn contains_struct_layout_id(
+        &self,
+        struct_layout_id: &str,
+    ) -> bool {
+        self.struct_layout_descriptors
+            .iter()
+            .any(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == struct_layout_id)
+    }
+
     pub fn ensure_module_root_struct_layout(
         &mut self,
         module_name: &str,
