@@ -49,29 +49,6 @@ impl SymbolLayoutVariantSession {
         Self::create_virtual_union_variant_layout_draft(union_draft, variant_layout_id)
     }
 
-    #[cfg(test)]
-    pub(in crate::views::symbol_layout_editor::symbol_layout_editor_view) fn create_union_variant_layout_draft(
-        project_symbol_catalog: &ProjectSymbolCatalog,
-        union_draft: &SymbolLayoutEditDraft,
-        variant_index: usize,
-        variant_field_draft: &crate::views::symbol_layout_editor::view_data::symbol_layout_editor_view_data::SymbolLayoutFieldEditDraft,
-    ) -> SymbolLayoutEditDraft {
-        let variant_layout_id = variant_field_draft
-            .data_type_selection
-            .visible_data_type()
-            .get_data_type_id();
-        if let Some(variant_layout_descriptor) = project_symbol_catalog
-            .get_struct_layout_descriptors()
-            .iter()
-            .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == variant_layout_id)
-        {
-            return Self::create_union_variant_layout_draft_for_id(project_symbol_catalog, union_draft, variant_layout_descriptor.get_struct_layout_id());
-        }
-
-        let variant_layout_id = Self::build_union_variant_layout_id(project_symbol_catalog, union_draft, variant_index);
-        Self::create_virtual_union_variant_layout_draft(union_draft, variant_layout_id)
-    }
-
     pub(in crate::views::symbol_layout_editor::symbol_layout_editor_view) fn create_union_variant_layout_draft_for_id_with_pending(
         project_symbol_catalog: &ProjectSymbolCatalog,
         symbol_layout_editor_view_data: Dependency<SymbolLayoutEditorViewData>,

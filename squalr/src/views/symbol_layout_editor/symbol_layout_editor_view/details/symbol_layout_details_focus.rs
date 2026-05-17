@@ -20,12 +20,6 @@ use std::sync::Arc;
 use super::super::SymbolLayoutEditorView;
 use crate::views::symbol_layout_editor::view_data::symbol_layout_field_container_edit::SymbolLayoutFieldContainerKind;
 
-#[cfg(test)]
-use squalr_engine_api::structures::{
-    data_types::built_in_types::{string::utf8::data_type_string_utf8::DataTypeStringUtf8, u64::data_type_u64::DataTypeU64},
-    structs::valued_struct::ValuedStruct,
-};
-
 pub(in crate::views::symbol_layout_editor::symbol_layout_editor_view) fn clear_struct_viewer_if_symbol_layout_focused(
     struct_viewer_view_data: Dependency<StructViewerViewData>
 ) {
@@ -153,111 +147,6 @@ pub(in crate::views::symbol_layout_editor::symbol_layout_editor_view) fn build_f
         pointer_size_label: uses_pointer_size.then(|| field_draft.container_edit.pointer_size.to_string()),
         offset_resolver_id: (field_draft.offset_mode == SymbolLayoutFieldOffsetMode::Resolver).then(|| field_draft.offset_resolver_id.clone()),
     }
-}
-
-#[cfg(test)]
-pub(in crate::views::symbol_layout_editor::symbol_layout_editor_view) fn build_field_details_struct(
-    project_symbol_catalog: &ProjectSymbolCatalog,
-    layout_kind: SymbolicLayoutKind,
-    field_draft: &SymbolLayoutFieldEditDraft,
-) -> ValuedStruct {
-    let element_type = SymbolLayoutEditorViewData::resolve_field_element_type(project_symbol_catalog, field_draft);
-    if layout_kind.is_union() {
-        return ValuedStruct::new_anonymous(vec![
-            DataTypeStringUtf8::get_value_from_primitive_string(&field_draft.field_name)
-                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_NAME.to_string(), false),
-            DataTypeStringUtf8::get_value_from_primitive_string(
-                field_draft
-                    .data_type_selection
-                    .visible_data_type()
-                    .get_data_type_id(),
-            )
-            .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_SYMBOL_LAYOUT.to_string(), false),
-            DataTypeStringUtf8::get_value_from_primitive_string(&field_draft.active_when_resolver_id)
-                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_ACTIVE_WHEN_RESOLVER.to_string(), false),
-        ]);
-    }
-
-    let mut fields = vec![
-        DataTypeStringUtf8::get_value_from_primitive_string(&field_draft.field_name)
-            .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_NAME.to_string(), false),
-        DataTypeStringUtf8::get_value_from_primitive_string(element_type.label())
-            .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_ELEMENT_TYPE.to_string(), false),
-        DataTypeStringUtf8::get_value_from_primitive_string(field_draft.container_edit.kind.label())
-            .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_CONTAINER_KIND.to_string(), false),
-    ];
-
-    let element_type_field_name = match element_type {
-        SymbolLayoutFieldElementType::BuiltInDataType => StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_DATA_TYPE,
-        SymbolLayoutFieldElementType::SymbolLayout => StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_SYMBOL_LAYOUT,
-    };
-    fields.insert(
-        2,
-        DataTypeStringUtf8::get_value_from_primitive_string(
-            field_draft
-                .data_type_selection
-                .visible_data_type()
-                .get_data_type_id(),
-        )
-        .to_named_valued_struct_field(element_type_field_name.to_string(), false),
-    );
-
-    if matches!(
-        field_draft.container_edit.kind,
-        SymbolLayoutFieldContainerKind::FixedArray | SymbolLayoutFieldContainerKind::FixedPointerArray
-    ) {
-        let length = field_draft
-            .container_edit
-            .fixed_array_length
-            .trim()
-            .parse::<u64>()
-            .unwrap_or(1);
-        fields.push(
-            DataTypeU64::get_value_from_primitive(length)
-                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_FIXED_ARRAY_LENGTH.to_string(), false),
-        );
-        fields.push(
-            DataTypeStringUtf8::get_value_from_primitive_string(&field_draft.container_edit.display_count_resolver_id).to_named_valued_struct_field(
-                StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_DISPLAY_COUNT_RESOLVER.to_string(),
-                false,
-            ),
-        );
-    }
-
-    if matches!(
-        field_draft.container_edit.kind,
-        SymbolLayoutFieldContainerKind::DynamicArray | SymbolLayoutFieldContainerKind::DynamicPointerArray
-    ) {
-        fields.push(
-            DataTypeStringUtf8::get_value_from_primitive_string(&field_draft.container_edit.dynamic_array_count_resolver_id)
-                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_COUNT_RESOLVER.to_string(), false),
-        );
-        fields.push(
-            DataTypeStringUtf8::get_value_from_primitive_string(&field_draft.container_edit.display_count_resolver_id).to_named_valued_struct_field(
-                StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_DISPLAY_COUNT_RESOLVER.to_string(),
-                false,
-            ),
-        );
-    }
-
-    if matches!(
-        field_draft.container_edit.kind,
-        SymbolLayoutFieldContainerKind::Pointer | SymbolLayoutFieldContainerKind::FixedPointerArray | SymbolLayoutFieldContainerKind::DynamicPointerArray
-    ) {
-        fields.push(
-            DataTypeStringUtf8::get_value_from_primitive_string(&field_draft.container_edit.pointer_size.to_string())
-                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_POINTER_SIZE.to_string(), false),
-        );
-    }
-
-    if field_draft.offset_mode == SymbolLayoutFieldOffsetMode::Resolver {
-        fields.push(
-            DataTypeStringUtf8::get_value_from_primitive_string(&field_draft.offset_resolver_id)
-                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_OFFSET_RESOLVER.to_string(), false),
-        );
-    }
-
-    ValuedStruct::new_anonymous(fields)
 }
 
 fn build_struct_viewer_layout_edit_callback(
