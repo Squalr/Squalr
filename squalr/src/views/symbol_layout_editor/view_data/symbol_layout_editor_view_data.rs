@@ -7,7 +7,10 @@ use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayo
 use squalr_engine_api::structures::{
     data_types::{built_in_types::i32::data_type_i32::DataTypeI32, data_type_ref::DataTypeRef},
     data_values::anonymous_value_string_format::AnonymousValueStringFormat,
-    projects::project_symbol_catalog::ProjectSymbolCatalog,
+    projects::{
+        project_symbol_catalog::ProjectSymbolCatalog,
+        symbol_layouts::symbol_layout_draft_ops::{SymbolLayoutDraftMutationTarget, SymbolLayoutUnassignedSelection},
+    },
     structs::{
         symbolic_field_definition::{SymbolicFieldDefinition, SymbolicFieldOffsetResolution},
         symbolic_resolver_definition::SymbolicResolverRef,
@@ -75,56 +78,36 @@ pub struct SymbolLayoutEditDraft {
     pub field_drafts: Vec<SymbolLayoutFieldEditDraft>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SymbolLayoutUnassignedSelection {
-    layout_id: Option<String>,
-    offset_in_bytes: u64,
-    size_in_bytes: u64,
-}
-
-impl SymbolLayoutUnassignedSelection {
-    pub fn new(
-        offset_in_bytes: u64,
-        size_in_bytes: u64,
-    ) -> Self {
-        Self {
-            layout_id: None,
-            offset_in_bytes,
-            size_in_bytes,
-        }
+impl SymbolLayoutDraftMutationTarget for SymbolLayoutEditDraft {
+    fn get_layout_kind(&self) -> SymbolicLayoutKind {
+        self.layout_kind
     }
 
-    pub fn new_for_layout(
-        layout_id: String,
-        offset_in_bytes: u64,
-        size_in_bytes: u64,
-    ) -> Self {
-        Self {
-            layout_id: Some(layout_id),
-            offset_in_bytes,
-            size_in_bytes,
-        }
+    fn get_field_count(&self) -> usize {
+        self.field_drafts.len()
     }
 
-    pub fn get_layout_id(&self) -> Option<&str> {
-        self.layout_id.as_deref()
-    }
-
-    pub fn matches(
+    fn get_field_name(
         &self,
-        layout_id: Option<&str>,
+        field_position: usize,
+    ) -> Option<&str> {
+        self.field_drafts
+            .get(field_position)
+            .map(|field_draft| field_draft.field_name.as_str())
+    }
+
+    fn set_field_static_offset(
+        &mut self,
+        field_position: usize,
         offset_in_bytes: u64,
-        size_in_bytes: u64,
     ) -> bool {
-        self.get_layout_id() == layout_id && self.offset_in_bytes == offset_in_bytes && self.size_in_bytes == size_in_bytes
-    }
+        let Some(field_draft) = self.field_drafts.get_mut(field_position) else {
+            return false;
+        };
 
-    pub fn get_offset_in_bytes(&self) -> u64 {
-        self.offset_in_bytes
-    }
-
-    pub fn get_size_in_bytes(&self) -> u64 {
-        self.size_in_bytes
+        field_draft.offset_mode = SymbolLayoutFieldOffsetMode::Static;
+        field_draft.static_offset_in_bytes = offset_in_bytes.to_string();
+        true
     }
 }
 

@@ -1,14 +1,84 @@
-use crate::ui::list_navigation::ListNavigationDirection;
-use crate::views::symbol_layout_editor::view_data::symbol_layout_editor_view_data::{
-    SymbolLayoutEditDraft, SymbolLayoutFieldOffsetMode, SymbolLayoutUnassignedSelection,
-};
+use crate::structures::structs::symbolic_struct_definition::SymbolicLayoutKind;
 use std::collections::BTreeSet;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SymbolLayoutMoveDirection {
+    Up,
+    Down,
+}
+
+pub trait SymbolLayoutDraftMutationTarget {
+    fn get_layout_kind(&self) -> SymbolicLayoutKind;
+    fn get_field_count(&self) -> usize;
+    fn get_field_name(
+        &self,
+        field_position: usize,
+    ) -> Option<&str>;
+    fn set_field_static_offset(
+        &mut self,
+        field_position: usize,
+        offset_in_bytes: u64,
+    ) -> bool;
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SymbolLayoutFieldSpan {
     pub field_position: usize,
     pub offset_in_bytes: u64,
     pub size_in_bytes: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SymbolLayoutUnassignedSelection {
+    layout_id: Option<String>,
+    offset_in_bytes: u64,
+    size_in_bytes: u64,
+}
+
+impl SymbolLayoutUnassignedSelection {
+    pub fn new(
+        offset_in_bytes: u64,
+        size_in_bytes: u64,
+    ) -> Self {
+        Self {
+            layout_id: None,
+            offset_in_bytes,
+            size_in_bytes,
+        }
+    }
+
+    pub fn new_for_layout(
+        layout_id: String,
+        offset_in_bytes: u64,
+        size_in_bytes: u64,
+    ) -> Self {
+        Self {
+            layout_id: Some(layout_id),
+            offset_in_bytes,
+            size_in_bytes,
+        }
+    }
+
+    pub fn get_layout_id(&self) -> Option<&str> {
+        self.layout_id.as_deref()
+    }
+
+    pub fn matches(
+        &self,
+        layout_id: Option<&str>,
+        offset_in_bytes: u64,
+        size_in_bytes: u64,
+    ) -> bool {
+        self.get_layout_id() == layout_id && self.offset_in_bytes == offset_in_bytes && self.size_in_bytes == size_in_bytes
+    }
+
+    pub fn get_offset_in_bytes(&self) -> u64 {
+        self.offset_in_bytes
+    }
+
+    pub fn get_size_in_bytes(&self) -> u64 {
+        self.size_in_bytes
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -47,46 +117,35 @@ impl SymbolLayoutDraftOps {
             .min(field_count)
     }
 
-    pub fn set_field_static_offset(
-        draft: &mut SymbolLayoutEditDraft,
-        field_position: usize,
-        offset_in_bytes: u64,
-    ) -> bool {
-        let Some(field_draft) = draft.field_drafts.get_mut(field_position) else {
-            return false;
-        };
-
-        field_draft.offset_mode = SymbolLayoutFieldOffsetMode::Static;
-        field_draft.static_offset_in_bytes = offset_in_bytes.to_string();
-        true
-    }
-
-    pub fn build_unique_field_name(
-        draft: &SymbolLayoutEditDraft,
+    pub fn build_unique_field_name<Draft>(
+        draft: &Draft,
         base_name: &str,
-    ) -> String {
+    ) -> String
+    where
+        Draft: SymbolLayoutDraftMutationTarget,
+    {
         let trimmed_base_name = base_name.trim();
         let base_name = if trimmed_base_name.is_empty() {
-            if draft.layout_kind.is_union() { "variant" } else { "field" }
+            if draft.get_layout_kind().is_union() { "variant" } else { "field" }
         } else {
             trimmed_base_name
         };
-        if !draft
-            .field_drafts
-            .iter()
-            .any(|field_draft| field_draft.field_name.trim() == base_name)
-        {
+        if !(0..draft.get_field_count()).any(|field_position| {
+            draft
+                .get_field_name(field_position)
+                .is_some_and(|field_name| field_name.trim() == base_name)
+        }) {
             return base_name.to_string();
         }
 
         let mut suffix_index = 2_u64;
         loop {
             let candidate_name = format!("{}_{}", base_name, suffix_index);
-            if !draft
-                .field_drafts
-                .iter()
-                .any(|field_draft| field_draft.field_name.trim() == candidate_name)
-            {
+            if !(0..draft.get_field_count()).any(|field_position| {
+                draft
+                    .get_field_name(field_position)
+                    .is_some_and(|field_name| field_name.trim() == candidate_name)
+            }) {
                 return candidate_name;
             }
             suffix_index = suffix_index.saturating_add(1);
@@ -103,20 +162,20 @@ impl SymbolLayoutDraftOps {
             .find(|field_span| field_span.field_position == field_position)
     }
 
-    pub fn resolve_adjacent_field_span(
+    fn resolve_adjacent_field_span(
         field_spans: &[SymbolLayoutFieldSpan],
         current_field_span: SymbolLayoutFieldSpan,
-        direction: ListNavigationDirection,
+        direction: SymbolLayoutMoveDirection,
     ) -> Option<SymbolLayoutFieldSpan> {
         let current_sort_key = (current_field_span.offset_in_bytes, current_field_span.field_position);
         match direction {
-            ListNavigationDirection::Up => field_spans
+            SymbolLayoutMoveDirection::Up => field_spans
                 .iter()
                 .copied()
                 .filter(|field_span| field_span.field_position != current_field_span.field_position)
                 .filter(|field_span| (field_span.offset_in_bytes, field_span.field_position) < current_sort_key)
                 .max_by_key(|field_span| (field_span.offset_in_bytes, field_span.field_position)),
-            ListNavigationDirection::Down => field_spans
+            SymbolLayoutMoveDirection::Down => field_spans
                 .iter()
                 .copied()
                 .filter(|field_span| field_span.field_position != current_field_span.field_position)
@@ -180,19 +239,22 @@ impl SymbolLayoutDraftOps {
         Some(SymbolLayoutUnassignedSelection::new(gap_start, row_end.saturating_sub(gap_start)))
     }
 
-    pub fn move_struct_field_up(
-        draft: &mut SymbolLayoutEditDraft,
+    pub fn move_struct_field_up<Draft>(
+        draft: &mut Draft,
         field_spans: &[SymbolLayoutFieldSpan],
         split_offsets: &BTreeSet<u64>,
         field_index: usize,
-    ) -> bool {
+    ) -> bool
+    where
+        Draft: SymbolLayoutDraftMutationTarget,
+    {
         let Some(current_field_span) = Self::resolve_field_span_by_position(field_spans, field_index) else {
             return false;
         };
-        let previous_field_span = Self::resolve_adjacent_field_span(field_spans, current_field_span, ListNavigationDirection::Up);
+        let previous_field_span = Self::resolve_adjacent_field_span(field_spans, current_field_span, SymbolLayoutMoveDirection::Up);
 
         if let Some(previous_unassigned_row) = Self::resolve_unassigned_row_before_field(current_field_span, previous_field_span, split_offsets) {
-            return Self::set_field_static_offset(draft, field_index, previous_unassigned_row.get_offset_in_bytes());
+            return draft.set_field_static_offset(field_index, previous_unassigned_row.get_offset_in_bytes());
         }
 
         let Some(previous_field_span) = previous_field_span else {
@@ -202,8 +264,8 @@ impl SymbolLayoutDraftOps {
         let moved_previous_offset = previous_field_span
             .offset_in_bytes
             .saturating_add(current_field_span.size_in_bytes);
-        Self::set_field_static_offset(draft, field_index, moved_current_offset)
-            && Self::set_field_static_offset(draft, previous_field_span.field_position, moved_previous_offset)
+        draft.set_field_static_offset(field_index, moved_current_offset)
+            && draft.set_field_static_offset(previous_field_span.field_position, moved_previous_offset)
     }
 
     pub fn split_offset_to_preserve_field_move_up(
@@ -213,9 +275,9 @@ impl SymbolLayoutDraftOps {
         field_index: usize,
     ) -> Option<u64> {
         let current_field_span = Self::resolve_field_span_by_position(field_spans, field_index)?;
-        let previous_field_span = Self::resolve_adjacent_field_span(field_spans, current_field_span, ListNavigationDirection::Up);
+        let previous_field_span = Self::resolve_adjacent_field_span(field_spans, current_field_span, SymbolLayoutMoveDirection::Up);
         Self::resolve_unassigned_row_before_field(current_field_span, previous_field_span, split_offsets)?;
-        let next_field_span = Self::resolve_adjacent_field_span(field_spans, current_field_span, ListNavigationDirection::Down);
+        let next_field_span = Self::resolve_adjacent_field_span(field_spans, current_field_span, SymbolLayoutMoveDirection::Down);
         Self::resolve_unassigned_row_after_field(current_field_span, next_field_span, layout_size_in_bytes, split_offsets)?;
 
         current_field_span
@@ -223,21 +285,23 @@ impl SymbolLayoutDraftOps {
             .checked_add(current_field_span.size_in_bytes)
     }
 
-    pub fn move_struct_field_down(
-        draft: &mut SymbolLayoutEditDraft,
+    pub fn move_struct_field_down<Draft>(
+        draft: &mut Draft,
         field_spans: &[SymbolLayoutFieldSpan],
         layout_size_in_bytes: u64,
         split_offsets: &BTreeSet<u64>,
         field_index: usize,
-    ) -> bool {
+    ) -> bool
+    where
+        Draft: SymbolLayoutDraftMutationTarget,
+    {
         let Some(current_field_span) = Self::resolve_field_span_by_position(field_spans, field_index) else {
             return false;
         };
-        let next_field_span = Self::resolve_adjacent_field_span(field_spans, current_field_span, ListNavigationDirection::Down);
+        let next_field_span = Self::resolve_adjacent_field_span(field_spans, current_field_span, SymbolLayoutMoveDirection::Down);
 
         if let Some(next_unassigned_row) = Self::resolve_unassigned_row_after_field(current_field_span, next_field_span, layout_size_in_bytes, split_offsets) {
-            return Self::set_field_static_offset(
-                draft,
+            return draft.set_field_static_offset(
                 field_index,
                 current_field_span
                     .offset_in_bytes
@@ -252,8 +316,7 @@ impl SymbolLayoutDraftOps {
         let moved_current_offset = current_field_span
             .offset_in_bytes
             .saturating_add(next_field_span.size_in_bytes);
-        Self::set_field_static_offset(draft, next_field_span.field_position, moved_next_offset)
-            && Self::set_field_static_offset(draft, field_index, moved_current_offset)
+        draft.set_field_static_offset(next_field_span.field_position, moved_next_offset) && draft.set_field_static_offset(field_index, moved_current_offset)
     }
 
     pub fn split_offset_to_preserve_field_move_down(
@@ -263,9 +326,9 @@ impl SymbolLayoutDraftOps {
         field_index: usize,
     ) -> Option<u64> {
         let current_field_span = Self::resolve_field_span_by_position(field_spans, field_index)?;
-        let next_field_span = Self::resolve_adjacent_field_span(field_spans, current_field_span, ListNavigationDirection::Down);
+        let next_field_span = Self::resolve_adjacent_field_span(field_spans, current_field_span, SymbolLayoutMoveDirection::Down);
         Self::resolve_unassigned_row_after_field(current_field_span, next_field_span, layout_size_in_bytes, split_offsets)?;
-        let previous_field_span = Self::resolve_adjacent_field_span(field_spans, current_field_span, ListNavigationDirection::Up);
+        let previous_field_span = Self::resolve_adjacent_field_span(field_spans, current_field_span, SymbolLayoutMoveDirection::Up);
         Self::resolve_unassigned_row_before_field(current_field_span, previous_field_span, split_offsets)?;
 
         (current_field_span.offset_in_bytes > 0).then_some(current_field_span.offset_in_bytes)
@@ -279,7 +342,7 @@ impl SymbolLayoutDraftOps {
         let Some(current_field_span) = Self::resolve_field_span_by_position(field_spans, field_index) else {
             return false;
         };
-        let previous_field_span = Self::resolve_adjacent_field_span(field_spans, current_field_span, ListNavigationDirection::Up);
+        let previous_field_span = Self::resolve_adjacent_field_span(field_spans, current_field_span, SymbolLayoutMoveDirection::Up);
 
         Self::resolve_unassigned_row_before_field(current_field_span, previous_field_span, split_offsets).is_some() || previous_field_span.is_some()
     }
@@ -293,7 +356,7 @@ impl SymbolLayoutDraftOps {
         let Some(current_field_span) = Self::resolve_field_span_by_position(field_spans, field_index) else {
             return false;
         };
-        let next_field_span = Self::resolve_adjacent_field_span(field_spans, current_field_span, ListNavigationDirection::Down);
+        let next_field_span = Self::resolve_adjacent_field_span(field_spans, current_field_span, SymbolLayoutMoveDirection::Down);
 
         Self::resolve_unassigned_row_after_field(current_field_span, next_field_span, layout_size_in_bytes, split_offsets).is_some()
             || next_field_span.is_some()
@@ -338,29 +401,37 @@ impl SymbolLayoutDraftOps {
         (tail_offset < layout_size_in_bytes).then_some(tail_offset)
     }
 
-    pub fn move_unassigned_span_up(
-        draft: &mut SymbolLayoutEditDraft,
+    pub fn move_unassigned_span_up<Draft>(
+        draft: &mut Draft,
         row_context: SymbolLayoutUnassignedRowContext,
-    ) -> Option<SymbolLayoutUnassignedSelection> {
+    ) -> Option<SymbolLayoutUnassignedSelection>
+    where
+        Draft: SymbolLayoutDraftMutationTarget,
+    {
         let adjacent_field = row_context.move_up_field?;
         let moved_field_offset = adjacent_field
             .offset_in_bytes
             .checked_add(row_context.size_in_bytes)?;
 
-        Self::set_field_static_offset(draft, adjacent_field.field_position, moved_field_offset)
+        draft
+            .set_field_static_offset(adjacent_field.field_position, moved_field_offset)
             .then(|| SymbolLayoutUnassignedSelection::new(adjacent_field.offset_in_bytes, row_context.size_in_bytes))
     }
 
-    pub fn move_unassigned_span_down(
-        draft: &mut SymbolLayoutEditDraft,
+    pub fn move_unassigned_span_down<Draft>(
+        draft: &mut Draft,
         row_context: SymbolLayoutUnassignedRowContext,
-    ) -> Option<SymbolLayoutUnassignedSelection> {
+    ) -> Option<SymbolLayoutUnassignedSelection>
+    where
+        Draft: SymbolLayoutDraftMutationTarget,
+    {
         let adjacent_field = row_context.move_down_field?;
         let moved_unassigned_offset = row_context
             .offset_in_bytes
             .checked_add(adjacent_field.size_in_bytes)?;
 
-        Self::set_field_static_offset(draft, adjacent_field.field_position, row_context.offset_in_bytes)
+        draft
+            .set_field_static_offset(adjacent_field.field_position, row_context.offset_in_bytes)
             .then(|| SymbolLayoutUnassignedSelection::new(moved_unassigned_offset, row_context.size_in_bytes))
     }
 
@@ -441,5 +512,107 @@ impl SymbolLayoutDraftOps {
                 })
             })
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[derive(Clone, Debug)]
+    struct TestDraft {
+        layout_kind: SymbolicLayoutKind,
+        fields: Vec<TestField>,
+    }
+
+    #[derive(Clone, Debug)]
+    struct TestField {
+        field_name: String,
+        static_offset_in_bytes: u64,
+    }
+
+    impl SymbolLayoutDraftMutationTarget for TestDraft {
+        fn get_layout_kind(&self) -> SymbolicLayoutKind {
+            self.layout_kind
+        }
+
+        fn get_field_count(&self) -> usize {
+            self.fields.len()
+        }
+
+        fn get_field_name(
+            &self,
+            field_position: usize,
+        ) -> Option<&str> {
+            self.fields
+                .get(field_position)
+                .map(|field| field.field_name.as_str())
+        }
+
+        fn set_field_static_offset(
+            &mut self,
+            field_position: usize,
+            offset_in_bytes: u64,
+        ) -> bool {
+            let Some(field) = self.fields.get_mut(field_position) else {
+                return false;
+            };
+
+            field.static_offset_in_bytes = offset_in_bytes;
+            true
+        }
+    }
+
+    #[test]
+    fn move_unassigned_span_down_preserves_next_unassigned_boundary() {
+        let mut draft = TestDraft {
+            layout_kind: SymbolicLayoutKind::Struct,
+            fields: vec![
+                TestField {
+                    field_name: String::from("health"),
+                    static_offset_in_bytes: 0,
+                },
+                TestField {
+                    field_name: String::from("mana"),
+                    static_offset_in_bytes: 16,
+                },
+            ],
+        };
+        let row_context = SymbolLayoutUnassignedRowContext {
+            offset_in_bytes: 4,
+            size_in_bytes: 12,
+            move_up_field: None,
+            move_down_field: Some(SymbolLayoutUnassignedAdjacentField {
+                field_position: 1,
+                offset_in_bytes: 16,
+                size_in_bytes: 4,
+            }),
+            move_up_unassigned_span: None,
+            move_down_unassigned_span: None,
+            merge_above_span: None,
+            merge_below_span: None,
+        };
+        let updated_unassigned_selection = SymbolLayoutDraftOps::move_unassigned_span_down(&mut draft, row_context).expect("Expected span to move.");
+
+        assert_eq!(draft.fields[1].static_offset_in_bytes, 4);
+        assert_eq!(updated_unassigned_selection.get_offset_in_bytes(), 8);
+        assert_eq!(updated_unassigned_selection.get_size_in_bytes(), 12);
+        assert_eq!(
+            SymbolLayoutDraftOps::split_offset_to_preserve_unassigned_move_down(&updated_unassigned_selection),
+            Some(20)
+        );
+    }
+
+    #[test]
+    fn build_unique_field_name_uses_union_variant_base() {
+        let draft = TestDraft {
+            layout_kind: SymbolicLayoutKind::Union,
+            fields: vec![TestField {
+                field_name: String::from("variant"),
+                static_offset_in_bytes: 0,
+            }],
+        };
+
+        assert_eq!(SymbolLayoutDraftOps::build_unique_field_name(&draft, ""), "variant_2");
     }
 }

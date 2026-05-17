@@ -13,13 +13,9 @@ use crate::ui::widgets::controls::{
     toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView,
 };
 use crate::views::struct_viewer::view_data::{struct_viewer_focus_target::StructViewerFocusTarget, struct_viewer_view_data::StructViewerViewData};
-use crate::views::symbol_layout_editor::view_data::symbol_layout_draft_ops::{
-    SymbolLayoutDraftOps, SymbolLayoutFieldSpan, SymbolLayoutUnassignedAdjacentField, SymbolLayoutUnassignedRowContext,
-};
 use crate::views::symbol_layout_editor::view_data::symbol_layout_editor_view_data::{
     SymbolLayoutDefineFieldReturnState, SymbolLayoutEditDraft, SymbolLayoutEditorTakeOverState, SymbolLayoutEditorViewData, SymbolLayoutFieldContextMenuTarget,
     SymbolLayoutFieldEditDraft, SymbolLayoutFieldElementType, SymbolLayoutFieldOffsetMode, SymbolLayoutUnassignedContextMenuTarget,
-    SymbolLayoutUnassignedSelection,
 };
 use crate::views::symbol_layout_editor::view_data::symbol_layout_field_container_edit::{SymbolLayoutFieldContainerEdit, SymbolLayoutFieldContainerKind};
 use eframe::egui::{
@@ -43,7 +39,12 @@ use squalr_engine_api::structures::{
     },
     data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
     pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
-    projects::project_symbol_catalog::ProjectSymbolCatalog,
+    projects::{
+        project_symbol_catalog::ProjectSymbolCatalog,
+        symbol_layouts::symbol_layout_draft_ops::{
+            SymbolLayoutDraftOps, SymbolLayoutFieldSpan, SymbolLayoutUnassignedAdjacentField, SymbolLayoutUnassignedRowContext, SymbolLayoutUnassignedSelection,
+        },
+    },
     structs::{
         symbolic_field_definition::{SymbolicFieldDefinition, SymbolicFieldOffsetResolution},
         symbolic_struct_definition::{SymbolicLayoutKind, SymbolicStructDefinition},
@@ -4492,9 +4493,6 @@ impl SymbolLayoutEditorView {
 mod tests {
     use super::{SymbolLayoutEditorView, SymbolLayoutFieldContainerKind, SymbolLayoutFieldEditDraft};
     use crate::views::struct_viewer::view_data::struct_viewer_view_data::StructViewerViewData;
-    use crate::views::symbol_layout_editor::view_data::symbol_layout_draft_ops::{
-        SymbolLayoutDraftOps, SymbolLayoutFieldSpan, SymbolLayoutUnassignedAdjacentField, SymbolLayoutUnassignedRowContext,
-    };
     use crate::views::symbol_layout_editor::view_data::symbol_layout_editor_view_data::{
         SymbolLayoutEditDraft, SymbolLayoutEditorViewData, SymbolLayoutFieldOffsetMode,
     };
@@ -4503,7 +4501,12 @@ mod tests {
         data_types::{built_in_types::u32::data_type_u32::DataTypeU32, data_type_ref::DataTypeRef},
         data_values::anonymous_value_string_format::AnonymousValueStringFormat,
         pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
-        projects::project_symbol_catalog::ProjectSymbolCatalog,
+        projects::{
+            project_symbol_catalog::ProjectSymbolCatalog,
+            symbol_layouts::symbol_layout_draft_ops::{
+                SymbolLayoutDraftOps, SymbolLayoutFieldSpan, SymbolLayoutUnassignedAdjacentField, SymbolLayoutUnassignedRowContext,
+            },
+        },
         structs::symbolic_struct_definition::{SymbolicLayoutKind, SymbolicStructDefinition},
     };
     use std::collections::BTreeSet;
