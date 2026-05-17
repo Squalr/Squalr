@@ -51,7 +51,9 @@ impl SymbolTreeDetailsProjection {
         let target = DetailsTarget::new(Self::TARGET_KIND_SYMBOL_TREE, symbol_tree_node.get_node_key());
         let mut fields = Self::build_metadata_fields_with_type_id(symbol_tree_node, include_symbol_claim_metadata, symbol_size_in_bytes, metadata_type_id);
 
-        if let Some(runtime_value_struct) = runtime_value_struct {
+        if let Some(runtime_value_struct) = runtime_value_struct
+            && Self::should_include_runtime_value_fields(symbol_tree_node)
+        {
             fields.extend(Self::build_runtime_value_fields(runtime_value_struct));
         }
 
@@ -216,6 +218,10 @@ impl SymbolTreeDetailsProjection {
             .collect()
     }
 
+    fn should_include_runtime_value_fields(symbol_tree_node: &SymbolTreeNode) -> bool {
+        !matches!(symbol_tree_node.get_kind(), SymbolTreeNodeKind::UnassignedSegment { .. })
+    }
+
     fn build_text_metadata_field(
         metadata_name: &str,
         label: &str,
@@ -286,6 +292,26 @@ mod tests {
             ProjectSymbolLocator::new_absolute_address(0x1234),
             String::from("u32"),
             Default::default(),
+            false,
+            false,
+        )
+    }
+
+    fn create_unassigned_segment_node() -> SymbolTreeNode {
+        SymbolTreeNode::new(
+            String::from("unassigned:game.exe:0:20"),
+            SymbolTreeNodeKind::UnassignedSegment {
+                module_name: String::from("game.exe"),
+                offset: 0,
+                length: 0x20,
+            },
+            1,
+            String::from("UNASSIGNED_00000000"),
+            String::from("game.exe.UNASSIGNED_00000000"),
+            String::new(),
+            ProjectSymbolLocator::new_module_offset(String::from("game.exe"), 0),
+            String::from("UNASSIGNED"),
+            ContainerType::ArrayFixed(0x20),
             false,
             false,
         )
@@ -413,6 +439,26 @@ mod tests {
             &DetailsFieldSource::ProjectSymbolRuntimeValue {
                 field_path: vec![String::from("value")]
             }
+        );
+    }
+
+    #[test]
+    fn build_omits_runtime_value_fields_for_unassigned_segments() {
+        let symbol_tree_node = create_unassigned_segment_node();
+        let runtime_value_struct = ValuedStruct::new_anonymous(vec![
+            DataTypeU32::get_value_from_primitive(100).to_named_valued_struct_field(String::from("value"), false),
+        ]);
+        let details_projection = SymbolTreeDetailsProjection::build(&symbol_tree_node, false, Some(0x20), Some(&runtime_value_struct), None);
+
+        assert!(
+            details_projection
+                .get_field(&DetailsFieldId::new("value.value"))
+                .is_none()
+        );
+        assert!(
+            details_projection
+                .get_field(&DetailsFieldId::new("metadata.size"))
+                .is_some()
         );
     }
 

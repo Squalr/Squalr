@@ -869,6 +869,10 @@ impl SymbolTreeView {
             );
         }
 
+        if matches!(symbol_tree_entry.get_kind(), SymbolTreeNodeKind::UnassignedSegment { .. }) {
+            return SymbolTreeDetailsProjection::build(symbol_tree_entry, include_symbol_claim_metadata, symbol_size_in_bytes, None, None);
+        }
+
         let Some(symbolic_struct_definition) = self.build_named_symbolic_struct_definition_for_symbol_tree_entry(project_symbol_catalog, symbol_tree_entry)
         else {
             return SymbolTreeDetailsProjection::build(
@@ -919,6 +923,10 @@ impl SymbolTreeView {
         engine_execution_context: &Arc<dyn EngineExecutionContext>,
         symbol_tree_entry: &SymbolTreeNode,
     ) -> Option<u64> {
+        if let SymbolTreeNodeKind::UnassignedSegment { length, .. } = symbol_tree_entry.get_kind() {
+            return Some(*length);
+        }
+
         let symbolic_field_definition = SymbolicFieldDefinition::from_str(&symbol_tree_entry.get_display_type_id()).ok()?;
 
         Self::resolve_symbolic_field_size_in_bytes(engine_execution_context, &symbolic_field_definition, &mut HashSet::new())
