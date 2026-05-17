@@ -1,3 +1,4 @@
+pub mod symbol_tree_command_dispatcher;
 pub mod symbol_tree_define_field_view;
 pub mod symbol_tree_delete_confirmation_view;
 pub mod symbol_tree_entry_view;
