@@ -18,7 +18,6 @@ use crate::{
             project_hierarchy_takeover_host_view::{ProjectHierarchyTakeoverHostAction, ProjectHierarchyTakeoverHostView},
             project_hierarchy_toolbar_view::ProjectHierarchyToolbarView,
             project_item_details::ProjectItemDetails,
-            project_item_rename_request_builder::ProjectItemRenameRequestBuilder,
             view_data::{
                 project_hierarchy_drop_target::ProjectHierarchyDropTarget, project_hierarchy_frame_action::ProjectHierarchyFrameAction,
                 project_hierarchy_menu_target::ProjectHierarchyMenuTarget, project_hierarchy_pending_operation::ProjectHierarchyPendingOperation,
@@ -30,9 +29,7 @@ use crate::{
 };
 use eframe::egui::{Align, CursorIcon, Key, Layout, Pos2, Response, Ui, Widget};
 use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRequest;
-use squalr_engine_api::commands::project_items::write_value::project_items_write_value_request::ProjectItemsWriteValueRequest;
 use squalr_engine_api::commands::settings::scan::list::scan_settings_list_request::ScanSettingsListRequest;
-use squalr_engine_api::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
@@ -498,52 +495,18 @@ impl Widget for ProjectHierarchyView {
         if let Some((project_item_path, project_item_type_id, edited_name)) = rename_project_item_submission {
             ProjectHierarchyListView::clear_project_item_rename_state(user_interface, &project_item_path);
 
-            if let Some(project_item_rename_request) = ProjectItemRenameRequestBuilder::build(&project_item_path, &project_item_type_id, edited_name.trim()) {
-                let project_hierarchy_view_data = self.project_hierarchy_view_data.clone();
-                let app_context = self.app_context.clone();
-                let previous_project_item_path = project_item_path.clone();
-
-                project_item_rename_request.send(&self.app_context.engine_unprivileged_state, move |project_items_rename_response| {
-                    if !project_items_rename_response.success {
-                        log::warn!("Project item rename command failed in hierarchy F2 rename flow.");
-                        return;
-                    }
-
-                    ProjectHierarchyViewData::finish_project_item_rename(
-                        project_hierarchy_view_data.clone(),
-                        &previous_project_item_path,
-                        &project_items_rename_response.renamed_project_item_path,
-                    );
-                    ProjectHierarchyViewData::refresh_project_items(project_hierarchy_view_data, app_context);
-                });
-            }
-
+            self.command_dispatcher()
+                .rename_project_item(project_item_path, project_item_type_id, edited_name);
             ProjectHierarchyViewData::cancel_take_over(self.project_hierarchy_view_data.clone());
         }
 
         if let Some((project_item_path, value_field_name, validation_data_type_ref, value_edit)) = value_edit_project_item_submission {
-            match self
-                .app_context
-                .engine_unprivileged_state
-                .deanonymize_value_string(&validation_data_type_ref, &value_edit)
+            if self
+                .command_dispatcher()
+                .commit_project_item_value_edit(project_item_path.clone(), value_field_name, validation_data_type_ref, value_edit)
             {
-                Ok(_) => {
-                    ProjectItemsWriteValueRequest {
-                        project_item_path: project_item_path.clone(),
-                        field_name: value_field_name,
-                        anonymous_value_string: value_edit,
-                    }
-                    .send(&self.app_context.engine_unprivileged_state, |project_items_write_value_response| {
-                        if !project_items_write_value_response.success {
-                            log::warn!("Project item write-value command failed while committing value edit takeover.");
-                        }
-                    });
-                    ProjectHierarchyTakeoverHostView::clear_project_item_value_edit_state(user_interface, &project_item_path);
-                    ProjectHierarchyViewData::cancel_take_over(self.project_hierarchy_view_data.clone());
-                }
-                Err(error) => {
-                    log::warn!("Failed to commit project hierarchy runtime value edit: {}", error);
-                }
+                ProjectHierarchyTakeoverHostView::clear_project_item_value_edit_state(user_interface, &project_item_path);
+                ProjectHierarchyViewData::cancel_take_over(self.project_hierarchy_view_data.clone());
             }
         }
 
