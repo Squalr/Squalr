@@ -4,7 +4,7 @@ use crate::views::project_explorer::project_hierarchy::{
     view_data::project_hierarchy_view_data::ProjectHierarchyViewData,
 };
 use crate::views::struct_viewer::view_data::{struct_viewer_focus_target::StructViewerFocusTarget, struct_viewer_view_data::StructViewerViewData};
-use squalr_engine_api::commands::project::save::project_save_request::ProjectSaveRequest;
+use squalr_engine_api::commands::project_items::update_details::project_items_update_details_request::ProjectItemsUpdateDetailsRequest;
 use squalr_engine_api::commands::project_items::write_value::project_items_write_value_request::ProjectItemsWriteValueRequest;
 use squalr_engine_api::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
@@ -15,7 +15,7 @@ use squalr_engine_api::structures::data_values::{
 };
 use squalr_engine_api::structures::details::{DetailsEdit, DetailsEditOperation, DetailsEditPlan, DetailsFieldSource, DetailsValue};
 use squalr_engine_api::structures::projects::project_items::{
-    details::{ProjectItemDetailsEditApplier, ProjectItemDetailsEditPlanner, ProjectItemDetailsProjection},
+    details::{ProjectItemDetailsEditPlanner, ProjectItemDetailsProjection},
     project_item::ProjectItem,
     project_item_ref::ProjectItemRef,
 };
@@ -290,55 +290,14 @@ impl ProjectHierarchyDetailsFocus {
         details_field_source: &DetailsFieldSource,
         details_value: &DetailsValue,
     ) {
-        let project_manager = self.app_context.engine_unprivileged_state.get_project_manager();
-        let opened_project_lock = project_manager.get_opened_project();
-        let mut opened_project_guard = match opened_project_lock.write() {
-            Ok(opened_project_guard) => opened_project_guard,
-            Err(error) => {
-                log::error!("Failed to acquire opened project lock for project item details update: {}", error);
-                return;
-            }
-        };
-        let Some(opened_project) = opened_project_guard.as_mut() else {
-            log::warn!("Cannot apply project item details update without an opened project.");
-            return;
-        };
-        let mut has_persisted_property_edits = false;
-
-        for project_item_path in project_item_paths {
-            let project_item_ref = ProjectItemRef::new(project_item_path.clone());
-            let Some(project_item) = opened_project.get_project_item_mut(&project_item_ref) else {
-                log::warn!("Cannot apply project item details update, project item was not found: {:?}", project_item_path);
-                continue;
-            };
-
-            match ProjectItemDetailsEditApplier::apply_update(project_item, details_field_source, details_value) {
-                Ok(true) => {
-                    project_item.set_has_unsaved_changes(true);
-                    has_persisted_property_edits = true;
+        ProjectItemsUpdateDetailsRequest::from_details_update(project_item_paths.to_vec(), details_field_source.clone(), details_value.clone()).send(
+            &self.app_context.engine_unprivileged_state,
+            |project_items_update_details_response| {
+                if !project_items_update_details_response.success {
+                    log::warn!("Project item update-details command failed while committing details edit.");
                 }
-                Ok(false) => {}
-                Err(error) => log::warn!("Failed to apply project item details update: {}", error),
-            }
-        }
-
-        if !has_persisted_property_edits {
-            return;
-        }
-
-        opened_project
-            .get_project_info_mut()
-            .set_has_unsaved_changes(true);
-        drop(opened_project_guard);
-
-        let project_save_request = ProjectSaveRequest {};
-
-        project_save_request.send(&self.app_context.engine_unprivileged_state, |project_save_response| {
-            if !project_save_response.success {
-                log::error!("Failed to persist project item details update through project save command.");
-            }
-        });
-        project_manager.notify_project_items_changed();
+            },
+        );
     }
 
     fn dispatch_project_item_details_rename(

@@ -317,6 +317,33 @@ mod tests {
     }
 
     #[test]
+    fn parse_input_returns_unprivileged_command_for_project_items_update_details_command() {
+        let parsed_input = Cli::parse_input("project_items update-details -p project_items/health.json --property icon_id -v 'u64;string;'")
+            .expect("Expected project_items update-details command to parse successfully");
+
+        let ParsedInput::UnprivilegedCommand(UnprivilegedCommand::ProjectItems(ProjectItemsCommand::UpdateDetails {
+            project_items_update_details_request,
+        })) = parsed_input
+        else {
+            panic!("Expected project_items update-details command.");
+        };
+
+        assert_eq!(
+            project_items_update_details_request.project_item_paths,
+            vec![std::path::PathBuf::from("project_items/health.json")]
+        );
+        assert_eq!(project_items_update_details_request.property_name.as_deref(), Some("icon_id"));
+        assert_eq!(
+            project_items_update_details_request
+                .anonymous_value_string
+                .as_ref()
+                .expect("Expected parsed value.")
+                .get_anonymous_value_string_format(),
+            AnonymousValueStringFormat::String
+        );
+    }
+
+    #[test]
     fn parse_input_returns_unprivileged_command_for_project_list_command() {
         let parsed_input = Cli::parse_input("project list").expect("Expected project list command to parse successfully");
 

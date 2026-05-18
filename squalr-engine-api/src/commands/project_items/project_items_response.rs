@@ -5,6 +5,7 @@ use crate::commands::project_items::{
     move_item::project_items_move_response::ProjectItemsMoveResponse, promote_symbol::project_items_promote_symbol_response::ProjectItemsPromoteSymbolResponse,
     rename::project_items_rename_response::ProjectItemsRenameResponse, reorder::project_items_reorder_response::ProjectItemsReorderResponse,
     strip_symbol::project_items_strip_symbol_response::ProjectItemsStripSymbolResponse,
+    update_details::project_items_update_details_response::ProjectItemsUpdateDetailsResponse,
     write_value::project_items_write_value_response::ProjectItemsWriteValueResponse,
 };
 use serde::{Deserialize, Serialize};
@@ -43,6 +44,9 @@ pub enum ProjectItemsResponse {
     },
     StripSymbol {
         project_items_strip_symbol_response: ProjectItemsStripSymbolResponse,
+    },
+    UpdateDetails {
+        project_items_update_details_response: ProjectItemsUpdateDetailsResponse,
     },
     WriteValue {
         project_items_write_value_response: ProjectItemsWriteValueResponse,

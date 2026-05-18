@@ -1,0 +1,2 @@
+pub mod project_items_update_details_request;
+pub mod project_items_update_details_response;

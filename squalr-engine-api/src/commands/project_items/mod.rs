@@ -11,4 +11,5 @@ pub mod promote_symbol;
 pub mod rename;
 pub mod reorder;
 pub mod strip_symbol;
+pub mod update_details;
 pub mod write_value;

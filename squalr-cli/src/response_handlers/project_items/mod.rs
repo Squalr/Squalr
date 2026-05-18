@@ -66,6 +66,20 @@ pub fn handle_project_items_response(project_items_response: ProjectItemsRespons
                 log::warn!("project item strip-symbol command failed.");
             }
         }
+        ProjectItemsResponse::UpdateDetails {
+            project_items_update_details_response,
+        } => {
+            if project_items_update_details_response.success {
+                log::info!(
+                    "updated details on {} project item(s).",
+                    project_items_update_details_response.updated_project_item_count
+                );
+            } else if let Some(error) = project_items_update_details_response.error {
+                log::warn!("{}", error);
+            } else {
+                log::warn!("project item update-details command failed.");
+            }
+        }
         ProjectItemsResponse::Add { project_items_add_response } => {
             log::debug!("Unhandled project items add response: {:?}", project_items_add_response);
         }
