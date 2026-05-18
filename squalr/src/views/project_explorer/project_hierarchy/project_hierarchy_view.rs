@@ -475,20 +475,16 @@ impl Widget for ProjectHierarchyView {
         }
 
         if let Some(project_item_paths) = delete_confirmation_project_item_paths {
-            ProjectHierarchyViewData::delete_project_items(self.project_hierarchy_view_data.clone(), self.app_context.clone(), project_item_paths);
+            self.command_dispatcher()
+                .delete_project_items(project_item_paths);
         }
 
         if let Some(project_item_paths) = promote_symbol_overwrite_project_item_paths {
             let details_refresh_callback = self
                 .details_focus()
                 .build_project_item_details_refresh_callback(project_item_paths.clone());
-            ProjectHierarchyViewData::promote_project_items_to_symbols(
-                self.project_hierarchy_view_data.clone(),
-                self.app_context.clone(),
-                project_item_paths,
-                true,
-                Some(details_refresh_callback),
-            );
+            self.command_dispatcher()
+                .promote_project_items_to_symbols(project_item_paths, true, Some(details_refresh_callback));
         }
 
         if let Some((project_item_path, project_item_type_id, edited_name)) = rename_project_item_submission {
@@ -510,12 +506,8 @@ impl Widget for ProjectHierarchyView {
         }
 
         if let Some((project_item_paths, is_activated)) = keyboard_activation_toggle_target {
-            ProjectHierarchyViewData::set_project_item_activation(
-                self.project_hierarchy_view_data.clone(),
-                self.app_context.clone(),
-                project_item_paths,
-                is_activated,
-            );
+            self.command_dispatcher()
+                .set_project_item_activation(project_item_paths, is_activated);
         }
 
         if let Some(drag_started_project_item_path) = drag_started_project_item_path.clone() {
@@ -539,11 +531,8 @@ impl Widget for ProjectHierarchyView {
         if user_interface.input(|input_state| input_state.pointer.any_released()) {
             if active_dragged_project_item_paths.is_some() {
                 if let Some(drop_target_project_item_path) = hovered_drop_target_project_item_path {
-                    ProjectHierarchyViewData::commit_reorder_drop(
-                        self.project_hierarchy_view_data.clone(),
-                        self.app_context.clone(),
-                        drop_target_project_item_path,
-                    );
+                    self.command_dispatcher()
+                        .commit_reorder_drop(drop_target_project_item_path);
                 } else {
                     ProjectHierarchyViewData::cancel_reorder_drag(self.project_hierarchy_view_data.clone());
                 }
@@ -600,12 +589,8 @@ impl Widget for ProjectHierarchyView {
                         }
                     })
                     .unwrap_or_else(|| vec![project_item_path.clone()]);
-                ProjectHierarchyViewData::set_project_item_activation(
-                    self.project_hierarchy_view_data.clone(),
-                    self.app_context.clone(),
-                    project_item_paths,
-                    is_activated,
-                );
+                self.command_dispatcher()
+                    .set_project_item_activation(project_item_paths, is_activated);
             }
             ProjectHierarchyFrameAction::CreateProjectItem {
                 target_project_item_path,
@@ -615,12 +600,8 @@ impl Widget for ProjectHierarchyView {
                     return response;
                 }
 
-                ProjectHierarchyViewData::create_project_item(
-                    self.project_hierarchy_view_data.clone(),
-                    self.app_context.clone(),
-                    target_project_item_path,
-                    create_item_kind,
-                );
+                self.command_dispatcher()
+                    .create_project_item(target_project_item_path, create_item_kind);
             }
             ProjectHierarchyFrameAction::CopyProjectItems(project_item_paths) => {
                 if has_blocking_take_over {
@@ -641,11 +622,8 @@ impl Widget for ProjectHierarchyView {
                     return response;
                 }
 
-                ProjectHierarchyViewData::paste_project_item_clipboard(
-                    self.project_hierarchy_view_data.clone(),
-                    self.app_context.clone(),
-                    target_project_item_path,
-                );
+                self.command_dispatcher()
+                    .paste_project_item_clipboard(target_project_item_path);
             }
             ProjectHierarchyFrameAction::OpenPointerScannerForAddress {
                 address,
@@ -687,13 +665,8 @@ impl Widget for ProjectHierarchyView {
                 let details_refresh_callback = self
                     .details_focus()
                     .build_project_item_details_refresh_callback(project_item_paths.clone());
-                ProjectHierarchyViewData::promote_project_items_to_symbols(
-                    self.project_hierarchy_view_data.clone(),
-                    self.app_context.clone(),
-                    project_item_paths,
-                    overwrite_conflicting_symbols,
-                    Some(details_refresh_callback),
-                );
+                self.command_dispatcher()
+                    .promote_project_items_to_symbols(project_item_paths, overwrite_conflicting_symbols, Some(details_refresh_callback));
             }
             ProjectHierarchyFrameAction::StripSymbolInformation { project_item_paths } => {
                 if is_promote_symbol_conflict_active || is_rename_take_over_active || is_value_edit_take_over_active {
