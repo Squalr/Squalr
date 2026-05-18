@@ -19,11 +19,15 @@ use squalr_engine_api::commands::project_items::promote_symbol::project_items_pr
 use squalr_engine_api::commands::project_items::promote_symbol::project_items_promote_symbol_response::ProjectItemsPromoteSymbolResponse;
 use squalr_engine_api::commands::project_items::reorder::project_items_reorder_request::ProjectItemsReorderRequest;
 use squalr_engine_api::commands::project_items::strip_symbol::project_items_strip_symbol_request::ProjectItemsStripSymbolRequest;
+use squalr_engine_api::commands::project_items::update_details::project_items_update_details_request::ProjectItemsUpdateDetailsRequest;
 use squalr_engine_api::commands::project_items::write_value::project_items_write_value_request::ProjectItemsWriteValueRequest;
 use squalr_engine_api::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
+use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::anonymous_value_string::AnonymousValueString;
+use squalr_engine_api::structures::details::{DetailsFieldSource, DetailsValue};
+use squalr_engine_api::structures::projects::project_items::project_item_ref::ProjectItemRef;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -531,6 +535,98 @@ impl ProjectHierarchyCommandDispatcher {
         });
 
         true
+    }
+
+    pub fn write_project_item_details_runtime_value(
+        &self,
+        project_item_paths: &[PathBuf],
+        details_field_source: &DetailsFieldSource,
+        anonymous_value_string: AnonymousValueString,
+    ) -> bool {
+        let Some(project_item_path) = project_item_paths.first().cloned() else {
+            return false;
+        };
+        let DetailsFieldSource::ProjectItemRuntimeValue { field_path } = details_field_source else {
+            return false;
+        };
+        let field_name = field_path
+            .last()
+            .cloned()
+            .unwrap_or_else(|| String::from("value"));
+
+        ProjectItemsWriteValueRequest {
+            project_item_path,
+            field_name,
+            anonymous_value_string,
+        }
+        .send(&self.app_context.engine_unprivileged_state, |project_items_write_value_response| {
+            if !project_items_write_value_response.success {
+                log::warn!("Project item write-value command failed while committing details edit.");
+            }
+        });
+
+        true
+    }
+
+    pub fn update_project_item_details_stored_field(
+        &self,
+        project_item_paths: &[PathBuf],
+        details_field_source: &DetailsFieldSource,
+        details_value: &DetailsValue,
+    ) {
+        ProjectItemsUpdateDetailsRequest::from_details_update(project_item_paths.to_vec(), details_field_source.clone(), details_value.clone()).send(
+            &self.app_context.engine_unprivileged_state,
+            |project_items_update_details_response| {
+                if !project_items_update_details_response.success {
+                    log::warn!("Project item update-details command failed while committing details edit.");
+                }
+            },
+        );
+    }
+
+    pub fn rename_project_items_from_details(
+        &self,
+        project_item_paths: &[PathBuf],
+        edited_name: &str,
+    ) {
+        let project_manager = self.app_context.engine_unprivileged_state.get_project_manager();
+        let opened_project_lock = project_manager.get_opened_project();
+        let opened_project_guard = match opened_project_lock.read() {
+            Ok(opened_project_guard) => opened_project_guard,
+            Err(error) => {
+                log::error!("Failed to acquire opened project lock for project item details rename: {}", error);
+                return;
+            }
+        };
+        let Some(opened_project) = opened_project_guard.as_ref() else {
+            log::warn!("Cannot rename project item from details without an opened project.");
+            return;
+        };
+        let project_items_rename_requests = project_item_paths
+            .iter()
+            .filter_map(|project_item_path| {
+                let project_item_ref = ProjectItemRef::new(project_item_path.clone());
+                let Some(project_item) = opened_project.get_project_items().get(&project_item_ref) else {
+                    log::warn!("Cannot rename project item from details, project item was not found: {:?}", project_item_path);
+                    return None;
+                };
+                let project_item_type_id = project_item
+                    .get_item_type()
+                    .get_project_item_type_id()
+                    .to_string();
+
+                ProjectItemRenameRequestBuilder::build(project_item_path, &project_item_type_id, edited_name)
+            })
+            .collect::<Vec<_>>();
+        drop(opened_project_guard);
+
+        for project_items_rename_request in project_items_rename_requests {
+            project_items_rename_request.send(&self.app_context.engine_unprivileged_state, |project_items_rename_response| {
+                if !project_items_rename_response.success {
+                    log::warn!("Project item rename command failed while committing details edit.");
+                }
+            });
+        }
     }
 
     fn dispatch_drop_operation(
