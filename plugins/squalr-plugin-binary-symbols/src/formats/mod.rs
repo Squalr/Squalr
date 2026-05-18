@@ -1,3 +1,7 @@
+pub(crate) mod elf;
+pub(crate) mod macho;
+pub(crate) mod pe;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum BinaryFormat {
     Pe,
@@ -8,30 +12,26 @@ pub(crate) enum BinaryFormat {
 
 impl BinaryFormat {
     pub(crate) fn detect(header_bytes: &[u8]) -> Self {
-        if header_bytes.starts_with(b"MZ") {
+        if pe::matches_header(header_bytes) {
             return Self::Pe;
         }
 
-        if header_bytes.starts_with(b"\x7FELF") {
+        if elf::matches_header(header_bytes) {
             return Self::Elf;
         }
 
-        match header_bytes.get(0..4) {
-            Some([0xFE, 0xED, 0xFA, 0xCE])
-            | Some([0xCE, 0xFA, 0xED, 0xFE])
-            | Some([0xFE, 0xED, 0xFA, 0xCF])
-            | Some([0xCF, 0xFA, 0xED, 0xFE])
-            | Some([0xCA, 0xFE, 0xBA, 0xBE])
-            | Some([0xBE, 0xBA, 0xFE, 0xCA]) => Self::MachO,
-            _ => Self::Unknown,
+        if macho::matches_header(header_bytes) {
+            return Self::MachO;
         }
+
+        Self::Unknown
     }
 
     pub(crate) fn display_name(&self) -> &'static str {
         match self {
-            Self::Pe => "PE",
-            Self::Elf => "ELF",
-            Self::MachO => "Mach-O",
+            Self::Pe => pe::DISPLAY_NAME,
+            Self::Elf => elf::DISPLAY_NAME,
+            Self::MachO => macho::DISPLAY_NAME,
             Self::Unknown => "unknown",
         }
     }

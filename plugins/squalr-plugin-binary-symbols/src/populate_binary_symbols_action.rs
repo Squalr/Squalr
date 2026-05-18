@@ -1,4 +1,4 @@
-use crate::{binary_format::BinaryFormat, populate_pe_symbols_action::PopulatePeSymbolsAction};
+use crate::formats::{BinaryFormat, pe::PopulatePeSymbolsAction};
 use squalr_engine_api::plugins::{
     PluginPermission,
     symbol_tree::symbol_tree_action::{SymbolTreeAction, SymbolTreeActionContext, SymbolTreeActionSelection, SymbolTreeActionServices},

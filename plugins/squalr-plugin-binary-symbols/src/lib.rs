@@ -1,8 +1,7 @@
-mod binary_format;
 mod constants;
+mod formats;
 mod plugin;
 mod populate_binary_symbols_action;
-mod populate_pe_symbols_action;
 
 pub use plugin::BinarySymbolsPlugin;
 
