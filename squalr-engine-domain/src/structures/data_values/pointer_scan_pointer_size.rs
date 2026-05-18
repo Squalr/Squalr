@@ -133,6 +133,12 @@ impl FromStr for PointerScanPointerSize {
 
     fn from_str(string: &str) -> Result<Self, Self::Err> {
         match string.trim().to_ascii_lowercase().as_str() {
+            "3" | "24" => Ok(Self::Pointer24),
+            "3be" | "24be" => Ok(Self::Pointer24be),
+            "4" | "32" => Ok(Self::Pointer32),
+            "4be" | "32be" => Ok(Self::Pointer32be),
+            "8" | "64" => Ok(Self::Pointer64),
+            "8be" | "64be" => Ok(Self::Pointer64be),
             "u24" => Ok(Self::Pointer24),
             "u24be" => Ok(Self::Pointer24be),
             "u32" => Ok(Self::Pointer32),
@@ -140,7 +146,7 @@ impl FromStr for PointerScanPointerSize {
             "u64" => Ok(Self::Pointer64),
             "u64be" => Ok(Self::Pointer64be),
             _ => Err(format!(
-                "Unsupported pointer size: {string}. Expected one of: u24, u24be, u32, u32be, u64, u64be."
+                "Unsupported pointer size: {string}. Expected one of: 3, 4, 8, 24, 32, 64, u24, u24be, u32, u32be, u64, u64be."
             )),
         }
     }
@@ -167,6 +173,22 @@ mod tests {
         assert_eq!(PointerScanPointerSize::from_str("u32be"), Ok(PointerScanPointerSize::Pointer32be));
         assert_eq!(PointerScanPointerSize::from_str("u64"), Ok(PointerScanPointerSize::Pointer64));
         assert_eq!(PointerScanPointerSize::from_str("u64be"), Ok(PointerScanPointerSize::Pointer64be));
+    }
+
+    #[test]
+    fn pointer_scan_pointer_size_parses_numeric_values() {
+        assert_eq!(PointerScanPointerSize::from_str("3"), Ok(PointerScanPointerSize::Pointer24));
+        assert_eq!(PointerScanPointerSize::from_str("3be"), Ok(PointerScanPointerSize::Pointer24be));
+        assert_eq!(PointerScanPointerSize::from_str("24"), Ok(PointerScanPointerSize::Pointer24));
+        assert_eq!(PointerScanPointerSize::from_str("24be"), Ok(PointerScanPointerSize::Pointer24be));
+        assert_eq!(PointerScanPointerSize::from_str("4"), Ok(PointerScanPointerSize::Pointer32));
+        assert_eq!(PointerScanPointerSize::from_str("4be"), Ok(PointerScanPointerSize::Pointer32be));
+        assert_eq!(PointerScanPointerSize::from_str("32"), Ok(PointerScanPointerSize::Pointer32));
+        assert_eq!(PointerScanPointerSize::from_str("32be"), Ok(PointerScanPointerSize::Pointer32be));
+        assert_eq!(PointerScanPointerSize::from_str("8"), Ok(PointerScanPointerSize::Pointer64));
+        assert_eq!(PointerScanPointerSize::from_str("8be"), Ok(PointerScanPointerSize::Pointer64be));
+        assert_eq!(PointerScanPointerSize::from_str("64"), Ok(PointerScanPointerSize::Pointer64));
+        assert_eq!(PointerScanPointerSize::from_str("64be"), Ok(PointerScanPointerSize::Pointer64be));
     }
 
     #[test]
