@@ -299,6 +299,24 @@ mod tests {
     }
 
     #[test]
+    fn parse_input_returns_unprivileged_command_for_project_items_strip_symbol_command() {
+        let parsed_input = Cli::parse_input("project_items strip-symbol -p project_items/health.json")
+            .expect("Expected project_items strip-symbol command to parse successfully");
+
+        let ParsedInput::UnprivilegedCommand(UnprivilegedCommand::ProjectItems(ProjectItemsCommand::StripSymbol {
+            project_items_strip_symbol_request,
+        })) = parsed_input
+        else {
+            panic!("Expected project_items strip-symbol command.");
+        };
+
+        assert_eq!(
+            project_items_strip_symbol_request.project_item_paths,
+            vec![std::path::PathBuf::from("project_items/health.json")]
+        );
+    }
+
+    #[test]
     fn parse_input_returns_unprivileged_command_for_project_list_command() {
         let parsed_input = Cli::parse_input("project list").expect("Expected project list command to parse successfully");
 

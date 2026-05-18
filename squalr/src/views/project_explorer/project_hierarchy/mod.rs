@@ -1,3 +1,4 @@
+pub mod project_hierarchy_command_dispatcher;
 pub mod project_hierarchy_create_item_menu_view;
 pub mod project_hierarchy_details_focus;
 pub mod project_hierarchy_list_view;

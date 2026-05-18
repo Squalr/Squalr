@@ -10,6 +10,7 @@ use crate::{
     views::project_explorer::{
         project_explorer_view::ProjectExplorerView,
         project_hierarchy::{
+            project_hierarchy_command_dispatcher::ProjectHierarchyCommandDispatcher,
             project_hierarchy_create_item_menu_view::ProjectHierarchyCreateItemMenuView,
             project_hierarchy_details_focus::ProjectHierarchyDetailsFocus,
             project_hierarchy_list_view::{ProjectHierarchyListAction, ProjectHierarchyListView},
@@ -29,7 +30,6 @@ use crate::{
 };
 use eframe::egui::{Align, CursorIcon, Key, Layout, Pos2, Response, Ui, Widget};
 use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRequest;
-use squalr_engine_api::commands::project::save::project_save_request::ProjectSaveRequest;
 use squalr_engine_api::commands::project_items::write_value::project_items_write_value_request::ProjectItemsWriteValueRequest;
 use squalr_engine_api::commands::settings::scan::list::scan_settings_list_request::ScanSettingsListRequest;
 use squalr_engine_api::commands::unprivileged_command_request::UnprivilegedCommandRequest;
@@ -38,7 +38,6 @@ use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::anonymous_value_string::AnonymousValueString;
 use squalr_engine_api::structures::memory::address_display::try_resolve_virtual_module_address;
-use squalr_engine_api::structures::projects::project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress;
 use squalr_engine_api::structures::projects::project_items::{project_item::ProjectItem, project_item_ref::ProjectItemRef};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
@@ -105,6 +104,10 @@ impl ProjectHierarchyView {
 
     fn runtime_preview_controller(&self) -> ProjectHierarchyRuntimePreviewController {
         ProjectHierarchyRuntimePreviewController::new(self.app_context.clone(), self.project_hierarchy_view_data.clone(), self.details_focus())
+    }
+
+    fn command_dispatcher(&self) -> ProjectHierarchyCommandDispatcher {
+        ProjectHierarchyCommandDispatcher::new(self.app_context.clone(), self.project_hierarchy_view_data.clone())
     }
 }
 impl Widget for ProjectHierarchyView {
@@ -739,12 +742,8 @@ impl Widget for ProjectHierarchyView {
                     .details_focus()
                     .build_project_item_details_refresh_callback(project_item_paths.clone());
 
-                Self::strip_symbol_information_from_project_items(
-                    self.app_context.clone(),
-                    self.project_hierarchy_view_data.clone(),
-                    project_item_paths,
-                    Some(details_refresh_callback),
-                );
+                self.command_dispatcher()
+                    .strip_symbol_information(project_item_paths, Some(details_refresh_callback));
             }
             ProjectHierarchyFrameAction::RequestRename(project_item_path) => {
                 if is_promote_symbol_conflict_active || is_value_edit_take_over_active {
@@ -873,92 +872,6 @@ impl ProjectHierarchyView {
 
     fn focus_selected_project_items_in_struct_viewer(&self) {
         self.details_focus().focus_selected_project_items();
-    }
-
-    fn strip_symbol_information_from_project_items(
-        app_context: Arc<AppContext>,
-        project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
-        project_item_paths: Vec<PathBuf>,
-        details_refresh_callback: Option<Arc<dyn Fn() + Send + Sync>>,
-    ) {
-        let project_item_paths = ProjectHierarchyViewData::filter_strippable_symbol_project_item_paths(project_hierarchy_view_data, project_item_paths);
-
-        if project_item_paths.is_empty() {
-            return;
-        }
-
-        let project_manager = app_context.engine_unprivileged_state.get_project_manager();
-        let opened_project_lock = project_manager.get_opened_project();
-        let mut opened_project_guard = match opened_project_lock.write() {
-            Ok(opened_project_guard) => opened_project_guard,
-            Err(error) => {
-                log::error!(
-                    "Failed to acquire opened project lock while stripping project item symbol information: {}",
-                    error
-                );
-                return;
-            }
-        };
-        let Some(opened_project) = opened_project_guard.as_mut() else {
-            log::warn!("Cannot strip project item symbol information without an opened project.");
-            return;
-        };
-        let project_symbol_catalog = opened_project
-            .get_project_info()
-            .get_project_symbol_catalog()
-            .clone();
-        let mut has_persisted_property_edits = false;
-
-        for project_item_path in &project_item_paths {
-            let project_item_ref = ProjectItemRef::new(project_item_path.clone());
-            let Some(project_item) = opened_project.get_project_item_mut(&project_item_ref) else {
-                log::warn!("Cannot strip symbol information, project item was not found: {:?}", project_item_path);
-                continue;
-            };
-
-            if project_item.get_item_type().get_project_item_type_id() != ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
-                continue;
-            }
-
-            let address_target = ProjectItemTypeAddress::get_address_target(project_item);
-
-            if !address_target.has_symbolic_offsets() {
-                continue;
-            }
-
-            let Some(stripped_address_target) = address_target.strip_symbolic_offsets(&project_symbol_catalog) else {
-                log::warn!("Cannot strip unresolved symbol information from project item: {:?}", project_item_path);
-                continue;
-            };
-
-            if stripped_address_target != address_target {
-                ProjectItemTypeAddress::set_address_target(project_item, stripped_address_target);
-                project_item.set_has_unsaved_changes(true);
-                has_persisted_property_edits = true;
-            }
-        }
-
-        if !has_persisted_property_edits {
-            return;
-        }
-
-        opened_project
-            .get_project_info_mut()
-            .set_has_unsaved_changes(true);
-        drop(opened_project_guard);
-
-        let project_save_request = ProjectSaveRequest {};
-
-        project_save_request.send(&app_context.engine_unprivileged_state, |project_save_response| {
-            if !project_save_response.success {
-                log::error!("Failed to persist stripped project item symbol information through project save command.");
-            }
-        });
-        project_manager.notify_project_items_changed();
-
-        if let Some(details_refresh_callback) = details_refresh_callback {
-            details_refresh_callback();
-        }
     }
 
     fn focus_pointer_scanner_for_address(

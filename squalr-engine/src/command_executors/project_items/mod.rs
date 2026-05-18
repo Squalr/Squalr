@@ -10,4 +10,5 @@ pub mod project_items_executor;
 pub mod promote_symbol;
 pub mod rename;
 pub mod reorder;
+pub mod strip_symbol;
 pub mod write_value;
