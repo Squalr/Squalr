@@ -1,19 +1,21 @@
+mod binary_format;
 mod constants;
 mod plugin;
+mod populate_binary_symbols_action;
 mod populate_pe_symbols_action;
 
-pub use plugin::PeSymbolsPlugin;
+pub use plugin::BinarySymbolsPlugin;
 
 #[cfg(test)]
 mod tests {
-    use super::PeSymbolsPlugin;
+    use super::BinarySymbolsPlugin;
     use squalr_engine_api::plugins::{Plugin, PluginPermission, symbol_tree::symbol_tree_plugin::SymbolTreePlugin};
 
     #[test]
     fn plugin_exposes_symbol_store_and_symbol_tree_permissions() {
-        let plugin = PeSymbolsPlugin::new();
+        let plugin = BinarySymbolsPlugin::new();
 
-        assert_eq!(plugin.metadata().get_plugin_id(), "builtin.symbols.pe");
+        assert_eq!(plugin.metadata().get_plugin_id(), "builtin.symbols.binary");
         assert!(plugin.metadata().get_is_enabled_by_default());
         assert!(
             plugin

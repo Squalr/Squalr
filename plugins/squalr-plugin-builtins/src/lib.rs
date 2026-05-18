@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
 use squalr_engine_api::plugins::PluginPackage;
+use squalr_plugin_binary_symbols::BinarySymbolsPlugin;
 use squalr_plugin_data_types_24bit::TwentyFourBitDataTypesPlugin;
 use squalr_plugin_instructions_arm::ArmFamilyInstructionsPlugin;
 use squalr_plugin_instructions_powerpc::PowerPcFamilyInstructionsPlugin;
 use squalr_plugin_instructions_x86::X86FamilyInstructionsPlugin;
 use squalr_plugin_memory_view_dolphin::DolphinMemoryViewPlugin;
-use squalr_plugin_symbols_pe::PeSymbolsPlugin;
 
 pub fn get_builtin_plugin_packages() -> Vec<Arc<dyn PluginPackage>> {
     vec![
@@ -15,7 +15,7 @@ pub fn get_builtin_plugin_packages() -> Vec<Arc<dyn PluginPackage>> {
         Arc::new(ArmFamilyInstructionsPlugin::new()),
         Arc::new(PowerPcFamilyInstructionsPlugin::new()),
         Arc::new(X86FamilyInstructionsPlugin::new()),
-        Arc::new(PeSymbolsPlugin::new()),
+        Arc::new(BinarySymbolsPlugin::new()),
     ]
 }
 
@@ -115,12 +115,12 @@ mod tests {
     }
 
     #[test]
-    fn builtins_include_pe_symbols_plugin_package() {
+    fn builtins_include_binary_symbols_plugin_package() {
         let plugins = get_builtin_plugin_packages();
         let plugin = plugins
             .iter()
-            .find(|plugin| plugin.metadata().get_plugin_id() == "builtin.symbols.pe")
-            .expect("Expected the PE symbols package to be registered.");
+            .find(|plugin| plugin.metadata().get_plugin_id() == "builtin.symbols.binary")
+            .expect("Expected the binary symbols package to be registered.");
 
         assert!(
             plugin

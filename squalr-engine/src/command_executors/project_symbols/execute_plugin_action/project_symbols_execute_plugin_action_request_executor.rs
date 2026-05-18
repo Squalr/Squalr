@@ -193,8 +193,8 @@ mod tests {
 
         let engine_execution_context: Arc<dyn EngineExecutionContext> = engine_unprivileged_state.clone();
         let response = ProjectSymbolsExecutePluginActionRequest {
-            plugin_id: String::from("builtin.symbols.pe"),
-            action_id: String::from("builtin.symbols.pe.populate-pe-symbols"),
+            plugin_id: String::from("builtin.symbols.binary"),
+            action_id: String::from("builtin.symbols.binary.populate-binary-symbols"),
             context: SymbolTreeActionContext::new(SymbolTreeActionSelection::ModuleRoot {
                 module_name: String::from("game.exe"),
             }),

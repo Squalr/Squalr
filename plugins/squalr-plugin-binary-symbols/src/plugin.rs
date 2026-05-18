@@ -1,6 +1,6 @@
 use crate::{
-    constants::{PE_SYMBOLS_PLUGIN_DESCRIPTION, PE_SYMBOLS_PLUGIN_DISPLAY_NAME, PE_SYMBOLS_PLUGIN_ID},
-    populate_pe_symbols_action::PopulatePeSymbolsAction,
+    constants::{BINARY_SYMBOLS_PLUGIN_DESCRIPTION, BINARY_SYMBOLS_PLUGIN_DISPLAY_NAME, BINARY_SYMBOLS_PLUGIN_ID},
+    populate_binary_symbols_action::PopulateBinarySymbolsAction,
 };
 use squalr_engine_api::plugins::{
     Plugin, PluginCapability, PluginMetadata, PluginPackage, PluginPermission, symbol_tree::symbol_tree_action::SymbolTreeAction,
@@ -8,18 +8,18 @@ use squalr_engine_api::plugins::{
 };
 use std::sync::Arc;
 
-pub struct PeSymbolsPlugin {
+pub struct BinarySymbolsPlugin {
     metadata: PluginMetadata,
     symbol_tree_actions: Vec<Arc<dyn SymbolTreeAction>>,
 }
 
-impl PeSymbolsPlugin {
+impl BinarySymbolsPlugin {
     pub fn new() -> Self {
         Self {
             metadata: PluginMetadata::new_with_permissions(
-                PE_SYMBOLS_PLUGIN_ID,
-                PE_SYMBOLS_PLUGIN_DISPLAY_NAME,
-                PE_SYMBOLS_PLUGIN_DESCRIPTION,
+                BINARY_SYMBOLS_PLUGIN_ID,
+                BINARY_SYMBOLS_PLUGIN_DISPLAY_NAME,
+                BINARY_SYMBOLS_PLUGIN_DESCRIPTION,
                 vec![PluginCapability::SymbolTree],
                 vec![
                     PluginPermission::ReadSymbolStore,
@@ -31,30 +31,30 @@ impl PeSymbolsPlugin {
                 true,
                 true,
             ),
-            symbol_tree_actions: vec![Arc::new(PopulatePeSymbolsAction)],
+            symbol_tree_actions: vec![Arc::new(PopulateBinarySymbolsAction)],
         }
     }
 }
 
-impl Default for PeSymbolsPlugin {
+impl Default for BinarySymbolsPlugin {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Plugin for PeSymbolsPlugin {
+impl Plugin for BinarySymbolsPlugin {
     fn metadata(&self) -> &PluginMetadata {
         &self.metadata
     }
 }
 
-impl PluginPackage for PeSymbolsPlugin {
+impl PluginPackage for BinarySymbolsPlugin {
     fn as_symbol_tree_plugin(&self) -> Option<&dyn SymbolTreePlugin> {
         Some(self)
     }
 }
 
-impl SymbolTreePlugin for PeSymbolsPlugin {
+impl SymbolTreePlugin for BinarySymbolsPlugin {
     fn symbol_tree_actions(&self) -> &[Arc<dyn SymbolTreeAction>] {
         &self.symbol_tree_actions
     }

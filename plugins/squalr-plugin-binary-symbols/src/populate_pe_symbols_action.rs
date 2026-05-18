@@ -85,7 +85,7 @@ pub struct PopulatePeSymbolsAction;
 
 impl SymbolTreeAction for PopulatePeSymbolsAction {
     fn action_id(&self) -> &'static str {
-        "builtin.symbols.pe.populate-pe-symbols"
+        "builtin.symbols.binary.populate-pe-symbols"
     }
 
     fn label(
