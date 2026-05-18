@@ -54,6 +54,7 @@ pub const STARTUP_MESSAGES: &[&str] = &[
     "\"Nobody is coming to save you. Consequentially, nobody is coming to stop you either.\"",
     "\"If you want peace, prepare for war.\" - Publilius Flavius Vegetius",
     "\"Whatever you think the world is withholding from you, you are withholding from the world.\" - Eckhart Tolle",
+    "\"When I am weaker than you, I ask you for freedom because that is according to your principles; when I am stronger than you, I take away your freedom because that is according to my principles.\" - Frank Herbert",
 ];
 
 /// Picks a random startup message from the engine message bank.
