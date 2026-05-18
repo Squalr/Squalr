@@ -178,6 +178,7 @@ impl DetailsProjectionAdapter {
             DetailsFieldSource::SymbolLayoutMetadata { metadata_name } if metadata_name == "type" => {
                 Some(ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE.to_string())
             }
+            DetailsFieldSource::SymbolResolverMetadata { metadata_name } => Some(metadata_name.clone()),
             _ => details_field
                 .get_id()
                 .get_field_id()
@@ -270,6 +271,15 @@ impl DetailsProjectionAdapter {
                 }
                 "field.container_kind" => return StructViewerFieldEditorKind::SymbolLayoutFieldContainerKindSelector,
                 "field.pointer_size" => return StructViewerFieldEditorKind::SymbolLayoutFieldPointerSizeSelector,
+                _ => {}
+            }
+        }
+
+        if let DetailsFieldSource::SymbolResolverMetadata { metadata_name } = details_field.get_source() {
+            match metadata_name.as_str() {
+                "node.kind" => return StructViewerFieldEditorKind::SymbolResolverNodeKindSelector,
+                "operator" => return StructViewerFieldEditorKind::SymbolResolverOperatorSelector,
+                "data_type" => return StructViewerFieldEditorKind::SymbolResolverDataTypeSelector,
                 _ => {}
             }
         }

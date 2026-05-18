@@ -61,6 +61,9 @@ pub enum DetailsFieldSource {
     SymbolLayoutMetadata {
         metadata_name: String,
     },
+    SymbolResolverMetadata {
+        metadata_name: String,
+    },
 }
 
 /// Serializable value carried by a details field or details edit.

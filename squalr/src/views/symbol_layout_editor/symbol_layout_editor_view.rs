@@ -9,6 +9,7 @@ mod toolbars;
 use crate::app_context::AppContext;
 use crate::ui::list_navigation::ListNavigationDirection;
 use crate::views::struct_viewer::view_data::struct_viewer_view_data::StructViewerViewData;
+use crate::views::symbol_layout_editor::symbol_layout_command_dispatcher::SymbolLayoutCommandDispatcher;
 use crate::views::symbol_layout_editor::view_data::symbol_layout_editor_view_data::{
     SymbolLayoutEditDraft, SymbolLayoutEditorTakeOverState, SymbolLayoutEditorViewData,
 };
@@ -16,16 +17,8 @@ use authoring::symbol_layout_field_draft_factory::SymbolLayoutFieldDraftFactory;
 use details::symbol_layout_details_focus::{clear_struct_viewer_if_symbol_layout_focused, focus_selected_layout_in_struct_viewer};
 use eframe::egui::{Align, Direction, Key, Layout, RichText, Ui, Widget};
 use list::symbol_layout_list_panel_view::SymbolLayoutListPanelView;
-use squalr_engine_api::commands::{
-    project_symbols::{
-        delete_layout::project_symbols_delete_layout_request::ProjectSymbolsDeleteLayoutRequest,
-        upsert_layout::project_symbols_upsert_layout_request::ProjectSymbolsUpsertLayoutRequest,
-    },
-    unprivileged_command_request::UnprivilegedCommandRequest,
-};
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
-use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
 use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
 use std::{collections::BTreeSet, sync::Arc};
 
@@ -99,49 +92,8 @@ impl SymbolLayoutEditorView {
         })
     }
 
-    fn persist_symbol_layout_descriptor_with_context(
-        app_context: &AppContext,
-        original_struct_layout_id: Option<String>,
-        struct_layout_descriptor: &StructLayoutDescriptor,
-    ) {
-        ProjectSymbolsUpsertLayoutRequest::from_struct_layout_descriptor(original_struct_layout_id, struct_layout_descriptor).send(
-            &app_context.engine_unprivileged_state,
-            |response| {
-                if !response.success {
-                    log::error!(
-                        "Failed to persist symbol layout `{}` through project-symbols upsert-layout command: {}.",
-                        response.struct_layout_id,
-                        response.error.as_deref().unwrap_or("unknown error")
-                    );
-                }
-            },
-        );
-    }
-
-    fn persist_symbol_layout_descriptor(
-        &self,
-        original_struct_layout_id: Option<String>,
-        struct_layout_descriptor: &StructLayoutDescriptor,
-    ) {
-        Self::persist_symbol_layout_descriptor_with_context(&self.app_context, original_struct_layout_id, struct_layout_descriptor);
-    }
-
-    fn delete_symbol_layout(
-        &self,
-        _project_symbol_catalog: &ProjectSymbolCatalog,
-        layout_id: &str,
-    ) {
-        ProjectSymbolsDeleteLayoutRequest::new(layout_id).send(&self.app_context.engine_unprivileged_state, |response| {
-            if !response.success {
-                log::error!(
-                    "Failed to delete symbol layout `{}` through project-symbols delete-layout command: {}.",
-                    response.struct_layout_id,
-                    response.error.as_deref().unwrap_or("unknown error")
-                );
-            }
-        });
-        SymbolLayoutEditorViewData::cancel_take_over_state(self.symbol_layout_editor_view_data.clone());
-        clear_struct_viewer_if_symbol_layout_focused(self.struct_viewer_view_data.clone());
+    fn command_dispatcher(&self) -> SymbolLayoutCommandDispatcher {
+        SymbolLayoutCommandDispatcher::new(self.app_context.clone())
     }
 
     fn symbol_layout_take_over_has_unsaved_changes(

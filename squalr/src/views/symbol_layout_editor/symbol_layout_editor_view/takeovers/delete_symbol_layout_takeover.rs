@@ -1,4 +1,5 @@
 use super::super::SymbolLayoutEditorView;
+use super::super::details::symbol_layout_details_focus::clear_struct_viewer_if_symbol_layout_focused;
 use crate::ui::widgets::controls::groupbox::GroupBox;
 use crate::views::symbol_layout_editor::view_data::symbol_layout_editor_view_data::SymbolLayoutEditorViewData;
 use eframe::egui::{Key, RichText, Ui};
@@ -64,7 +65,9 @@ impl SymbolLayoutEditorView {
         }
 
         if should_delete_layout {
-            self.delete_symbol_layout(project_symbol_catalog, layout_id);
+            self.command_dispatcher().delete_symbol_layout(layout_id);
+            SymbolLayoutEditorViewData::cancel_take_over_state(self.symbol_layout_editor_view_data.clone());
+            clear_struct_viewer_if_symbol_layout_focused(self.struct_viewer_view_data.clone());
         }
     }
 }

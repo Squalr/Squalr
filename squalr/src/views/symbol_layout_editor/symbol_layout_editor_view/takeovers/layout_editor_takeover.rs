@@ -291,10 +291,12 @@ impl SymbolLayoutEditorView {
                 Ok(struct_layout_descriptor) => {
                     if let Ok(pending_variant_descriptors) = pending_variant_validation_result {
                         for (original_layout_id, variant_struct_layout_descriptor) in pending_variant_descriptors {
-                            self.persist_symbol_layout_descriptor(original_layout_id, &variant_struct_layout_descriptor);
+                            self.command_dispatcher()
+                                .persist_symbol_layout_descriptor(original_layout_id, &variant_struct_layout_descriptor);
                         }
                     }
-                    self.persist_symbol_layout_descriptor(edited_draft.original_layout_id.clone(), &struct_layout_descriptor);
+                    self.command_dispatcher()
+                        .persist_symbol_layout_descriptor(edited_draft.original_layout_id.clone(), &struct_layout_descriptor);
                     SymbolLayoutEditorViewData::select_symbol_layout(
                         self.symbol_layout_editor_view_data.clone(),
                         Some(edited_draft.layout_id.trim().to_string()),

@@ -1,5 +1,6 @@
 use crate::app_context::AppContext;
 use crate::views::struct_viewer::view_data::{struct_viewer_focus_target::StructViewerFocusTarget, struct_viewer_view_data::StructViewerViewData};
+use crate::views::symbol_layout_editor::symbol_layout_command_dispatcher::SymbolLayoutCommandDispatcher;
 use crate::views::symbol_layout_editor::view_data::symbol_layout_editor_view_data::{
     SymbolLayoutEditDraft, SymbolLayoutEditorViewData, SymbolLayoutFieldEditDraft, SymbolLayoutFieldElementType, SymbolLayoutFieldOffsetMode,
 };
@@ -203,7 +204,7 @@ fn build_struct_viewer_layout_edit_callback(
         else {
             return;
         };
-        SymbolLayoutEditorView::persist_symbol_layout_descriptor_with_context(&app_context, Some(layout_id.clone()), updated_struct_layout_descriptor);
+        SymbolLayoutCommandDispatcher::new(app_context.clone()).persist_symbol_layout_descriptor(Some(layout_id.clone()), updated_struct_layout_descriptor);
         let details_projection = SymbolLayoutDetails::build_layout_projection(
             updated_struct_layout_descriptor.get_struct_layout_id(),
             updated_struct_layout_descriptor

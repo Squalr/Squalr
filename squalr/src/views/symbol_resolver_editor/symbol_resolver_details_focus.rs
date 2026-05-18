@@ -10,17 +10,14 @@ use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::registries::symbols::symbolic_resolver_descriptor::SymbolicResolverDescriptor;
 use squalr_engine_api::structures::{
-    data_types::{
-        built_in_types::{i64::data_type_i64::DataTypeI64, string::utf8::data_type_string_utf8::DataTypeStringUtf8},
-        data_type_ref::DataTypeRef,
-    },
+    data_types::data_type_ref::DataTypeRef,
+    details::DetailsEdit,
     memory::symbolic_pointer_chain::{SymbolicPointerChain, SymbolicPointerChainLink},
-    projects::project_symbol_catalog::ProjectSymbolCatalog,
-    structs::{
-        symbolic_resolver_definition::{SymbolicResolverBinaryOperator, SymbolicResolverNode, SymbolicResolverRelativeSymbolPath},
-        valued_struct::ValuedStruct,
-        valued_struct_field::ValuedStructField,
+    projects::{
+        project_symbol_catalog::ProjectSymbolCatalog,
+        symbol_resolvers::symbol_resolver_details::{SymbolResolverDetails, SymbolResolverDetailsEditOperation, SymbolResolverDetailsNodeKind},
     },
+    structs::symbolic_resolver_definition::{SymbolicResolverNode, SymbolicResolverRelativeSymbolPath},
 };
 use std::sync::Arc;
 
@@ -32,8 +29,6 @@ pub struct SymbolResolverDetailsFocus {
 }
 
 impl SymbolResolverDetailsFocus {
-    const DETAILS_FIELD_LOCAL_FIELD: &'static str = "local_field";
-
     pub fn new(
         app_context: Arc<AppContext>,
         symbol_resolver_editor_view_data: Dependency<SymbolResolverEditorViewData>,
@@ -84,7 +79,7 @@ impl SymbolResolverDetailsFocus {
             return;
         }
 
-        let details_struct = Self::build_resolver_details_struct(resolver_id);
+        let details_projection = SymbolResolverDetails::build_resolver_projection(resolver_id);
         let selection_key = format!("resolver|{}", resolver_id);
         let edit_callback = Self::build_struct_viewer_resolver_name_edit_callback(
             self.app_context.clone(),
@@ -93,10 +88,10 @@ impl SymbolResolverDetailsFocus {
             resolver_id.to_string(),
         );
 
-        StructViewerViewData::focus_valued_struct_with_focus_target(
+        StructViewerViewData::focus_details_projection_with_focus_target(
             self.struct_viewer_view_data.clone(),
             self.app_context.engine_unprivileged_state.clone(),
-            details_struct,
+            details_projection,
             edit_callback,
             Some(StructViewerFocusTarget::SymbolResolverEditor { selection_key }),
         );
@@ -107,7 +102,7 @@ impl SymbolResolverDetailsFocus {
         selected_node_path: Option<Vec<usize>>,
         draft: &SymbolResolverEditDraft,
     ) {
-        let Some(details_struct) = Self::build_details_struct(draft, selected_node_path.as_deref()) else {
+        let Some(details_projection) = Self::build_details_projection(draft, selected_node_path.as_deref()) else {
             return;
         };
         let selection_key = Self::build_struct_viewer_focus_target_key(draft, selected_node_path.as_deref());
@@ -119,10 +114,10 @@ impl SymbolResolverDetailsFocus {
             self.default_data_type_ref(),
         );
 
-        StructViewerViewData::focus_valued_struct_with_focus_target(
+        StructViewerViewData::focus_details_projection_with_focus_target(
             self.struct_viewer_view_data.clone(),
             self.app_context.engine_unprivileged_state.clone(),
-            details_struct,
+            details_projection,
             edit_callback,
             Some(StructViewerFocusTarget::SymbolResolverEditor { selection_key }),
         );
@@ -137,25 +132,18 @@ impl SymbolResolverDetailsFocus {
             .unwrap_or_else(|| DataTypeRef::new("u32"))
     }
 
-    fn build_resolver_details_struct(resolver_id: &str) -> ValuedStruct {
-        ValuedStruct::new_anonymous(vec![
-            DataTypeStringUtf8::get_value_from_primitive_string(resolver_id)
-                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_RESOLVER_ID.to_string(), false),
-        ])
-    }
-
     fn build_struct_viewer_resolver_name_edit_callback(
         app_context: Arc<AppContext>,
         symbol_resolver_editor_view_data: Dependency<SymbolResolverEditorViewData>,
         struct_viewer_view_data: Dependency<StructViewerViewData>,
         resolver_id: String,
-    ) -> Arc<dyn Fn(ValuedStructField) + Send + Sync> {
-        Arc::new(move |edited_field: ValuedStructField| {
+    ) -> Arc<dyn Fn(DetailsEdit) + Send + Sync> {
+        Arc::new(move |details_edit: DetailsEdit| {
             let Some(project_symbol_catalog) = Self::get_opened_project_symbol_catalog_from_context(&app_context) else {
                 return;
             };
             let Ok((original_resolver_id, resolver_descriptor)) =
-                Self::build_resolver_descriptor_after_name_details_edit(&project_symbol_catalog, &resolver_id, &edited_field)
+                Self::build_resolver_descriptor_after_name_details_edit(&project_symbol_catalog, &resolver_id, &details_edit)
             else {
                 return;
             };
@@ -167,7 +155,7 @@ impl SymbolResolverDetailsFocus {
                 view_data.select_resolver(Some(saved_resolver_id.clone()));
             }
 
-            let details_struct = Self::build_resolver_details_struct(&saved_resolver_id);
+            let details_projection = SymbolResolverDetails::build_resolver_projection(&saved_resolver_id);
             let selection_key = format!("resolver|{}", saved_resolver_id);
             let edit_callback = Self::build_struct_viewer_resolver_name_edit_callback(
                 app_context.clone(),
@@ -176,10 +164,10 @@ impl SymbolResolverDetailsFocus {
                 saved_resolver_id.clone(),
             );
 
-            StructViewerViewData::focus_valued_struct_with_focus_target(
+            StructViewerViewData::focus_details_projection_with_focus_target(
                 struct_viewer_view_data.clone(),
                 app_context.engine_unprivileged_state.clone(),
-                details_struct,
+                details_projection,
                 edit_callback,
                 Some(StructViewerFocusTarget::SymbolResolverEditor { selection_key }),
             );
@@ -204,15 +192,12 @@ impl SymbolResolverDetailsFocus {
     fn build_resolver_descriptor_after_name_details_edit(
         project_symbol_catalog: &ProjectSymbolCatalog,
         current_resolver_id: &str,
-        edited_field: &ValuedStructField,
+        details_edit: &DetailsEdit,
     ) -> Result<(Option<String>, SymbolicResolverDescriptor), String> {
-        if edited_field.get_name() != StructViewerViewData::VIRTUAL_FIELD_SYMBOL_RESOLVER_ID {
-            return Err(String::from("Edited field is not the resolver name."));
-        }
-
-        let edited_resolver_id = StructViewerViewData::read_utf8_field_text(edited_field)
-            .trim()
-            .to_string();
+        let SymbolResolverDetailsEditOperation::UpdateResolverId(edited_resolver_id) = SymbolResolverDetails::plan_edit(details_edit) else {
+            return Err(String::from("Edited details field is not the resolver name."));
+        };
+        let edited_resolver_id = edited_resolver_id.trim().to_string();
         if edited_resolver_id == current_resolver_id {
             return Err(String::from("Resolver name is unchanged."));
         }
@@ -236,8 +221,8 @@ impl SymbolResolverDetailsFocus {
         struct_viewer_view_data: Dependency<StructViewerViewData>,
         selected_node_path: Option<Vec<usize>>,
         default_data_type_ref: DataTypeRef,
-    ) -> Arc<dyn Fn(ValuedStructField) + Send + Sync> {
-        Arc::new(move |edited_field: ValuedStructField| {
+    ) -> Arc<dyn Fn(DetailsEdit) + Send + Sync> {
+        Arc::new(move |details_edit: DetailsEdit| {
             let mut should_refocus_details = false;
             let updated_draft = {
                 let Some(mut view_data) = symbol_resolver_editor_view_data.write("SymbolResolverEditor apply details edit") else {
@@ -248,7 +233,7 @@ impl SymbolResolverDetailsFocus {
                 };
 
                 if let Some(selected_node_path) = selected_node_path.as_deref() {
-                    should_refocus_details = Self::apply_node_details_edit(&mut draft, selected_node_path, &edited_field, default_data_type_ref.clone());
+                    should_refocus_details = Self::apply_node_details_edit(&mut draft, selected_node_path, &details_edit, default_data_type_ref.clone());
                 }
 
                 view_data.update_draft(draft.clone());
@@ -256,7 +241,7 @@ impl SymbolResolverDetailsFocus {
             };
 
             if should_refocus_details {
-                let Some(details_struct) = Self::build_details_struct(&updated_draft, selected_node_path.as_deref()) else {
+                let Some(details_projection) = Self::build_details_projection(&updated_draft, selected_node_path.as_deref()) else {
                     return;
                 };
                 let selection_key = Self::build_struct_viewer_focus_target_key(&updated_draft, selected_node_path.as_deref());
@@ -268,10 +253,10 @@ impl SymbolResolverDetailsFocus {
                     default_data_type_ref.clone(),
                 );
 
-                StructViewerViewData::focus_valued_struct_with_focus_target(
+                StructViewerViewData::focus_details_projection_with_focus_target(
                     struct_viewer_view_data.clone(),
                     app_context.engine_unprivileged_state.clone(),
-                    details_struct,
+                    details_projection,
                     edit_callback,
                     Some(StructViewerFocusTarget::SymbolResolverEditor { selection_key }),
                 );
@@ -282,37 +267,32 @@ impl SymbolResolverDetailsFocus {
     fn apply_node_details_edit(
         draft: &mut SymbolResolverEditDraft,
         selected_node_path: &[usize],
-        edited_field: &ValuedStructField,
+        details_edit: &DetailsEdit,
         default_data_type_ref: DataTypeRef,
     ) -> bool {
-        let edited_field_name = edited_field.get_name();
-        let edited_text = StructViewerViewData::read_utf8_field_text(edited_field);
         let Some(selected_node) = Self::get_node_mut(draft.resolver_definition.get_root_node_mut(), selected_node_path) else {
             return false;
         };
 
-        match edited_field_name {
-            StructViewerViewData::VIRTUAL_FIELD_SYMBOL_RESOLVER_NODE_KIND => {
-                let Some(next_kind) = Self::resolver_node_kind_from_label(&edited_text) else {
-                    return false;
-                };
-
-                if next_kind != Self::resolver_node_kind(selected_node) {
-                    *selected_node = SymbolResolverEditorViewData::default_node_for_kind(next_kind, default_data_type_ref);
+        match SymbolResolverDetails::plan_edit(details_edit) {
+            SymbolResolverDetailsEditOperation::UpdateNodeKind(next_kind) => {
+                if next_kind != SymbolResolverDetailsNodeKind::from_node(selected_node) {
+                    *selected_node =
+                        SymbolResolverEditorViewData::default_node_for_kind(Self::editor_node_kind_from_details_node_kind(next_kind), default_data_type_ref);
                     return true;
                 }
             }
-            StructViewerViewData::VIRTUAL_FIELD_SYMBOL_RESOLVER_LITERAL_VALUE => {
-                if let (SymbolicResolverNode::Literal(value), Some(parsed_value)) = (selected_node, Self::read_i64_field_value(edited_field)) {
+            SymbolResolverDetailsEditOperation::UpdateLiteralValue(parsed_value) => {
+                if let SymbolicResolverNode::Literal(value) = selected_node {
                     *value = i128::from(parsed_value);
                 }
             }
-            Self::DETAILS_FIELD_LOCAL_FIELD => {
+            SymbolResolverDetailsEditOperation::UpdateLocalField(edited_text) => {
                 if let SymbolicResolverNode::LocalField { field_name } = selected_node {
                     *field_name = edited_text;
                 }
             }
-            StructViewerViewData::VIRTUAL_FIELD_SYMBOL_RESOLVER_RELATIVE_SYMBOL_PATH => {
+            SymbolResolverDetailsEditOperation::UpdateRelativeSymbolPath(edited_text) => {
                 if let SymbolicResolverNode::RelativeSymbolField { symbol_path } = selected_node {
                     *symbol_path = SymbolicResolverRelativeSymbolPath::from_dot_path(&edited_text);
                 }
@@ -321,7 +301,7 @@ impl SymbolResolverDetailsFocus {
                         SymbolicPointerChain::new_absolute(SymbolicPointerChainLink::parse_text_list(&edited_text), pointer_chain.get_pointer_size());
                 }
             }
-            StructViewerViewData::VIRTUAL_FIELD_SYMBOL_RESOLVER_GLOBAL_MODULE => {
+            SymbolResolverDetailsEditOperation::UpdateGlobalModule(edited_text) => {
                 if let SymbolicResolverNode::GlobalSymbolField { module_name, .. } = selected_node {
                     *module_name = edited_text.trim().to_string();
                 }
@@ -329,7 +309,7 @@ impl SymbolResolverDetailsFocus {
                     pointer_chain.set_module_name(edited_text.trim().to_string());
                 }
             }
-            StructViewerViewData::VIRTUAL_FIELD_SYMBOL_RESOLVER_GLOBAL_SYMBOL_PATH => {
+            SymbolResolverDetailsEditOperation::UpdateGlobalSymbolPath(edited_text) => {
                 if let SymbolicResolverNode::GlobalSymbolField { symbol_path, .. } = selected_node {
                     *symbol_path = SymbolicResolverRelativeSymbolPath::from_dot_path(&edited_text);
                 }
@@ -341,95 +321,39 @@ impl SymbolResolverDetailsFocus {
                     );
                 }
             }
-            StructViewerViewData::VIRTUAL_FIELD_SYMBOL_RESOLVER_DATA_TYPE => {
+            SymbolResolverDetailsEditOperation::UpdateDataType(edited_text) => {
                 if let SymbolicResolverNode::TypeSize { data_type_ref } = selected_node {
                     *data_type_ref = DataTypeRef::new(edited_text.trim());
                 }
             }
-            StructViewerViewData::VIRTUAL_FIELD_SYMBOL_RESOLVER_OPERATOR => {
-                if let (SymbolicResolverNode::Binary { operator, .. }, Some(next_operator)) = (selected_node, Self::resolver_operator_from_label(&edited_text))
-                {
+            SymbolResolverDetailsEditOperation::UpdateOperator(next_operator) => {
+                if let SymbolicResolverNode::Binary { operator, .. } = selected_node {
                     *operator = next_operator;
                 }
             }
-            _ => {}
+            SymbolResolverDetailsEditOperation::UpdateResolverId(_)
+            | SymbolResolverDetailsEditOperation::NoOp
+            | SymbolResolverDetailsEditOperation::Reject(_) => {}
         }
 
         false
     }
 
-    fn build_details_struct(
+    fn build_details_projection(
         draft: &SymbolResolverEditDraft,
         selected_node_path: Option<&[usize]>,
-    ) -> Option<ValuedStruct> {
+    ) -> Option<squalr_engine_api::structures::details::DetailsProjection> {
         let selected_node_path = selected_node_path?;
         let selected_node = Self::get_node(draft.resolver_definition.get_root_node(), selected_node_path)?;
-        let mut fields = vec![
-            DataTypeStringUtf8::get_value_from_primitive_string(Self::resolver_node_kind_label(Self::resolver_node_kind(selected_node)))
-                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_RESOLVER_NODE_KIND.to_string(), false),
-        ];
 
-        match selected_node {
-            SymbolicResolverNode::Literal(value) => {
-                fields.push(
-                    DataTypeI64::get_value_from_primitive(Self::clamp_i128_to_i64(*value))
-                        .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_RESOLVER_LITERAL_VALUE.to_string(), false),
-                );
-            }
-            SymbolicResolverNode::LocalField { field_name } => {
-                fields.push(
-                    DataTypeStringUtf8::get_value_from_primitive_string(field_name)
-                        .to_named_valued_struct_field(Self::DETAILS_FIELD_LOCAL_FIELD.to_string(), false),
-                );
-            }
-            SymbolicResolverNode::RelativeSymbolField { symbol_path } => {
-                fields.push(
-                    DataTypeStringUtf8::get_value_from_primitive_string(&symbol_path.to_string())
-                        .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_RESOLVER_RELATIVE_SYMBOL_PATH.to_string(), false),
-                );
-            }
-            SymbolicResolverNode::GlobalSymbolField { module_name, symbol_path } => {
-                fields.push(
-                    DataTypeStringUtf8::get_value_from_primitive_string(module_name)
-                        .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_RESOLVER_GLOBAL_MODULE.to_string(), false),
-                );
-                fields.push(
-                    DataTypeStringUtf8::get_value_from_primitive_string(&symbol_path.to_string())
-                        .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_RESOLVER_GLOBAL_SYMBOL_PATH.to_string(), false),
-                );
-            }
-            SymbolicResolverNode::RelativePointerChain { pointer_chain } => {
-                fields.push(
-                    DataTypeStringUtf8::get_value_from_primitive_string(&SymbolicPointerChainLink::display_text_list(pointer_chain.get_links()))
-                        .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_RESOLVER_RELATIVE_SYMBOL_PATH.to_string(), false),
-                );
-            }
-            SymbolicResolverNode::GlobalPointerChain { pointer_chain } => {
-                fields.push(
-                    DataTypeStringUtf8::get_value_from_primitive_string(pointer_chain.get_module_name())
-                        .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_RESOLVER_GLOBAL_MODULE.to_string(), false),
-                );
-                fields.push(
-                    DataTypeStringUtf8::get_value_from_primitive_string(&SymbolicPointerChainLink::display_text_list(pointer_chain.get_links()))
-                        .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_RESOLVER_GLOBAL_SYMBOL_PATH.to_string(), false),
-                );
-            }
-            SymbolicResolverNode::TypeSize { data_type_ref } => {
-                fields.push(
-                    DataTypeStringUtf8::get_value_from_primitive_string(data_type_ref.get_data_type_id())
-                        .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_RESOLVER_DATA_TYPE.to_string(), false),
-                );
-            }
-            SymbolicResolverNode::Binary { operator, .. } => {
-                fields.push(
-                    DataTypeStringUtf8::get_value_from_primitive_string(operator.label())
-                        .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_RESOLVER_OPERATOR.to_string(), false),
-                );
-            }
-            SymbolicResolverNode::Conditional { .. } => {}
-        }
-
-        Some(ValuedStruct::new_anonymous(fields))
+        Some(SymbolResolverDetails::build_node_projection(
+            draft
+                .original_resolver_id
+                .as_deref()
+                .unwrap_or(&draft.resolver_id),
+            selected_node_path,
+            selected_node,
+        ))
     }
 
     fn build_struct_viewer_focus_target_key(
@@ -453,54 +377,18 @@ impl SymbolResolverDetailsFocus {
         format!("{}|{}", resolver_key, node_path_key)
     }
 
-    fn resolver_node_kind(resolver_node: &SymbolicResolverNode) -> SymbolResolverNodeKind {
-        match resolver_node {
-            SymbolicResolverNode::Literal(_) => SymbolResolverNodeKind::Literal,
-            SymbolicResolverNode::LocalField { .. } => SymbolResolverNodeKind::LocalField,
-            SymbolicResolverNode::RelativeSymbolField { .. } => SymbolResolverNodeKind::RelativeSymbolField,
-            SymbolicResolverNode::GlobalSymbolField { .. } => SymbolResolverNodeKind::GlobalSymbolField,
-            SymbolicResolverNode::RelativePointerChain { .. } => SymbolResolverNodeKind::RelativePointerChain,
-            SymbolicResolverNode::GlobalPointerChain { .. } => SymbolResolverNodeKind::GlobalPointerChain,
-            SymbolicResolverNode::TypeSize { .. } => SymbolResolverNodeKind::TypeSize,
-            SymbolicResolverNode::Binary { .. } => SymbolResolverNodeKind::Operation,
-            SymbolicResolverNode::Conditional { .. } => SymbolResolverNodeKind::Conditional,
+    fn editor_node_kind_from_details_node_kind(details_node_kind: SymbolResolverDetailsNodeKind) -> SymbolResolverNodeKind {
+        match details_node_kind {
+            SymbolResolverDetailsNodeKind::Literal => SymbolResolverNodeKind::Literal,
+            SymbolResolverDetailsNodeKind::LocalField => SymbolResolverNodeKind::LocalField,
+            SymbolResolverDetailsNodeKind::RelativeSymbolField => SymbolResolverNodeKind::RelativeSymbolField,
+            SymbolResolverDetailsNodeKind::GlobalSymbolField => SymbolResolverNodeKind::GlobalSymbolField,
+            SymbolResolverDetailsNodeKind::RelativePointerChain => SymbolResolverNodeKind::RelativePointerChain,
+            SymbolResolverDetailsNodeKind::GlobalPointerChain => SymbolResolverNodeKind::GlobalPointerChain,
+            SymbolResolverDetailsNodeKind::TypeSize => SymbolResolverNodeKind::TypeSize,
+            SymbolResolverDetailsNodeKind::Operation => SymbolResolverNodeKind::Operation,
+            SymbolResolverDetailsNodeKind::Conditional => SymbolResolverNodeKind::Conditional,
         }
-    }
-
-    fn resolver_node_kind_label(resolver_node_kind: SymbolResolverNodeKind) -> &'static str {
-        match resolver_node_kind {
-            SymbolResolverNodeKind::Literal => "Literal",
-            SymbolResolverNodeKind::LocalField => "Local Field",
-            SymbolResolverNodeKind::RelativeSymbolField => "Relative Symbol Field",
-            SymbolResolverNodeKind::GlobalSymbolField => "Global Symbol Field",
-            SymbolResolverNodeKind::RelativePointerChain => "Relative Pointer Chain",
-            SymbolResolverNodeKind::GlobalPointerChain => "Global Pointer Chain",
-            SymbolResolverNodeKind::TypeSize => "Type Size",
-            SymbolResolverNodeKind::Operation => "Operation",
-            SymbolResolverNodeKind::Conditional => "Conditional",
-        }
-    }
-
-    fn resolver_node_kind_from_label(label: &str) -> Option<SymbolResolverNodeKind> {
-        match label.trim() {
-            "Literal" => Some(SymbolResolverNodeKind::Literal),
-            "Local Field" => Some(SymbolResolverNodeKind::LocalField),
-            "Relative Symbol Field" | "Symbol Field" => Some(SymbolResolverNodeKind::RelativeSymbolField),
-            "Global Symbol Field" => Some(SymbolResolverNodeKind::GlobalSymbolField),
-            "Relative Pointer Chain" => Some(SymbolResolverNodeKind::RelativePointerChain),
-            "Global Pointer Chain" => Some(SymbolResolverNodeKind::GlobalPointerChain),
-            "Type Size" => Some(SymbolResolverNodeKind::TypeSize),
-            "Operation" => Some(SymbolResolverNodeKind::Operation),
-            "Conditional" => Some(SymbolResolverNodeKind::Conditional),
-            _ => None,
-        }
-    }
-
-    fn resolver_operator_from_label(label: &str) -> Option<SymbolicResolverBinaryOperator> {
-        SymbolicResolverBinaryOperator::ALL
-            .iter()
-            .copied()
-            .find(|operator| operator.label() == label.trim())
     }
 
     fn get_node_mut<'resolver>(
@@ -569,16 +457,5 @@ impl SymbolResolverDetailsFocus {
             | SymbolicResolverNode::GlobalPointerChain { .. }
             | SymbolicResolverNode::TypeSize { .. } => None,
         }
-    }
-
-    fn clamp_i128_to_i64(value: i128) -> i64 {
-        value.clamp(i128::from(i64::MIN), i128::from(i64::MAX)) as i64
-    }
-
-    fn read_i64_field_value(valued_struct_field: &ValuedStructField) -> Option<i64> {
-        let value_bytes = valued_struct_field.get_data_value()?.get_value_bytes();
-        let value_bytes: [u8; 8] = value_bytes.as_slice().try_into().ok()?;
-
-        Some(i64::from_le_bytes(value_bytes))
     }
 }

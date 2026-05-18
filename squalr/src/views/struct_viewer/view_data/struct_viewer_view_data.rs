@@ -55,27 +55,6 @@ impl StructViewerViewData {
     pub const VIRTUAL_FIELD_ARRAY_SIZE: &'static str = "__virtual_array_size";
     pub const VIRTUAL_FIELD_PROJECT_ITEM_POINTER_OFFSETS: &'static str = "__address_target_pointer_offsets";
     pub const VIRTUAL_FIELD_PROJECT_ITEM_POINTER_SIZE: &'static str = "__address_target_pointer_size";
-    pub const VIRTUAL_FIELD_SYMBOL_RESOLVER_LITERAL_VALUE: &'static str = "literal_value";
-    pub const VIRTUAL_FIELD_SYMBOL_RESOLVER_ID: &'static str = "__symbol_resolver_id";
-    pub const VIRTUAL_FIELD_SYMBOL_RESOLVER_NODE_KIND: &'static str = "__symbol_resolver_node_kind";
-    pub const VIRTUAL_FIELD_SYMBOL_RESOLVER_OPERATOR: &'static str = "__symbol_resolver_operator";
-    pub const VIRTUAL_FIELD_SYMBOL_RESOLVER_DATA_TYPE: &'static str = "__symbol_resolver_data_type";
-    pub const VIRTUAL_FIELD_SYMBOL_RESOLVER_RELATIVE_SYMBOL_PATH: &'static str = "__symbol_resolver_relative_symbol_path";
-    pub const VIRTUAL_FIELD_SYMBOL_RESOLVER_GLOBAL_MODULE: &'static str = "__symbol_resolver_global_module";
-    pub const VIRTUAL_FIELD_SYMBOL_RESOLVER_GLOBAL_SYMBOL_PATH: &'static str = "__symbol_resolver_global_symbol_path";
-    pub const VIRTUAL_FIELD_SYMBOL_LAYOUT_LAYOUT_ID: &'static str = "__symbol_layout_layout_id";
-    pub const VIRTUAL_FIELD_SYMBOL_LAYOUT_KIND: &'static str = "__symbol_layout_kind";
-    pub const VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_NAME: &'static str = "__symbol_layout_field_name";
-    pub const VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_ELEMENT_TYPE: &'static str = "__symbol_layout_field_element_type";
-    pub const VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_DATA_TYPE: &'static str = "__symbol_layout_field_data_type";
-    pub const VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_SYMBOL_LAYOUT: &'static str = "__symbol_layout_field_symbol_layout";
-    pub const VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_CONTAINER_KIND: &'static str = "__symbol_layout_field_container_kind";
-    pub const VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_FIXED_ARRAY_LENGTH: &'static str = "__symbol_layout_field_fixed_array_length";
-    pub const VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_COUNT_RESOLVER: &'static str = "__symbol_layout_field_count_resolver";
-    pub const VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_DISPLAY_COUNT_RESOLVER: &'static str = "__symbol_layout_field_display_count_resolver";
-    pub const VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_ACTIVE_WHEN_RESOLVER: &'static str = "__symbol_layout_field_active_when_resolver";
-    pub const VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_POINTER_SIZE: &'static str = "__symbol_layout_field_pointer_size";
-    pub const VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_OFFSET_RESOLVER: &'static str = "__symbol_layout_field_offset_resolver";
 
     pub fn new() -> Self {
         Self {
@@ -497,9 +476,6 @@ impl StructViewerViewData {
         if valued_struct_field.get_name() == ProjectItemTypeAddress::PROPERTY_ADDRESS {
             return AnonymousValueStringFormat::Hexadecimal;
         }
-        if valued_struct_field.get_name() == Self::VIRTUAL_FIELD_SYMBOL_RESOLVER_LITERAL_VALUE {
-            return AnonymousValueStringFormat::Hexadecimal;
-        }
 
         engine_unprivileged_state.get_default_anonymous_value_string_format(data_type_ref)
     }
@@ -607,34 +583,6 @@ impl StructViewerViewData {
                 StructViewerFieldPresentation::new(String::from("Pointer Size"), StructViewerFieldEditorKind::ProjectItemPointerSizeSelector)
             } else if Self::is_project_item_pointer_offsets_field(valued_struct_field) {
                 StructViewerFieldPresentation::new(String::from("Offsets"), StructViewerFieldEditorKind::ProjectItemPointerOffsetsEditor)
-            } else if Self::is_symbol_resolver_id_field(valued_struct_field) {
-                StructViewerFieldPresentation::new(String::from("Name"), StructViewerFieldEditorKind::ValueBox)
-            } else if Self::is_symbol_resolver_node_kind_field(valued_struct_field) {
-                StructViewerFieldPresentation::new(String::from("Type"), StructViewerFieldEditorKind::SymbolResolverNodeKindSelector)
-            } else if Self::is_symbol_resolver_operator_field(valued_struct_field) {
-                StructViewerFieldPresentation::new(String::from("Operator"), StructViewerFieldEditorKind::SymbolResolverOperatorSelector)
-            } else if Self::is_symbol_resolver_data_type_field(valued_struct_field) {
-                StructViewerFieldPresentation::new(String::from("Data Type"), StructViewerFieldEditorKind::SymbolResolverDataTypeSelector)
-            } else if Self::is_symbol_layout_kind_field(valued_struct_field) {
-                StructViewerFieldPresentation::new(String::from("Layout Kind"), StructViewerFieldEditorKind::SymbolLayoutKindSelector)
-            } else if Self::is_symbol_layout_field_element_type_field(valued_struct_field) {
-                StructViewerFieldPresentation::new(String::from("Element Type"), StructViewerFieldEditorKind::SymbolLayoutFieldElementTypeSelector)
-            } else if Self::is_symbol_layout_field_data_type_field(valued_struct_field) {
-                StructViewerFieldPresentation::new(String::from("Data Type"), StructViewerFieldEditorKind::SymbolLayoutFieldDataTypeSelector)
-            } else if Self::is_symbol_layout_field_symbol_layout_field(valued_struct_field) {
-                StructViewerFieldPresentation::new(
-                    String::from("Symbol Layout"),
-                    StructViewerFieldEditorKind::SymbolLayoutFieldSymbolLayoutSelector,
-                )
-            } else if Self::is_symbol_layout_field_resolver_field(valued_struct_field) {
-                StructViewerFieldPresentation::new(
-                    Self::field_display_name(valued_struct_field.get_name()),
-                    StructViewerFieldEditorKind::SymbolLayoutFieldResolverSelector,
-                )
-            } else if Self::is_symbol_layout_field_container_kind_field(valued_struct_field) {
-                StructViewerFieldPresentation::new(String::from("Container"), StructViewerFieldEditorKind::SymbolLayoutFieldContainerKindSelector)
-            } else if Self::is_symbol_layout_field_pointer_size_field(valued_struct_field) {
-                StructViewerFieldPresentation::new(String::from("Pointer Size"), StructViewerFieldEditorKind::SymbolLayoutFieldPointerSizeSelector)
             } else if Self::is_live_value_field(valued_struct_field) && live_value_uses_code_viewer {
                 StructViewerFieldPresentation::new(String::from("Value"), StructViewerFieldEditorKind::CodeViewerButton)
             } else if Self::is_live_value_field(valued_struct_field) && live_value_uses_external_viewer {
@@ -660,26 +608,6 @@ impl StructViewerViewData {
             ProjectItemTypeAddress::PROPERTY_MODULE => String::from("Module"),
             "__address_target_pointer_offsets" => String::from("Pointer Offsets"),
             "__address_target_pointer_size" => String::from("Pointer Size"),
-            Self::VIRTUAL_FIELD_SYMBOL_RESOLVER_NODE_KIND => String::from("Type"),
-            Self::VIRTUAL_FIELD_SYMBOL_RESOLVER_LITERAL_VALUE => String::from("Literal Value"),
-            Self::VIRTUAL_FIELD_SYMBOL_RESOLVER_OPERATOR => String::from("Operator"),
-            Self::VIRTUAL_FIELD_SYMBOL_RESOLVER_DATA_TYPE => String::from("Data Type"),
-            Self::VIRTUAL_FIELD_SYMBOL_RESOLVER_RELATIVE_SYMBOL_PATH => String::from("Relative Path"),
-            Self::VIRTUAL_FIELD_SYMBOL_RESOLVER_GLOBAL_MODULE => String::from("Module"),
-            Self::VIRTUAL_FIELD_SYMBOL_RESOLVER_GLOBAL_SYMBOL_PATH => String::from("Path"),
-            Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_LAYOUT_ID => String::from("Name"),
-            Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_KIND => String::from("Layout Kind"),
-            Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_NAME => String::from("Name"),
-            Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_ELEMENT_TYPE => String::from("Element Type"),
-            Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_DATA_TYPE => String::from("Data Type"),
-            Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_SYMBOL_LAYOUT => String::from("Symbol Layout"),
-            Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_CONTAINER_KIND => String::from("Container"),
-            Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_FIXED_ARRAY_LENGTH => String::from("Length"),
-            Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_COUNT_RESOLVER => String::from("Count Resolver"),
-            Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_DISPLAY_COUNT_RESOLVER => String::from("Display Count Resolver"),
-            Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_ACTIVE_WHEN_RESOLVER => String::from("Active When Resolver"),
-            Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_POINTER_SIZE => String::from("Pointer Size"),
-            Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_OFFSET_RESOLVER => String::from("Offset Resolver"),
             _ => Self::humanize_field_key(field_name),
         }
     }
@@ -737,27 +665,13 @@ impl StructViewerViewData {
         let mut field_data_type_selections = HashMap::new();
 
         for valued_struct_field in valued_struct.get_fields() {
-            if !Self::is_data_type_reference_field(valued_struct_field)
-                && !Self::is_symbol_resolver_data_type_field(valued_struct_field)
-                && !Self::is_symbol_layout_field_data_type_field(valued_struct_field)
-            {
+            if !Self::is_data_type_reference_field(valued_struct_field) {
                 continue;
             }
 
-            let selected_data_type_ref =
-                if Self::is_symbol_resolver_data_type_field(valued_struct_field) || Self::is_symbol_layout_field_data_type_field(valued_struct_field) {
-                    let type_id = Self::read_utf8_field_text(valued_struct_field);
-
-                    if type_id.trim().is_empty() {
-                        DataTypeRef::new(DataTypeU8::DATA_TYPE_ID)
-                    } else {
-                        DataTypeRef::new(type_id.trim())
-                    }
-                } else {
-                    Self::read_symbolic_field_definition_reference_from_field_set(valued_struct_field)
-                        .map(|symbolic_field_definition| symbolic_field_definition.get_data_type_ref().clone())
-                        .unwrap_or_else(|| DataTypeRef::new(DataTypeU8::DATA_TYPE_ID))
-                };
+            let selected_data_type_ref = Self::read_symbolic_field_definition_reference_from_field_set(valued_struct_field)
+                .map(|symbolic_field_definition| symbolic_field_definition.get_data_type_ref().clone())
+                .unwrap_or_else(|| DataTypeRef::new(DataTypeU8::DATA_TYPE_ID));
 
             field_data_type_selections.insert(valued_struct_field.get_name().to_string(), DataTypeSelection::new(selected_data_type_ref));
         }
@@ -783,56 +697,6 @@ impl StructViewerViewData {
 
     fn is_project_item_pointer_size_field(valued_struct_field: &ValuedStructField) -> bool {
         valued_struct_field.get_name() == Self::VIRTUAL_FIELD_PROJECT_ITEM_POINTER_SIZE
-    }
-
-    fn is_symbol_resolver_id_field(valued_struct_field: &ValuedStructField) -> bool {
-        valued_struct_field.get_name() == Self::VIRTUAL_FIELD_SYMBOL_RESOLVER_ID
-    }
-
-    fn is_symbol_resolver_node_kind_field(valued_struct_field: &ValuedStructField) -> bool {
-        valued_struct_field.get_name() == Self::VIRTUAL_FIELD_SYMBOL_RESOLVER_NODE_KIND
-    }
-
-    fn is_symbol_resolver_operator_field(valued_struct_field: &ValuedStructField) -> bool {
-        valued_struct_field.get_name() == Self::VIRTUAL_FIELD_SYMBOL_RESOLVER_OPERATOR
-    }
-
-    fn is_symbol_resolver_data_type_field(valued_struct_field: &ValuedStructField) -> bool {
-        valued_struct_field.get_name() == Self::VIRTUAL_FIELD_SYMBOL_RESOLVER_DATA_TYPE
-    }
-
-    fn is_symbol_layout_field_data_type_field(valued_struct_field: &ValuedStructField) -> bool {
-        valued_struct_field.get_name() == Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_DATA_TYPE
-    }
-
-    fn is_symbol_layout_kind_field(valued_struct_field: &ValuedStructField) -> bool {
-        valued_struct_field.get_name() == Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_KIND
-    }
-
-    fn is_symbol_layout_field_element_type_field(valued_struct_field: &ValuedStructField) -> bool {
-        valued_struct_field.get_name() == Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_ELEMENT_TYPE
-    }
-
-    fn is_symbol_layout_field_symbol_layout_field(valued_struct_field: &ValuedStructField) -> bool {
-        valued_struct_field.get_name() == Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_SYMBOL_LAYOUT
-    }
-
-    fn is_symbol_layout_field_resolver_field(valued_struct_field: &ValuedStructField) -> bool {
-        matches!(
-            valued_struct_field.get_name(),
-            Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_COUNT_RESOLVER
-                | Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_DISPLAY_COUNT_RESOLVER
-                | Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_ACTIVE_WHEN_RESOLVER
-                | Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_OFFSET_RESOLVER
-        )
-    }
-
-    fn is_symbol_layout_field_container_kind_field(valued_struct_field: &ValuedStructField) -> bool {
-        valued_struct_field.get_name() == Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_CONTAINER_KIND
-    }
-
-    fn is_symbol_layout_field_pointer_size_field(valued_struct_field: &ValuedStructField) -> bool {
-        valued_struct_field.get_name() == Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_POINTER_SIZE
     }
 
     fn is_live_value_field(valued_struct_field: &ValuedStructField) -> bool {
