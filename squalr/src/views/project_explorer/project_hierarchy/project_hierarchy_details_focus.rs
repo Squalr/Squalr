@@ -1,6 +1,6 @@
 use crate::app_context::AppContext;
 use crate::views::project_explorer::project_hierarchy::{
-    project_item_details::ProjectItemDetails, project_item_rename_request_builder::ProjectItemRenameRequestBuilder,
+    project_item_preview_details::ProjectItemPreviewDetails, project_item_rename_request_builder::ProjectItemRenameRequestBuilder,
     view_data::project_hierarchy_view_data::ProjectHierarchyViewData,
 };
 use crate::views::struct_viewer::view_data::{struct_viewer_focus_target::StructViewerFocusTarget, struct_viewer_view_data::StructViewerViewData};
@@ -129,7 +129,7 @@ impl ProjectHierarchyDetailsFocus {
                     .cloned()?;
 
                 if let Some(preview_project_item) = preview_project_item_map.get(project_item_path) {
-                    ProjectItemDetails::copy_project_item_preview_fields(preview_project_item, &mut selected_project_item);
+                    ProjectItemPreviewDetails::copy_project_item_preview_fields(preview_project_item, &mut selected_project_item);
                 }
 
                 Some(selected_project_item)

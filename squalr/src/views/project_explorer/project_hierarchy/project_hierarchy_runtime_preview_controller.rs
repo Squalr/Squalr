@@ -2,7 +2,7 @@ use crate::app_context::AppContext;
 use crate::ui::geometry::safe_clamp_ord;
 use crate::views::project_explorer::project_hierarchy::{
     project_hierarchy_details_focus::ProjectHierarchyDetailsFocus,
-    project_item_details::ProjectItemDetails,
+    project_item_preview_details::ProjectItemPreviewDetails,
     view_data::{project_hierarchy_pending_operation::ProjectHierarchyPendingOperation, project_hierarchy_view_data::ProjectHierarchyViewData},
 };
 use squalr_engine_api::dependency_injection::dependency::Dependency;
@@ -108,7 +108,7 @@ impl ProjectHierarchyRuntimePreviewController {
                             .iter()
                             .find(|(project_item_ref, _)| project_item_ref.get_project_item_path() == &project_item_path)
                             .and_then(|(_, project_item)| {
-                                ProjectItemDetails::build_project_item_virtual_snapshot_query(
+                                ProjectItemPreviewDetails::build_project_item_virtual_snapshot_query(
                                     project_hierarchy_view_data.opened_project_info.as_ref(),
                                     &project_item_path,
                                     project_item,
@@ -148,7 +148,7 @@ impl ProjectHierarchyRuntimePreviewController {
                         let project_item_path = project_item_ref.get_project_item_path();
                         let query_id = project_item_path.to_string_lossy().to_string();
                         let query_result = virtual_snapshot.get_query_results().get(&query_id)?;
-                        let preview_value = ProjectItemDetails::build_project_item_preview_value_from_virtual_snapshot_result(
+                        let preview_value = ProjectItemPreviewDetails::build_project_item_preview_value_from_virtual_snapshot_result(
                             &self.app_context.engine_unprivileged_state,
                             project_hierarchy_view_data.opened_project_info.as_ref(),
                             project_item,

@@ -1,7 +1,7 @@
 use crate::app_context::AppContext;
 use crate::ui::{geometry::safe_clamp_f32, widgets::controls::groupbox::GroupBox};
 use crate::views::project_explorer::project_hierarchy::{
-    project_item_details::ProjectItemDetails,
+    project_item_value_edit_context::ProjectItemValueEditContext,
     project_item_value_edit_take_over_view::ProjectItemValueEditTakeOverView,
     view_data::{project_hierarchy_take_over_state::ProjectHierarchyTakeOverState, project_hierarchy_tree_entry::ProjectHierarchyTreeEntry},
 };
@@ -91,8 +91,7 @@ impl<'a> ProjectHierarchyTakeoverHostView<'a> {
         let Some(project_item) = project_item else {
             return ProjectHierarchyTakeoverHostAction::Cancel;
         };
-        let Some(value_edit_context) =
-            ProjectItemDetails::build_project_item_value_edit_context(&self.app_context.engine_unprivileged_state, self.opened_project_info, &project_item)
+        let Some(value_edit_context) = ProjectItemValueEditContext::build(&self.app_context.engine_unprivileged_state, self.opened_project_info, &project_item)
         else {
             return ProjectHierarchyTakeoverHostAction::Cancel;
         };
@@ -101,7 +100,7 @@ impl<'a> ProjectHierarchyTakeoverHostView<'a> {
             .ctx()
             .data_mut(|data| data.get_temp::<AnonymousValueString>(value_edit_storage_id))
             .unwrap_or_else(|| value_edit_context.initial_value_edit.clone());
-        let value_edit_display_values = ProjectItemDetails::build_project_item_value_edit_display_values(
+        let value_edit_display_values = ProjectItemValueEditContext::build_display_values(
             &self.app_context.engine_unprivileged_state,
             &value_edit_context.validation_data_type_ref,
             &value_edit,

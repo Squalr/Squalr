@@ -14,10 +14,10 @@ use crate::{
             project_hierarchy_create_item_menu_view::ProjectHierarchyCreateItemMenuView,
             project_hierarchy_details_focus::ProjectHierarchyDetailsFocus,
             project_hierarchy_list_view::{ProjectHierarchyListAction, ProjectHierarchyListView},
+            project_hierarchy_module_address_resolver::ProjectHierarchyModuleAddressResolver,
             project_hierarchy_runtime_preview_controller::ProjectHierarchyRuntimePreviewController,
             project_hierarchy_takeover_host_view::{ProjectHierarchyTakeoverHostAction, ProjectHierarchyTakeoverHostView},
             project_hierarchy_toolbar_view::ProjectHierarchyToolbarView,
-            project_item_details::ProjectItemDetails,
             view_data::{
                 project_hierarchy_drop_target::ProjectHierarchyDropTarget, project_hierarchy_frame_action::ProjectHierarchyFrameAction,
                 project_hierarchy_menu_target::ProjectHierarchyMenuTarget, project_hierarchy_pending_operation::ProjectHierarchyPendingOperation,
@@ -34,7 +34,6 @@ use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::anonymous_value_string::AnonymousValueString;
-use squalr_engine_api::structures::memory::address_display::try_resolve_virtual_module_address;
 use squalr_engine_api::structures::projects::project_items::{project_item::ProjectItem, project_item_ref::ProjectItemRef};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
@@ -843,22 +842,8 @@ impl ProjectHierarchyView {
         module_name: &str,
         data_type_id: &str,
     ) {
-        let (resolved_target_address, resolved_target_module_name) = if module_name.trim().is_empty() {
-            (address, String::new())
-        } else if try_resolve_virtual_module_address(module_name, address).is_some() {
-            (address, module_name.to_string())
-        } else if let Some(resolved_absolute_address) = ProjectItemDetails::dispatch_memory_query_request(&self.app_context.engine_unprivileged_state)
-            .and_then(|memory_query_response| ProjectItemDetails::resolve_module_relative_address(&memory_query_response.modules, address, module_name))
-        {
-            (resolved_absolute_address, String::new())
-        } else {
-            log::warn!(
-                "Failed to resolve pointer scanner target for module-relative address {}+0x{:X}; falling back to unresolved offset.",
-                module_name,
-                address
-            );
-            (address, module_name.to_string())
-        };
+        let (resolved_target_address, resolved_target_module_name) =
+            ProjectHierarchyModuleAddressResolver::resolve_pointer_scanner_target(&self.app_context.engine_unprivileged_state, address, module_name);
 
         PointerScannerViewData::set_scan_target_from_project_address(
             self.pointer_scanner_view_data.clone(),

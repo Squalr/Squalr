@@ -8,7 +8,6 @@ use crate::{
         context_menu_labels::{OPEN_IN_CODE_VIEWER_LABEL, OPEN_IN_MEMORY_VIEWER_LABEL},
         project_explorer::project_hierarchy::{
             project_hierarchy_create_item_menu_view::ProjectHierarchyCreateItemMenuView,
-            project_item_details::ProjectItemDetails,
             view_data::{
                 project_hierarchy_frame_action::ProjectHierarchyFrameAction, project_hierarchy_menu_target::ProjectHierarchyMenuTarget,
                 project_hierarchy_tree_entry::ProjectHierarchyTreeEntry, project_hierarchy_view_data::ProjectHierarchyViewData,
@@ -17,6 +16,10 @@ use crate::{
     },
 };
 use eframe::egui::{Pos2, Response, Ui};
+use squalr_engine::services::projects::project_item_symbol_resolution::{
+    can_open_project_item_in_memory_viewer, resolve_address_target_runtime_pointer_with_optional_catalog, resolve_pointer_runtime_target,
+    resolve_project_item_runtime_value_byte_count, resolve_project_item_runtime_value_target, should_open_project_item_in_code_viewer,
+};
 use squalr_engine_api::{
     dependency_injection::dependency::Dependency,
     engine::engine_execution_context::EngineExecutionContext,
@@ -173,8 +176,8 @@ impl<'lifetime> ProjectHierarchyProjectItemContextMenuView<'lifetime> {
         let can_paste_project_items =
             ProjectHierarchyViewData::can_paste_project_item_clipboard(self.project_hierarchy_view_data.clone(), &tree_entry_project_item_path);
         let pointer_scanner_context_actions = Self::build_pointer_scanner_context_actions(self.opened_project_info, &self.tree_entry.project_item);
-        let can_open_in_memory_viewer = ProjectItemDetails::can_open_project_item_in_memory_viewer(&self.tree_entry.project_item);
-        let should_open_in_code_viewer = ProjectItemDetails::should_open_project_item_in_code_viewer(&self.tree_entry.project_item);
+        let can_open_in_memory_viewer = can_open_project_item_in_memory_viewer(&self.tree_entry.project_item);
+        let should_open_in_code_viewer = should_open_project_item_in_code_viewer(&self.tree_entry.project_item);
         let runtime_viewer_label = if should_open_in_code_viewer {
             Self::PROJECT_ITEM_CTX_OPEN_CODE_VIEWER_LABEL
         } else {
@@ -414,22 +417,21 @@ impl<'lifetime> ProjectHierarchyProjectItemContextMenuView<'lifetime> {
             {
                 let engine_execution_context: Arc<dyn EngineExecutionContext> = self.app_context.engine_unprivileged_state.clone();
 
-                if let Some((address, module_name)) = ProjectItemDetails::resolve_project_item_runtime_value_target(
-                    &engine_execution_context,
-                    self.opened_project_info,
-                    &self.tree_entry.project_item,
-                ) {
+                let project_symbol_catalog = self
+                    .opened_project_info
+                    .map(|opened_project_info| opened_project_info.get_project_symbol_catalog());
+
+                if let Some((address, module_name)) =
+                    resolve_project_item_runtime_value_target(&engine_execution_context, project_symbol_catalog, &self.tree_entry.project_item)
+                {
                     let frame_action = if should_open_in_code_viewer {
                         ProjectHierarchyFrameAction::OpenCodeViewerForAddress { address, module_name }
                     } else {
                         ProjectHierarchyFrameAction::OpenMemoryViewerForAddress {
                             address,
                             module_name,
-                            selection_byte_count: ProjectItemDetails::resolve_project_item_runtime_value_byte_count(
-                                &self.app_context.engine_unprivileged_state,
-                                &self.tree_entry.project_item,
-                            )
-                            .unwrap_or(1),
+                            selection_byte_count: resolve_project_item_runtime_value_byte_count(&engine_execution_context, &self.tree_entry.project_item)
+                                .unwrap_or(1),
                         }
                     };
 
@@ -549,7 +551,8 @@ impl<'lifetime> ProjectHierarchyProjectItemContextMenuView<'lifetime> {
                 .unwrap_or_default();
 
             let address_target = ProjectItemTypeAddress::get_address_target(&mut project_item);
-            let Some(runtime_pointer) = ProjectItemDetails::resolve_address_target_runtime_pointer(opened_project_info, &address_target) else {
+            let project_symbol_catalog = opened_project_info.map(|opened_project_info| opened_project_info.get_project_symbol_catalog());
+            let Some(runtime_pointer) = resolve_address_target_runtime_pointer_with_optional_catalog(project_symbol_catalog, &address_target) else {
                 return Vec::new();
             };
 
@@ -617,7 +620,7 @@ impl<'lifetime> ProjectHierarchyProjectItemContextMenuView<'lifetime> {
                 ..
             } => Some((*address, module_name.clone(), data_type_id.clone())),
             PointerScannerContextAction::ResolvedPointer { pointer, data_type_id, .. } => {
-                let (address, module_name) = ProjectItemDetails::resolve_pointer_write_target(engine_execution_context, pointer)?;
+                let (address, module_name) = resolve_pointer_runtime_target(engine_execution_context, pointer)?;
 
                 Some((address, module_name, data_type_id.clone()))
             }

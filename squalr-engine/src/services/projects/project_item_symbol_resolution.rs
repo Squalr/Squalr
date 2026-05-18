@@ -3,6 +3,7 @@ use squalr_engine_api::commands::memory::read::memory_read_response::MemoryReadR
 use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRequest;
 use squalr_engine_api::commands::privileged_command_response::TypedPrivilegedCommandResponse;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
+use squalr_engine_api::plugins::instruction_set::normalize_instruction_data_type_id;
 use squalr_engine_api::structures::data_values::container_type::ContainerType;
 use squalr_engine_api::structures::memory::pointer::Pointer;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
@@ -14,6 +15,7 @@ use squalr_engine_api::structures::projects::project_items::project_item::Projec
 use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
 use squalr_engine_api::structures::projects::project_symbol_locator::ProjectSymbolLocator;
 use squalr_engine_api::structures::structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition};
+use std::str::FromStr;
 use std::sync::{Arc, mpsc};
 
 pub fn is_promotable_project_item(project_item: &ProjectItem) -> bool {
@@ -21,6 +23,19 @@ pub fn is_promotable_project_item(project_item: &ProjectItem) -> bool {
 
     (project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID || project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID)
         && resolve_project_item_type_id(project_item).is_some()
+}
+
+pub fn can_open_project_item_in_memory_viewer(project_item: &ProjectItem) -> bool {
+    let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
+
+    project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID || project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID
+}
+
+pub fn should_open_project_item_in_code_viewer(project_item: &ProjectItem) -> bool {
+    resolve_project_item_struct_layout_id(&ProjectSymbolCatalog::default(), project_item)
+        .and_then(|symbolic_struct_namespace| normalize_instruction_data_type_id(&symbolic_struct_namespace))
+        .map(|data_type_id| matches!(data_type_id.as_str(), "i_x86" | "i_x64"))
+        .unwrap_or(false)
 }
 
 pub fn resolve_project_item_struct_layout_id(
@@ -42,6 +57,47 @@ pub fn resolve_project_item_struct_layout_id(
     }
 
     None
+}
+
+pub fn resolve_project_item_runtime_value_target(
+    engine_execution_context: &Arc<dyn EngineExecutionContext>,
+    project_symbol_catalog: Option<&ProjectSymbolCatalog>,
+    project_item: &ProjectItem,
+) -> Option<(u64, String)> {
+    let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
+
+    if project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
+        let mut project_item = project_item.clone();
+        let address_target = ProjectItemTypeAddress::get_address_target(&mut project_item);
+
+        return resolve_address_target_runtime_target_with_optional_catalog(engine_execution_context, project_symbol_catalog, &address_target);
+    }
+
+    if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
+        let pointer = ProjectItemTypePointer::get_field_pointer(project_item);
+
+        return resolve_pointer_runtime_target(engine_execution_context, &pointer);
+    }
+
+    None
+}
+
+pub fn resolve_project_item_runtime_value_byte_count(
+    engine_execution_context: &Arc<dyn EngineExecutionContext>,
+    project_item: &ProjectItem,
+) -> Option<u64> {
+    let symbolic_struct_namespace = resolve_project_item_struct_layout_id(&ProjectSymbolCatalog::default(), project_item)?;
+    let symbolic_field_definition = SymbolicFieldDefinition::from_str(&symbolic_struct_namespace).ok()?;
+    let unit_size_in_bytes = engine_execution_context
+        .get_default_value(symbolic_field_definition.get_data_type_ref())
+        .map(|default_value| default_value.get_size_in_bytes())
+        .unwrap_or(1);
+
+    Some(
+        symbolic_field_definition
+            .get_container_type()
+            .get_total_size_in_bytes(unit_size_in_bytes),
+    )
 }
 
 pub fn resolve_project_item_type_id(project_item: &ProjectItem) -> Option<&'static str> {
@@ -89,7 +145,15 @@ pub fn resolve_address_target_runtime_target(
     project_symbol_catalog: &ProjectSymbolCatalog,
     address_target: &ProjectItemAddressTarget,
 ) -> Option<(u64, String)> {
-    let runtime_pointer = resolve_address_target_runtime_pointer(project_symbol_catalog, address_target)?;
+    resolve_address_target_runtime_target_with_optional_catalog(engine_execution_context, Some(project_symbol_catalog), address_target)
+}
+
+pub fn resolve_address_target_runtime_target_with_optional_catalog(
+    engine_execution_context: &Arc<dyn EngineExecutionContext>,
+    project_symbol_catalog: Option<&ProjectSymbolCatalog>,
+    address_target: &ProjectItemAddressTarget,
+) -> Option<(u64, String)> {
+    let runtime_pointer = resolve_address_target_runtime_pointer_with_optional_catalog(project_symbol_catalog, address_target)?;
 
     if runtime_pointer.get_offset_segments().is_empty() {
         Some((runtime_pointer.get_address(), runtime_pointer.get_module_name().to_string()))
@@ -102,7 +166,17 @@ pub fn resolve_address_target_runtime_pointer(
     project_symbol_catalog: &ProjectSymbolCatalog,
     address_target: &ProjectItemAddressTarget,
 ) -> Option<Pointer> {
-    address_target.to_runtime_pointer_resolving_symbols(project_symbol_catalog)
+    resolve_address_target_runtime_pointer_with_optional_catalog(Some(project_symbol_catalog), address_target)
+}
+
+pub fn resolve_address_target_runtime_pointer_with_optional_catalog(
+    project_symbol_catalog: Option<&ProjectSymbolCatalog>,
+    address_target: &ProjectItemAddressTarget,
+) -> Option<Pointer> {
+    match project_symbol_catalog {
+        Some(project_symbol_catalog) => address_target.to_runtime_pointer_resolving_symbols(project_symbol_catalog),
+        None => address_target.to_runtime_pointer(),
+    }
 }
 
 pub fn resolve_pointer_runtime_target(
@@ -213,7 +287,7 @@ fn dispatch_memory_read_request(
 
 #[cfg(test)]
 mod tests {
-    use super::resolve_address_target_runtime_pointer;
+    use super::{resolve_address_target_runtime_pointer, resolve_address_target_runtime_pointer_with_optional_catalog};
     use squalr_engine_api::structures::{
         memory::pointer_chain_segment::PointerChainSegment,
         pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
@@ -267,5 +341,21 @@ mod tests {
 
         assert_eq!(runtime_pointer.get_address(), 0x59C);
         assert_eq!(runtime_pointer.get_offset_segments(), &[PointerChainSegment::Offset(0x240)]);
+    }
+
+    #[test]
+    fn resolve_address_target_runtime_pointer_supports_missing_catalog() {
+        let address_target = ProjectItemAddressTarget::new(
+            String::from("game.exe"),
+            vec![PointerChainSegment::Offset(0x59C)],
+            PointerScanPointerSize::Pointer64,
+        );
+
+        let runtime_pointer =
+            resolve_address_target_runtime_pointer_with_optional_catalog(None, &address_target).expect("Expected plain address target to resolve.");
+
+        assert_eq!(runtime_pointer.get_address(), 0x59C);
+        assert_eq!(runtime_pointer.get_module_name(), "game.exe");
+        assert!(runtime_pointer.get_offset_segments().is_empty());
     }
 }
