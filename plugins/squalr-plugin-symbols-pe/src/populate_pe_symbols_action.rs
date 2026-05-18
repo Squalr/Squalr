@@ -8,7 +8,10 @@ use squalr_engine_api::{
         data_types::data_type_ref::DataTypeRef,
         data_values::container_type::ContainerType,
         projects::{
-            project_symbol_catalog::ProjectSymbolCatalog, project_symbol_module::ProjectSymbolModule, project_symbol_module_field::ProjectSymbolModuleField,
+            project_symbol_catalog::ProjectSymbolCatalog,
+            project_symbol_module::ProjectSymbolModule,
+            project_symbol_module_field::ProjectSymbolModuleField,
+            symbol_layouts::symbol_layout_field_materializer::{SymbolLayoutFieldMaterializer, SymbolLayoutPositionedField},
         },
         structs::{
             symbolic_field_definition::{SymbolicFieldDefinition, SymbolicFieldOffsetResolution},
@@ -434,7 +437,16 @@ fn upsert_pe_module_root_layout_fields(
         .unwrap_or(0)
         .max(module_size)
         .max(maximum_field_end);
-    let rebuilt_fields = rebuild_sequential_layout_fields(positioned_fields)?;
+    let rebuilt_fields = SymbolLayoutFieldMaterializer::materialize_positioned_fields(
+        module_root_layout_definition.get_layout_kind(),
+        Some(declared_size_in_bytes),
+        positioned_fields
+            .into_iter()
+            .map(|positioned_field| {
+                SymbolLayoutPositionedField::new(positioned_field.offset, positioned_field.size_in_bytes, positioned_field.field_definition)
+            })
+            .collect(),
+    )?;
     let rebuilt_module_root_layout_definition = SymbolicStructDefinition::new_with_layout_kind(
         module_root_layout_definition.get_symbol_namespace().to_string(),
         module_root_layout_definition.get_layout_kind(),
@@ -495,38 +507,6 @@ fn positioned_layout_field_overlaps_range(
     };
 
     positioned_field.offset < desired_field_range.1 && desired_field_range.0 < field_end_offset
-}
-
-fn rebuild_sequential_layout_fields(positioned_fields: Vec<PositionedLayoutField>) -> Result<Vec<SymbolicFieldDefinition>, String> {
-    let mut rebuilt_fields = Vec::new();
-    let mut next_sequential_offset = 0_u64;
-
-    for positioned_field in positioned_fields {
-        if positioned_field.offset < next_sequential_offset {
-            return Err(format!(
-                "Cannot place PE field `{}` at 0x{:X}; it overlaps an earlier module-root layout field.",
-                positioned_field.field_definition.get_field_name(),
-                positioned_field.offset
-            ));
-        }
-
-        if positioned_field.offset > next_sequential_offset {
-            rebuilt_fields.push(SymbolicFieldDefinition::new_unassigned(
-                positioned_field.offset.saturating_sub(next_sequential_offset),
-            ));
-        }
-
-        rebuilt_fields.push(
-            positioned_field
-                .field_definition
-                .with_offset_resolution(SymbolicFieldOffsetResolution::Sequential),
-        );
-        next_sequential_offset = positioned_field
-            .offset
-            .saturating_add(positioned_field.size_in_bytes);
-    }
-
-    Ok(rebuilt_fields)
 }
 
 fn module_field_overlaps_desired_pe_range(
@@ -1354,11 +1334,12 @@ mod tests {
             .get_struct_layout_definition()
             .get_fields();
 
-        assert_eq!(module_root_fields.len(), 3);
+        assert_eq!(module_root_fields.len(), 4);
         assert_eq!(module_root_fields[0].get_field_name(), "PE Headers");
         assert_eq!(module_root_fields[0].get_data_type_ref().get_data_type_id(), PE_HEADERS32_ID);
         assert_eq!(module_root_fields[1].get_unassigned_size_in_bytes(), Some(0x579C - 0x1F0));
         assert_eq!(module_root_fields[2].get_field_name(), "winmine.exe+579C");
+        assert_eq!(module_root_fields[3].get_unassigned_size_in_bytes(), Some(0x6000 - 0x579D));
     }
 
     fn build_test_pe_header_bytes() -> Vec<u8> {

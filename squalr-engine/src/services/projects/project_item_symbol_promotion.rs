@@ -22,6 +22,7 @@ use squalr_engine_api::structures::projects::project_items::project_item_ref::Pr
 use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
 use squalr_engine_api::structures::projects::project_symbol_claim::ProjectSymbolClaim;
 use squalr_engine_api::structures::projects::project_symbol_locator::ProjectSymbolLocator;
+use squalr_engine_api::structures::projects::symbol_layouts::symbol_layout_field_materializer::{SymbolLayoutFieldMaterializer, SymbolLayoutPositionedField};
 use squalr_engine_api::structures::structs::symbolic_field_definition::{SymbolicFieldDefinition, SymbolicFieldOffsetResolution};
 use squalr_engine_api::structures::structs::symbolic_struct_definition::SymbolicStructDefinition;
 use std::collections::{BTreeMap, HashSet};
@@ -400,7 +401,7 @@ fn upsert_field_in_symbolic_struct_definition(
     let field_end_offset = offset_in_bytes
         .checked_add(field_size_in_bytes)
         .ok_or_else(|| String::from("Promoted field range is too large."))?;
-    let mut fields = struct_layout_definition.get_fields().to_vec();
+    let mut positioned_fields = Vec::new();
     let field_spans = collect_symbolic_field_spans(project_symbol_catalog, struct_layout_definition);
 
     for field_span in &field_spans {
@@ -420,24 +421,23 @@ fn upsert_field_in_symbolic_struct_definition(
                 struct_layout_definition.get_symbol_namespace()
             ));
         }
+
+        if field_span.offset_in_bytes != offset_in_bytes {
+            positioned_fields.push(SymbolLayoutPositionedField::new(
+                field_span.offset_in_bytes,
+                field_span.size_in_bytes,
+                struct_layout_definition.get_fields()[field_span.field_index].clone(),
+            ));
+        }
     }
 
     let promoted_field = build_promoted_symbolic_field(field_name, field_type_id, offset_in_bytes);
-    if let Some(existing_field_span) = field_spans
-        .iter()
-        .find(|field_span| field_span.offset_in_bytes == offset_in_bytes)
-    {
-        fields[existing_field_span.field_index] = promoted_field;
-    } else {
-        fields.push(promoted_field);
-    }
-
-    fields.sort_by(|left_field, right_field| {
-        resolve_static_offset(left_field)
-            .unwrap_or(u64::MAX)
-            .cmp(&resolve_static_offset(right_field).unwrap_or(u64::MAX))
-            .then_with(|| left_field.get_field_name().cmp(right_field.get_field_name()))
-    });
+    positioned_fields.push(SymbolLayoutPositionedField::new(offset_in_bytes, field_size_in_bytes, promoted_field));
+    let fields = SymbolLayoutFieldMaterializer::materialize_positioned_fields(
+        struct_layout_definition.get_layout_kind(),
+        struct_layout_definition.get_declared_size_in_bytes(),
+        positioned_fields,
+    )?;
 
     Ok(SymbolicStructDefinition::new_with_layout_kind(
         struct_layout_definition.get_symbol_namespace().to_string(),
@@ -497,13 +497,6 @@ fn collect_symbolic_field_spans(
     }
 
     field_spans
-}
-
-fn resolve_static_offset(symbolic_field_definition: &SymbolicFieldDefinition) -> Option<u64> {
-    match symbolic_field_definition.get_offset_resolution() {
-        SymbolicFieldOffsetResolution::Static(offset_in_bytes) => Some(*offset_in_bytes),
-        SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_) => None,
-    }
 }
 
 fn replace_struct_layout_definition(
@@ -1175,14 +1168,13 @@ mod tests {
         let module_root_fields = struct_layout_descriptors[0]
             .get_struct_layout_definition()
             .get_fields();
-        assert_eq!(module_root_fields.len(), 1);
-        assert_eq!(module_root_fields[0].get_field_name(), "Health");
-        assert_eq!(module_root_fields[0].get_data_type_ref().get_data_type_id(), "u8");
-        assert_eq!(module_root_fields[0].get_container_type(), ContainerType::None);
-        assert_eq!(
-            module_root_fields[0].get_offset_resolution(),
-            &SymbolicFieldOffsetResolution::new_static(0x1234)
-        );
+        assert_eq!(module_root_fields.len(), 3);
+        assert_eq!(module_root_fields[0].get_unassigned_size_in_bytes(), Some(0x1234));
+        assert_eq!(module_root_fields[1].get_field_name(), "Health");
+        assert_eq!(module_root_fields[1].get_data_type_ref().get_data_type_id(), "u8");
+        assert_eq!(module_root_fields[1].get_container_type(), ContainerType::None);
+        assert_eq!(module_root_fields[1].get_offset_resolution(), &SymbolicFieldOffsetResolution::Sequential);
+        assert_eq!(module_root_fields[2].get_unassigned_size_in_bytes(), Some(0x5000 - 0x1235));
         let promoted_project_item = loaded_project
             .get_project_items()
             .get(&ProjectItemRef::new(project_item_path.clone()))
@@ -1282,11 +1274,17 @@ mod tests {
             .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == "pe.headers")
             .expect("Expected nested header layout.");
 
-        assert_eq!(module_layout.get_struct_layout_definition().get_fields().len(), 1);
+        let module_fields = module_layout.get_struct_layout_definition().get_fields();
+        assert_eq!(module_fields.len(), 3);
+        assert_eq!(module_fields[0].get_unassigned_size_in_bytes(), Some(0x100));
+        assert_eq!(module_fields[1].get_field_name(), "Headers");
+        assert_eq!(module_fields[2].get_unassigned_size_in_bytes(), Some(0x5000 - 0x200));
         let header_fields = header_layout.get_struct_layout_definition().get_fields();
-        assert_eq!(header_fields.len(), 1);
-        assert_eq!(header_fields[0].get_field_name(), "Health");
-        assert_eq!(header_fields[0].get_offset_resolution(), &SymbolicFieldOffsetResolution::new_static(0x20));
+        assert_eq!(header_fields.len(), 3);
+        assert_eq!(header_fields[0].get_unassigned_size_in_bytes(), Some(0x20));
+        assert_eq!(header_fields[1].get_field_name(), "Health");
+        assert_eq!(header_fields[1].get_offset_resolution(), &SymbolicFieldOffsetResolution::Sequential);
+        assert_eq!(header_fields[2].get_unassigned_size_in_bytes(), Some(0x100 - 0x21));
     }
 
     #[test]
@@ -1606,12 +1604,12 @@ mod tests {
             .expect("Expected captured symbol catalog lock in test.");
         assert_eq!(captured_project_symbol_catalogs.len(), 1);
         assert_eq!(captured_project_symbol_catalogs[0].get_symbol_claims(), symbol_claims);
-        assert_eq!(
+        assert!(
             captured_project_symbol_catalogs[0].get_struct_layout_descriptors()[0]
                 .get_struct_layout_definition()
-                .get_fields()[0]
-                .get_field_name(),
-            "Health"
+                .get_fields()
+                .iter()
+                .any(|field_definition| field_definition.get_field_name() == "Health")
         );
     }
 

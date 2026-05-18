@@ -8,10 +8,7 @@ use crate::views::struct_viewer::view_data::struct_viewer_view_data::StructViewe
 use crate::views::symbol_layout_editor::view_data::symbol_layout_editor_view_data::SymbolLayoutEditorViewData;
 use eframe::egui::{RichText, ScrollArea, Ui};
 use squalr_engine_api::dependency_injection::dependency::Dependency;
-use squalr_engine_api::structures::{
-    data_types::data_type_ref::DataTypeRef,
-    projects::{project_symbol_catalog::ProjectSymbolCatalog, symbol_layouts::symbol_layout_visible_entry_counter::SymbolLayoutVisibleEntryCounter},
-};
+use squalr_engine_api::structures::{data_types::data_type_ref::DataTypeRef, projects::project_symbol_catalog::ProjectSymbolCatalog};
 use std::sync::Arc;
 
 pub(in crate::views::symbol_layout_editor::symbol_layout_editor_view) struct SymbolLayoutListPanelView<'view> {
@@ -103,10 +100,10 @@ impl<'view> SymbolLayoutListPanelView<'view> {
                 {
                     let struct_layout_id = struct_layout_descriptor.get_struct_layout_id();
                     let usage_count = SymbolLayoutEditorViewData::count_symbol_claim_usages(self.project_symbol_catalog, struct_layout_id);
-                    let visible_entry_count = SymbolLayoutVisibleEntryCounter::count_visible_entries(
-                        self.project_symbol_catalog,
-                        struct_layout_descriptor.get_struct_layout_definition(),
-                    );
+                    let visible_entry_count = struct_layout_descriptor
+                        .get_struct_layout_definition()
+                        .get_fields()
+                        .len();
                     let row_action = SymbolLayoutRowView::new(
                         self.app_context.clone(),
                         struct_layout_id,

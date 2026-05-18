@@ -4,7 +4,10 @@ use crate::structures::projects::project_symbol_claim::ProjectSymbolClaim;
 use crate::structures::projects::project_symbol_locator::ProjectSymbolLocator;
 use crate::structures::projects::project_symbol_module::ProjectSymbolModule;
 use crate::structures::projects::project_symbol_module_field::ProjectSymbolModuleField;
+use crate::structures::projects::symbol_layouts::symbol_layout_descriptor_builder::SymbolLayoutDescriptorBuilder;
+use crate::structures::projects::symbol_layouts::symbol_layout_field_materializer::{SymbolLayoutFieldMaterializer, SymbolLayoutPositionedField};
 use crate::structures::structs::symbolic_field_definition::SymbolicFieldDefinition;
+use crate::structures::structs::symbolic_field_definition::SymbolicFieldOffsetResolution;
 use crate::structures::structs::symbolic_struct_definition::SymbolicStructDefinition;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -190,24 +193,79 @@ impl ProjectSymbolCatalog {
             return;
         }
 
-        if let Some(module_struct_layout_descriptor) = self
+        if let Some(module_struct_layout_position) = self
             .struct_layout_descriptors
-            .iter_mut()
-            .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == module_name)
+            .iter()
+            .position(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == module_name)
         {
-            let updated_struct_layout_definition = module_struct_layout_descriptor
+            let updated_struct_layout_definition = self.struct_layout_descriptors[module_struct_layout_position]
                 .get_struct_layout_definition()
                 .clone()
                 .with_declared_size_in_bytes(Some(module_size_in_bytes));
-            *module_struct_layout_descriptor = StructLayoutDescriptor::new(module_name.to_string(), updated_struct_layout_definition);
+            let updated_struct_layout_definition = self.materialize_struct_layout_definition(updated_struct_layout_definition);
+            self.struct_layout_descriptors[module_struct_layout_position] =
+                StructLayoutDescriptor::new(module_name.to_string(), updated_struct_layout_definition);
         } else {
-            self.struct_layout_descriptors.push(StructLayoutDescriptor::new(
-                module_name.to_string(),
+            let struct_layout_definition = self.materialize_struct_layout_definition(
                 SymbolicStructDefinition::new(module_name.to_string(), Vec::new()).with_declared_size_in_bytes(Some(module_size_in_bytes)),
-            ));
+            );
+            self.struct_layout_descriptors
+                .push(StructLayoutDescriptor::new(module_name.to_string(), struct_layout_definition));
         }
 
         self.sort_struct_layout_descriptors_by_id();
+    }
+
+    fn materialize_struct_layout_definition(
+        &self,
+        symbolic_struct_definition: SymbolicStructDefinition,
+    ) -> SymbolicStructDefinition {
+        let mut positioned_fields = Vec::new();
+        let mut next_sequential_offset = 0_u64;
+
+        for symbolic_field_definition in symbolic_struct_definition.get_fields() {
+            if symbolic_field_definition.is_unassigned() {
+                next_sequential_offset = next_sequential_offset.saturating_add(
+                    symbolic_field_definition
+                        .get_unassigned_size_in_bytes()
+                        .unwrap_or(0),
+                );
+                continue;
+            }
+
+            let field_offset = match symbolic_field_definition.get_offset_resolution() {
+                SymbolicFieldOffsetResolution::Static(offset_in_bytes) => *offset_in_bytes,
+                SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_)
+                    if symbolic_struct_definition.get_layout_kind().is_union() =>
+                {
+                    0
+                }
+                SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_) => next_sequential_offset,
+            };
+            let field_size_in_bytes = SymbolLayoutDescriptorBuilder::resolve_symbolic_field_size_in_bytes(self, symbolic_field_definition, &mut HashSet::new());
+
+            next_sequential_offset = next_sequential_offset.max(field_offset.saturating_add(field_size_in_bytes));
+            positioned_fields.push(SymbolLayoutPositionedField::new(
+                field_offset,
+                field_size_in_bytes,
+                symbolic_field_definition.clone(),
+            ));
+        }
+
+        let Ok(materialized_fields) = SymbolLayoutFieldMaterializer::materialize_positioned_fields(
+            symbolic_struct_definition.get_layout_kind(),
+            symbolic_struct_definition.get_declared_size_in_bytes(),
+            positioned_fields,
+        ) else {
+            return symbolic_struct_definition;
+        };
+
+        SymbolicStructDefinition::new_with_layout_kind(
+            symbolic_struct_definition.get_symbol_namespace().to_string(),
+            symbolic_struct_definition.get_layout_kind(),
+            materialized_fields,
+        )
+        .with_declared_size_in_bytes(symbolic_struct_definition.get_declared_size_in_bytes())
     }
 
     pub fn rename_module_root_struct_layout(

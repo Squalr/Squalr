@@ -1,5 +1,5 @@
 pub mod symbol_layout_descriptor_builder;
 pub mod symbol_layout_details;
 pub mod symbol_layout_draft_ops;
+pub mod symbol_layout_field_materializer;
 pub mod symbol_layout_size_resolver;
-pub mod symbol_layout_visible_entry_counter;
