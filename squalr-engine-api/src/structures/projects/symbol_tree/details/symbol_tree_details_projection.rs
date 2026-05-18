@@ -218,8 +218,12 @@ impl SymbolTreeDetailsProjection {
             .collect()
     }
 
-    fn should_include_runtime_value_fields(symbol_tree_node: &SymbolTreeNode) -> bool {
-        !matches!(symbol_tree_node.get_kind(), SymbolTreeNodeKind::UnassignedSegment { .. })
+    pub fn should_include_runtime_value_fields(symbol_tree_node: &SymbolTreeNode) -> bool {
+        if matches!(symbol_tree_node.get_kind(), SymbolTreeNodeKind::UnassignedSegment { .. }) {
+            return false;
+        }
+
+        !(symbol_tree_node.can_expand() && symbol_tree_node.get_container_type() == ContainerType::None)
     }
 
     fn build_text_metadata_field(
@@ -313,6 +317,24 @@ mod tests {
             String::from("UNASSIGNED"),
             ContainerType::ArrayFixed(0x20),
             false,
+            false,
+        )
+    }
+
+    fn create_struct_symbol_claim_node() -> SymbolTreeNode {
+        SymbolTreeNode::new(
+            String::from("claim:absolute:1234"),
+            SymbolTreeNodeKind::SymbolClaim {
+                symbol_locator_key: String::from("absolute:1234"),
+            },
+            0,
+            String::from("Player"),
+            String::from("Player"),
+            String::from("absolute:1234"),
+            ProjectSymbolLocator::new_absolute_address(0x1234),
+            String::from("player"),
+            Default::default(),
+            true,
             false,
         )
     }
@@ -453,6 +475,32 @@ mod tests {
         assert!(
             details_projection
                 .get_field(&DetailsFieldId::new("value.value"))
+                .is_none()
+        );
+        assert!(
+            details_projection
+                .get_field(&DetailsFieldId::new("metadata.size"))
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn build_omits_runtime_value_fields_for_expandable_structs() {
+        let symbol_tree_node = create_struct_symbol_claim_node();
+        let runtime_value_struct = ValuedStruct::new_anonymous(vec![
+            DataTypeU32::get_value_from_primitive(100).to_named_valued_struct_field(String::from("health"), false),
+            DataTypeU32::get_value_from_primitive(200).to_named_valued_struct_field(String::from("mana"), false),
+        ]);
+        let details_projection = SymbolTreeDetailsProjection::build(&symbol_tree_node, true, Some(8), Some(&runtime_value_struct), None);
+
+        assert!(
+            details_projection
+                .get_field(&DetailsFieldId::new("value.health"))
+                .is_none()
+        );
+        assert!(
+            details_projection
+                .get_field(&DetailsFieldId::new("value.mana"))
                 .is_none()
         );
         assert!(

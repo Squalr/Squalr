@@ -18,7 +18,7 @@ pub(in crate::views::symbol_layout_editor::symbol_layout_editor_view) struct Sym
     app_context: Arc<AppContext>,
     layout_id: &'view str,
     layout_kind: SymbolicLayoutKind,
-    field_count: usize,
+    visible_entry_count: usize,
     usage_count: usize,
     is_selected: bool,
 }
@@ -28,7 +28,7 @@ impl<'view> SymbolLayoutRowView<'view> {
         app_context: Arc<AppContext>,
         layout_id: &'view str,
         layout_kind: SymbolicLayoutKind,
-        field_count: usize,
+        visible_entry_count: usize,
         usage_count: usize,
         is_selected: bool,
     ) -> Self {
@@ -36,7 +36,7 @@ impl<'view> SymbolLayoutRowView<'view> {
             app_context,
             layout_id,
             layout_kind,
-            field_count,
+            visible_entry_count,
             usage_count,
             is_selected,
         }
@@ -105,12 +105,12 @@ impl<'view> SymbolLayoutRowView<'view> {
         }
 
         row_user_interface.add_space(SymbolLayoutEditorView::FIELD_INPUT_SPACING);
-        let entry_count_label = if self.layout_kind.is_union() { "variants" } else { "fields" };
+        let entry_count_label = if self.layout_kind.is_union() { "variants" } else { "entries" };
         row_user_interface.label(
             RichText::new(format!(
                 "{} | {} {} | {} uses",
                 self.layout_kind.label(),
-                self.field_count,
+                self.visible_entry_count,
                 entry_count_label,
                 self.usage_count
             ))

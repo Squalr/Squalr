@@ -213,6 +213,10 @@ impl SymbolTreeRuntimeDataController {
             return SymbolTreeDetailsProjection::build(symbol_tree_entry, include_symbol_claim_metadata, symbol_size_in_bytes, None, None);
         }
 
+        if !SymbolTreeDetailsProjection::should_include_runtime_value_fields(symbol_tree_entry) {
+            return SymbolTreeDetailsProjection::build(symbol_tree_entry, include_symbol_claim_metadata, symbol_size_in_bytes, None, None);
+        }
+
         let Some(symbolic_struct_definition) = self.build_named_symbolic_struct_definition_for_symbol_tree_entry(project_symbol_catalog, symbol_tree_entry)
         else {
             return SymbolTreeDetailsProjection::build(
