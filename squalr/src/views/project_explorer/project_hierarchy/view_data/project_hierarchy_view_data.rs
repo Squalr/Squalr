@@ -1,5 +1,10 @@
 use crate::app_context::AppContext;
 use crate::ui::list_navigation::{ListNavigationDirection, resolve_next_index};
+use crate::views::project_explorer::project_hierarchy::project_hierarchy_clipboard_controller::ProjectHierarchyClipboardController;
+use crate::views::project_explorer::project_hierarchy::project_hierarchy_drop_operation_planner::{
+    ProjectHierarchyDropOperation, ProjectHierarchyDropOperationPlanner,
+};
+use crate::views::project_explorer::project_hierarchy::project_item_create_request_builder::ProjectItemCreateRequestBuilder;
 use crate::views::project_explorer::project_hierarchy::view_data::{
     project_hierarchy_clipboard::{ProjectHierarchyClipboard, ProjectHierarchyClipboardMode},
     project_hierarchy_create_item_kind::ProjectHierarchyCreateItemKind,
@@ -8,10 +13,10 @@ use crate::views::project_explorer::project_hierarchy::view_data::{
     project_hierarchy_pending_operation::ProjectHierarchyPendingOperation,
     project_hierarchy_take_over_state::ProjectHierarchyTakeOverState,
     project_hierarchy_tree_entry::ProjectHierarchyTreeEntry,
+    project_hierarchy_tree_model::ProjectHierarchyTreeModel,
 };
 use eframe::egui::Pos2;
 use squalr_engine_api::commands::project_items::activate::project_items_activate_request::ProjectItemsActivateRequest;
-use squalr_engine_api::commands::project_items::create::project_items_create_request::ProjectItemsCreateRequest;
 use squalr_engine_api::commands::project_items::delete::project_items_delete_request::ProjectItemsDeleteRequest;
 use squalr_engine_api::commands::project_items::duplicate::project_items_duplicate_request::ProjectItemsDuplicateRequest;
 use squalr_engine_api::commands::project_items::list::project_items_list_request::ProjectItemsListRequest;
@@ -21,10 +26,9 @@ use squalr_engine_api::commands::project_items::promote_symbol::project_items_pr
 use squalr_engine_api::commands::project_items::reorder::project_items_reorder_request::ProjectItemsReorderRequest;
 use squalr_engine_api::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
-use squalr_engine_api::structures::projects::project::Project;
 use squalr_engine_api::structures::projects::project_info::ProjectInfo;
 use squalr_engine_api::structures::projects::project_items::built_in_types::{
-    project_item_type_address::ProjectItemTypeAddress, project_item_type_directory::ProjectItemTypeDirectory, project_item_type_pointer::ProjectItemTypePointer,
+    project_item_type_address::ProjectItemTypeAddress, project_item_type_pointer::ProjectItemTypePointer,
 };
 use squalr_engine_api::structures::projects::project_items::{project_item::ProjectItem, project_item_ref::ProjectItemRef};
 use squalr_engine_api::structures::settings::scan_settings::ScanSettings;
@@ -32,28 +36,6 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-enum ProjectHierarchyDropOperation {
-    Reorder {
-        project_item_paths: Vec<PathBuf>,
-    },
-    Move {
-        project_item_paths: Vec<PathBuf>,
-        target_directory_path: PathBuf,
-    },
-    MoveAndReorder {
-        project_item_paths: Vec<PathBuf>,
-        target_directory_path: PathBuf,
-        reordered_project_item_paths: Vec<PathBuf>,
-    },
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct ProjectHierarchyPasteTarget {
-    target_directory_path: PathBuf,
-    insert_after_project_item_path: Option<PathBuf>,
-}
 
 #[derive(Clone)]
 pub struct ProjectHierarchyViewData {
@@ -149,7 +131,7 @@ impl ProjectHierarchyViewData {
                 requested_preview_project_item_paths.as_deref(),
             );
 
-            if let Some(project_root_directory_path) = Self::resolve_project_root_path(
+            if let Some(project_root_directory_path) = ProjectHierarchyTreeModel::resolve_project_root_path(
                 project_hierarchy_view_data.opened_project_info.as_ref(),
                 &project_hierarchy_view_data.project_items,
             ) {
@@ -623,7 +605,7 @@ impl ProjectHierarchyViewData {
             .map(|(_, project_item)| project_item);
 
         if selected_project_item
-            .map(Self::is_directory_project_item)
+            .map(ProjectHierarchyTreeModel::is_directory_project_item)
             .unwrap_or(false)
         {
             Some(selected_project_item_path.clone())
@@ -746,7 +728,7 @@ impl ProjectHierarchyViewData {
             .get_item_type()
             .get_project_item_type_id()
             .to_string();
-        let Some(project_root_path) = Self::resolve_project_root_path(
+        let Some(project_root_path) = ProjectHierarchyTreeModel::resolve_project_root_path(
             project_hierarchy_view_data.opened_project_info.as_ref(),
             &project_hierarchy_view_data.project_items,
         ) else {
@@ -957,7 +939,7 @@ impl ProjectHierarchyViewData {
                 return;
             }
 
-            let drop_operation = Self::build_drop_operation(
+            let drop_operation = ProjectHierarchyDropOperationPlanner::build(
                 project_hierarchy_view_data.opened_project_info.as_ref(),
                 &project_hierarchy_view_data.project_items,
                 &dragged_project_item_paths,
@@ -1131,7 +1113,12 @@ impl ProjectHierarchyViewData {
             Some(project_hierarchy_view_data) => project_hierarchy_view_data,
             None => return,
         };
-        let clipboard_project_item_paths = project_hierarchy_view_data.filter_clipboard_project_item_paths(project_item_paths);
+        let clipboard_project_item_paths = ProjectHierarchyClipboardController::filter_copy_paths(
+            project_hierarchy_view_data.opened_project_info.as_ref(),
+            &project_hierarchy_view_data.project_items,
+            &project_hierarchy_view_data.tree_entries,
+            project_item_paths,
+        );
 
         if clipboard_project_item_paths.is_empty() {
             project_hierarchy_view_data.project_item_clipboard.clear();
@@ -1157,8 +1144,12 @@ impl ProjectHierarchyViewData {
             Some(project_hierarchy_view_data) => project_hierarchy_view_data,
             None => return,
         };
-        let clipboard_project_item_paths = project_hierarchy_view_data.filter_deletable_project_item_paths(project_item_paths);
-        let clipboard_project_item_paths = project_hierarchy_view_data.reduce_project_item_paths_to_root_set(&clipboard_project_item_paths);
+        let clipboard_project_item_paths = ProjectHierarchyClipboardController::filter_cut_paths(
+            project_hierarchy_view_data.opened_project_info.as_ref(),
+            &project_hierarchy_view_data.project_items,
+            &project_hierarchy_view_data.tree_entries,
+            project_item_paths,
+        );
 
         if clipboard_project_item_paths.is_empty() {
             project_hierarchy_view_data.project_item_clipboard.clear();
@@ -1198,7 +1189,14 @@ impl ProjectHierarchyViewData {
     ) -> bool {
         project_hierarchy_view_data
             .read("Project hierarchy can paste project item clipboard")
-            .map(|project_hierarchy_view_data| project_hierarchy_view_data.can_paste_clipboard_into_target_path(target_project_item_path))
+            .map(|project_hierarchy_view_data| {
+                ProjectHierarchyClipboardController::can_paste(
+                    project_hierarchy_view_data.opened_project_info.as_ref(),
+                    &project_hierarchy_view_data.project_items,
+                    &project_hierarchy_view_data.project_item_clipboard,
+                    target_project_item_path,
+                )
+            })
             .unwrap_or(false)
     }
 
@@ -1208,7 +1206,9 @@ impl ProjectHierarchyViewData {
     ) -> bool {
         project_hierarchy_view_data
             .read("Project hierarchy is cut project item path")
-            .map(|project_hierarchy_view_data| project_hierarchy_view_data.is_cut_clipboard_project_item_path(project_item_path))
+            .map(|project_hierarchy_view_data| {
+                ProjectHierarchyClipboardController::is_cut_project_item_path(&project_hierarchy_view_data.project_item_clipboard, project_item_path)
+            })
             .unwrap_or(false)
     }
 
@@ -1243,9 +1243,8 @@ impl ProjectHierarchyViewData {
                     return;
                 }
 
-                let Some(paste_target) = project_hierarchy_view_data.resolve_clipboard_paste_target(&target_project_item_path) else {
-                    return;
-                };
+                let paste_target =
+                    ProjectHierarchyClipboardController::resolve_paste_target(&project_hierarchy_view_data.project_items, &target_project_item_path);
                 let Some(current_project_file_path) = project_hierarchy_view_data
                     .opened_project_info
                     .as_ref()
@@ -1277,8 +1276,13 @@ impl ProjectHierarchyViewData {
                     .project_item_clipboard
                     .get_mode()
                     .cloned();
-                let filtered_project_item_paths =
-                    project_hierarchy_view_data.filter_pasteable_project_item_paths(&clipboard_project_item_paths, &paste_target, clipboard_mode.as_ref());
+                let filtered_project_item_paths = ProjectHierarchyClipboardController::filter_pasteable_paths(
+                    project_hierarchy_view_data.opened_project_info.as_ref(),
+                    &project_hierarchy_view_data.project_items,
+                    &clipboard_project_item_paths,
+                    &paste_target,
+                    clipboard_mode.as_ref(),
+                );
 
                 if filtered_project_item_paths.is_empty() {
                     if clipboard_mode == Some(ProjectHierarchyClipboardMode::Cut) {
@@ -1319,7 +1323,7 @@ impl ProjectHierarchyViewData {
                             .collect::<Vec<_>>();
 
                         if let Some(insert_after_project_item_path) = paste_target.insert_after_project_item_path.clone() {
-                            let reordered_project_item_paths = Self::build_paste_reorder_paths_after_target(
+                            let reordered_project_item_paths = ProjectHierarchyTreeModel::build_reorder_paths_after_target(
                                 project_hierarchy_view_data.opened_project_info.as_ref(),
                                 &project_hierarchy_view_data.project_items,
                                 &insert_after_project_item_path,
@@ -1396,7 +1400,7 @@ impl ProjectHierarchyViewData {
                             project_hierarchy_view_data_clone
                                 .read("Project hierarchy duplicate project items reorder plan")
                                 .and_then(|project_hierarchy_view_data| {
-                                    Self::build_paste_reorder_paths_after_target(
+                                    ProjectHierarchyTreeModel::build_reorder_paths_after_target(
                                         project_hierarchy_view_data.opened_project_info.as_ref(),
                                         &project_hierarchy_view_data.project_items,
                                         insert_after_project_item_path,
@@ -1700,7 +1704,7 @@ impl ProjectHierarchyViewData {
     ) {
         let project_items_create_request = match project_hierarchy_view_data.write("Project hierarchy resolve create project item target") {
             Some(project_hierarchy_view_data) => {
-                Self::build_project_item_create_request(&project_hierarchy_view_data.project_items, &target_project_item_path, create_item_kind)
+                ProjectItemCreateRequestBuilder::build(&project_hierarchy_view_data.project_items, &target_project_item_path, create_item_kind)
             }
             None => return,
         };
@@ -1738,10 +1742,10 @@ impl ProjectHierarchyViewData {
                     .selected_project_item_path
                     .as_ref()
                     .map(|selected_project_item_path| {
-                        Self::resolve_directory_create_parent_path(&project_hierarchy_view_data.project_items, selected_project_item_path)
+                        ProjectItemCreateRequestBuilder::resolve_parent_directory_path(&project_hierarchy_view_data.project_items, selected_project_item_path)
                     })
                     .or_else(|| {
-                        Self::resolve_project_root_path(
+                        ProjectHierarchyTreeModel::resolve_project_root_path(
                             project_hierarchy_view_data.opened_project_info.as_ref(),
                             &project_hierarchy_view_data.project_items,
                         )
@@ -1779,11 +1783,13 @@ impl ProjectHierarchyViewData {
         project_items: &[(ProjectItemRef, ProjectItem)],
         expanded_directory_paths: &HashSet<PathBuf>,
     ) -> Vec<ProjectHierarchyTreeEntry> {
-        let (project_root_directory_path, project_item_map, child_paths_by_parent_path) =
-            match Self::build_project_hierarchy_maps(opened_project_info, project_items) {
-                Some(project_hierarchy_maps) => project_hierarchy_maps,
-                None => return Vec::new(),
-            };
+        let project_hierarchy_tree_model = match ProjectHierarchyTreeModel::build(opened_project_info, project_items) {
+            Some(project_hierarchy_tree_model) => project_hierarchy_tree_model,
+            None => return Vec::new(),
+        };
+        let project_root_directory_path = project_hierarchy_tree_model.root_directory_path;
+        let project_item_map = project_hierarchy_tree_model.project_item_map;
+        let child_paths_by_parent_path = project_hierarchy_tree_model.child_paths_by_parent_path;
 
         let mut visible_tree_entries = Vec::new();
         let root_is_expanded = expanded_directory_paths.contains(&project_root_directory_path);
@@ -1838,135 +1844,6 @@ impl ProjectHierarchyViewData {
         visible_tree_entries
     }
 
-    fn build_drop_operation(
-        opened_project_info: Option<&ProjectInfo>,
-        project_items: &[(ProjectItemRef, ProjectItem)],
-        dragged_project_item_paths: &[PathBuf],
-        drop_target: &ProjectHierarchyDropTarget,
-    ) -> Option<ProjectHierarchyDropOperation> {
-        if dragged_project_item_paths.is_empty() {
-            return None;
-        }
-
-        let (_project_root_directory_path, project_item_map, mut child_paths_by_parent_path) =
-            Self::build_project_hierarchy_maps(opened_project_info, project_items)?;
-        let target_project_item_path = drop_target.target_project_item_path();
-        let target_is_directory = Self::is_directory_path(target_project_item_path, &project_item_map);
-        let target_directory_path = match drop_target {
-            ProjectHierarchyDropTarget::Into(_) => {
-                if !target_is_directory {
-                    return None;
-                }
-
-                target_project_item_path.to_path_buf()
-            }
-            ProjectHierarchyDropTarget::Before(_) | ProjectHierarchyDropTarget::After(_) => target_project_item_path.parent()?.to_path_buf(),
-        };
-        let dragged_project_item_path_set = dragged_project_item_paths
-            .iter()
-            .cloned()
-            .collect::<HashSet<PathBuf>>();
-
-        if dragged_project_item_path_set.contains(target_project_item_path) {
-            return None;
-        }
-
-        if dragged_project_item_paths
-            .iter()
-            .any(|dragged_project_item_path| target_directory_path.starts_with(dragged_project_item_path))
-        {
-            return None;
-        }
-
-        let all_dragged_items_share_target_parent = dragged_project_item_paths
-            .iter()
-            .all(|dragged_project_item_path| dragged_project_item_path.parent() == Some(target_directory_path.as_path()));
-
-        if matches!(drop_target, ProjectHierarchyDropTarget::Into(_)) {
-            return Some(ProjectHierarchyDropOperation::Move {
-                project_item_paths: dragged_project_item_paths.to_vec(),
-                target_directory_path,
-            });
-        }
-
-        let dragged_paths_in_target_sibling_order: Vec<PathBuf> = child_paths_by_parent_path
-            .get(&target_directory_path)?
-            .iter()
-            .filter(|sibling_project_item_path| dragged_project_item_path_set.contains(*sibling_project_item_path))
-            .cloned()
-            .collect();
-        let sibling_paths = child_paths_by_parent_path.get_mut(&target_directory_path)?;
-        sibling_paths.retain(|sibling_project_item_path| !dragged_project_item_path_set.contains(sibling_project_item_path));
-        let target_sibling_index = sibling_paths
-            .iter()
-            .position(|project_item_path| project_item_path == target_project_item_path)?;
-        let insert_sibling_index = match drop_target {
-            ProjectHierarchyDropTarget::Before(_) => target_sibling_index,
-            ProjectHierarchyDropTarget::After(_) => target_sibling_index.saturating_add(1),
-            ProjectHierarchyDropTarget::Into(_) => return None,
-        };
-
-        if !all_dragged_items_share_target_parent {
-            let projected_dragged_project_item_paths: Vec<PathBuf> = dragged_project_item_paths
-                .iter()
-                .map(|dragged_project_item_path| target_directory_path.join(dragged_project_item_path.file_name().unwrap_or_default()))
-                .collect();
-
-            for (dragged_path_insert_index, projected_dragged_project_item_path) in projected_dragged_project_item_paths.iter().cloned().enumerate() {
-                sibling_paths.insert(insert_sibling_index + dragged_path_insert_index, projected_dragged_project_item_path);
-            }
-
-            return Some(ProjectHierarchyDropOperation::MoveAndReorder {
-                project_item_paths: dragged_project_item_paths.to_vec(),
-                target_directory_path,
-                reordered_project_item_paths: sibling_paths.clone(),
-            });
-        }
-
-        if dragged_paths_in_target_sibling_order.len() != dragged_project_item_path_set.len() {
-            return None;
-        }
-
-        for (dragged_path_insert_index, dragged_project_item_path) in dragged_paths_in_target_sibling_order.into_iter().enumerate() {
-            sibling_paths.insert(insert_sibling_index + dragged_path_insert_index, dragged_project_item_path);
-        }
-
-        Some(ProjectHierarchyDropOperation::Reorder {
-            project_item_paths: sibling_paths.clone(),
-        })
-    }
-
-    fn build_paste_reorder_paths_after_target(
-        opened_project_info: Option<&ProjectInfo>,
-        project_items: &[(ProjectItemRef, ProjectItem)],
-        target_project_item_path: &Path,
-        project_item_paths_to_insert: &[PathBuf],
-        project_item_paths_to_remove: &[PathBuf],
-    ) -> Option<Vec<PathBuf>> {
-        if project_item_paths_to_insert.is_empty() {
-            return None;
-        }
-
-        let (_project_root_directory_path, _project_item_map, mut child_paths_by_parent_path) =
-            Self::build_project_hierarchy_maps(opened_project_info, project_items)?;
-        let target_directory_path = target_project_item_path.parent()?.to_path_buf();
-        let sibling_paths = child_paths_by_parent_path.get_mut(&target_directory_path)?;
-        let project_item_paths_to_remove: HashSet<&PathBuf> = project_item_paths_to_remove.iter().collect();
-
-        sibling_paths.retain(|sibling_project_item_path| !project_item_paths_to_remove.contains(sibling_project_item_path));
-
-        let target_sibling_index = sibling_paths
-            .iter()
-            .position(|project_item_path| project_item_path == target_project_item_path)?;
-        let insert_sibling_index = target_sibling_index.saturating_add(1);
-
-        for (inserted_project_item_index, inserted_project_item_path) in project_item_paths_to_insert.iter().cloned().enumerate() {
-            sibling_paths.insert(insert_sibling_index + inserted_project_item_index, inserted_project_item_path);
-        }
-
-        Some(sibling_paths.clone())
-    }
-
     fn append_visible_entries(
         visible_tree_entries: &mut Vec<ProjectHierarchyTreeEntry>,
         parent_path: &PathBuf,
@@ -1985,7 +1862,7 @@ impl ProjectHierarchyViewData {
                 Some(project_item_pair) => project_item_pair,
                 None => continue,
             };
-            let is_directory = Self::is_directory_project_item(project_item);
+            let is_directory = ProjectHierarchyTreeModel::is_directory_project_item(project_item);
             let has_children = child_paths_by_parent_path
                 .get(child_path)
                 .map(|entries| !entries.is_empty())
@@ -2030,104 +1907,6 @@ impl ProjectHierarchyViewData {
         }
     }
 
-    fn build_sort_order_lookup(
-        project_info: &ProjectInfo,
-        project_directory_path: &Path,
-    ) -> HashMap<PathBuf, usize> {
-        project_info
-            .get_project_manifest()
-            .get_project_item_sort_order()
-            .iter()
-            .enumerate()
-            .map(|(sort_order_index, relative_project_item_path)| (project_directory_path.join(relative_project_item_path), sort_order_index))
-            .collect()
-    }
-
-    fn build_project_hierarchy_maps(
-        opened_project_info: Option<&ProjectInfo>,
-        project_items: &[(ProjectItemRef, ProjectItem)],
-    ) -> Option<(PathBuf, HashMap<PathBuf, (ProjectItemRef, ProjectItem)>, HashMap<PathBuf, Vec<PathBuf>>)> {
-        let project_root_directory_path = Self::resolve_project_root_path(opened_project_info, project_items)?;
-        let project_info = opened_project_info?;
-        let project_directory_path = project_info.get_project_directory()?;
-        let project_item_map: HashMap<PathBuf, (ProjectItemRef, ProjectItem)> = project_items
-            .iter()
-            .map(|(project_item_ref, project_item)| {
-                (
-                    project_item_ref.get_project_item_path().clone(),
-                    (project_item_ref.clone(), project_item.clone()),
-                )
-            })
-            .collect();
-        let sort_order_lookup = Self::build_sort_order_lookup(project_info, &project_directory_path);
-        let mut child_paths_by_parent_path: HashMap<PathBuf, Vec<PathBuf>> = HashMap::new();
-
-        for project_item_path in project_item_map.keys() {
-            if project_item_path == &project_root_directory_path {
-                continue;
-            }
-
-            let parent_path = project_item_path
-                .parent()
-                .map(Path::to_path_buf)
-                .unwrap_or_else(|| project_root_directory_path.clone());
-
-            child_paths_by_parent_path
-                .entry(parent_path)
-                .or_default()
-                .push(project_item_path.clone());
-        }
-
-        for child_paths in child_paths_by_parent_path.values_mut() {
-            child_paths.sort_by(|left_path, right_path| {
-                let left_order = sort_order_lookup.get(left_path).copied().unwrap_or(usize::MAX);
-                let right_order = sort_order_lookup.get(right_path).copied().unwrap_or(usize::MAX);
-
-                if left_order != right_order {
-                    return left_order.cmp(&right_order);
-                }
-
-                let left_is_directory = Self::is_directory_path(left_path, &project_item_map);
-                let right_is_directory = Self::is_directory_path(right_path, &project_item_map);
-
-                if left_is_directory != right_is_directory {
-                    return right_is_directory.cmp(&left_is_directory);
-                }
-
-                let left_name = left_path
-                    .file_name()
-                    .and_then(|value| value.to_str())
-                    .unwrap_or_default();
-                let right_name = right_path
-                    .file_name()
-                    .and_then(|value| value.to_str())
-                    .unwrap_or_default();
-
-                left_name.cmp(right_name)
-            });
-        }
-
-        Some((project_root_directory_path, project_item_map, child_paths_by_parent_path))
-    }
-
-    fn resolve_project_root_path(
-        opened_project_info: Option<&ProjectInfo>,
-        project_items: &[(ProjectItemRef, ProjectItem)],
-    ) -> Option<PathBuf> {
-        let project_info = opened_project_info?;
-        let project_directory_path = project_info.get_project_directory()?;
-        let hidden_project_root_path = project_directory_path.join(Project::PROJECT_DIR);
-        let contains_hidden_project_root = project_items
-            .iter()
-            .any(|(project_item_ref, _)| project_item_ref.get_project_item_path() == &hidden_project_root_path);
-
-        if contains_hidden_project_root {
-            Some(hidden_project_root_path)
-        } else {
-            Some(project_directory_path)
-        }
-    }
-
     fn expand_project_item_ancestor_directories(
         expanded_directory_paths: &mut HashSet<PathBuf>,
         project_item_path: &Path,
@@ -2155,20 +1934,6 @@ impl ProjectHierarchyViewData {
         for pasted_project_item_path in pasted_project_item_paths {
             Self::expand_project_item_ancestor_directories(&mut project_hierarchy_view_data.expanded_directory_paths, pasted_project_item_path);
         }
-    }
-
-    fn is_directory_path(
-        project_item_path: &Path,
-        project_item_map: &HashMap<PathBuf, (ProjectItemRef, ProjectItem)>,
-    ) -> bool {
-        project_item_map
-            .get(project_item_path)
-            .map(|(_, project_item)| Self::is_directory_project_item(project_item))
-            .unwrap_or(false)
-    }
-
-    fn is_directory_project_item(project_item: &ProjectItem) -> bool {
-        project_item.get_item_type().get_project_item_type_id() == ProjectItemTypeDirectory::PROJECT_ITEM_TYPE_ID
     }
 
     fn build_preview_value(project_item: &ProjectItem) -> String {
@@ -2213,87 +1978,6 @@ impl ProjectHierarchyViewData {
         String::from_utf8(data_value.get_value_bytes().clone()).unwrap_or_default()
     }
 
-    fn resolve_directory_create_parent_path(
-        project_items: &[(ProjectItemRef, ProjectItem)],
-        target_project_item_path: &Path,
-    ) -> PathBuf {
-        let is_target_directory = project_items
-            .iter()
-            .find(|(project_item_ref, _)| project_item_ref.get_project_item_path() == target_project_item_path)
-            .map(|(_, project_item)| Self::is_directory_project_item(project_item))
-            .unwrap_or(false);
-
-        if is_target_directory {
-            target_project_item_path.to_path_buf()
-        } else {
-            target_project_item_path
-                .parent()
-                .map(Path::to_path_buf)
-                .unwrap_or_else(|| target_project_item_path.to_path_buf())
-        }
-    }
-
-    fn build_unique_directory_name(
-        project_items: &[(ProjectItemRef, ProjectItem)],
-        parent_directory_path: &Path,
-    ) -> String {
-        const BASE_DIRECTORY_NAME: &str = "New Folder";
-        let existing_children: HashSet<String> = project_items
-            .iter()
-            .map(|(project_item_ref, _)| project_item_ref.get_project_item_path())
-            .filter(|project_item_path| project_item_path.parent() == Some(parent_directory_path))
-            .filter_map(|project_item_path| {
-                project_item_path
-                    .file_name()
-                    .and_then(|value| value.to_str())
-                    .map(str::to_string)
-            })
-            .collect();
-
-        if !existing_children.contains(BASE_DIRECTORY_NAME) {
-            return BASE_DIRECTORY_NAME.to_string();
-        }
-
-        let mut directory_suffix_index = 2usize;
-        loop {
-            let candidate_name = format!("{} {}", BASE_DIRECTORY_NAME, directory_suffix_index);
-            if !existing_children.contains(&candidate_name) {
-                return candidate_name;
-            }
-
-            directory_suffix_index += 1;
-        }
-    }
-
-    fn build_project_item_create_request(
-        project_items: &[(ProjectItemRef, ProjectItem)],
-        target_project_item_path: &Path,
-        create_item_kind: ProjectHierarchyCreateItemKind,
-    ) -> ProjectItemsCreateRequest {
-        let parent_directory_path = Self::resolve_directory_create_parent_path(project_items, target_project_item_path);
-
-        match create_item_kind {
-            ProjectHierarchyCreateItemKind::Directory => ProjectItemsCreateRequest {
-                parent_directory_path: parent_directory_path.clone(),
-                project_item_name: Self::build_unique_directory_name(project_items, &parent_directory_path),
-                is_directory: true,
-                address: None,
-                module_name: None,
-                data_type_id: None,
-                pointer_offsets: None,
-            },
-            ProjectHierarchyCreateItemKind::Address => ProjectItemsCreateRequest {
-                parent_directory_path,
-                project_item_name: ProjectItemTypeAddress::DEFAULT_PROJECT_ITEM_NAME.to_string(),
-                is_directory: false,
-                address: Some(0),
-                module_name: Some(String::new()),
-                data_type_id: None,
-                pointer_offsets: None,
-            },
-        }
-    }
-
     fn filter_deletable_project_item_paths(
         &self,
         project_item_paths: Vec<PathBuf>,
@@ -2317,152 +2001,10 @@ impl ProjectHierarchyViewData {
         &self,
         project_item_path: &Path,
     ) -> bool {
-        Self::resolve_project_root_path(self.opened_project_info.as_ref(), &self.project_items)
+        ProjectHierarchyTreeModel::resolve_project_root_path(self.opened_project_info.as_ref(), &self.project_items)
             .as_ref()
             .map(|root_project_item_path| root_project_item_path == project_item_path)
             .unwrap_or(false)
-    }
-
-    fn filter_clipboard_project_item_paths(
-        &self,
-        project_item_paths: Vec<PathBuf>,
-    ) -> Vec<PathBuf> {
-        let copyable_project_item_paths = project_item_paths
-            .into_iter()
-            .filter(|project_item_path| !self.is_protected_project_item_path(project_item_path))
-            .collect::<Vec<PathBuf>>();
-
-        self.reduce_project_item_paths_to_root_set(&copyable_project_item_paths)
-    }
-
-    fn reduce_project_item_paths_to_root_set(
-        &self,
-        project_item_paths: &[PathBuf],
-    ) -> Vec<PathBuf> {
-        let selected_project_item_path_set: HashSet<&PathBuf> = project_item_paths.iter().collect();
-
-        self.tree_entries
-            .iter()
-            .map(|tree_entry| tree_entry.project_item_path.clone())
-            .filter(|project_item_path| selected_project_item_path_set.contains(project_item_path))
-            .filter(|project_item_path| {
-                !project_item_paths
-                    .iter()
-                    .any(|candidate_root_path| candidate_root_path != project_item_path && project_item_path.starts_with(candidate_root_path))
-            })
-            .collect()
-    }
-
-    fn resolve_clipboard_paste_target(
-        &self,
-        target_project_item_path: &Path,
-    ) -> Option<ProjectHierarchyPasteTarget> {
-        let target_directory_path = Self::resolve_directory_create_parent_path(&self.project_items, target_project_item_path);
-        let insert_after_project_item_path = if Self::is_directory_project_item_path(&self.project_items, target_project_item_path) {
-            None
-        } else {
-            Some(target_project_item_path.to_path_buf())
-        };
-
-        Some(ProjectHierarchyPasteTarget {
-            target_directory_path,
-            insert_after_project_item_path,
-        })
-    }
-
-    fn can_paste_clipboard_into_target_path(
-        &self,
-        target_project_item_path: &Path,
-    ) -> bool {
-        let Some(current_project_file_path) = self
-            .opened_project_info
-            .as_ref()
-            .map(|opened_project_info| opened_project_info.get_project_file_path().clone())
-        else {
-            return false;
-        };
-        let Some(paste_target) = self.resolve_clipboard_paste_target(target_project_item_path) else {
-            return false;
-        };
-
-        if self.project_item_clipboard.get_project_file_path() != Some(&current_project_file_path) {
-            return false;
-        }
-
-        !self
-            .filter_pasteable_project_item_paths(
-                self.project_item_clipboard.get_project_item_paths(),
-                &paste_target,
-                self.project_item_clipboard.get_mode(),
-            )
-            .is_empty()
-    }
-
-    fn filter_pasteable_project_item_paths(
-        &self,
-        project_item_paths: &[PathBuf],
-        paste_target: &ProjectHierarchyPasteTarget,
-        clipboard_mode: Option<&ProjectHierarchyClipboardMode>,
-    ) -> Vec<PathBuf> {
-        project_item_paths
-            .iter()
-            .filter(|project_item_path| !self.is_protected_project_item_path(project_item_path))
-            .filter(|project_item_path| match clipboard_mode {
-                Some(ProjectHierarchyClipboardMode::Copy) => {
-                    !Self::is_directory_project_item_path(&self.project_items, project_item_path)
-                        || (!paste_target
-                            .target_directory_path
-                            .starts_with(project_item_path.as_path())
-                            && !paste_target
-                                .insert_after_project_item_path
-                                .as_ref()
-                                .map(|insert_after_project_item_path| insert_after_project_item_path.starts_with(project_item_path))
-                                .unwrap_or(false))
-                }
-                Some(ProjectHierarchyClipboardMode::Cut) => {
-                    if paste_target
-                        .target_directory_path
-                        .starts_with(project_item_path.as_path())
-                    {
-                        return false;
-                    }
-
-                    match &paste_target.insert_after_project_item_path {
-                        Some(insert_after_project_item_path) => {
-                            *project_item_path != insert_after_project_item_path && !insert_after_project_item_path.starts_with(project_item_path)
-                        }
-                        None => project_item_path.parent() != Some(paste_target.target_directory_path.as_path()),
-                    }
-                }
-                None => false,
-            })
-            .cloned()
-            .collect()
-    }
-
-    fn is_directory_project_item_path(
-        project_items: &[(ProjectItemRef, ProjectItem)],
-        project_item_path: &Path,
-    ) -> bool {
-        project_items
-            .iter()
-            .find(|(project_item_ref, _)| project_item_ref.get_project_item_path() == project_item_path)
-            .map(|(_, project_item)| Self::is_directory_project_item(project_item))
-            .unwrap_or(false)
-    }
-
-    fn is_cut_clipboard_project_item_path(
-        &self,
-        project_item_path: &Path,
-    ) -> bool {
-        if !self.project_item_clipboard.is_cut() {
-            return false;
-        }
-
-        self.project_item_clipboard
-            .get_project_item_paths()
-            .iter()
-            .any(|cut_project_item_path| project_item_path == cut_project_item_path || project_item_path.starts_with(cut_project_item_path))
     }
 
     fn retain_valid_selection(&mut self) {
