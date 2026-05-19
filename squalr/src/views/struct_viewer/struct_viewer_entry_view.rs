@@ -28,7 +28,11 @@ use squalr_engine_api::{
         data_types::data_type_ref::DataTypeRef,
         data_values::anonymous_value_string::AnonymousValueString,
         pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
-        projects::project_symbol_catalog::ProjectSymbolCatalog,
+        projects::{
+            project_symbol_catalog::ProjectSymbolCatalog,
+            symbol_layouts::symbol_layout_details::{SymbolLayoutDetailsFieldContainerKind, SymbolLayoutDetailsFieldElementKind},
+            symbol_resolvers::symbol_resolver_details::SymbolResolverDetailsNodeKind,
+        },
         scanning::comparisons::{scan_compare_type_delta::ScanCompareTypeDelta, scan_compare_type_immediate::ScanCompareTypeImmediate},
         structs::valued_struct_field::{ValuedStructField, ValuedStructFieldData},
         structs::{
@@ -60,27 +64,6 @@ impl<'lifetime> StructViewerEntryView<'lifetime> {
         PointerScanPointerSize::Pointer32be,
         PointerScanPointerSize::Pointer64,
         PointerScanPointerSize::Pointer64be,
-    ];
-    const SYMBOL_RESOLVER_NODE_KIND_LABELS: [&'static str; 9] = [
-        "Literal",
-        "Local Field",
-        "Relative Symbol Field",
-        "Global Symbol Field",
-        "Relative Pointer Chain",
-        "Global Pointer Chain",
-        "Type Size",
-        "Operation",
-        "Conditional",
-    ];
-    const SYMBOL_LAYOUT_FIELD_ELEMENT_TYPE_LABELS: [&'static str; 2] = ["Data Type", "Symbol Layout"];
-    const SYMBOL_LAYOUT_FIELD_CONTAINER_KIND_LABELS: [&'static str; 7] = [
-        "Element",
-        "Array",
-        "Fixed Array",
-        "Dynamic Array",
-        "Pointer",
-        "Fixed Pointer Array",
-        "Dynamic Pointer Array",
     ];
     const SEARCHABLE_SELECTOR_POPUP_DEFAULT_WIDTH: f32 = 240.0;
     const SEARCHABLE_SELECTOR_POPUP_MAX_WIDTH: f32 = 640.0;
@@ -912,13 +895,11 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                     self.row_index,
                     self.valued_struct_field.get_name()
                 );
-                let current_node_kind = StructViewerViewData::read_utf8_field_text(self.valued_struct_field);
-                let node_kind_label = Self::SYMBOL_RESOLVER_NODE_KIND_LABELS
-                    .iter()
-                    .copied()
-                    .find(|candidate_label| *candidate_label == current_node_kind)
-                    .unwrap_or("Literal");
-                let mut selected_node_kind_label = None;
+                let current_node_kind_key = StructViewerViewData::read_utf8_field_text(self.valued_struct_field);
+                let node_kind_label = SymbolResolverDetailsNodeKind::from_key(&current_node_kind_key)
+                    .unwrap_or(SymbolResolverDetailsNodeKind::Literal)
+                    .label();
+                let mut selected_node_kind_key = None;
                 let trailing_checkbox_space = Self::trailing_action_slot_width(commit_button_width, value_column_padding);
                 let node_kind_width = (row_max_x - value_box_position_x - trailing_checkbox_space).max(0.0);
 
@@ -933,12 +914,13 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                         &node_kind_selector_id,
                         None,
                         |popup_user_interface: &mut Ui, should_close: &mut bool| {
-                            for candidate_label in Self::SYMBOL_RESOLVER_NODE_KIND_LABELS {
+                            for candidate_node_kind in SymbolResolverDetailsNodeKind::ALL {
+                                let candidate_label = candidate_node_kind.label();
                                 let node_kind_response =
                                     popup_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), candidate_label, None, node_kind_width));
 
                                 if node_kind_response.clicked() {
-                                    selected_node_kind_label = Some(candidate_label);
+                                    selected_node_kind_key = Some(candidate_node_kind.key());
                                     *should_close = true;
                                 }
                             }
@@ -949,8 +931,8 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                     .height(available_size_rect.height()),
                 );
 
-                if let Some(selected_node_kind_label) = selected_node_kind_label {
-                    Self::commit_symbol_resolver_text_selection(self.valued_struct_field, selected_node_kind_label, self.struct_viewer_frame_action);
+                if let Some(selected_node_kind_key) = selected_node_kind_key {
+                    Self::commit_symbol_resolver_text_selection(self.valued_struct_field, selected_node_kind_key, self.struct_viewer_frame_action);
                 }
             }
             StructViewerFieldEditorKind::SymbolResolverOperatorSelector => {
@@ -959,19 +941,11 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                     self.row_index,
                     self.valued_struct_field.get_name()
                 );
-                let current_operator = StructViewerViewData::read_utf8_field_text(self.valued_struct_field);
-                let operator_label = SymbolicResolverBinaryOperator::ALL
-                    .iter()
-                    .copied()
-                    .map(SymbolicResolverBinaryOperator::label)
-                    .find(|candidate_label| *candidate_label == current_operator)
-                    .unwrap_or(SymbolicResolverBinaryOperator::Add.label());
-                let current_operator_icon = SymbolicResolverBinaryOperator::ALL
-                    .iter()
-                    .copied()
-                    .find(|candidate_operator| candidate_operator.label() == operator_label)
-                    .and_then(|candidate_operator| Self::symbol_resolver_operator_icon(&self.app_context, candidate_operator));
-                let mut selected_operator_label = None;
+                let current_operator_key = StructViewerViewData::read_utf8_field_text(self.valued_struct_field);
+                let current_operator = SymbolicResolverBinaryOperator::from_key(&current_operator_key).unwrap_or(SymbolicResolverBinaryOperator::Add);
+                let operator_label = current_operator.label();
+                let current_operator_icon = Self::symbol_resolver_operator_icon(&self.app_context, current_operator);
+                let mut selected_operator_key = None;
                 let trailing_checkbox_space = Self::trailing_action_slot_width(commit_button_width, value_column_padding);
                 let operator_width = (row_max_x - value_box_position_x - trailing_checkbox_space).max(0.0);
 
@@ -993,7 +967,7 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                                     popup_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), candidate_label, candidate_icon, operator_width));
 
                                 if operator_response.clicked() {
-                                    selected_operator_label = Some(candidate_label);
+                                    selected_operator_key = Some(candidate_operator.key());
                                     *should_close = true;
                                 }
                             }
@@ -1004,8 +978,8 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                     .height(available_size_rect.height()),
                 );
 
-                if let Some(selected_operator_label) = selected_operator_label {
-                    Self::commit_symbol_resolver_text_selection(self.valued_struct_field, selected_operator_label, self.struct_viewer_frame_action);
+                if let Some(selected_operator_key) = selected_operator_key {
+                    Self::commit_symbol_resolver_text_selection(self.valued_struct_field, selected_operator_key, self.struct_viewer_frame_action);
                 }
             }
             StructViewerFieldEditorKind::SymbolLayoutFieldElementTypeSelector => {
@@ -1014,13 +988,11 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                     self.row_index,
                     self.valued_struct_field.get_name()
                 );
-                let current_element_type = StructViewerViewData::read_utf8_field_text(self.valued_struct_field);
-                let element_type_label = Self::SYMBOL_LAYOUT_FIELD_ELEMENT_TYPE_LABELS
-                    .iter()
-                    .copied()
-                    .find(|candidate_label| *candidate_label == current_element_type)
-                    .unwrap_or("Data Type");
-                let mut selected_element_type_label = None;
+                let current_element_type_key = StructViewerViewData::read_utf8_field_text(self.valued_struct_field);
+                let element_type_label = SymbolLayoutDetailsFieldElementKind::from_key(&current_element_type_key)
+                    .unwrap_or_default()
+                    .label();
+                let mut selected_element_type_key = None;
                 let trailing_checkbox_space = Self::trailing_action_slot_width(commit_button_width, value_column_padding);
                 let element_type_width = (row_max_x - value_box_position_x - trailing_checkbox_space).max(0.0);
 
@@ -1035,12 +1007,13 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                         &element_type_selector_id,
                         None,
                         |popup_user_interface: &mut Ui, should_close: &mut bool| {
-                            for candidate_label in Self::SYMBOL_LAYOUT_FIELD_ELEMENT_TYPE_LABELS {
+                            for candidate_element_kind in SymbolLayoutDetailsFieldElementKind::ALL {
+                                let candidate_label = candidate_element_kind.label();
                                 let element_type_response =
                                     popup_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), candidate_label, None, element_type_width));
 
                                 if element_type_response.clicked() {
-                                    selected_element_type_label = Some(candidate_label);
+                                    selected_element_type_key = Some(candidate_element_kind.key());
                                     *should_close = true;
                                 }
                             }
@@ -1051,20 +1024,17 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                     .height(available_size_rect.height()),
                 );
 
-                if let Some(selected_element_type_label) = selected_element_type_label {
-                    Self::commit_symbol_resolver_text_selection(self.valued_struct_field, selected_element_type_label, self.struct_viewer_frame_action);
+                if let Some(selected_element_type_key) = selected_element_type_key {
+                    Self::commit_symbol_resolver_text_selection(self.valued_struct_field, selected_element_type_key, self.struct_viewer_frame_action);
                 }
             }
             StructViewerFieldEditorKind::SymbolLayoutKindSelector => {
                 let layout_kind_selector_id = format!("struct_viewer_symbol_layout_kind_{}_{}", self.row_index, self.valued_struct_field.get_name());
-                let current_layout_kind = StructViewerViewData::read_utf8_field_text(self.valued_struct_field);
-                let layout_kind_label = SymbolicLayoutKind::ALL
-                    .iter()
-                    .copied()
-                    .map(|layout_kind| layout_kind.label())
-                    .find(|candidate_label| *candidate_label == current_layout_kind)
-                    .unwrap_or(SymbolicLayoutKind::Struct.label());
-                let mut selected_layout_kind_label = None;
+                let current_layout_kind_key = StructViewerViewData::read_utf8_field_text(self.valued_struct_field);
+                let layout_kind_label = SymbolicLayoutKind::from_key(&current_layout_kind_key)
+                    .unwrap_or_default()
+                    .label();
+                let mut selected_layout_kind_key = None;
                 let trailing_checkbox_space = Self::trailing_action_slot_width(commit_button_width, value_column_padding);
                 let layout_kind_width = (row_max_x - value_box_position_x - trailing_checkbox_space).max(0.0);
 
@@ -1085,7 +1055,7 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                                     popup_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), candidate_label, None, layout_kind_width));
 
                                 if layout_kind_response.clicked() {
-                                    selected_layout_kind_label = Some(candidate_label);
+                                    selected_layout_kind_key = Some(candidate_layout_kind.key());
                                     *should_close = true;
                                 }
                             }
@@ -1096,8 +1066,8 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                     .height(available_size_rect.height()),
                 );
 
-                if let Some(selected_layout_kind_label) = selected_layout_kind_label {
-                    Self::commit_symbol_resolver_text_selection(self.valued_struct_field, selected_layout_kind_label, self.struct_viewer_frame_action);
+                if let Some(selected_layout_kind_key) = selected_layout_kind_key {
+                    Self::commit_symbol_resolver_text_selection(self.valued_struct_field, selected_layout_kind_key, self.struct_viewer_frame_action);
                 }
             }
             StructViewerFieldEditorKind::SymbolLayoutFieldSymbolLayoutSelector => {
@@ -1300,13 +1270,11 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                     self.row_index,
                     self.valued_struct_field.get_name()
                 );
-                let current_container_kind = StructViewerViewData::read_utf8_field_text(self.valued_struct_field);
-                let container_kind_label = Self::SYMBOL_LAYOUT_FIELD_CONTAINER_KIND_LABELS
-                    .iter()
-                    .copied()
-                    .find(|candidate_label| *candidate_label == current_container_kind)
-                    .unwrap_or("Element");
-                let mut selected_container_kind_label = None;
+                let current_container_kind_key = StructViewerViewData::read_utf8_field_text(self.valued_struct_field);
+                let container_kind_label = SymbolLayoutDetailsFieldContainerKind::from_key(&current_container_kind_key)
+                    .unwrap_or_default()
+                    .label();
+                let mut selected_container_kind_key = None;
                 let trailing_checkbox_space = Self::trailing_action_slot_width(commit_button_width, value_column_padding);
                 let container_kind_width = (row_max_x - value_box_position_x - trailing_checkbox_space).max(0.0);
 
@@ -1321,12 +1289,13 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                         &container_kind_selector_id,
                         None,
                         |popup_user_interface: &mut Ui, should_close: &mut bool| {
-                            for candidate_label in Self::SYMBOL_LAYOUT_FIELD_CONTAINER_KIND_LABELS {
+                            for candidate_container_kind in SymbolLayoutDetailsFieldContainerKind::ALL {
+                                let candidate_label = candidate_container_kind.label();
                                 let container_kind_response =
                                     popup_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), candidate_label, None, container_kind_width));
 
                                 if container_kind_response.clicked() {
-                                    selected_container_kind_label = Some(candidate_label);
+                                    selected_container_kind_key = Some(candidate_container_kind.key());
                                     *should_close = true;
                                 }
                             }
@@ -1337,8 +1306,8 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                     .height(available_size_rect.height()),
                 );
 
-                if let Some(selected_container_kind_label) = selected_container_kind_label {
-                    Self::commit_symbol_resolver_text_selection(self.valued_struct_field, selected_container_kind_label, self.struct_viewer_frame_action);
+                if let Some(selected_container_kind_key) = selected_container_kind_key {
+                    Self::commit_symbol_resolver_text_selection(self.valued_struct_field, selected_container_kind_key, self.struct_viewer_frame_action);
                 }
             }
             StructViewerFieldEditorKind::SymbolLayoutFieldPointerSizeSelector => {

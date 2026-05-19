@@ -24,6 +24,22 @@ impl SymbolicLayoutKind {
         }
     }
 
+    pub fn key(&self) -> &'static str {
+        match self {
+            Self::Struct => "struct",
+            Self::Union => "union",
+        }
+    }
+
+    pub fn from_key(key: &str) -> Option<Self> {
+        let trimmed_key = key.trim();
+
+        Self::ALL
+            .iter()
+            .copied()
+            .find(|layout_kind| layout_kind.key() == trimmed_key)
+    }
+
     pub fn is_union(&self) -> bool {
         matches!(self, Self::Union)
     }

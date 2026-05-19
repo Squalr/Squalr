@@ -23,6 +23,18 @@ pub enum SymbolResolverDetailsNodeKind {
 }
 
 impl SymbolResolverDetailsNodeKind {
+    pub const ALL: [Self; 9] = [
+        Self::Literal,
+        Self::LocalField,
+        Self::RelativeSymbolField,
+        Self::GlobalSymbolField,
+        Self::RelativePointerChain,
+        Self::GlobalPointerChain,
+        Self::TypeSize,
+        Self::Operation,
+        Self::Conditional,
+    ];
+
     pub fn from_node(resolver_node: &SymbolicResolverNode) -> Self {
         match resolver_node {
             SymbolicResolverNode::Literal(_) => Self::Literal,
@@ -51,19 +63,27 @@ impl SymbolResolverDetailsNodeKind {
         }
     }
 
-    pub fn from_label(label: &str) -> Option<Self> {
-        match label.trim() {
-            "Literal" => Some(Self::Literal),
-            "Local Field" => Some(Self::LocalField),
-            "Relative Symbol Field" | "Symbol Field" => Some(Self::RelativeSymbolField),
-            "Global Symbol Field" => Some(Self::GlobalSymbolField),
-            "Relative Pointer Chain" => Some(Self::RelativePointerChain),
-            "Global Pointer Chain" => Some(Self::GlobalPointerChain),
-            "Type Size" => Some(Self::TypeSize),
-            "Operation" => Some(Self::Operation),
-            "Conditional" => Some(Self::Conditional),
-            _ => None,
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::Literal => "literal",
+            Self::LocalField => "local_field",
+            Self::RelativeSymbolField => "relative_symbol_field",
+            Self::GlobalSymbolField => "global_symbol_field",
+            Self::RelativePointerChain => "relative_pointer_chain",
+            Self::GlobalPointerChain => "global_pointer_chain",
+            Self::TypeSize => "type_size",
+            Self::Operation => "operation",
+            Self::Conditional => "conditional",
         }
+    }
+
+    pub fn from_key(key: &str) -> Option<Self> {
+        let trimmed_key = key.trim();
+
+        Self::ALL
+            .iter()
+            .copied()
+            .find(|node_kind| node_kind.key() == trimmed_key)
     }
 }
 
@@ -119,7 +139,7 @@ impl SymbolResolverDetails {
         let mut fields = vec![Self::text_field(
             Self::FIELD_ID_NODE_KIND,
             "Type",
-            SymbolResolverDetailsNodeKind::from_node(resolver_node).label(),
+            SymbolResolverDetailsNodeKind::from_node(resolver_node).key(),
             false,
         )];
 
@@ -172,7 +192,7 @@ impl SymbolResolverDetails {
                 fields.push(Self::text_field(Self::FIELD_ID_DATA_TYPE, "Data Type", data_type_ref.get_data_type_id(), false));
             }
             SymbolicResolverNode::Binary { operator, .. } => {
-                fields.push(Self::text_field(Self::FIELD_ID_OPERATOR, "Operator", operator.label(), false));
+                fields.push(Self::text_field(Self::FIELD_ID_OPERATOR, "Operator", operator.key(), false));
             }
             SymbolicResolverNode::Conditional { .. } => {}
         }
@@ -188,7 +208,7 @@ impl SymbolResolverDetails {
         match details_edit.get_field_id().get_field_id() {
             Self::FIELD_ID_RESOLVER_ID => SymbolResolverDetailsEditOperation::UpdateResolverId(Self::text_value(details_edit).unwrap_or_default()),
             Self::FIELD_ID_NODE_KIND => Self::text_value(details_edit)
-                .and_then(|text| SymbolResolverDetailsNodeKind::from_label(&text))
+                .and_then(|text| SymbolResolverDetailsNodeKind::from_key(&text))
                 .map(SymbolResolverDetailsEditOperation::UpdateNodeKind)
                 .unwrap_or_else(|| SymbolResolverDetailsEditOperation::Reject(String::from("Unknown symbol resolver node kind."))),
             Self::FIELD_ID_LITERAL_VALUE => SymbolResolverDetailsEditOperation::UpdateLiteralValue(Self::i64_value(details_edit).unwrap_or_else(|| {
@@ -208,7 +228,7 @@ impl SymbolResolverDetails {
             Self::FIELD_ID_GLOBAL_SYMBOL_PATH => SymbolResolverDetailsEditOperation::UpdateGlobalSymbolPath(Self::text_value(details_edit).unwrap_or_default()),
             Self::FIELD_ID_DATA_TYPE => SymbolResolverDetailsEditOperation::UpdateDataType(Self::text_value(details_edit).unwrap_or_default()),
             Self::FIELD_ID_OPERATOR => Self::text_value(details_edit)
-                .and_then(|text| Self::operator_from_label(&text))
+                .and_then(|text| SymbolicResolverBinaryOperator::from_key(&text))
                 .map(SymbolResolverDetailsEditOperation::UpdateOperator)
                 .unwrap_or_else(|| SymbolResolverDetailsEditOperation::Reject(String::from("Unknown symbol resolver operator."))),
             _ => SymbolResolverDetailsEditOperation::NoOp,
@@ -285,13 +305,6 @@ impl SymbolResolverDetails {
         Some(i64::from_le_bytes(value_bytes))
     }
 
-    fn operator_from_label(label: &str) -> Option<SymbolicResolverBinaryOperator> {
-        SymbolicResolverBinaryOperator::ALL
-            .iter()
-            .copied()
-            .find(|operator| operator.label() == label.trim())
-    }
-
     fn clamp_i128_to_i64(value: i128) -> i64 {
         value.clamp(i128::from(i64::MIN), i128::from(i64::MAX)) as i64
     }
@@ -332,12 +345,26 @@ mod tests {
         let edit = DetailsEdit::new(
             crate::structures::details::DetailsTarget::new(SymbolResolverDetails::TARGET_KIND_NODE, "scale|0"),
             DetailsFieldId::new(SymbolResolverDetails::FIELD_ID_NODE_KIND),
-            DetailsValue::Text("Type Size".to_string()),
+            DetailsValue::Text("type_size".to_string()),
         );
 
         assert_eq!(
             SymbolResolverDetails::plan_edit(&edit),
             SymbolResolverDetailsEditOperation::UpdateNodeKind(SymbolResolverDetailsNodeKind::TypeSize)
+        );
+    }
+
+    #[test]
+    fn edit_planner_routes_operator_without_display_label_parsing_by_gui() {
+        let edit = DetailsEdit::new(
+            crate::structures::details::DetailsTarget::new(SymbolResolverDetails::TARGET_KIND_NODE, "scale|0"),
+            DetailsFieldId::new(SymbolResolverDetails::FIELD_ID_OPERATOR),
+            DetailsValue::Text("multiply".to_string()),
+        );
+
+        assert_eq!(
+            SymbolResolverDetails::plan_edit(&edit),
+            SymbolResolverDetailsEditOperation::UpdateOperator(SymbolicResolverBinaryOperator::Multiply)
         );
     }
 }

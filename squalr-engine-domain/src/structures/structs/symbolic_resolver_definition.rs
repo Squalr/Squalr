@@ -666,6 +666,38 @@ impl SymbolicResolverBinaryOperator {
         }
     }
 
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::Add => "add",
+            Self::Subtract => "subtract",
+            Self::Multiply => "multiply",
+            Self::Divide => "divide",
+            Self::Modulo => "modulo",
+            Self::BitwiseAnd => "bitwise_and",
+            Self::BitwiseOr => "bitwise_or",
+            Self::BitwiseXor => "bitwise_xor",
+            Self::ShiftLeft => "shift_left",
+            Self::ShiftRight => "shift_right",
+            Self::Minimum => "minimum",
+            Self::Maximum => "maximum",
+            Self::Equal => "equal",
+            Self::NotEqual => "not_equal",
+            Self::LessThan => "less_than",
+            Self::LessThanOrEqual => "less_than_or_equal",
+            Self::GreaterThan => "greater_than",
+            Self::GreaterThanOrEqual => "greater_than_or_equal",
+        }
+    }
+
+    pub fn from_key(key: &str) -> Option<Self> {
+        let trimmed_key = key.trim();
+
+        Self::ALL
+            .iter()
+            .copied()
+            .find(|operator| operator.key() == trimmed_key)
+    }
+
     fn evaluate(
         self,
         left_value: i128,

@@ -11,7 +11,8 @@ use squalr_engine_api::structures::{
     projects::{
         project_symbol_catalog::ProjectSymbolCatalog,
         symbol_layouts::symbol_layout_details::{
-            SymbolLayoutDetails, SymbolLayoutDetailsEditOperation, SymbolLayoutDetailsFieldElementKind, SymbolLayoutFieldDetails,
+            SymbolLayoutDetails, SymbolLayoutDetailsEditOperation, SymbolLayoutDetailsFieldContainerKind, SymbolLayoutDetailsFieldElementKind,
+            SymbolLayoutFieldDetails,
         },
     },
     structs::symbolic_struct_definition::{SymbolicLayoutKind, SymbolicStructDefinition},
@@ -134,7 +135,7 @@ pub(in crate::views::symbol_layout_editor::symbol_layout_editor_view) fn build_f
             SymbolLayoutFieldElementType::BuiltInDataType => SymbolLayoutDetailsFieldElementKind::BuiltInDataType,
             SymbolLayoutFieldElementType::SymbolLayout => SymbolLayoutDetailsFieldElementKind::SymbolLayout,
         },
-        container_kind_label: field_draft.container_edit.kind.label().to_string(),
+        container_kind: symbol_layout_details_container_kind_from_edit_kind(field_draft.container_edit.kind),
         fixed_array_length,
         count_resolver_id: uses_count_resolver.then(|| {
             field_draft
@@ -147,6 +148,18 @@ pub(in crate::views::symbol_layout_editor::symbol_layout_editor_view) fn build_f
             .then(|| field_draft.active_when_resolver_id.clone()),
         pointer_size_label: uses_pointer_size.then(|| field_draft.container_edit.pointer_size.to_string()),
         offset_resolver_id: (field_draft.offset_mode == SymbolLayoutFieldOffsetMode::Resolver).then(|| field_draft.offset_resolver_id.clone()),
+    }
+}
+
+fn symbol_layout_details_container_kind_from_edit_kind(container_kind: SymbolLayoutFieldContainerKind) -> SymbolLayoutDetailsFieldContainerKind {
+    match container_kind {
+        SymbolLayoutFieldContainerKind::Element => SymbolLayoutDetailsFieldContainerKind::Element,
+        SymbolLayoutFieldContainerKind::Array => SymbolLayoutDetailsFieldContainerKind::Array,
+        SymbolLayoutFieldContainerKind::FixedArray => SymbolLayoutDetailsFieldContainerKind::FixedArray,
+        SymbolLayoutFieldContainerKind::DynamicArray => SymbolLayoutDetailsFieldContainerKind::DynamicArray,
+        SymbolLayoutFieldContainerKind::Pointer => SymbolLayoutDetailsFieldContainerKind::Pointer,
+        SymbolLayoutFieldContainerKind::FixedPointerArray => SymbolLayoutDetailsFieldContainerKind::FixedPointerArray,
+        SymbolLayoutFieldContainerKind::DynamicPointerArray => SymbolLayoutDetailsFieldContainerKind::DynamicPointerArray,
     }
 }
 

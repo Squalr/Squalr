@@ -13,7 +13,9 @@ use squalr_engine_api::structures::{
     projects::{
         project_symbol_catalog::ProjectSymbolCatalog,
         symbol_layouts::{
-            symbol_layout_details::{SymbolLayoutDetails, SymbolLayoutDetailsEditOperation},
+            symbol_layout_details::{
+                SymbolLayoutDetails, SymbolLayoutDetailsEditOperation, SymbolLayoutDetailsFieldContainerKind, SymbolLayoutDetailsFieldElementKind,
+            },
             symbol_layout_draft_ops::{SymbolLayoutDraftOps, SymbolLayoutFieldSpan},
         },
     },
@@ -530,17 +532,15 @@ fn apply_field_details_operation(
             field_draft.field_name = field_name;
         }
         SymbolLayoutDetailsEditOperation::UpdateFieldElementKind(element_kind) => {
-            apply_field_element_type_edit(project_symbol_catalog, field_draft, element_kind.label());
+            apply_field_element_type_edit(project_symbol_catalog, field_draft, element_kind);
         }
         SymbolLayoutDetailsEditOperation::UpdateFieldDataType(data_type_id) | SymbolLayoutDetailsEditOperation::UpdateFieldSymbolLayout(data_type_id) => {
             field_draft
                 .data_type_selection
                 .replace_selected_data_types(vec![DataTypeRef::new(data_type_id.trim())]);
         }
-        SymbolLayoutDetailsEditOperation::UpdateFieldContainerKind(container_kind_label) => {
-            if let Some(container_kind) = container_kind_from_label(&container_kind_label) {
-                field_draft.container_edit.kind = container_kind;
-            }
+        SymbolLayoutDetailsEditOperation::UpdateFieldContainerKind(container_kind) => {
+            field_draft.container_edit.kind = field_container_kind_from_details_container_kind(container_kind);
         }
         SymbolLayoutDetailsEditOperation::UpdateFieldFixedArrayLength(length) => {
             field_draft.container_edit.fixed_array_length = length.max(1).to_string();
@@ -614,14 +614,13 @@ fn format_layout_size(
 fn apply_field_element_type_edit(
     project_symbol_catalog: &ProjectSymbolCatalog,
     field_draft: &mut SymbolLayoutFieldEditDraft,
-    edited_text: &str,
+    element_kind: SymbolLayoutDetailsFieldElementKind,
 ) {
     let current_element_type = SymbolLayoutEditorViewData::resolve_field_element_type(project_symbol_catalog, field_draft);
-    let selected_element_type = SymbolLayoutFieldElementType::ALL
-        .iter()
-        .copied()
-        .find(|element_type| element_type.label() == edited_text.trim())
-        .unwrap_or(current_element_type);
+    let selected_element_type = match element_kind {
+        SymbolLayoutDetailsFieldElementKind::BuiltInDataType => SymbolLayoutFieldElementType::BuiltInDataType,
+        SymbolLayoutDetailsFieldElementKind::SymbolLayout => SymbolLayoutFieldElementType::SymbolLayout,
+    };
 
     if selected_element_type == current_element_type {
         return;
@@ -641,11 +640,16 @@ fn apply_field_element_type_edit(
     }
 }
 
-fn container_kind_from_label(label: &str) -> Option<SymbolLayoutFieldContainerKind> {
-    SymbolLayoutFieldContainerKind::ALL
-        .iter()
-        .copied()
-        .find(|container_kind| container_kind.label() == label)
+fn field_container_kind_from_details_container_kind(container_kind: SymbolLayoutDetailsFieldContainerKind) -> SymbolLayoutFieldContainerKind {
+    match container_kind {
+        SymbolLayoutDetailsFieldContainerKind::Element => SymbolLayoutFieldContainerKind::Element,
+        SymbolLayoutDetailsFieldContainerKind::Array => SymbolLayoutFieldContainerKind::Array,
+        SymbolLayoutDetailsFieldContainerKind::FixedArray => SymbolLayoutFieldContainerKind::FixedArray,
+        SymbolLayoutDetailsFieldContainerKind::DynamicArray => SymbolLayoutFieldContainerKind::DynamicArray,
+        SymbolLayoutDetailsFieldContainerKind::Pointer => SymbolLayoutFieldContainerKind::Pointer,
+        SymbolLayoutDetailsFieldContainerKind::FixedPointerArray => SymbolLayoutFieldContainerKind::FixedPointerArray,
+        SymbolLayoutDetailsFieldContainerKind::DynamicPointerArray => SymbolLayoutFieldContainerKind::DynamicPointerArray,
+    }
 }
 
 fn focus_details_projection(

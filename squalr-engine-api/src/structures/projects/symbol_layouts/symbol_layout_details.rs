@@ -17,22 +17,87 @@ pub enum SymbolLayoutDetailsFieldElementKind {
 }
 
 impl SymbolLayoutDetailsFieldElementKind {
-    pub const BUILT_IN_DATA_TYPE_LABEL: &'static str = "Data Type";
-    pub const SYMBOL_LAYOUT_LABEL: &'static str = "Symbol Layout";
+    pub const ALL: [Self; 2] = [Self::BuiltInDataType, Self::SymbolLayout];
 
     pub fn label(&self) -> &'static str {
         match self {
-            Self::BuiltInDataType => Self::BUILT_IN_DATA_TYPE_LABEL,
-            Self::SymbolLayout => Self::SYMBOL_LAYOUT_LABEL,
+            Self::BuiltInDataType => "Data Type",
+            Self::SymbolLayout => "Symbol Layout",
         }
     }
 
-    pub fn from_label(label: &str) -> Option<Self> {
-        match label.trim() {
-            Self::BUILT_IN_DATA_TYPE_LABEL => Some(Self::BuiltInDataType),
-            Self::SYMBOL_LAYOUT_LABEL => Some(Self::SymbolLayout),
-            _ => None,
+    pub fn key(&self) -> &'static str {
+        match self {
+            Self::BuiltInDataType => "data_type",
+            Self::SymbolLayout => "symbol_layout",
         }
+    }
+
+    pub fn from_key(key: &str) -> Option<Self> {
+        let trimmed_key = key.trim();
+
+        Self::ALL
+            .iter()
+            .copied()
+            .find(|element_kind| element_kind.key() == trimmed_key)
+    }
+}
+
+/// Semantic container selector for a symbol-layout field.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum SymbolLayoutDetailsFieldContainerKind {
+    #[default]
+    Element,
+    Array,
+    FixedArray,
+    DynamicArray,
+    Pointer,
+    FixedPointerArray,
+    DynamicPointerArray,
+}
+
+impl SymbolLayoutDetailsFieldContainerKind {
+    pub const ALL: [Self; 7] = [
+        Self::Element,
+        Self::Array,
+        Self::FixedArray,
+        Self::DynamicArray,
+        Self::Pointer,
+        Self::FixedPointerArray,
+        Self::DynamicPointerArray,
+    ];
+
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::Element => "Element",
+            Self::Array => "Array",
+            Self::FixedArray => "Fixed Array",
+            Self::DynamicArray => "Dynamic Array",
+            Self::Pointer => "Pointer",
+            Self::FixedPointerArray => "Fixed Pointer Array",
+            Self::DynamicPointerArray => "Dynamic Pointer Array",
+        }
+    }
+
+    pub fn key(&self) -> &'static str {
+        match self {
+            Self::Element => "element",
+            Self::Array => "array",
+            Self::FixedArray => "fixed_array",
+            Self::DynamicArray => "dynamic_array",
+            Self::Pointer => "pointer",
+            Self::FixedPointerArray => "fixed_pointer_array",
+            Self::DynamicPointerArray => "dynamic_pointer_array",
+        }
+    }
+
+    pub fn from_key(key: &str) -> Option<Self> {
+        let trimmed_key = key.trim();
+
+        Self::ALL
+            .iter()
+            .copied()
+            .find(|container_kind| container_kind.key() == trimmed_key)
     }
 }
 
@@ -41,7 +106,7 @@ pub struct SymbolLayoutFieldDetails {
     pub field_name: String,
     pub data_type_id: String,
     pub element_kind: SymbolLayoutDetailsFieldElementKind,
-    pub container_kind_label: String,
+    pub container_kind: SymbolLayoutDetailsFieldContainerKind,
     pub fixed_array_length: Option<u64>,
     pub count_resolver_id: Option<String>,
     pub display_count_resolver_id: Option<String>,
@@ -57,7 +122,7 @@ pub enum SymbolLayoutDetailsEditOperation {
     UpdateFieldElementKind(SymbolLayoutDetailsFieldElementKind),
     UpdateFieldDataType(String),
     UpdateFieldSymbolLayout(String),
-    UpdateFieldContainerKind(String),
+    UpdateFieldContainerKind(SymbolLayoutDetailsFieldContainerKind),
     UpdateFieldFixedArrayLength(u64),
     UpdateFieldCountResolver(String),
     UpdateFieldDisplayCountResolver(String),
@@ -102,7 +167,7 @@ impl SymbolLayoutDetails {
             layout_id,
             vec![
                 Self::text_field(Self::FIELD_ID_LAYOUT_ID, "Name", layout_id, false),
-                Self::layout_metadata_field(Self::FIELD_ID_LAYOUT_KIND, "Layout Kind", layout_kind.label(), false, DetailsEditorHint::Text),
+                Self::layout_metadata_field(Self::FIELD_ID_LAYOUT_KIND, "Layout Kind", layout_kind.key(), false, DetailsEditorHint::Text),
             ],
         )
     }
@@ -150,7 +215,7 @@ impl SymbolLayoutDetails {
         fields.push(Self::layout_metadata_field(
             Self::FIELD_ID_FIELD_ELEMENT_KIND,
             "Element Type",
-            field_details.element_kind.label(),
+            field_details.element_kind.key(),
             false,
             DetailsEditorHint::Text,
         ));
@@ -167,7 +232,7 @@ impl SymbolLayoutDetails {
         fields.push(Self::layout_metadata_field(
             Self::FIELD_ID_FIELD_CONTAINER_KIND,
             "Container",
-            &field_details.container_kind_label,
+            field_details.container_kind.key(),
             false,
             DetailsEditorHint::Text,
         ));
@@ -272,19 +337,20 @@ impl SymbolLayoutDetails {
 
         match field_id {
             Self::FIELD_ID_LAYOUT_KIND => Self::text_value(details_edit)
-                .and_then(|text| Self::layout_kind_from_label(&text))
+                .and_then(|text| SymbolicLayoutKind::from_key(&text))
                 .map(SymbolLayoutDetailsEditOperation::UpdateLayoutKind)
                 .unwrap_or_else(|| SymbolLayoutDetailsEditOperation::Reject(String::from("Unknown symbol layout kind."))),
             Self::FIELD_ID_FIELD_NAME => SymbolLayoutDetailsEditOperation::UpdateFieldName(Self::text_value(details_edit).unwrap_or_default()),
             Self::FIELD_ID_FIELD_ELEMENT_KIND => Self::text_value(details_edit)
-                .and_then(|text| SymbolLayoutDetailsFieldElementKind::from_label(&text))
+                .and_then(|text| SymbolLayoutDetailsFieldElementKind::from_key(&text))
                 .map(SymbolLayoutDetailsEditOperation::UpdateFieldElementKind)
                 .unwrap_or_else(|| SymbolLayoutDetailsEditOperation::Reject(String::from("Unknown symbol layout field element type."))),
             Self::FIELD_ID_FIELD_DATA_TYPE => SymbolLayoutDetailsEditOperation::UpdateFieldDataType(Self::text_value(details_edit).unwrap_or_default()),
             Self::FIELD_ID_FIELD_SYMBOL_LAYOUT => SymbolLayoutDetailsEditOperation::UpdateFieldSymbolLayout(Self::text_value(details_edit).unwrap_or_default()),
-            Self::FIELD_ID_FIELD_CONTAINER_KIND => {
-                SymbolLayoutDetailsEditOperation::UpdateFieldContainerKind(Self::text_value(details_edit).unwrap_or_default())
-            }
+            Self::FIELD_ID_FIELD_CONTAINER_KIND => Self::text_value(details_edit)
+                .and_then(|text| SymbolLayoutDetailsFieldContainerKind::from_key(&text))
+                .map(SymbolLayoutDetailsEditOperation::UpdateFieldContainerKind)
+                .unwrap_or_else(|| SymbolLayoutDetailsEditOperation::Reject(String::from("Unknown symbol layout field container kind."))),
             Self::FIELD_ID_FIELD_FIXED_ARRAY_LENGTH => SymbolLayoutDetailsEditOperation::UpdateFieldFixedArrayLength(
                 Self::u64_value(details_edit)
                     .unwrap_or_else(|| {
@@ -369,13 +435,6 @@ impl SymbolLayoutDetails {
         format!("{}:{}", layout_id, field_index)
     }
 
-    fn layout_kind_from_label(label: &str) -> Option<SymbolicLayoutKind> {
-        SymbolicLayoutKind::ALL
-            .iter()
-            .copied()
-            .find(|layout_kind| layout_kind.label() == label.trim())
-    }
-
     fn text_value(details_edit: &DetailsEdit) -> Option<String> {
         match details_edit.get_value() {
             DetailsValue::Text(text) => Some(text.clone()),
@@ -407,7 +466,10 @@ impl SymbolLayoutDetails {
 
 #[cfg(test)]
 mod tests {
-    use super::{SymbolLayoutDetails, SymbolLayoutDetailsEditOperation, SymbolLayoutDetailsFieldElementKind, SymbolLayoutFieldDetails};
+    use super::{
+        SymbolLayoutDetails, SymbolLayoutDetailsEditOperation, SymbolLayoutDetailsFieldContainerKind, SymbolLayoutDetailsFieldElementKind,
+        SymbolLayoutFieldDetails,
+    };
     use crate::structures::{
         data_types::built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8,
         details::{DetailsEdit, DetailsFieldId, DetailsTarget, DetailsValue},
@@ -424,7 +486,7 @@ mod tests {
                 field_name: "health".to_string(),
                 data_type_id: "u32".to_string(),
                 element_kind: SymbolLayoutDetailsFieldElementKind::BuiltInDataType,
-                container_kind_label: "Value".to_string(),
+                container_kind: SymbolLayoutDetailsFieldContainerKind::Element,
                 fixed_array_length: None,
                 count_resolver_id: None,
                 display_count_resolver_id: None,
@@ -465,7 +527,7 @@ mod tests {
         let details_edit = DetailsEdit::new(
             DetailsTarget::new(SymbolLayoutDetails::TARGET_KIND_LAYOUT, "player.stats"),
             DetailsFieldId::new(SymbolLayoutDetails::FIELD_ID_LAYOUT_KIND),
-            DetailsValue::Text("Union".to_string()),
+            DetailsValue::Text("union".to_string()),
         );
 
         assert_eq!(

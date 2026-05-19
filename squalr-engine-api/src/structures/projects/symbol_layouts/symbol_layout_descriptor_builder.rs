@@ -413,8 +413,10 @@ mod tests {
             }],
         };
 
-        let descriptor =
-            SymbolLayoutDescriptorBuilder::build_symbol_layout_descriptor(&ProjectSymbolCatalog::default(), &draft).expect("Expected descriptor to build.");
+        let descriptor = SymbolLayoutDescriptorBuilder::build_symbol_layout_descriptor(&ProjectSymbolCatalog::default(), &draft, |data_type_ref| {
+            (data_type_ref.get_data_type_id() == "u32").then_some(4)
+        })
+        .expect("Expected descriptor to build.");
         let fields = descriptor.get_struct_layout_definition().get_fields();
 
         assert_eq!(fields.len(), 3);
