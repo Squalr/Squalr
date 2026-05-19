@@ -549,7 +549,7 @@ impl SymbolRegistry {
         }
     }
 
-    fn get_data_type_descriptor(
+    pub fn get_data_type_descriptor(
         &self,
         data_type_id: &str,
     ) -> Option<Arc<DataTypeDescriptor>> {

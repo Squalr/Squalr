@@ -126,17 +126,29 @@ impl<'view> SymbolLayoutListPanelView<'view> {
                             );
                         }
                         Some(SymbolLayoutRowAction::Open) if !self.is_take_over_active => {
+                            let engine_unprivileged_state = self.app_context.engine_unprivileged_state.clone();
                             SymbolLayoutEditorViewData::begin_open_symbol_layout(
                                 self.symbol_layout_editor_view_data.clone(),
                                 self.project_symbol_catalog,
                                 struct_layout_id,
+                                |data_type_ref| {
+                                    let size_in_bytes = engine_unprivileged_state.get_unit_size_in_bytes(data_type_ref);
+
+                                    (size_in_bytes > 0).then_some(size_in_bytes)
+                                },
                             );
                         }
                         Some(SymbolLayoutRowAction::Rename) if !self.is_take_over_active => {
+                            let engine_unprivileged_state = self.app_context.engine_unprivileged_state.clone();
                             SymbolLayoutEditorViewData::begin_rename_symbol_layout(
                                 self.symbol_layout_editor_view_data.clone(),
                                 self.project_symbol_catalog,
                                 struct_layout_id,
+                                |data_type_ref| {
+                                    let size_in_bytes = engine_unprivileged_state.get_unit_size_in_bytes(data_type_ref);
+
+                                    (size_in_bytes > 0).then_some(size_in_bytes)
+                                },
                             );
                         }
                         _ => {}

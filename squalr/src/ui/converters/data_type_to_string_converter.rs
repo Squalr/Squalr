@@ -10,10 +10,6 @@ use squalr_engine_api::structures::data_values::container_type::ContainerType;
 use squalr_engine_api::structures::structs::symbolic_field_definition::SymbolicFieldDefinition;
 use std::str::FromStr;
 
-const DATA_TYPE_ID_U24: &str = "u24";
-const DATA_TYPE_ID_U24BE: &str = "u24be";
-const DATA_TYPE_ID_I24: &str = "i24";
-const DATA_TYPE_ID_I24BE: &str = "i24be";
 const DATA_TYPE_ID_I_X86: &str = "i_x86";
 const DATA_TYPE_ID_I_X64: &str = "i_x64";
 
@@ -38,8 +34,6 @@ impl DataTypeToStringConverter {
             DataTypeU8::DATA_TYPE_ID => String::from("u8"),
             DataTypeU16::DATA_TYPE_ID => String::from("u16"),
             DataTypeU16be::DATA_TYPE_ID => String::from("u16be"),
-            DATA_TYPE_ID_U24 => String::from("u24"),
-            DATA_TYPE_ID_U24BE => String::from("u24be"),
             DataTypeU32::DATA_TYPE_ID => String::from("u32"),
             DataTypeU32be::DATA_TYPE_ID => String::from("u32be"),
             DataTypeU64::DATA_TYPE_ID => String::from("u64"),
@@ -47,8 +41,6 @@ impl DataTypeToStringConverter {
             DataTypeI8::DATA_TYPE_ID => String::from("i8"),
             DataTypeI16::DATA_TYPE_ID => String::from("i16"),
             DataTypeI16be::DATA_TYPE_ID => String::from("i16be"),
-            DATA_TYPE_ID_I24 => String::from("i24"),
-            DATA_TYPE_ID_I24BE => String::from("i24be"),
             DataTypeI32::DATA_TYPE_ID => String::from("i32"),
             DataTypeI32be::DATA_TYPE_ID => String::from("i32be"),
             DataTypeI64::DATA_TYPE_ID => String::from("i64"),

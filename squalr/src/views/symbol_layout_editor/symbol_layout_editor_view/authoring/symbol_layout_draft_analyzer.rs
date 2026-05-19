@@ -45,6 +45,7 @@ impl SymbolLayoutDraftAnalyzer {
         field_draft: &SymbolLayoutFieldEditDraft,
         span_offset_in_bytes: u64,
         span_size_in_bytes: u64,
+        resolve_data_type_size_in_bytes: impl Fn(&DataTypeRef) -> Option<u64> + Copy,
     ) -> Result<(u64, u64), String> {
         if field_draft.field_name.trim().is_empty() {
             return Err(String::from("Field name is required."));
@@ -63,6 +64,7 @@ impl SymbolLayoutDraftAnalyzer {
             project_symbol_catalog,
             &symbolic_field_definition,
             &mut std::collections::HashSet::new(),
+            resolve_data_type_size_in_bytes,
         );
 
         if field_size_in_bytes == 0 {
@@ -104,6 +106,7 @@ impl SymbolLayoutDraftAnalyzer {
         union_draft: &SymbolLayoutEditDraft,
         variant_index: usize,
         variant_field_draft: &SymbolLayoutFieldEditDraft,
+        resolve_data_type_size_in_bytes: impl Fn(&DataTypeRef) -> Option<u64> + Copy,
     ) -> Option<u64> {
         let variant_draft = SymbolLayoutVariantSession::create_union_variant_layout_draft_with_pending(
             project_symbol_catalog,
@@ -111,15 +114,17 @@ impl SymbolLayoutDraftAnalyzer {
             union_draft,
             variant_index,
             variant_field_draft,
+            resolve_data_type_size_in_bytes,
         );
-        Self::resolve_draft_tail_unassigned_offset(project_symbol_catalog, &variant_draft)
+        Self::resolve_draft_tail_unassigned_offset(project_symbol_catalog, &variant_draft, resolve_data_type_size_in_bytes)
     }
 
     pub(in crate::views::symbol_layout_editor::symbol_layout_editor_view) fn resolve_draft_tail_unassigned_offset(
         project_symbol_catalog: &ProjectSymbolCatalog,
         draft: &SymbolLayoutEditDraft,
+        resolve_data_type_size_in_bytes: impl Fn(&DataTypeRef) -> Option<u64> + Copy,
     ) -> Option<u64> {
-        let (layout_size_in_bytes, field_spans) = Self::resolve_draft_field_spans(project_symbol_catalog, draft)?;
+        let (layout_size_in_bytes, field_spans) = Self::resolve_draft_field_spans(project_symbol_catalog, draft, resolve_data_type_size_in_bytes)?;
 
         SymbolLayoutDraftOps::resolve_tail_unassigned_offset(&field_spans, layout_size_in_bytes)
     }
@@ -127,8 +132,10 @@ impl SymbolLayoutDraftAnalyzer {
     pub(in crate::views::symbol_layout_editor::symbol_layout_editor_view) fn resolve_draft_field_spans(
         project_symbol_catalog: &ProjectSymbolCatalog,
         draft: &SymbolLayoutEditDraft,
+        resolve_data_type_size_in_bytes: impl Fn(&DataTypeRef) -> Option<u64> + Copy,
     ) -> Option<(u64, Vec<SymbolLayoutFieldSpan>)> {
-        let struct_layout_descriptor = SymbolLayoutEditorViewData::build_symbol_layout_descriptor(project_symbol_catalog, draft).ok()?;
+        let struct_layout_descriptor =
+            SymbolLayoutEditorViewData::build_symbol_layout_descriptor(project_symbol_catalog, draft, resolve_data_type_size_in_bytes).ok()?;
         let symbolic_struct_definition = struct_layout_descriptor.get_struct_layout_definition();
         let layout_size_in_bytes = symbolic_struct_definition
             .get_declared_size_in_bytes()
@@ -137,6 +144,7 @@ impl SymbolLayoutDraftAnalyzer {
                     project_symbol_catalog,
                     symbolic_struct_definition,
                     &mut std::collections::HashSet::new(),
+                    resolve_data_type_size_in_bytes,
                 )
             });
         let mut next_sequential_offset = 0_u64;
@@ -166,6 +174,7 @@ impl SymbolLayoutDraftAnalyzer {
                 project_symbol_catalog,
                 symbolic_field_definition,
                 &mut std::collections::HashSet::new(),
+                resolve_data_type_size_in_bytes,
             );
 
             next_sequential_offset = next_sequential_offset.max(field_offset.saturating_add(field_size_in_bytes));

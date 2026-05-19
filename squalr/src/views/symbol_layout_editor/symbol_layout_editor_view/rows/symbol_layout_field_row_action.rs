@@ -54,6 +54,7 @@ impl SymbolLayoutFieldRowAction {
             symbol_layout_editor_view.symbol_layout_editor_view_data.clone(),
             union_draft,
             &variant_layout_id,
+            |data_type_ref| symbol_layout_editor_view.resolve_data_type_size_in_bytes(data_type_ref),
         );
         let unassigned_split_offsets = symbol_layout_editor_view
             .symbol_layout_editor_view_data
@@ -68,7 +69,10 @@ impl SymbolLayoutFieldRowAction {
                 field_index_to_focus = Some(field_index);
             }
             SymbolLayoutFieldRowAction::MoveUp => {
-                if let Some((layout_size_in_bytes, field_spans)) = SymbolLayoutDraftAnalyzer::resolve_draft_field_spans(project_symbol_catalog, &variant_draft)
+                if let Some((layout_size_in_bytes, field_spans)) =
+                    SymbolLayoutDraftAnalyzer::resolve_draft_field_spans(project_symbol_catalog, &variant_draft, |data_type_ref| {
+                        symbol_layout_editor_view.resolve_data_type_size_in_bytes(data_type_ref)
+                    })
                     && SymbolLayoutDraftOps::move_struct_field_up(&mut variant_draft, &field_spans, &unassigned_split_offsets, field_index)
                 {
                     if let Some(split_offset_in_bytes) =
@@ -85,7 +89,10 @@ impl SymbolLayoutFieldRowAction {
                 }
             }
             SymbolLayoutFieldRowAction::MoveDown => {
-                if let Some((layout_size_in_bytes, field_spans)) = SymbolLayoutDraftAnalyzer::resolve_draft_field_spans(project_symbol_catalog, &variant_draft)
+                if let Some((layout_size_in_bytes, field_spans)) =
+                    SymbolLayoutDraftAnalyzer::resolve_draft_field_spans(project_symbol_catalog, &variant_draft, |data_type_ref| {
+                        symbol_layout_editor_view.resolve_data_type_size_in_bytes(data_type_ref)
+                    })
                     && SymbolLayoutDraftOps::move_struct_field_down(
                         &mut variant_draft,
                         &field_spans,
@@ -178,6 +185,7 @@ impl SymbolLayoutFieldRowAction {
                     project_symbol_catalog,
                     draft,
                     field_index,
+                    |data_type_ref| symbol_layout_editor_view.resolve_data_type_size_in_bytes(data_type_ref),
                 ) {
                     SymbolLayoutEditorViewData::select_field_for_layout(
                         symbol_layout_editor_view.symbol_layout_editor_view_data.clone(),
@@ -390,7 +398,13 @@ fn build_struct_viewer_field_edit_callback(
 
             let project_symbol_catalog = SymbolLayoutEditorView::get_opened_project_symbol_catalog_from_context(&app_context).unwrap_or_default();
             apply_field_details_operation(&project_symbol_catalog, field_draft, SymbolLayoutDetails::plan_edit(&details_edit));
-            grow_draft_size_to_fit_fields(&project_symbol_catalog, &mut draft);
+            grow_draft_size_to_fit_fields(&project_symbol_catalog, &mut draft, |data_type_ref| {
+                let size_in_bytes = app_context
+                    .engine_unprivileged_state
+                    .get_unit_size_in_bytes(data_type_ref);
+
+                (size_in_bytes > 0).then_some(size_in_bytes)
+            });
             view_data.replace_draft(draft.clone());
             draft
         };
@@ -437,14 +451,31 @@ fn build_variant_field_edit_callback(
                 .get_pending_variant_draft(&variant_layout_id)
                 .cloned()
                 .unwrap_or_else(|| {
-                    SymbolLayoutVariantSession::create_union_variant_layout_draft_for_id(&project_symbol_catalog, &union_draft, &variant_layout_id)
+                    SymbolLayoutVariantSession::create_union_variant_layout_draft_for_id(
+                        &project_symbol_catalog,
+                        &union_draft,
+                        &variant_layout_id,
+                        |data_type_ref| {
+                            let size_in_bytes = app_context
+                                .engine_unprivileged_state
+                                .get_unit_size_in_bytes(data_type_ref);
+
+                            (size_in_bytes > 0).then_some(size_in_bytes)
+                        },
+                    )
                 });
             let Some(field_draft) = variant_draft.field_drafts.get_mut(field_index) else {
                 return;
             };
 
             apply_field_details_operation(&project_symbol_catalog, field_draft, SymbolLayoutDetails::plan_edit(&details_edit));
-            grow_draft_size_to_fit_fields(&project_symbol_catalog, &mut variant_draft);
+            grow_draft_size_to_fit_fields(&project_symbol_catalog, &mut variant_draft, |data_type_ref| {
+                let size_in_bytes = app_context
+                    .engine_unprivileged_state
+                    .get_unit_size_in_bytes(data_type_ref);
+
+                (size_in_bytes > 0).then_some(size_in_bytes)
+            });
             view_data.replace_pending_variant_draft(variant_draft.clone());
             variant_draft
         };
@@ -454,6 +485,13 @@ fn build_variant_field_edit_callback(
             &project_symbol_catalog,
             symbol_layout_editor_view_data.clone(),
             Some(&variant_layout_id),
+            |data_type_ref| {
+                let size_in_bytes = app_context
+                    .engine_unprivileged_state
+                    .get_unit_size_in_bytes(data_type_ref);
+
+                (size_in_bytes > 0).then_some(size_in_bytes)
+            },
         );
         let details_projection = updated_variant_draft
             .field_drafts
@@ -531,6 +569,7 @@ fn apply_field_details_operation(
 pub(in crate::views::symbol_layout_editor::symbol_layout_editor_view) fn grow_draft_size_to_fit_fields(
     project_symbol_catalog: &ProjectSymbolCatalog,
     draft: &mut SymbolLayoutEditDraft,
+    resolve_data_type_size_in_bytes: impl Fn(&DataTypeRef) -> Option<u64> + Copy,
 ) {
     let Ok(declared_size_in_bytes) = SymbolLayoutEditorViewData::parse_layout_size_text(&draft.size_text, draft.size_format) else {
         return;
@@ -550,6 +589,7 @@ pub(in crate::views::symbol_layout_editor::symbol_layout_editor_view) fn grow_dr
             project_symbol_catalog,
             &symbolic_field_definition,
             &mut std::collections::HashSet::new(),
+            resolve_data_type_size_in_bytes,
         );
 
         next_sequential_offset = next_sequential_offset.max(field_offset.saturating_add(field_size_in_bytes));

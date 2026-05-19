@@ -683,13 +683,13 @@ mod tests {
     #[test]
     fn parse_extended_pointer_container_round_trips() {
         let symbolic_field_definition =
-            SymbolicFieldDefinition::from_str("ptr:u8*(u24be)").expect("Expected extended pointer symbolic field definition to parse.");
+            SymbolicFieldDefinition::from_str("ptr:u8*(24be)").expect("Expected extended pointer symbolic field definition to parse.");
 
         assert_eq!(
             symbolic_field_definition.get_container_type(),
             ContainerType::Pointer(PointerScanPointerSize::Pointer24be)
         );
-        assert_eq!(symbolic_field_definition.to_string(), "ptr:u8*(u24be)");
+        assert_eq!(symbolic_field_definition.to_string(), "ptr:u8*(24be)");
     }
 
     #[test]

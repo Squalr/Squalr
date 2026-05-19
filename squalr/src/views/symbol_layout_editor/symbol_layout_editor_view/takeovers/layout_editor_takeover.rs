@@ -42,15 +42,21 @@ impl SymbolLayoutEditorView {
         let mut edited_draft = draft.clone();
         let pending_variant_drafts =
             SymbolLayoutVariantSession::pending_variant_drafts_for_union(self.symbol_layout_editor_view_data.clone(), Some(&edited_draft));
-        let effective_project_symbol_catalog =
-            SymbolLayoutVariantSession::build_effective_project_symbol_catalog_from_pending_drafts(project_symbol_catalog, &pending_variant_drafts);
+        let effective_project_symbol_catalog = SymbolLayoutVariantSession::build_effective_project_symbol_catalog_from_pending_drafts(
+            project_symbol_catalog,
+            &pending_variant_drafts,
+            |data_type_ref| self.resolve_data_type_size_in_bytes(data_type_ref),
+        );
         let validation_result = SymbolLayoutEditorViewData::build_symbol_layout_descriptor_with_unassigned_split_offsets(
             &effective_project_symbol_catalog,
             &edited_draft,
             unassigned_split_offsets,
+            |data_type_ref| self.resolve_data_type_size_in_bytes(data_type_ref),
         );
         let pending_variant_validation_result =
-            SymbolLayoutVariantSession::build_pending_variant_layout_descriptors(project_symbol_catalog, &pending_variant_drafts);
+            SymbolLayoutVariantSession::build_pending_variant_layout_descriptors(project_symbol_catalog, &pending_variant_drafts, |data_type_ref| {
+                self.resolve_data_type_size_in_bytes(data_type_ref)
+            });
         let usage_count = edited_draft
             .original_layout_id
             .as_deref()
@@ -175,8 +181,11 @@ impl SymbolLayoutEditorView {
                                 .show(user_interface);
                                 if !is_union_layout {
                                     user_interface.add_space(Self::TAKE_OVER_GROUPBOX_SPACING);
-                                    let tail_unassigned_offset =
-                                        SymbolLayoutDraftAnalyzer::resolve_draft_tail_unassigned_offset(&effective_project_symbol_catalog, &edited_draft);
+                                    let tail_unassigned_offset = SymbolLayoutDraftAnalyzer::resolve_draft_tail_unassigned_offset(
+                                        &effective_project_symbol_catalog,
+                                        &edited_draft,
+                                        |data_type_ref| self.resolve_data_type_size_in_bytes(data_type_ref),
+                                    );
                                     if render_symbol_layout_centered_add_entry_button(
                                         self.app_context.clone(),
                                         user_interface,
@@ -215,8 +224,11 @@ impl SymbolLayoutEditorView {
                                 .show(user_interface);
                                 if !is_union_layout {
                                     user_interface.add_space(Self::TAKE_OVER_GROUPBOX_SPACING);
-                                    let tail_unassigned_offset =
-                                        SymbolLayoutDraftAnalyzer::resolve_draft_tail_unassigned_offset(&effective_project_symbol_catalog, &edited_draft);
+                                    let tail_unassigned_offset = SymbolLayoutDraftAnalyzer::resolve_draft_tail_unassigned_offset(
+                                        &effective_project_symbol_catalog,
+                                        &edited_draft,
+                                        |data_type_ref| self.resolve_data_type_size_in_bytes(data_type_ref),
+                                    );
                                     if render_symbol_layout_centered_add_entry_button(
                                         self.app_context.clone(),
                                         user_interface,
@@ -287,6 +299,7 @@ impl SymbolLayoutEditorView {
                 &effective_project_symbol_catalog,
                 &edited_draft,
                 unassigned_split_offsets,
+                |data_type_ref| self.resolve_data_type_size_in_bytes(data_type_ref),
             ) {
                 Ok(struct_layout_descriptor) => {
                     if let Ok(pending_variant_descriptors) = pending_variant_validation_result {

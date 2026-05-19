@@ -1,7 +1,9 @@
 use crate::views::symbol_layout_editor::view_data::symbol_layout_editor_view_data::{SymbolLayoutEditDraft, SymbolLayoutEditorViewData};
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
-use squalr_engine_api::structures::{projects::project_symbol_catalog::ProjectSymbolCatalog, structs::symbolic_struct_definition::SymbolicLayoutKind};
+use squalr_engine_api::structures::{
+    data_types::data_type_ref::DataTypeRef, projects::project_symbol_catalog::ProjectSymbolCatalog, structs::symbolic_struct_definition::SymbolicLayoutKind,
+};
 use std::collections::BTreeSet;
 
 /// Owns the GUI edit session overlay for union variant layouts.
@@ -14,6 +16,7 @@ impl SymbolLayoutVariantSession {
         union_draft: &SymbolLayoutEditDraft,
         variant_index: usize,
         variant_field_draft: &crate::views::symbol_layout_editor::view_data::symbol_layout_editor_view_data::SymbolLayoutFieldEditDraft,
+        resolve_data_type_size_in_bytes: impl Fn(&DataTypeRef) -> Option<u64> + Copy,
     ) -> SymbolLayoutEditDraft {
         let variant_layout_id = variant_field_draft
             .data_type_selection
@@ -35,6 +38,7 @@ impl SymbolLayoutVariantSession {
                 symbol_layout_editor_view_data,
                 union_draft,
                 variant_layout_descriptor.get_struct_layout_id(),
+                resolve_data_type_size_in_bytes,
             );
         }
 
@@ -54,6 +58,7 @@ impl SymbolLayoutVariantSession {
         symbol_layout_editor_view_data: Dependency<SymbolLayoutEditorViewData>,
         union_draft: &SymbolLayoutEditDraft,
         variant_layout_id: &str,
+        resolve_data_type_size_in_bytes: impl Fn(&DataTypeRef) -> Option<u64> + Copy,
     ) -> SymbolLayoutEditDraft {
         if let Some(mut pending_variant_draft) = Self::read_pending_variant_layout_draft(symbol_layout_editor_view_data, variant_layout_id) {
             pending_variant_draft.size_text = union_draft.size_text.clone();
@@ -62,20 +67,21 @@ impl SymbolLayoutVariantSession {
             return pending_variant_draft;
         }
 
-        Self::create_union_variant_layout_draft_for_id(project_symbol_catalog, union_draft, variant_layout_id)
+        Self::create_union_variant_layout_draft_for_id(project_symbol_catalog, union_draft, variant_layout_id, resolve_data_type_size_in_bytes)
     }
 
     pub(in crate::views::symbol_layout_editor::symbol_layout_editor_view) fn create_union_variant_layout_draft_for_id(
         project_symbol_catalog: &ProjectSymbolCatalog,
         union_draft: &SymbolLayoutEditDraft,
         variant_layout_id: &str,
+        resolve_data_type_size_in_bytes: impl Fn(&DataTypeRef) -> Option<u64> + Copy,
     ) -> SymbolLayoutEditDraft {
         if let Some(variant_layout_descriptor) = project_symbol_catalog
             .get_struct_layout_descriptors()
             .iter()
             .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == variant_layout_id)
         {
-            let mut variant_draft = SymbolLayoutEditorViewData::create_draft_from_descriptor(variant_layout_descriptor);
+            let mut variant_draft = SymbolLayoutEditorViewData::create_draft_from_descriptor(variant_layout_descriptor, resolve_data_type_size_in_bytes);
 
             variant_draft.size_text = union_draft.size_text.clone();
             variant_draft.size_format = union_draft.size_format;
@@ -198,6 +204,7 @@ impl SymbolLayoutVariantSession {
     pub(in crate::views::symbol_layout_editor::symbol_layout_editor_view) fn build_effective_project_symbol_catalog_from_pending_drafts(
         project_symbol_catalog: &ProjectSymbolCatalog,
         pending_variant_drafts: &[(SymbolLayoutEditDraft, BTreeSet<u64>)],
+        resolve_data_type_size_in_bytes: impl Fn(&DataTypeRef) -> Option<u64> + Copy,
     ) -> ProjectSymbolCatalog {
         let mut effective_project_symbol_catalog = project_symbol_catalog.clone();
         let mut struct_layout_descriptors = effective_project_symbol_catalog
@@ -209,6 +216,7 @@ impl SymbolLayoutVariantSession {
                 project_symbol_catalog,
                 variant_draft,
                 unassigned_split_offsets,
+                resolve_data_type_size_in_bytes,
             ) else {
                 continue;
             };
@@ -226,6 +234,7 @@ impl SymbolLayoutVariantSession {
         project_symbol_catalog: &ProjectSymbolCatalog,
         symbol_layout_editor_view_data: Dependency<SymbolLayoutEditorViewData>,
         focused_variant_layout_id: Option<&str>,
+        resolve_data_type_size_in_bytes: impl Fn(&DataTypeRef) -> Option<u64> + Copy,
     ) -> ProjectSymbolCatalog {
         let pending_variant_drafts = symbol_layout_editor_view_data
             .read("SymbolLayoutEditor build effective catalog")
@@ -249,12 +258,13 @@ impl SymbolLayoutVariantSession {
             })
             .unwrap_or_default();
 
-        Self::build_effective_project_symbol_catalog_from_pending_drafts(project_symbol_catalog, &pending_variant_drafts)
+        Self::build_effective_project_symbol_catalog_from_pending_drafts(project_symbol_catalog, &pending_variant_drafts, resolve_data_type_size_in_bytes)
     }
 
     pub(in crate::views::symbol_layout_editor::symbol_layout_editor_view) fn build_pending_variant_layout_descriptors(
         project_symbol_catalog: &ProjectSymbolCatalog,
         pending_variant_drafts: &[(SymbolLayoutEditDraft, BTreeSet<u64>)],
+        resolve_data_type_size_in_bytes: impl Fn(&DataTypeRef) -> Option<u64> + Copy,
     ) -> Result<Vec<(Option<String>, StructLayoutDescriptor)>, String> {
         pending_variant_drafts
             .iter()
@@ -263,6 +273,7 @@ impl SymbolLayoutVariantSession {
                     project_symbol_catalog,
                     variant_draft,
                     unassigned_split_offsets,
+                    resolve_data_type_size_in_bytes,
                 )
                 .map(|struct_layout_descriptor| (variant_draft.original_layout_id.clone(), struct_layout_descriptor))
                 .map_err(|error| format!("Variant layout `{}`: {}", variant_draft.layout_id, error))

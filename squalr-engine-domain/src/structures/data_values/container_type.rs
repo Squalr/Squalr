@@ -139,10 +139,10 @@ mod tests {
 
     #[test]
     fn pointer_container_round_trips_extended_pointer_sizes() {
-        let container_type = ContainerType::from_str("*(u24be)").expect("Expected pointer container to parse.");
+        let container_type = ContainerType::from_str("*(24be)").expect("Expected pointer container to parse.");
 
         assert_eq!(container_type, ContainerType::Pointer(PointerScanPointerSize::Pointer24be));
-        assert_eq!(container_type.to_string(), "*(u24be)");
+        assert_eq!(container_type.to_string(), "*(24be)");
     }
 
     #[test]

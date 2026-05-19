@@ -23,6 +23,7 @@ impl SymbolLayoutVariantFieldAppender {
         project_symbol_catalog: &ProjectSymbolCatalog,
         union_draft: &mut SymbolLayoutEditDraft,
         variant_index: usize,
+        resolve_data_type_size_in_bytes: impl Fn(&DataTypeRef) -> Option<u64> + Copy,
     ) -> Option<(SymbolLayoutEditDraft, usize)> {
         let Some(variant_field_draft) = union_draft.field_drafts.get(variant_index) else {
             return None;
@@ -33,9 +34,12 @@ impl SymbolLayoutVariantFieldAppender {
             union_draft,
             variant_index,
             variant_field_draft,
+            resolve_data_type_size_in_bytes,
         );
 
-        let Some((layout_size_in_bytes, field_spans)) = SymbolLayoutDraftAnalyzer::resolve_draft_field_spans(project_symbol_catalog, &variant_draft) else {
+        let Some((layout_size_in_bytes, field_spans)) =
+            SymbolLayoutDraftAnalyzer::resolve_draft_field_spans(project_symbol_catalog, &variant_draft, resolve_data_type_size_in_bytes)
+        else {
             return None;
         };
         let Some(field_offset_in_bytes) = SymbolLayoutDraftOps::resolve_tail_unassigned_offset(&field_spans, layout_size_in_bytes) else {

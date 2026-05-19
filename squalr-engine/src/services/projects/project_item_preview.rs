@@ -636,10 +636,12 @@ mod tests {
         let valued_struct = if success {
             let value_field = match pointer_size {
                 PointerScanPointerSize::Pointer24 => {
-                    create_three_byte_pointer_value(pointer_value as u32, "u24", false).to_named_valued_struct_field("value".to_string(), true)
+                    create_three_byte_pointer_value(pointer_value as u32, pointer_size.to_data_type_ref().get_data_type_id(), false)
+                        .to_named_valued_struct_field("value".to_string(), true)
                 }
                 PointerScanPointerSize::Pointer24be => {
-                    create_three_byte_pointer_value(pointer_value as u32, "u24be", true).to_named_valued_struct_field("value".to_string(), true)
+                    create_three_byte_pointer_value(pointer_value as u32, pointer_size.to_data_type_ref().get_data_type_id(), true)
+                        .to_named_valued_struct_field("value".to_string(), true)
                 }
                 PointerScanPointerSize::Pointer32 => {
                     DataTypeU32::get_value_from_primitive(pointer_value as u32).to_named_valued_struct_field("value".to_string(), true)

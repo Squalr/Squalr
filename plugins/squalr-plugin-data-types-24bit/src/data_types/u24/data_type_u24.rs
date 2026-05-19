@@ -1,4 +1,5 @@
 use crate::data_types::primitive_data_type_24_bit::PrimitiveDataType24Bit;
+use squalr_engine_api::structures::data_types::built_in_types::u32::data_type_u32::DataTypeU32;
 use squalr_engine_api::structures::data_types::data_type::DataType;
 use squalr_engine_api::structures::data_types::data_type_error::DataTypeError;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
@@ -21,7 +22,7 @@ impl DataTypeU24 {
     }
 
     pub fn get_icon_id() -> &'static str {
-        Self::DATA_TYPE_ID
+        DataTypeU32::DATA_TYPE_ID
     }
 
     pub fn get_value_from_primitive(value: PrimitiveType) -> DataValue {

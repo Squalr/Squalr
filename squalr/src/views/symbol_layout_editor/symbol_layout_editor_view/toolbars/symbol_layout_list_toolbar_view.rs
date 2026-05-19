@@ -98,10 +98,16 @@ impl Widget for SymbolLayoutListToolbarView<'_> {
         );
 
         if new_layout_response.clicked() {
+            let engine_unprivileged_state = self.app_context.engine_unprivileged_state.clone();
             SymbolLayoutEditorViewData::begin_create_symbol_layout(
                 self.symbol_layout_editor_view_data,
                 self.project_symbol_catalog,
                 self.default_data_type_ref,
+                |data_type_ref| {
+                    let size_in_bytes = engine_unprivileged_state.get_unit_size_in_bytes(data_type_ref);
+
+                    (size_in_bytes > 0).then_some(size_in_bytes)
+                },
             );
         }
 

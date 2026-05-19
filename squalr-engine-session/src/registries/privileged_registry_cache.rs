@@ -209,6 +209,20 @@ impl PrivilegedRegistryCache {
         self.built_in_symbol_registry.get_default_value(data_type_ref)
     }
 
+    pub fn get_data_type_descriptor(
+        &self,
+        data_type_ref: &DataTypeRef,
+    ) -> Option<DataTypeDescriptor> {
+        self.find_data_type_descriptor(data_type_ref.get_data_type_id())
+            .cloned()
+            .or_else(|| {
+                self.built_in_symbol_registry
+                    .get_data_type_descriptor(data_type_ref.get_data_type_id())
+                    .as_deref()
+                    .cloned()
+            })
+    }
+
     pub fn get_unit_size_in_bytes(
         &self,
         data_type_ref: &DataTypeRef,

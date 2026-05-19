@@ -48,7 +48,11 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsCreateModuleRequest {
                 .get_symbol_modules_mut()
                 .push(ProjectSymbolModule::new(module_name.to_string(), self.size));
         }
-        project_symbol_catalog.ensure_module_root_struct_layout(module_name, self.size);
+        project_symbol_catalog.ensure_module_root_struct_layout(module_name, self.size, |data_type_ref| {
+            let size_in_bytes = engine_unprivileged_state.get_unit_size_in_bytes(data_type_ref);
+
+            (size_in_bytes > 0).then_some(size_in_bytes)
+        });
 
         if !save_and_sync_project_symbol_catalog(engine_unprivileged_state, opened_project, &project_directory_path) {
             return ProjectSymbolsCreateModuleResponse::default();

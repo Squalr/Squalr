@@ -499,6 +499,7 @@ impl SymbolLayoutEditorViewData {
     fn collect_unassigned_split_offsets_from_descriptor(
         project_symbol_catalog: &ProjectSymbolCatalog,
         struct_layout_descriptor: &StructLayoutDescriptor,
+        resolve_data_type_size_in_bytes: impl Fn(&DataTypeRef) -> Option<u64> + Copy,
     ) -> BTreeSet<u64> {
         let mut split_offsets = BTreeSet::new();
         let mut next_sequential_offset = 0_u64;
@@ -534,7 +535,12 @@ impl SymbolLayoutEditorViewData {
                 }
                 SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_) => next_sequential_offset,
             };
-            let field_size_in_bytes = Self::resolve_symbolic_field_size_in_bytes(project_symbol_catalog, symbolic_field_definition, &mut HashSet::new());
+            let field_size_in_bytes = Self::resolve_symbolic_field_size_in_bytes(
+                project_symbol_catalog,
+                symbolic_field_definition,
+                &mut HashSet::new(),
+                resolve_data_type_size_in_bytes,
+            );
             next_sequential_offset = next_sequential_offset.max(field_offset.saturating_add(field_size_in_bytes));
         }
 
@@ -731,6 +737,7 @@ impl SymbolLayoutEditorViewData {
         symbol_layout_editor_view_data: Dependency<Self>,
         project_symbol_catalog: &ProjectSymbolCatalog,
         default_data_type_ref: DataTypeRef,
+        resolve_data_type_size_in_bytes: impl Fn(&DataTypeRef) -> Option<u64> + Copy,
     ) {
         if let Some(mut symbol_layout_editor_view_data) = symbol_layout_editor_view_data.write("SymbolLayoutEditor begin create symbol layout") {
             symbol_layout_editor_view_data.selected_layout_id = None;
@@ -744,7 +751,7 @@ impl SymbolLayoutEditorViewData {
             symbol_layout_editor_view_data.clear_unassigned_split_offsets();
             symbol_layout_editor_view_data.clear_pending_variant_drafts();
             symbol_layout_editor_view_data.baseline_project_symbol_catalog = Some(project_symbol_catalog.clone());
-            let baseline_draft = Self::create_default_new_draft(project_symbol_catalog, default_data_type_ref);
+            let baseline_draft = Self::create_default_new_draft(project_symbol_catalog, default_data_type_ref, resolve_data_type_size_in_bytes);
             symbol_layout_editor_view_data.baseline_draft = Some(baseline_draft.clone());
             symbol_layout_editor_view_data.draft = Some(baseline_draft);
         }
@@ -754,6 +761,7 @@ impl SymbolLayoutEditorViewData {
         symbol_layout_editor_view_data: Dependency<Self>,
         project_symbol_catalog: &ProjectSymbolCatalog,
         layout_id: &str,
+        resolve_data_type_size_in_bytes: impl Fn(&DataTypeRef) -> Option<u64> + Copy,
     ) {
         if let Some(mut symbol_layout_editor_view_data) = symbol_layout_editor_view_data.write("SymbolLayoutEditor begin rename symbol layout") {
             symbol_layout_editor_view_data.selected_layout_id = Some(layout_id.to_string());
@@ -773,11 +781,12 @@ impl SymbolLayoutEditorViewData {
                 .get_struct_layout_descriptors()
                 .iter()
                 .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == layout_id);
-            symbol_layout_editor_view_data.baseline_draft = selected_struct_layout_descriptor
-                .map(|struct_layout_descriptor| Self::create_draft_from_descriptor_with_catalog(project_symbol_catalog, struct_layout_descriptor));
+            symbol_layout_editor_view_data.baseline_draft = selected_struct_layout_descriptor.map(|struct_layout_descriptor| {
+                Self::create_draft_from_descriptor_with_catalog(project_symbol_catalog, struct_layout_descriptor, resolve_data_type_size_in_bytes)
+            });
             if let Some(struct_layout_descriptor) = selected_struct_layout_descriptor {
                 symbol_layout_editor_view_data.unassigned_split_offsets =
-                    Self::collect_unassigned_split_offsets_from_descriptor(project_symbol_catalog, struct_layout_descriptor);
+                    Self::collect_unassigned_split_offsets_from_descriptor(project_symbol_catalog, struct_layout_descriptor, resolve_data_type_size_in_bytes);
             }
             symbol_layout_editor_view_data.draft = symbol_layout_editor_view_data.baseline_draft.clone();
         }
@@ -787,6 +796,7 @@ impl SymbolLayoutEditorViewData {
         symbol_layout_editor_view_data: Dependency<Self>,
         project_symbol_catalog: &ProjectSymbolCatalog,
         layout_id: &str,
+        resolve_data_type_size_in_bytes: impl Fn(&DataTypeRef) -> Option<u64> + Copy,
     ) {
         if let Some(mut symbol_layout_editor_view_data) = symbol_layout_editor_view_data.write("SymbolLayoutEditor begin open symbol layout") {
             symbol_layout_editor_view_data.selected_layout_id = Some(layout_id.to_string());
@@ -806,11 +816,12 @@ impl SymbolLayoutEditorViewData {
                 .get_struct_layout_descriptors()
                 .iter()
                 .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == layout_id);
-            symbol_layout_editor_view_data.baseline_draft = selected_struct_layout_descriptor
-                .map(|struct_layout_descriptor| Self::create_draft_from_descriptor_with_catalog(project_symbol_catalog, struct_layout_descriptor));
+            symbol_layout_editor_view_data.baseline_draft = selected_struct_layout_descriptor.map(|struct_layout_descriptor| {
+                Self::create_draft_from_descriptor_with_catalog(project_symbol_catalog, struct_layout_descriptor, resolve_data_type_size_in_bytes)
+            });
             if let Some(struct_layout_descriptor) = selected_struct_layout_descriptor {
                 symbol_layout_editor_view_data.unassigned_split_offsets =
-                    Self::collect_unassigned_split_offsets_from_descriptor(project_symbol_catalog, struct_layout_descriptor);
+                    Self::collect_unassigned_split_offsets_from_descriptor(project_symbol_catalog, struct_layout_descriptor, resolve_data_type_size_in_bytes);
             }
             symbol_layout_editor_view_data.draft = symbol_layout_editor_view_data.baseline_draft.clone();
         }
@@ -1295,18 +1306,23 @@ impl SymbolLayoutEditorViewData {
             .map(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id().to_string())
     }
 
-    pub fn create_draft_from_descriptor(struct_layout_descriptor: &StructLayoutDescriptor) -> SymbolLayoutEditDraft {
-        Self::create_draft_from_descriptor_with_catalog(&ProjectSymbolCatalog::default(), struct_layout_descriptor)
+    pub fn create_draft_from_descriptor(
+        struct_layout_descriptor: &StructLayoutDescriptor,
+        resolve_data_type_size_in_bytes: impl Fn(&DataTypeRef) -> Option<u64> + Copy,
+    ) -> SymbolLayoutEditDraft {
+        Self::create_draft_from_descriptor_with_catalog(&ProjectSymbolCatalog::default(), struct_layout_descriptor, resolve_data_type_size_in_bytes)
     }
 
     pub fn create_draft_from_descriptor_with_catalog(
         project_symbol_catalog: &ProjectSymbolCatalog,
         struct_layout_descriptor: &StructLayoutDescriptor,
+        resolve_data_type_size_in_bytes: impl Fn(&DataTypeRef) -> Option<u64> + Copy,
     ) -> SymbolLayoutEditDraft {
         let size_in_bytes = Self::resolve_symbolic_struct_size_in_bytes(
             project_symbol_catalog,
             struct_layout_descriptor.get_struct_layout_definition(),
             &mut HashSet::new(),
+            resolve_data_type_size_in_bytes,
         );
 
         SymbolLayoutEditDraft {
@@ -1343,8 +1359,12 @@ impl SymbolLayoutEditorViewData {
                         }
                         SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_) => *next_sequential_offset,
                     };
-                    let field_size_in_bytes =
-                        Self::resolve_symbolic_field_size_in_bytes(project_symbol_catalog, symbolic_field_definition, &mut HashSet::new());
+                    let field_size_in_bytes = Self::resolve_symbolic_field_size_in_bytes(
+                        project_symbol_catalog,
+                        symbolic_field_definition,
+                        &mut HashSet::new(),
+                        resolve_data_type_size_in_bytes,
+                    );
                     *next_sequential_offset = (*next_sequential_offset).max(field_offset.saturating_add(field_size_in_bytes));
 
                     let mut field_draft = SymbolLayoutFieldEditDraft::from_symbolic_field_definition(symbolic_field_definition);
@@ -1363,6 +1383,7 @@ impl SymbolLayoutEditorViewData {
     pub fn create_default_new_draft(
         project_symbol_catalog: &ProjectSymbolCatalog,
         default_data_type_ref: DataTypeRef,
+        resolve_data_type_size_in_bytes: impl Fn(&DataTypeRef) -> Option<u64> + Copy,
     ) -> SymbolLayoutEditDraft {
         let mut suffix_index = 1_u64;
         let mut proposed_layout_id = String::from("new.struct");
@@ -1374,7 +1395,7 @@ impl SymbolLayoutEditorViewData {
             suffix_index = suffix_index.saturating_add(1);
             proposed_layout_id = format!("new.struct{}", suffix_index);
         }
-        let default_size_in_bytes = Self::resolve_primitive_data_type_size_in_bytes(default_data_type_ref.get_data_type_id()).unwrap_or(1);
+        let default_size_in_bytes = resolve_data_type_size_in_bytes(&default_data_type_ref).unwrap_or(1);
 
         let mut field_draft = SymbolLayoutFieldEditDraft::new(default_data_type_ref);
         field_draft.field_name = String::from("field_1");
@@ -1392,16 +1413,23 @@ impl SymbolLayoutEditorViewData {
     pub fn build_symbol_layout_descriptor(
         project_symbol_catalog: &ProjectSymbolCatalog,
         draft: &SymbolLayoutEditDraft,
+        resolve_data_type_size_in_bytes: impl Fn(&DataTypeRef) -> Option<u64> + Copy,
     ) -> Result<StructLayoutDescriptor, String> {
-        SymbolLayoutDescriptorBuilder::build_symbol_layout_descriptor(project_symbol_catalog, draft)
+        SymbolLayoutDescriptorBuilder::build_symbol_layout_descriptor(project_symbol_catalog, draft, resolve_data_type_size_in_bytes)
     }
 
     pub fn build_symbol_layout_descriptor_with_unassigned_split_offsets(
         project_symbol_catalog: &ProjectSymbolCatalog,
         draft: &SymbolLayoutEditDraft,
         unassigned_split_offsets: &BTreeSet<u64>,
+        resolve_data_type_size_in_bytes: impl Fn(&DataTypeRef) -> Option<u64> + Copy,
     ) -> Result<StructLayoutDescriptor, String> {
-        SymbolLayoutDescriptorBuilder::build_symbol_layout_descriptor_with_unassigned_split_offsets(project_symbol_catalog, draft, unassigned_split_offsets)
+        SymbolLayoutDescriptorBuilder::build_symbol_layout_descriptor_with_unassigned_split_offsets(
+            project_symbol_catalog,
+            draft,
+            unassigned_split_offsets,
+            resolve_data_type_size_in_bytes,
+        )
     }
 
     pub fn parse_layout_size_text(
@@ -1415,19 +1443,27 @@ impl SymbolLayoutEditorViewData {
         project_symbol_catalog: &ProjectSymbolCatalog,
         symbolic_struct_definition: &SymbolicStructDefinition,
         visited_struct_layout_ids: &mut HashSet<String>,
+        resolve_data_type_size_in_bytes: impl Fn(&DataTypeRef) -> Option<u64> + Copy,
     ) -> u64 {
-        SymbolLayoutDescriptorBuilder::resolve_symbolic_struct_size_in_bytes(project_symbol_catalog, symbolic_struct_definition, visited_struct_layout_ids)
+        SymbolLayoutDescriptorBuilder::resolve_symbolic_struct_size_in_bytes(
+            project_symbol_catalog,
+            symbolic_struct_definition,
+            visited_struct_layout_ids,
+            resolve_data_type_size_in_bytes,
+        )
     }
 
     pub fn resolve_symbolic_struct_field_span_in_bytes(
         project_symbol_catalog: &ProjectSymbolCatalog,
         symbolic_struct_definition: &SymbolicStructDefinition,
         visited_struct_layout_ids: &mut HashSet<String>,
+        resolve_data_type_size_in_bytes: impl Fn(&DataTypeRef) -> Option<u64> + Copy,
     ) -> u64 {
         SymbolLayoutDescriptorBuilder::resolve_symbolic_struct_field_span_in_bytes(
             project_symbol_catalog,
             symbolic_struct_definition,
             visited_struct_layout_ids,
+            resolve_data_type_size_in_bytes,
         )
     }
 
@@ -1435,12 +1471,14 @@ impl SymbolLayoutEditorViewData {
         project_symbol_catalog: &ProjectSymbolCatalog,
         symbolic_field_definition: &SymbolicFieldDefinition,
         visited_struct_layout_ids: &mut HashSet<String>,
+        resolve_data_type_size_in_bytes: impl Fn(&DataTypeRef) -> Option<u64> + Copy,
     ) -> u64 {
-        SymbolLayoutDescriptorBuilder::resolve_symbolic_field_size_in_bytes(project_symbol_catalog, symbolic_field_definition, visited_struct_layout_ids)
-    }
-
-    fn resolve_primitive_data_type_size_in_bytes(data_type_id: &str) -> Option<u64> {
-        SymbolLayoutDescriptorBuilder::resolve_primitive_data_type_size_in_bytes(data_type_id)
+        SymbolLayoutDescriptorBuilder::resolve_symbolic_field_size_in_bytes(
+            project_symbol_catalog,
+            symbolic_field_definition,
+            visited_struct_layout_ids,
+            resolve_data_type_size_in_bytes,
+        )
     }
 }
 

@@ -19,6 +19,7 @@ use eframe::egui::{Align, Direction, Key, Layout, RichText, Ui, Widget};
 use list::symbol_layout_list_panel_view::SymbolLayoutListPanelView;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
+use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
 use std::{collections::BTreeSet, sync::Arc};
 
@@ -94,6 +95,18 @@ impl SymbolLayoutEditorView {
 
     fn command_dispatcher(&self) -> SymbolLayoutCommandDispatcher {
         SymbolLayoutCommandDispatcher::new(self.app_context.clone())
+    }
+
+    pub(in crate::views::symbol_layout_editor::symbol_layout_editor_view) fn resolve_data_type_size_in_bytes(
+        &self,
+        data_type_ref: &DataTypeRef,
+    ) -> Option<u64> {
+        let size_in_bytes = self
+            .app_context
+            .engine_unprivileged_state
+            .get_unit_size_in_bytes(data_type_ref);
+
+        (size_in_bytes > 0).then_some(size_in_bytes)
     }
 
     fn symbol_layout_take_over_has_unsaved_changes(
@@ -203,7 +216,12 @@ impl Widget for SymbolLayoutEditorView {
 
         if !is_take_over_active && can_handle_window_shortcuts && user_interface.input(|input_state| input_state.key_pressed(Key::Enter)) {
             if let Some(selected_layout_id) = selected_layout_id.as_deref() {
-                SymbolLayoutEditorViewData::begin_open_symbol_layout(self.symbol_layout_editor_view_data.clone(), &project_symbol_catalog, selected_layout_id);
+                SymbolLayoutEditorViewData::begin_open_symbol_layout(
+                    self.symbol_layout_editor_view_data.clone(),
+                    &project_symbol_catalog,
+                    selected_layout_id,
+                    |data_type_ref| self.resolve_data_type_size_in_bytes(data_type_ref),
+                );
             }
         }
 

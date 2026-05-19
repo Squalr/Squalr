@@ -2073,7 +2073,7 @@ impl PointerScannerViewData {
 
     pub fn synchronize_pointer_size_from_selection(&mut self) {
         let selected_pointer_size_data_type = self.pointer_size_data_type_selection.active_data_type().clone();
-        let selected_pointer_size = PointerScanPointerSize::from_str(selected_pointer_size_data_type.get_data_type_id()).unwrap_or(self.pointer_size);
+        let selected_pointer_size = PointerScanPointerSize::from_data_type_ref(&selected_pointer_size_data_type).unwrap_or(self.pointer_size);
 
         self.pointer_size_data_type_selection
             .replace_selected_data_types(vec![selected_pointer_size_data_type.clone()]);

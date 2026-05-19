@@ -33,6 +33,7 @@ pub(in crate::views::symbol_layout_editor::symbol_layout_editor_view) fn apply_u
             symbol_layout_editor_view.symbol_layout_editor_view_data.clone(),
             draft,
             target_layout_id,
+            |data_type_ref| symbol_layout_editor_view.resolve_data_type_size_in_bytes(data_type_ref),
         )
     });
     let mut persist_target_variant_draft = false;

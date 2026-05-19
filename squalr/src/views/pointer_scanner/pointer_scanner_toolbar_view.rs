@@ -10,13 +10,9 @@ use eframe::egui::{Align, Color32, ComboBox, Layout, Response, Sense, Ui, UiBuil
 use epaint::{CornerRadius, Stroke, StrokeKind, TextureHandle};
 use squalr_engine_api::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
-use squalr_engine_api::structures::data_types::{
-    built_in_types::{
-        u32::data_type_u32::DataTypeU32, u32be::data_type_u32be::DataTypeU32be, u64::data_type_u64::DataTypeU64, u64be::data_type_u64be::DataTypeU64be,
-    },
-    data_type_ref::DataTypeRef,
-};
+use squalr_engine_api::structures::data_types::{built_in_types::u64::data_type_u64::DataTypeU64, data_type_ref::DataTypeRef};
 use squalr_engine_api::structures::pointer_scans::pointer_scan_address_space::PointerScanAddressSpace;
+use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -124,18 +120,11 @@ impl Widget for PointerScannerToolbarView {
             .app_context
             .engine_unprivileged_state
             .get_registered_data_type_refs();
-        let available_pointer_size_data_types = [
-            "u24",
-            "u24be",
-            DataTypeU32::DATA_TYPE_ID,
-            DataTypeU32be::DATA_TYPE_ID,
-            DataTypeU64::DATA_TYPE_ID,
-            DataTypeU64be::DATA_TYPE_ID,
-        ]
-        .iter()
-        .map(|data_type_id| DataTypeRef::new(data_type_id))
-        .filter(|data_type_ref| available_data_types.contains(data_type_ref))
-        .collect::<Vec<_>>();
+        let available_pointer_size_data_types = PointerScanPointerSize::ALL
+            .iter()
+            .map(PointerScanPointerSize::to_data_type_ref)
+            .filter(|data_type_ref| available_data_types.contains(data_type_ref))
+            .collect::<Vec<_>>();
 
         {
             let mut pointer_scanner_view_data = match self

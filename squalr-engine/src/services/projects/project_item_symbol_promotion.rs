@@ -167,10 +167,14 @@ pub fn apply_project_item_symbol_promotion(
             }
             for (module_name, module_size_hint) in &module_size_hints_by_name {
                 project_symbol_catalog.ensure_symbol_module(module_name, *module_size_hint);
-                project_symbol_catalog.ensure_module_root_struct_layout(module_name, *module_size_hint);
+                project_symbol_catalog.ensure_module_root_struct_layout(module_name, *module_size_hint, |data_type_ref| {
+                    let size_in_bytes = engine_execution_context.get_unit_size_in_bytes(data_type_ref);
+
+                    (size_in_bytes > 0).then_some(size_in_bytes)
+                });
             }
             for promoted_module_symbol in &module_layout_symbols_to_upsert {
-                if let Err(error) = upsert_promoted_module_symbol_layout_field(project_symbol_catalog, promoted_module_symbol) {
+                if let Err(error) = upsert_promoted_module_symbol_layout_field(engine_execution_context, project_symbol_catalog, promoted_module_symbol) {
                     log::warn!("Failed to mirror promoted symbol into module root layout: {}", error);
                 }
             }
@@ -228,7 +232,7 @@ fn resolve_promoted_symbol_module_size_hint(
     let ProjectSymbolLocator::ModuleOffset { module_name, offset } = promoted_symbol.get_locator() else {
         return None;
     };
-    let claim_size_in_bytes = estimate_symbol_claim_size_in_bytes(project_symbol_catalog, promoted_symbol).max(1);
+    let claim_size_in_bytes = estimate_symbol_claim_size_in_bytes(engine_execution_context, project_symbol_catalog, promoted_symbol).max(1);
     let minimum_module_size = offset.saturating_add(claim_size_in_bytes);
     let queried_module_size = query_loaded_module_size(engine_execution_context, module_name);
 
@@ -241,16 +245,18 @@ fn resolve_promoted_symbol_module_size_hint(
 }
 
 fn upsert_promoted_module_symbol_layout_field(
+    engine_execution_context: &Arc<dyn EngineExecutionContext>,
     project_symbol_catalog: &mut ProjectSymbolCatalog,
     promoted_symbol: &ProjectSymbolClaim,
 ) -> Result<(), String> {
     let ProjectSymbolLocator::ModuleOffset { module_name, offset } = promoted_symbol.get_locator() else {
         return Ok(());
     };
-    let field_size_in_bytes = estimate_symbol_claim_size_in_bytes(project_symbol_catalog, promoted_symbol).max(1);
+    let field_size_in_bytes = estimate_symbol_claim_size_in_bytes(engine_execution_context, project_symbol_catalog, promoted_symbol).max(1);
     let mut visited_layout_ids = HashSet::new();
 
     upsert_symbol_layout_field_at_offset(
+        engine_execution_context,
         project_symbol_catalog,
         module_name,
         *offset,
@@ -262,6 +268,7 @@ fn upsert_promoted_module_symbol_layout_field(
 }
 
 fn upsert_symbol_layout_field_at_offset(
+    engine_execution_context: &Arc<dyn EngineExecutionContext>,
     project_symbol_catalog: &mut ProjectSymbolCatalog,
     struct_layout_id: &str,
     offset_in_bytes: u64,
@@ -281,6 +288,7 @@ fn upsert_symbol_layout_field_at_offset(
     let struct_layout_definition = struct_layout_descriptor.get_struct_layout_definition().clone();
 
     if let Some(containing_child_struct_layout) = find_containing_child_struct_layout(
+        engine_execution_context,
         project_symbol_catalog,
         &struct_layout_definition,
         offset_in_bytes,
@@ -288,6 +296,7 @@ fn upsert_symbol_layout_field_at_offset(
         visited_layout_ids,
     ) {
         let result = upsert_symbol_layout_field_at_offset(
+            engine_execution_context,
             project_symbol_catalog,
             &containing_child_struct_layout.struct_layout_id,
             containing_child_struct_layout.offset_in_child,
@@ -302,6 +311,7 @@ fn upsert_symbol_layout_field_at_offset(
     }
 
     let updated_struct_layout_definition = upsert_field_in_symbolic_struct_definition(
+        engine_execution_context,
         project_symbol_catalog,
         &struct_layout_definition,
         offset_in_bytes,
@@ -329,6 +339,7 @@ struct SymbolicFieldSpan {
 }
 
 fn find_containing_child_struct_layout(
+    engine_execution_context: &Arc<dyn EngineExecutionContext>,
     project_symbol_catalog: &ProjectSymbolCatalog,
     struct_layout_definition: &SymbolicStructDefinition,
     offset_in_bytes: u64,
@@ -336,7 +347,7 @@ fn find_containing_child_struct_layout(
     visited_layout_ids: &HashSet<String>,
 ) -> Option<ContainingChildStructLayout> {
     let requested_end_offset = offset_in_bytes.checked_add(field_size_in_bytes)?;
-    let mut containing_child_layouts = collect_symbolic_field_spans(project_symbol_catalog, struct_layout_definition)
+    let mut containing_child_layouts = collect_symbolic_field_spans(engine_execution_context, project_symbol_catalog, struct_layout_definition)
         .into_iter()
         .filter_map(|field_span| {
             let field_end_offset = field_span
@@ -359,7 +370,8 @@ fn find_containing_child_struct_layout(
                     offset_in_child: offset_in_bytes.saturating_sub(field_span.offset_in_bytes),
                 }),
                 ContainerType::Array | ContainerType::ArrayFixed(_) => {
-                    let child_struct_size_in_bytes = estimate_symbol_type_size_in_bytes(project_symbol_catalog, child_struct_layout_id, &mut HashSet::new());
+                    let child_struct_size_in_bytes =
+                        estimate_symbol_type_size_in_bytes(engine_execution_context, project_symbol_catalog, child_struct_layout_id, &mut HashSet::new());
                     if child_struct_size_in_bytes == 0 {
                         return None;
                     }
@@ -391,6 +403,7 @@ fn find_containing_child_struct_layout(
 }
 
 fn upsert_field_in_symbolic_struct_definition(
+    engine_execution_context: &Arc<dyn EngineExecutionContext>,
     project_symbol_catalog: &ProjectSymbolCatalog,
     struct_layout_definition: &SymbolicStructDefinition,
     offset_in_bytes: u64,
@@ -402,7 +415,7 @@ fn upsert_field_in_symbolic_struct_definition(
         .checked_add(field_size_in_bytes)
         .ok_or_else(|| String::from("Promoted field range is too large."))?;
     let mut positioned_fields = Vec::new();
-    let field_spans = collect_symbolic_field_spans(project_symbol_catalog, struct_layout_definition);
+    let field_spans = collect_symbolic_field_spans(engine_execution_context, project_symbol_catalog, struct_layout_definition);
 
     for field_span in &field_spans {
         let existing_field_end_offset = field_span
@@ -467,6 +480,7 @@ fn build_promoted_symbolic_field(
 }
 
 fn collect_symbolic_field_spans(
+    engine_execution_context: &Arc<dyn EngineExecutionContext>,
     project_symbol_catalog: &ProjectSymbolCatalog,
     struct_layout_definition: &SymbolicStructDefinition,
 ) -> Vec<SymbolicFieldSpan> {
@@ -486,7 +500,8 @@ fn collect_symbolic_field_spans(
             }
             SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_) => next_sequential_offset,
         };
-        let field_size_in_bytes = estimate_symbolic_field_size_in_bytes(project_symbol_catalog, field_definition, &mut HashSet::new());
+        let field_size_in_bytes =
+            estimate_symbolic_field_size_in_bytes(engine_execution_context, project_symbol_catalog, field_definition, &mut HashSet::new());
 
         next_sequential_offset = next_sequential_offset.max(field_offset.saturating_add(field_size_in_bytes));
         field_spans.push(SymbolicFieldSpan {
@@ -587,19 +602,28 @@ fn query_loaded_module_size(
 }
 
 fn estimate_symbol_claim_size_in_bytes(
+    engine_execution_context: &Arc<dyn EngineExecutionContext>,
     project_symbol_catalog: &ProjectSymbolCatalog,
     symbol_claim: &ProjectSymbolClaim,
 ) -> u64 {
-    estimate_symbol_type_size_in_bytes(project_symbol_catalog, symbol_claim.get_struct_layout_id(), &mut HashSet::new())
+    estimate_symbol_type_size_in_bytes(
+        engine_execution_context,
+        project_symbol_catalog,
+        symbol_claim.get_struct_layout_id(),
+        &mut HashSet::new(),
+    )
 }
 
 fn estimate_symbol_type_size_in_bytes(
+    engine_execution_context: &Arc<dyn EngineExecutionContext>,
     project_symbol_catalog: &ProjectSymbolCatalog,
     symbol_type_id: &str,
     visited_type_ids: &mut HashSet<String>,
 ) -> u64 {
-    if let Some(primitive_size_in_bytes) = estimate_primitive_data_type_size_in_bytes(symbol_type_id) {
-        return primitive_size_in_bytes;
+    let data_type_size_in_bytes = engine_execution_context.get_unit_size_in_bytes(&DataTypeRef::new(symbol_type_id));
+
+    if data_type_size_in_bytes > 0 {
+        return data_type_size_in_bytes;
     }
 
     if let Some(struct_layout_descriptor) = project_symbol_catalog
@@ -608,6 +632,7 @@ fn estimate_symbol_type_size_in_bytes(
         .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == symbol_type_id)
     {
         return estimate_symbolic_struct_size_in_bytes(
+            engine_execution_context,
             project_symbol_catalog,
             struct_layout_descriptor.get_struct_layout_definition(),
             visited_type_ids,
@@ -615,17 +640,18 @@ fn estimate_symbol_type_size_in_bytes(
     }
 
     if let Ok(symbolic_field_definition) = SymbolicFieldDefinition::from_str(symbol_type_id) {
-        return estimate_symbolic_field_size_in_bytes(project_symbol_catalog, &symbolic_field_definition, visited_type_ids);
+        return estimate_symbolic_field_size_in_bytes(engine_execution_context, project_symbol_catalog, &symbolic_field_definition, visited_type_ids);
     }
 
     if let Ok(symbolic_struct_definition) = SymbolicStructDefinition::from_str(symbol_type_id) {
-        return estimate_symbolic_struct_size_in_bytes(project_symbol_catalog, &symbolic_struct_definition, visited_type_ids);
+        return estimate_symbolic_struct_size_in_bytes(engine_execution_context, project_symbol_catalog, &symbolic_struct_definition, visited_type_ids);
     }
 
     1
 }
 
 fn estimate_symbolic_struct_size_in_bytes(
+    engine_execution_context: &Arc<dyn EngineExecutionContext>,
     project_symbol_catalog: &ProjectSymbolCatalog,
     symbolic_struct_definition: &SymbolicStructDefinition,
     visited_type_ids: &mut HashSet<String>,
@@ -642,7 +668,8 @@ fn estimate_symbolic_struct_size_in_bytes(
             }
             SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_) => next_sequential_offset,
         };
-        let field_size_in_bytes = estimate_symbolic_field_size_in_bytes(project_symbol_catalog, symbolic_field_definition, visited_type_ids);
+        let field_size_in_bytes =
+            estimate_symbolic_field_size_in_bytes(engine_execution_context, project_symbol_catalog, symbolic_field_definition, visited_type_ids);
 
         next_sequential_offset = next_sequential_offset.max(field_offset.saturating_add(field_size_in_bytes));
     }
@@ -655,6 +682,7 @@ fn estimate_symbolic_struct_size_in_bytes(
 }
 
 fn estimate_symbolic_field_size_in_bytes(
+    engine_execution_context: &Arc<dyn EngineExecutionContext>,
     project_symbol_catalog: &ProjectSymbolCatalog,
     symbolic_field_definition: &SymbolicFieldDefinition,
     visited_type_ids: &mut HashSet<String>,
@@ -667,7 +695,7 @@ fn estimate_symbolic_field_size_in_bytes(
                 return 0;
             }
 
-            let size_in_bytes = estimate_symbol_type_size_in_bytes(project_symbol_catalog, data_type_id, visited_type_ids);
+            let size_in_bytes = estimate_symbol_type_size_in_bytes(engine_execution_context, project_symbol_catalog, data_type_id, visited_type_ids);
 
             visited_type_ids.remove(data_type_id);
             size_in_bytes
@@ -677,18 +705,6 @@ fn estimate_symbolic_field_size_in_bytes(
     symbolic_field_definition
         .get_container_type()
         .get_total_size_in_bytes(unit_size_in_bytes)
-}
-
-fn estimate_primitive_data_type_size_in_bytes(data_type_id: &str) -> Option<u64> {
-    match data_type_id {
-        "bool" | "i8" | "u8" => Some(1),
-        "i16" | "u16" | "i16be" | "u16be" => Some(2),
-        "i24" | "u24" | "i24be" | "u24be" => Some(3),
-        "f32" | "i32" | "u32" | "f32be" | "i32be" | "u32be" => Some(4),
-        "f64" | "i64" | "u64" | "f64be" | "i64be" | "u64be" => Some(8),
-        "i128" | "u128" | "i128be" | "u128be" => Some(16),
-        _ => None,
-    }
 }
 
 fn build_promoted_symbol(

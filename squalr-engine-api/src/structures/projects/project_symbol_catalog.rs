@@ -1,5 +1,6 @@
 use crate::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
 use crate::registries::symbols::symbolic_resolver_descriptor::SymbolicResolverDescriptor;
+use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::projects::project_symbol_claim::ProjectSymbolClaim;
 use crate::structures::projects::project_symbol_locator::ProjectSymbolLocator;
 use crate::structures::projects::project_symbol_module::ProjectSymbolModule;
@@ -187,6 +188,7 @@ impl ProjectSymbolCatalog {
         &mut self,
         module_name: &str,
         module_size_in_bytes: u64,
+        resolve_data_type_size_in_bytes: impl Fn(&DataTypeRef) -> Option<u64> + Copy,
     ) {
         let module_name = module_name.trim();
         if module_name.is_empty() {
@@ -202,12 +204,13 @@ impl ProjectSymbolCatalog {
                 .get_struct_layout_definition()
                 .clone()
                 .with_declared_size_in_bytes(Some(module_size_in_bytes));
-            let updated_struct_layout_definition = self.materialize_struct_layout_definition(updated_struct_layout_definition);
+            let updated_struct_layout_definition = self.materialize_struct_layout_definition(updated_struct_layout_definition, resolve_data_type_size_in_bytes);
             self.struct_layout_descriptors[module_struct_layout_position] =
                 StructLayoutDescriptor::new(module_name.to_string(), updated_struct_layout_definition);
         } else {
             let struct_layout_definition = self.materialize_struct_layout_definition(
                 SymbolicStructDefinition::new(module_name.to_string(), Vec::new()).with_declared_size_in_bytes(Some(module_size_in_bytes)),
+                resolve_data_type_size_in_bytes,
             );
             self.struct_layout_descriptors
                 .push(StructLayoutDescriptor::new(module_name.to_string(), struct_layout_definition));
@@ -219,6 +222,7 @@ impl ProjectSymbolCatalog {
     fn materialize_struct_layout_definition(
         &self,
         symbolic_struct_definition: SymbolicStructDefinition,
+        resolve_data_type_size_in_bytes: impl Fn(&DataTypeRef) -> Option<u64> + Copy,
     ) -> SymbolicStructDefinition {
         let mut positioned_fields = Vec::new();
         let mut next_sequential_offset = 0_u64;
@@ -242,7 +246,12 @@ impl ProjectSymbolCatalog {
                 }
                 SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_) => next_sequential_offset,
             };
-            let field_size_in_bytes = SymbolLayoutDescriptorBuilder::resolve_symbolic_field_size_in_bytes(self, symbolic_field_definition, &mut HashSet::new());
+            let field_size_in_bytes = SymbolLayoutDescriptorBuilder::resolve_symbolic_field_size_in_bytes(
+                self,
+                symbolic_field_definition,
+                &mut HashSet::new(),
+                resolve_data_type_size_in_bytes,
+            );
 
             next_sequential_offset = next_sequential_offset.max(field_offset.saturating_add(field_size_in_bytes));
             positioned_fields.push(SymbolLayoutPositionedField::new(

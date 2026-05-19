@@ -396,11 +396,14 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
             .iter()
             .any(|data_type_ref| data_type_ref.get_data_type_id() == combo_data_type_id);
         let combo_icon = if Self::should_render_combo_icon(data_type_selection, label_mode) {
-            Some(DataTypeToIconConverter::convert_data_type_or_symbol_layout_to_icon(
-                combo_data_type_id,
-                combo_is_symbol_layout,
-                &app_context.theme.icon_library,
-            ))
+            if combo_is_symbol_layout {
+                Some(DataTypeToIconConverter::convert_symbol_layout_to_icon(&app_context.theme.icon_library))
+            } else {
+                Some(DataTypeToIconConverter::convert_registered_data_type_to_icon(
+                    &app_context,
+                    data_type_selection.visible_data_type(),
+                ))
+            }
         } else {
             None
         };
@@ -431,10 +434,7 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
                                     DataTypeItemView::new(
                                         app_context.clone(),
                                         DataTypeToStringConverter::convert_data_type_to_string(data_type_ref.get_data_type_id()),
-                                        Some(DataTypeToIconConverter::convert_data_type_to_icon(
-                                            data_type_ref.get_data_type_id(),
-                                            &app_context.theme.icon_library,
-                                        )),
+                                        Some(DataTypeToIconConverter::convert_registered_data_type_to_icon(&app_context, data_type_ref)),
                                         Self::SELECTABLE_DATA_TYPE_ITEM_WIDTH,
                                     )
                                     .with_check_state(CheckState::from_bool(data_type_selection.is_data_type_selected(data_type_ref)))
@@ -479,11 +479,7 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
                             DataTypeItemView::new(
                                 app_context.clone(),
                                 DataTypeToStringConverter::convert_data_type_to_string(data_type_ref.get_data_type_id()),
-                                Some(DataTypeToIconConverter::convert_data_type_or_symbol_layout_to_icon(
-                                    data_type_ref.get_data_type_id(),
-                                    true,
-                                    &app_context.theme.icon_library,
-                                )),
+                                Some(DataTypeToIconConverter::convert_symbol_layout_to_icon(&app_context.theme.icon_library)),
                                 popup_width,
                             )
                             .with_check_state(CheckState::from_bool(data_type_selection.is_data_type_selected(&data_type_ref)))

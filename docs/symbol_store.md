@@ -159,7 +159,7 @@ If module identity becomes painful later, solve that later. Do not add an identi
 ### 8. Pointer encoding reuses the pointer-scan model
 Do not build a fresh generic pointer plugin system first.
 
-Symbolic containers should continue to reuse the existing pointer-scan pointer-size model, including unusual encodings such as `u24be`.
+Symbolic containers should continue to reuse the existing pointer-scan pointer-size model, including unusual sizes such as `24be`.
 
 ### 9. The privileged side gets only execution data
 The full authored symbol map should remain unprivileged-owned.

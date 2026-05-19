@@ -21,8 +21,8 @@ use squalr_engine_api::events::project_items::project_items_event::ProjectItemsE
 use squalr_engine_api::events::registry::registry_event::RegistryEvent;
 use squalr_engine_api::events::scan_results::scan_results_event::ScanResultsEvent;
 use squalr_engine_api::events::trackable_task::trackable_task_event::TrackableTaskEvent;
-use squalr_engine_api::registries::symbols::privileged_registry_catalog::PrivilegedRegistryCatalog;
 use squalr_engine_api::registries::symbols::symbol_registry_error::SymbolRegistryError;
+use squalr_engine_api::registries::symbols::{data_type_descriptor::DataTypeDescriptor, privileged_registry_catalog::PrivilegedRegistryCatalog};
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::{
     anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, data_value::DataValue,
@@ -75,6 +75,10 @@ impl EngineExecutionContext for EngineUnprivilegedState {
         &self.project_manager
     }
 
+    fn get_registered_data_type_refs(&self) -> Vec<DataTypeRef> {
+        EngineUnprivilegedState::get_registered_data_type_refs(self)
+    }
+
     fn get_default_anonymous_value_string_format(
         &self,
         data_type_ref: &DataTypeRef,
@@ -104,6 +108,20 @@ impl EngineExecutionContext for EngineUnprivilegedState {
     ) -> Option<DataValue> {
         self.read_privileged_registry_cache(|privileged_registry_cache| privileged_registry_cache.get_default_value(data_type_ref))
             .unwrap_or_default()
+    }
+
+    fn get_data_type_descriptor(
+        &self,
+        data_type_ref: &DataTypeRef,
+    ) -> Option<DataTypeDescriptor> {
+        EngineUnprivilegedState::get_data_type_descriptor(self, data_type_ref)
+    }
+
+    fn get_unit_size_in_bytes(
+        &self,
+        data_type_ref: &DataTypeRef,
+    ) -> u64 {
+        EngineUnprivilegedState::get_unit_size_in_bytes(self, data_type_ref)
     }
 
     fn resolve_struct_layout_definition(
@@ -325,6 +343,31 @@ impl EngineUnprivilegedState {
                     data_value.get_data_type_id(),
                 ))
             })
+    }
+
+    pub fn get_unit_size_in_bytes(
+        &self,
+        data_type_ref: &DataTypeRef,
+    ) -> u64 {
+        self.read_privileged_registry_cache(|privileged_registry_cache| privileged_registry_cache.get_unit_size_in_bytes(data_type_ref))
+            .unwrap_or_default()
+    }
+
+    pub fn get_data_type_descriptor(
+        &self,
+        data_type_ref: &DataTypeRef,
+    ) -> Option<DataTypeDescriptor> {
+        self.read_privileged_registry_cache(|privileged_registry_cache| privileged_registry_cache.get_data_type_descriptor(data_type_ref))
+            .flatten()
+    }
+
+    pub fn get_icon_id(
+        &self,
+        data_type_ref: &DataTypeRef,
+    ) -> String {
+        self.get_data_type_descriptor(data_type_ref)
+            .map(|data_type_descriptor| data_type_descriptor.get_icon_id().to_string())
+            .unwrap_or_default()
     }
 
     pub fn set_virtual_snapshot_queries(

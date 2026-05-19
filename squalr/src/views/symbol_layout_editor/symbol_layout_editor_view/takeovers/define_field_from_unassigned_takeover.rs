@@ -37,6 +37,7 @@ impl SymbolLayoutEditorView {
             &edited_define_field_draft,
             span_offset_in_bytes,
             span_size_in_bytes,
+            |data_type_ref| self.resolve_data_type_size_in_bytes(data_type_ref),
         );
         let mut should_cancel = false;
         let mut should_create = false;
@@ -87,6 +88,7 @@ impl SymbolLayoutEditorView {
                                     &edited_define_field_draft,
                                     span_offset_in_bytes,
                                     span_size_in_bytes,
+                                    |data_type_ref| self.resolve_data_type_size_in_bytes(data_type_ref),
                                 );
                                 if let Err(validation_error) = validation_result.as_ref()
                                     && validation_error != "Field name is required."
@@ -125,6 +127,7 @@ impl SymbolLayoutEditorView {
                                     &edited_define_field_draft,
                                     span_offset_in_bytes,
                                     span_size_in_bytes,
+                                    |data_type_ref| self.resolve_data_type_size_in_bytes(data_type_ref),
                                 );
 
                                 if let Err(validation_error) = validation_result.as_ref()
@@ -207,9 +210,11 @@ impl SymbolLayoutEditorView {
             new_field_draft.offset_mode = SymbolLayoutFieldOffsetMode::Static;
             let (field_offset_in_bytes, _field_size_in_bytes) = validation_result.unwrap_or((span_offset_in_bytes, 0));
             new_field_draft.static_offset_in_bytes = format!("0x{:X}", field_offset_in_bytes);
-            let field_spans = SymbolLayoutDraftAnalyzer::resolve_draft_field_spans(project_symbol_catalog, draft)
-                .map(|(_layout_size_in_bytes, field_spans)| field_spans)
-                .unwrap_or_default();
+            let field_spans = SymbolLayoutDraftAnalyzer::resolve_draft_field_spans(project_symbol_catalog, draft, |data_type_ref| {
+                self.resolve_data_type_size_in_bytes(data_type_ref)
+            })
+            .map(|(_layout_size_in_bytes, field_spans)| field_spans)
+            .unwrap_or_default();
             let insert_index = SymbolLayoutDraftOps::field_insert_index_for_offset(&field_spans, updated_draft.field_drafts.len(), field_offset_in_bytes);
 
             updated_draft.field_drafts.insert(insert_index, new_field_draft);

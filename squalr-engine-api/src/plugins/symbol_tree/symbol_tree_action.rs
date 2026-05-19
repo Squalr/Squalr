@@ -1,4 +1,5 @@
 use crate::plugins::PluginPermission;
+use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
@@ -58,10 +59,21 @@ pub trait SymbolTreeWindowStore: Send + Sync {
     );
 }
 
+pub trait DataTypeRegistryStore: Send + Sync {
+    fn get_registered_data_type_refs(&self) -> Vec<DataTypeRef>;
+
+    fn get_unit_size_in_bytes(
+        &self,
+        data_type_ref: &DataTypeRef,
+    ) -> u64;
+}
+
 pub trait SymbolTreeActionServices: Send + Sync {
     fn symbol_store(&self) -> &dyn ProjectSymbolStore;
 
     fn process_memory(&self) -> &dyn ProcessMemoryStore;
+
+    fn data_type_registry(&self) -> &dyn DataTypeRegistryStore;
 
     fn symbol_tree_window(&self) -> &dyn SymbolTreeWindowStore;
 }

@@ -588,10 +588,9 @@ impl<'a> SymbolTreeDefineFieldView<'a> {
                                     .min_col_width(DEFINE_FIELD_BUILT_IN_TYPE_ITEM_WIDTH)
                                     .show(scroll_user_interface, |grid_user_interface| {
                                         for (type_option_position, type_option) in built_in_type_options.iter().enumerate() {
-                                            let data_type_id = type_option.data_type_ref.get_data_type_id();
-                                            let row_icon = Some(DataTypeToIconConverter::convert_data_type_to_icon(
-                                                data_type_id,
-                                                &self.app_context.theme.icon_library,
+                                            let row_icon = Some(DataTypeToIconConverter::convert_registered_data_type_to_icon(
+                                                &self.app_context,
+                                                &type_option.data_type_ref,
                                             ));
                                             let item_response = grid_user_interface.add(ComboBoxItemView::new(
                                                 self.app_context.clone(),

@@ -43,17 +43,19 @@ impl SymbolLayoutDescriptorBuilder {
     pub fn build_symbol_layout_descriptor<Draft>(
         project_symbol_catalog: &ProjectSymbolCatalog,
         draft: &Draft,
+        resolve_data_type_size_in_bytes: impl Fn(&DataTypeRef) -> Option<u64> + Copy,
     ) -> Result<StructLayoutDescriptor, String>
     where
         Draft: SymbolLayoutDescriptorBuildTarget,
     {
-        Self::build_symbol_layout_descriptor_with_unassigned_split_offsets(project_symbol_catalog, draft, &BTreeSet::new())
+        Self::build_symbol_layout_descriptor_with_unassigned_split_offsets(project_symbol_catalog, draft, &BTreeSet::new(), resolve_data_type_size_in_bytes)
     }
 
     pub fn build_symbol_layout_descriptor_with_unassigned_split_offsets<Draft>(
         project_symbol_catalog: &ProjectSymbolCatalog,
         draft: &Draft,
         unassigned_split_offsets: &BTreeSet<u64>,
+        resolve_data_type_size_in_bytes: impl Fn(&DataTypeRef) -> Option<u64> + Copy,
     ) -> Result<StructLayoutDescriptor, String>
     where
         Draft: SymbolLayoutDescriptorBuildTarget,
@@ -132,7 +134,12 @@ impl SymbolLayoutDescriptorBuilder {
                 SymbolicFieldOffsetResolution::Resolver(_) if draft.get_layout_kind().is_union() => (0, symbolic_field_definition),
                 SymbolicFieldOffsetResolution::Resolver(_) => (next_sequential_offset, symbolic_field_definition),
             };
-            let field_size_in_bytes = Self::resolve_symbolic_field_size_in_bytes(project_symbol_catalog, &symbolic_field_definition, &mut HashSet::new());
+            let field_size_in_bytes = Self::resolve_symbolic_field_size_in_bytes(
+                project_symbol_catalog,
+                &symbolic_field_definition,
+                &mut HashSet::new(),
+                resolve_data_type_size_in_bytes,
+            );
 
             next_sequential_offset = next_sequential_offset.max(field_offset.saturating_add(field_size_in_bytes));
             symbolic_field_definitions.push(symbolic_field_definition);
@@ -150,7 +157,12 @@ impl SymbolLayoutDescriptorBuilder {
         let symbolic_struct_definition =
             SymbolicStructDefinition::new_with_layout_kind(trimmed_layout_id.to_string(), draft.get_layout_kind(), symbolic_field_definitions)
                 .with_declared_size_in_bytes(Some(declared_size_in_bytes));
-        let minimum_size_in_bytes = Self::resolve_symbolic_struct_field_span_in_bytes(project_symbol_catalog, &symbolic_struct_definition, &mut HashSet::new());
+        let minimum_size_in_bytes = Self::resolve_symbolic_struct_field_span_in_bytes(
+            project_symbol_catalog,
+            &symbolic_struct_definition,
+            &mut HashSet::new(),
+            resolve_data_type_size_in_bytes,
+        );
         if declared_size_in_bytes < minimum_size_in_bytes {
             return Err(format!(
                 "Layout size {} byte(s) would truncate fields ending at byte {}.",
@@ -206,10 +218,11 @@ impl SymbolLayoutDescriptorBuilder {
         project_symbol_catalog: &ProjectSymbolCatalog,
         symbolic_struct_definition: &SymbolicStructDefinition,
         visited_struct_layout_ids: &mut HashSet<String>,
+        resolve_data_type_size_in_bytes: impl Fn(&DataTypeRef) -> Option<u64> + Copy,
     ) -> u64 {
         SymbolLayoutSizeResolver::resolve_symbolic_struct_field_span_in_bytes(
             symbolic_struct_definition,
-            |data_type_ref| Self::resolve_primitive_data_type_size_in_bytes(data_type_ref.get_data_type_id()),
+            resolve_data_type_size_in_bytes,
             |struct_layout_id| {
                 project_symbol_catalog
                     .get_struct_layout_descriptors()
@@ -226,10 +239,11 @@ impl SymbolLayoutDescriptorBuilder {
         project_symbol_catalog: &ProjectSymbolCatalog,
         symbolic_struct_definition: &SymbolicStructDefinition,
         visited_struct_layout_ids: &mut HashSet<String>,
+        resolve_data_type_size_in_bytes: impl Fn(&DataTypeRef) -> Option<u64> + Copy,
     ) -> u64 {
         SymbolLayoutSizeResolver::resolve_symbolic_struct_size_in_bytes(
             symbolic_struct_definition,
-            |data_type_ref| Self::resolve_primitive_data_type_size_in_bytes(data_type_ref.get_data_type_id()),
+            resolve_data_type_size_in_bytes,
             |struct_layout_id| {
                 project_symbol_catalog
                     .get_struct_layout_descriptors()
@@ -246,10 +260,11 @@ impl SymbolLayoutDescriptorBuilder {
         project_symbol_catalog: &ProjectSymbolCatalog,
         symbolic_field_definition: &SymbolicFieldDefinition,
         visited_struct_layout_ids: &mut HashSet<String>,
+        resolve_data_type_size_in_bytes: impl Fn(&DataTypeRef) -> Option<u64> + Copy,
     ) -> u64 {
         SymbolLayoutSizeResolver::resolve_symbolic_field_size_in_bytes(
             symbolic_field_definition,
-            |data_type_ref| Self::resolve_primitive_data_type_size_in_bytes(data_type_ref.get_data_type_id()),
+            resolve_data_type_size_in_bytes,
             |struct_layout_id| {
                 project_symbol_catalog
                     .get_struct_layout_descriptors()
@@ -260,18 +275,6 @@ impl SymbolLayoutDescriptorBuilder {
             visited_struct_layout_ids,
         )
         .unwrap_or(1)
-    }
-
-    pub fn resolve_primitive_data_type_size_in_bytes(data_type_id: &str) -> Option<u64> {
-        match data_type_id {
-            "bool" | "i8" | "u8" => Some(1),
-            "i16" | "u16" | "i16be" | "u16be" => Some(2),
-            "i24" | "u24" | "i24be" | "u24be" => Some(3),
-            "f32" | "i32" | "u32" | "f32be" | "i32be" | "u32be" => Some(4),
-            "f64" | "i64" | "u64" | "f64be" | "i64be" | "u64be" => Some(8),
-            "i128" | "u128" | "i128be" | "u128be" => Some(16),
-            _ => None,
-        }
     }
 
     fn push_unassigned_range(

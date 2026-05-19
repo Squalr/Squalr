@@ -11,7 +11,9 @@ use squalr_engine_api::{
         },
     },
     engine::engine_execution_context::EngineExecutionContext,
-    plugins::symbol_tree::symbol_tree_action::{ProcessMemoryStore, ProjectSymbolStore, SymbolTreeActionServices, SymbolTreeWindowStore},
+    plugins::symbol_tree::symbol_tree_action::{
+        DataTypeRegistryStore, ProcessMemoryStore, ProjectSymbolStore, SymbolTreeActionServices, SymbolTreeWindowStore,
+    },
     structures::{
         data_types::data_type_ref::DataTypeRef,
         data_values::container_type::ContainerType,
@@ -92,8 +94,26 @@ impl SymbolTreeActionServices for EngineSymbolTreeActionServices {
         self
     }
 
+    fn data_type_registry(&self) -> &dyn DataTypeRegistryStore {
+        self
+    }
+
     fn symbol_tree_window(&self) -> &dyn SymbolTreeWindowStore {
         &self.symbol_tree_window_store
+    }
+}
+
+impl DataTypeRegistryStore for EngineSymbolTreeActionServices {
+    fn get_registered_data_type_refs(&self) -> Vec<DataTypeRef> {
+        self.engine_execution_context.get_registered_data_type_refs()
+    }
+
+    fn get_unit_size_in_bytes(
+        &self,
+        data_type_ref: &DataTypeRef,
+    ) -> u64 {
+        self.engine_execution_context
+            .get_unit_size_in_bytes(data_type_ref)
     }
 }
 

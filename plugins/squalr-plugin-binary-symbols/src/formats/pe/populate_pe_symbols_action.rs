@@ -1,7 +1,9 @@
 use squalr_engine_api::{
     plugins::{
         PluginPermission,
-        symbol_tree::symbol_tree_action::{ProcessMemoryStore, SymbolTreeAction, SymbolTreeActionContext, SymbolTreeActionSelection, SymbolTreeActionServices},
+        symbol_tree::symbol_tree_action::{
+            DataTypeRegistryStore, ProcessMemoryStore, SymbolTreeAction, SymbolTreeActionContext, SymbolTreeActionSelection, SymbolTreeActionServices,
+        },
     },
     registries::symbols::{struct_layout_descriptor::StructLayoutDescriptor, symbolic_resolver_descriptor::SymbolicResolverDescriptor},
     structures::{
@@ -22,7 +24,7 @@ use squalr_engine_api::{
         },
     },
 };
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 use std::str::FromStr;
 
 const PE_HEADERS32_ID: &str = "win.pe.PE_HEADERS32";
@@ -123,10 +125,13 @@ impl SymbolTreeAction for PopulatePeSymbolsAction {
         let module_name = module_name.clone();
         let module_name_for_update = module_name.clone();
         let pe_header_layout = analyze_pe_header_layout(services.process_memory(), &module_name)?;
+        let data_type_size_by_id = collect_data_type_size_by_id(services.data_type_registry());
 
         services.symbol_store().write_catalog(
             "populate PE symbols",
-            Box::new(move |project_symbol_catalog| populate_pe_symbols(project_symbol_catalog, &module_name_for_update, &pe_header_layout)),
+            Box::new(move |project_symbol_catalog| {
+                populate_pe_symbols(project_symbol_catalog, &module_name_for_update, &pe_header_layout, &data_type_size_by_id)
+            }),
         )?;
         services.symbol_tree_window().request_refresh();
         services
@@ -141,10 +146,11 @@ fn populate_pe_symbols(
     project_symbol_catalog: &mut ProjectSymbolCatalog,
     module_name: &str,
     pe_header_layout: &PeHeaderLayout,
+    data_type_size_by_id: &BTreeMap<String, u64>,
 ) -> Result<(), String> {
     upsert_pe_symbolic_resolver_descriptors(project_symbol_catalog);
     upsert_pe_struct_layout_descriptors(project_symbol_catalog)?;
-    upsert_pe_module_fields(project_symbol_catalog, module_name, pe_header_layout)
+    upsert_pe_module_fields(project_symbol_catalog, module_name, pe_header_layout, data_type_size_by_id)
 }
 
 fn upsert_pe_symbolic_resolver_descriptors(project_symbol_catalog: &mut ProjectSymbolCatalog) {
@@ -283,6 +289,7 @@ fn upsert_pe_module_fields(
     project_symbol_catalog: &mut ProjectSymbolCatalog,
     module_name: &str,
     pe_header_layout: &PeHeaderLayout,
+    data_type_size_by_id: &BTreeMap<String, u64>,
 ) -> Result<(), String> {
     let desired_module_fields = build_desired_pe_module_fields(pe_header_layout)?;
     let minimum_size = desired_module_fields
@@ -302,8 +309,12 @@ fn upsert_pe_module_fields(
 
     upsert_pe_module_fields_in_module(symbol_module, &desired_module_fields)?;
     let module_size = symbol_module.get_size();
-    project_symbol_catalog.ensure_module_root_struct_layout(module_name, module_size);
-    upsert_pe_module_root_layout_fields(project_symbol_catalog, module_name, &desired_module_fields, module_size)
+    project_symbol_catalog.ensure_module_root_struct_layout(module_name, module_size, |data_type_ref| {
+        data_type_size_by_id
+            .get(data_type_ref.get_data_type_id())
+            .copied()
+    });
+    upsert_pe_module_root_layout_fields(project_symbol_catalog, module_name, &desired_module_fields, module_size, data_type_size_by_id)
 }
 
 fn build_desired_pe_module_fields(pe_header_layout: &PeHeaderLayout) -> Result<Vec<DesiredModuleField>, String> {
@@ -371,6 +382,7 @@ fn upsert_pe_module_root_layout_fields(
     module_name: &str,
     desired_module_fields: &[DesiredModuleField],
     module_size: u64,
+    data_type_size_by_id: &BTreeMap<String, u64>,
 ) -> Result<(), String> {
     let mut struct_layout_descriptors = project_symbol_catalog.get_struct_layout_descriptors().to_vec();
     let Some(module_root_layout_descriptor) = struct_layout_descriptors
@@ -392,7 +404,7 @@ fn upsert_pe_module_root_layout_fields(
                 .ok_or_else(|| format!("PE field `{}` range is too large.", desired_module_field.display_name))
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let mut positioned_fields = collect_positioned_layout_fields(project_symbol_catalog, &module_root_layout_definition)
+    let mut positioned_fields = collect_positioned_layout_fields(project_symbol_catalog, &module_root_layout_definition, data_type_size_by_id)
         .into_iter()
         .filter(|positioned_field| {
             !desired_field_ranges
@@ -463,6 +475,7 @@ fn upsert_pe_module_root_layout_fields(
 fn collect_positioned_layout_fields(
     project_symbol_catalog: &ProjectSymbolCatalog,
     symbolic_struct_definition: &SymbolicStructDefinition,
+    data_type_size_by_id: &BTreeMap<String, u64>,
 ) -> Vec<PositionedLayoutField> {
     let mut positioned_fields = Vec::new();
     let mut next_sequential_offset = 0_u64;
@@ -482,7 +495,8 @@ fn collect_positioned_layout_fields(
             }
             SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_) => next_sequential_offset,
         };
-        let field_size_in_bytes = estimate_symbolic_field_size_in_bytes(project_symbol_catalog, field_definition, &mut HashSet::new()).max(1);
+        let field_size_in_bytes =
+            estimate_symbolic_field_size_in_bytes(project_symbol_catalog, field_definition, data_type_size_by_id, &mut HashSet::new()).max(1);
 
         next_sequential_offset = next_sequential_offset.max(field_offset.saturating_add(field_size_in_bytes));
         positioned_fields.push(PositionedLayoutField {
@@ -853,6 +867,18 @@ fn expression_field(field_definition: &str) -> Result<SymbolicFieldDefinition, S
     SymbolicFieldDefinition::from_str(field_definition).map_err(|parse_error| format!("Invalid built-in PE symbolic field `{field_definition}`: {parse_error}"))
 }
 
+fn collect_data_type_size_by_id(data_type_registry: &dyn DataTypeRegistryStore) -> BTreeMap<String, u64> {
+    data_type_registry
+        .get_registered_data_type_refs()
+        .into_iter()
+        .filter_map(|data_type_ref| {
+            let unit_size_in_bytes = data_type_registry.get_unit_size_in_bytes(&data_type_ref);
+
+            (unit_size_in_bytes > 0).then(|| (data_type_ref.get_data_type_id().to_string(), unit_size_in_bytes))
+        })
+        .collect()
+}
+
 fn resolve_known_module_field_size(struct_layout_id: &str) -> Option<u64> {
     if let Some(u8_array_length) = resolve_u8_array_length(struct_layout_id) {
         return Some(u8_array_length);
@@ -877,6 +903,7 @@ fn resolve_known_module_field_size(struct_layout_id: &str) -> Option<u64> {
 fn estimate_symbolic_field_size_in_bytes(
     project_symbol_catalog: &ProjectSymbolCatalog,
     field_definition: &SymbolicFieldDefinition,
+    data_type_size_by_id: &BTreeMap<String, u64>,
     visited_struct_layout_ids: &mut HashSet<String>,
 ) -> u64 {
     if let Some(unassigned_size_in_bytes) = field_definition.get_unassigned_size_in_bytes() {
@@ -886,6 +913,7 @@ fn estimate_symbolic_field_size_in_bytes(
     let unit_size_in_bytes = estimate_data_type_size_in_bytes(
         project_symbol_catalog,
         field_definition.get_data_type_ref().get_data_type_id(),
+        data_type_size_by_id,
         visited_struct_layout_ids,
     );
 
@@ -897,9 +925,14 @@ fn estimate_symbolic_field_size_in_bytes(
 fn estimate_data_type_size_in_bytes(
     project_symbol_catalog: &ProjectSymbolCatalog,
     data_type_id: &str,
+    data_type_size_by_id: &BTreeMap<String, u64>,
     visited_struct_layout_ids: &mut HashSet<String>,
 ) -> u64 {
-    if let Some(known_size_in_bytes) = resolve_primitive_data_type_size(data_type_id).or_else(|| resolve_known_module_field_size(data_type_id)) {
+    if let Some(known_size_in_bytes) = data_type_size_by_id
+        .get(data_type_id)
+        .copied()
+        .or_else(|| resolve_known_module_field_size(data_type_id))
+    {
         return known_size_in_bytes;
     }
 
@@ -915,6 +948,7 @@ fn estimate_data_type_size_in_bytes(
             estimate_symbolic_struct_size_in_bytes(
                 project_symbol_catalog,
                 struct_layout_descriptor.get_struct_layout_definition(),
+                data_type_size_by_id,
                 visited_struct_layout_ids,
             )
         })
@@ -923,7 +957,12 @@ fn estimate_data_type_size_in_bytes(
                 SymbolicStructDefinition::from_str(data_type_id)
                     .ok()
                     .map(|symbolic_struct_definition| {
-                        estimate_symbolic_struct_size_in_bytes(project_symbol_catalog, &symbolic_struct_definition, visited_struct_layout_ids)
+                        estimate_symbolic_struct_size_in_bytes(
+                            project_symbol_catalog,
+                            &symbolic_struct_definition,
+                            data_type_size_by_id,
+                            visited_struct_layout_ids,
+                        )
                     })
             } else {
                 None
@@ -939,6 +978,7 @@ fn estimate_data_type_size_in_bytes(
 fn estimate_symbolic_struct_size_in_bytes(
     project_symbol_catalog: &ProjectSymbolCatalog,
     symbolic_struct_definition: &SymbolicStructDefinition,
+    data_type_size_by_id: &BTreeMap<String, u64>,
     visited_struct_layout_ids: &mut HashSet<String>,
 ) -> u64 {
     let mut next_sequential_offset = 0_u64;
@@ -958,7 +998,8 @@ fn estimate_symbolic_struct_size_in_bytes(
             }
             SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_) => next_sequential_offset,
         };
-        let field_size_in_bytes = estimate_symbolic_field_size_in_bytes(project_symbol_catalog, field_definition, visited_struct_layout_ids);
+        let field_size_in_bytes =
+            estimate_symbolic_field_size_in_bytes(project_symbol_catalog, field_definition, data_type_size_by_id, visited_struct_layout_ids);
 
         next_sequential_offset = next_sequential_offset.max(field_offset.saturating_add(field_size_in_bytes));
     }
@@ -968,18 +1009,6 @@ fn estimate_symbolic_struct_size_in_bytes(
             .get_declared_size_in_bytes()
             .unwrap_or(0),
     )
-}
-
-fn resolve_primitive_data_type_size(data_type_id: &str) -> Option<u64> {
-    match data_type_id {
-        "bool8" | "i8" | "u8" => Some(1),
-        "bool16" | "i16" | "i16be" | "u16" | "u16be" => Some(2),
-        "i24" | "i24be" | "u24" | "u24be" => Some(3),
-        "bool32" | "f32" | "i32" | "i32be" | "u32" | "u32be" => Some(4),
-        "bool64" | "f64" | "i64" | "i64be" | "u64" | "u64be" => Some(8),
-        "i128" | "u128" => Some(16),
-        _ => None,
-    }
 }
 
 fn resolve_u8_array_length(struct_layout_id: &str) -> Option<u64> {
@@ -1019,10 +1048,10 @@ mod tests {
     };
     use squalr_engine_api::{
         plugins::symbol_tree::symbol_tree_action::{
-            ProcessMemoryStore, ProjectSymbolStore, SymbolTreeAction, SymbolTreeActionContext, SymbolTreeActionSelection, SymbolTreeActionServices,
-            SymbolTreeWindowStore,
+            DataTypeRegistryStore, ProcessMemoryStore, ProjectSymbolStore, SymbolTreeAction, SymbolTreeActionContext, SymbolTreeActionSelection,
+            SymbolTreeActionServices, SymbolTreeWindowStore,
         },
-        registries::symbols::struct_layout_descriptor::StructLayoutDescriptor,
+        registries::symbols::{struct_layout_descriptor::StructLayoutDescriptor, symbol_registry::SymbolRegistry},
         structures::{
             data_types::data_type_ref::DataTypeRef,
             data_values::container_type::ContainerType,
@@ -1035,7 +1064,10 @@ mod tests {
             },
         },
     };
-    use std::sync::{Arc, Mutex};
+    use std::{
+        collections::BTreeMap,
+        sync::{Arc, Mutex},
+    };
 
     struct TestProjectSymbolStore {
         project_symbol_catalog: Arc<Mutex<ProjectSymbolCatalog>>,
@@ -1116,6 +1148,7 @@ mod tests {
     struct TestSymbolTreeActionServices {
         project_symbol_store: TestProjectSymbolStore,
         process_memory_store: TestProcessMemoryStore,
+        data_type_registry: SymbolRegistry,
         symbol_tree_window_store: TestSymbolTreeWindowStore,
     }
 
@@ -1124,8 +1157,22 @@ mod tests {
             Self {
                 project_symbol_store: TestProjectSymbolStore::new(project_symbol_catalog),
                 process_memory_store: TestProcessMemoryStore::new(),
+                data_type_registry: SymbolRegistry::new(),
                 symbol_tree_window_store: TestSymbolTreeWindowStore,
             }
+        }
+    }
+
+    impl DataTypeRegistryStore for TestSymbolTreeActionServices {
+        fn get_registered_data_type_refs(&self) -> Vec<DataTypeRef> {
+            self.data_type_registry.get_registered_data_type_refs()
+        }
+
+        fn get_unit_size_in_bytes(
+            &self,
+            data_type_ref: &DataTypeRef,
+        ) -> u64 {
+            self.data_type_registry.get_unit_size_in_bytes(data_type_ref)
         }
     }
 
@@ -1136,6 +1183,10 @@ mod tests {
 
         fn process_memory(&self) -> &dyn ProcessMemoryStore {
             &self.process_memory_store
+        }
+
+        fn data_type_registry(&self) -> &dyn DataTypeRegistryStore {
+            self
         }
 
         fn symbol_tree_window(&self) -> &dyn SymbolTreeWindowStore {
@@ -1244,7 +1295,8 @@ mod tests {
             optional_header_kind: PeOptionalHeaderKind::Pe32,
         };
 
-        populate_pe_symbols(&mut project_symbol_catalog, "game.exe", &pe_header_layout).expect("Expected PE symbol population to replace u8[] root field.");
+        populate_pe_symbols(&mut project_symbol_catalog, "game.exe", &pe_header_layout, &default_data_type_size_by_id())
+            .expect("Expected PE symbol population to replace u8[] root field.");
 
         let fields = project_symbol_catalog
             .find_symbol_module("game.exe")
@@ -1276,7 +1328,8 @@ mod tests {
             optional_header_kind: PeOptionalHeaderKind::Pe32,
         };
 
-        populate_pe_symbols(&mut project_symbol_catalog, "game.exe", &pe_header_layout).expect("Expected PE symbol population to stomp conflicting fields.");
+        populate_pe_symbols(&mut project_symbol_catalog, "game.exe", &pe_header_layout, &default_data_type_size_by_id())
+            .expect("Expected PE symbol population to stomp conflicting fields.");
 
         let fields = project_symbol_catalog
             .find_symbol_module("game.exe")
@@ -1322,7 +1375,7 @@ mod tests {
             optional_header_kind: PeOptionalHeaderKind::Pe32,
         };
 
-        populate_pe_symbols(&mut project_symbol_catalog, "game.exe", &pe_header_layout)
+        populate_pe_symbols(&mut project_symbol_catalog, "game.exe", &pe_header_layout, &default_data_type_size_by_id())
             .expect("Expected PE symbol population to update the module root layout.");
 
         let module_root_layout_descriptor = project_symbol_catalog
@@ -1352,6 +1405,20 @@ mod tests {
         header_bytes[0x98..0x9A].copy_from_slice(&0x10B_u16.to_le_bytes());
 
         header_bytes
+    }
+
+    fn default_data_type_size_by_id() -> BTreeMap<String, u64> {
+        let symbol_registry = SymbolRegistry::new();
+
+        symbol_registry
+            .get_registered_data_type_refs()
+            .into_iter()
+            .filter_map(|data_type_ref| {
+                let unit_size_in_bytes = symbol_registry.get_unit_size_in_bytes(&data_type_ref);
+
+                (unit_size_in_bytes > 0).then(|| (data_type_ref.get_data_type_id().to_string(), unit_size_in_bytes))
+            })
+            .collect()
     }
 
     fn assert_relative_symbol_resolver_path(
