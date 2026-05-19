@@ -5,6 +5,7 @@ use crate::structures::{data_types::data_type_ref::DataTypeRef, scanning::filter
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
 /// A custom type that defines a set of filters (scan results) discovered by scanners.
+#[derive(Clone)]
 pub struct SnapshotRegionFilterCollection {
     /// The filters contained in this collection. This is kept as a vector of vectors for better parallelization.
     snapshot_region_filters: Vec<Vec<SnapshotRegionFilter>>,
@@ -154,5 +155,118 @@ impl SnapshotRegionFilterCollection {
     /// Iterates the snapshot region filters in parallel, which are sorted by base address ascending.
     pub fn par_iter(&self) -> rayon::iter::Flatten<rayon::slice::Iter<'_, Vec<SnapshotRegionFilter>>> {
         self.snapshot_region_filters.par_iter().flatten()
+    }
+
+    /// Rebuilds this collection with the requested collection-local result positions removed.
+    pub fn remove_results_at_indices(
+        &self,
+        symbol_registry: &SymbolRegistry,
+        deleted_collection_result_indices: &[u64],
+    ) -> Self {
+        if deleted_collection_result_indices.is_empty() {
+            return self.clone();
+        }
+
+        let mut deleted_collection_result_indices = deleted_collection_result_indices.to_vec();
+        deleted_collection_result_indices.sort_unstable();
+        deleted_collection_result_indices.dedup();
+
+        let mut collection_result_index_base = 0u64;
+        let mut rebuilt_filters = Vec::new();
+
+        for snapshot_region_filter in self.iter() {
+            let filter_result_count = snapshot_region_filter.get_element_count(self.result_value_size_in_bytes, self.memory_alignment);
+            let filter_result_index_end = collection_result_index_base.saturating_add(filter_result_count);
+            let deleted_filter_result_indices = deleted_collection_result_indices
+                .iter()
+                .copied()
+                .skip_while(|deleted_collection_result_index| *deleted_collection_result_index < collection_result_index_base)
+                .take_while(|deleted_collection_result_index| *deleted_collection_result_index < filter_result_index_end)
+                .map(|deleted_collection_result_index| deleted_collection_result_index.saturating_sub(collection_result_index_base))
+                .collect::<Vec<_>>();
+
+            if deleted_filter_result_indices.is_empty() {
+                rebuilt_filters.push(snapshot_region_filter.clone());
+                collection_result_index_base = filter_result_index_end;
+                continue;
+            }
+
+            Self::push_filter_segments_after_deletions(
+                &mut rebuilt_filters,
+                snapshot_region_filter,
+                filter_result_count,
+                &deleted_filter_result_indices,
+                self.result_value_size_in_bytes,
+                self.memory_alignment,
+            );
+
+            collection_result_index_base = filter_result_index_end;
+        }
+
+        SnapshotRegionFilterCollection::new_with_result_size(
+            symbol_registry,
+            vec![rebuilt_filters],
+            self.data_type_ref.clone(),
+            self.memory_alignment,
+            self.result_value_size_in_bytes,
+        )
+        .with_result_container_type(self.result_container_type)
+    }
+
+    fn push_filter_segments_after_deletions(
+        rebuilt_filters: &mut Vec<SnapshotRegionFilter>,
+        snapshot_region_filter: &SnapshotRegionFilter,
+        filter_result_count: u64,
+        deleted_filter_result_indices: &[u64],
+        result_value_size_in_bytes: u64,
+        memory_alignment: MemoryAlignment,
+    ) {
+        let mut kept_segment_start_result_index = 0u64;
+
+        for deleted_filter_result_index in deleted_filter_result_indices {
+            if *deleted_filter_result_index > kept_segment_start_result_index {
+                let kept_segment_result_count = deleted_filter_result_index.saturating_sub(kept_segment_start_result_index);
+                rebuilt_filters.push(Self::create_filter_segment(
+                    snapshot_region_filter,
+                    kept_segment_start_result_index,
+                    kept_segment_result_count,
+                    result_value_size_in_bytes,
+                    memory_alignment,
+                ));
+            }
+
+            kept_segment_start_result_index = deleted_filter_result_index.saturating_add(1);
+        }
+
+        if kept_segment_start_result_index < filter_result_count {
+            let kept_segment_result_count = filter_result_count.saturating_sub(kept_segment_start_result_index);
+            rebuilt_filters.push(Self::create_filter_segment(
+                snapshot_region_filter,
+                kept_segment_start_result_index,
+                kept_segment_result_count,
+                result_value_size_in_bytes,
+                memory_alignment,
+            ));
+        }
+    }
+
+    fn create_filter_segment(
+        snapshot_region_filter: &SnapshotRegionFilter,
+        segment_start_result_index: u64,
+        segment_result_count: u64,
+        result_value_size_in_bytes: u64,
+        memory_alignment: MemoryAlignment,
+    ) -> SnapshotRegionFilter {
+        let memory_alignment_in_bytes = std::cmp::max(memory_alignment as u64, 1);
+        let segment_base_address = snapshot_region_filter
+            .get_base_address()
+            .saturating_add(segment_start_result_index.saturating_mul(memory_alignment_in_bytes));
+        let segment_size_in_bytes = result_value_size_in_bytes.saturating_add(
+            segment_result_count
+                .saturating_sub(1)
+                .saturating_mul(memory_alignment_in_bytes),
+        );
+
+        SnapshotRegionFilter::new(segment_base_address, segment_size_in_bytes)
     }
 }

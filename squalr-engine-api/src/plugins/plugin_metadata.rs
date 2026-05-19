@@ -1,4 +1,4 @@
-use crate::plugins::PluginCapability;
+use crate::plugins::{PluginCapability, PluginPermission};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -7,6 +7,8 @@ pub struct PluginMetadata {
     display_name: String,
     description: String,
     plugin_capabilities: Vec<PluginCapability>,
+    #[serde(default)]
+    plugin_permissions: Vec<PluginPermission>,
     is_built_in: bool,
     is_enabled_by_default: bool,
 }
@@ -20,15 +22,39 @@ impl PluginMetadata {
         is_built_in: bool,
         is_enabled_by_default: bool,
     ) -> Self {
+        Self::new_with_permissions(
+            plugin_id,
+            display_name,
+            description,
+            plugin_capabilities,
+            Vec::new(),
+            is_built_in,
+            is_enabled_by_default,
+        )
+    }
+
+    pub fn new_with_permissions(
+        plugin_id: impl Into<String>,
+        display_name: impl Into<String>,
+        description: impl Into<String>,
+        plugin_capabilities: Vec<PluginCapability>,
+        plugin_permissions: Vec<PluginPermission>,
+        is_built_in: bool,
+        is_enabled_by_default: bool,
+    ) -> Self {
         let mut plugin_capabilities = plugin_capabilities;
         plugin_capabilities.sort();
         plugin_capabilities.dedup();
+        let mut plugin_permissions = plugin_permissions;
+        plugin_permissions.sort();
+        plugin_permissions.dedup();
 
         Self {
             plugin_id: plugin_id.into(),
             display_name: display_name.into(),
             description: description.into(),
             plugin_capabilities,
+            plugin_permissions,
             is_built_in,
             is_enabled_by_default,
         }
@@ -55,6 +81,17 @@ impl PluginMetadata {
         plugin_capability: PluginCapability,
     ) -> bool {
         self.plugin_capabilities.contains(&plugin_capability)
+    }
+
+    pub fn get_plugin_permissions(&self) -> &[PluginPermission] {
+        &self.plugin_permissions
+    }
+
+    pub fn has_plugin_permission(
+        &self,
+        plugin_permission: PluginPermission,
+    ) -> bool {
+        self.plugin_permissions.contains(&plugin_permission)
     }
 
     pub fn get_is_built_in(&self) -> bool {

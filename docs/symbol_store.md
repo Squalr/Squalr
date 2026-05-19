@@ -5,13 +5,13 @@ This document is the working plan for turning project symbols into a real typed 
 
 The goal is not to copy Ghidra, Binary Ninja, or IDA. The goal is to give Squalr a practical symbol model that:
 - treats modules as the visible roots of symbol space,
-- models each module root expansion as one literal struct instance,
+- models each module root expansion as one literal symbol-layout instance,
 - lets promotion split `u8[]` filler into typed fields,
 - expands through structs, arrays, and pointers,
-- lets raw address and pointer discoveries reshape the typed module struct.
+- lets raw address and pointer discoveries reshape the typed module layout.
 
 ## Current Reality In The Repo
-- `ProjectSymbolCatalog` stores reusable struct layouts and project symbol fields.
+- `ProjectSymbolCatalog` stores reusable symbol layouts and project symbol fields.
 - `ProjectSymbolClaim` is the current persisted symbol-instance type.
 - `ProjectSymbolLocator` currently supports absolute addresses and module-name-plus-offset locators.
 - `SymbolicFieldDefinition` has field names and shared pointer-size/container encoding.
@@ -19,14 +19,14 @@ The goal is not to copy Ghidra, Binary Ninja, or IDA. The goal is to give Squalr
 - Virtual modules already have a good extension seam through `MemoryViewInstance`.
 - Project symbols are authored on the unprivileged side, but the privileged registry refresh still republishes the merged symbol catalog wholesale.
 
-The main gap is no longer "we have no symbol store." The gap is that the store and UI still talk like symbols are floating roots. The better model is: modules are roots, and each module expands like one parent struct whose fields gradually replace raw `u8[]` filler.
+The main gap is no longer "we have no symbol store." The gap is that the store and UI still talk like symbols are floating roots. The better model is: modules are roots, and each module expands like one parent symbol layout whose fields gradually replace raw `u8[]` filler.
 
 ## Desired End State
 
 ### 1. Modules are symbol roots
 The Symbol Tree should start from manually authored module roots, not from a flat list of "rooted symbols."
 
-A module root represents a named parent struct:
+A module root represents a named parent symbol layout:
 - host modules such as `game.exe`,
 - virtual modules such as `Dolphin MEM1`,
 - synthetic or runtime-backed module-like spaces later.
@@ -41,7 +41,7 @@ The size can usually be derived when attached, but it is still stored because ta
 
 Modules should not appear automatically just because the user attached to a process. The Symbol Tree is empty by default. Users add module roots with the normal `+` action, rename them with the standard F2 mechanism, and expand them like any other tree struct.
 
-Each module owns a struct layout over offsets `0..size`. Unclaimed space is represented as concrete `u8[]` fields inside that struct.
+Each module owns a symbol layout over offsets `0..size`. Unclaimed space is represented as concrete `u8[]` fields inside that layout.
 
 Example:
 
@@ -57,10 +57,10 @@ Modules
     game_state: GameState @ +0x400000
 ```
 
-This gives the tree a physical meaning: every child is a field inside the parent module struct.
+This gives the tree a physical meaning: every child is a field inside the parent module layout.
 
 ### 2. Symbols are typed fields
-A project symbol instance should be understood as a typed field in a module struct.
+A project symbol instance should be understood as a typed field in a module layout.
 
 The product concept should become:
 - field name,
@@ -84,10 +84,10 @@ As symbols are created, promoted, deleted, resized, or retyped, that `u8[]` chun
 
 This makes the symbol tree feel like a gradually-filled memory map instead of a bag of bookmarks.
 
-### 4. Promotion transforms the module struct
+### 4. Promotion transforms the module layout
 Promotion should not merely append another symbol record.
 
-If the target module root does not exist yet, promotion creates it. For example, if the user attached to `winmine.exe`, scanned, added a static address to the project, and then promoted it, promotion should create the `winmine.exe` module struct, query and store the module size, seed it with `u8[module_size]`, and then split that filler around the promoted field.
+If the target module root does not exist yet, promotion creates it. For example, if the user attached to `winmine.exe`, scanned, added a static address to the project, and then promoted it, promotion should create the `winmine.exe` module layout, query and store the module size, seed it with `u8[module_size]`, and then split that filler around the promoted field.
 
 If the promoted address falls inside a `u8[]` field, promotion splits that field:
 
@@ -117,12 +117,12 @@ If the new field overlaps an existing typed field, the user needs an explicit co
 - reject the promotion,
 - or create a separate pointer/runtime symbol if the address is not actually static module layout.
 
-### 5. Struct fields are derived children
-Struct fields, fixed-array elements, and pointer dereferences should remain derived tree nodes.
+### 5. Symbol layout fields are derived children
+Symbol layout fields, fixed-array elements, and pointer dereferences should remain derived tree nodes.
 
 Persist the top-level module fields. Derive children lazily from:
 - the module name plus field offset,
-- the referenced type layout,
+- the referenced symbol layout,
 - container semantics,
 - pointer reads when the user expands pointer nodes.
 
@@ -147,7 +147,7 @@ winmine.exe+game+timer
 winmine.exe+059C+2C
 ```
 
-Those examples are the same kind of chain. Some segments are raw literal offsets, and some are symbolic offsets resolved through the module/struct layout. Pointer dereference semantics should come from the chain segment or the referenced field container, not from a special symbol target string.
+Those examples are the same kind of chain. Some segments are raw literal offsets, and some are symbolic offsets resolved through the module/symbol layout. Pointer dereference semantics should come from the chain segment or the referenced field container, not from a special symbol target string.
 
 ### 7. Modules stay name-backed for now
 Do not introduce a new `ModuleId` abstraction.
@@ -159,7 +159,7 @@ If module identity becomes painful later, solve that later. Do not add an identi
 ### 8. Pointer encoding reuses the pointer-scan model
 Do not build a fresh generic pointer plugin system first.
 
-Symbolic containers should continue to reuse the existing pointer-scan pointer-size model, including unusual encodings such as `u24be`.
+Symbolic containers should continue to reuse the existing pointer-scan pointer-size model, including unusual sizes such as `24be`.
 
 ### 9. The privileged side gets only execution data
 The full authored symbol map should remain unprivileged-owned.
@@ -190,7 +190,7 @@ The persisted root record contains only:
 - `module_name`,
 - `size`.
 
-Everything else is expansion content under that root. Typed fields and `u8[]` filler are children in the module struct tree, not extra identifying fields on the module root record.
+Everything else is expansion content under that root. Typed fields and `u8[]` filler are children in the module layout tree, not extra identifying fields on the module root record.
 
 The module root itself contains no stored address. `module_name` resolves to the current base address through the active memory view. Stored fields are offsets inside `size`.
 
@@ -203,7 +203,7 @@ It should contain:
 - referenced symbol type,
 - field size or size policy.
 
-In the current code this is represented by `ProjectSymbolClaim`, but the product concept should be "field in a module struct."
+In the current code this is represented by `ProjectSymbolClaim`, but the product concept should be "field in a module layout."
 
 ### Locators
 The normal field locator is module name + offset.
@@ -216,7 +216,8 @@ Locator keys are internal lookup plumbing only. They should not become the user-
 Most field sizes come from the referenced type:
 - primitive: primitive size,
 - fixed array: element size times length,
-- struct: sum of fields,
+- struct layout: field span,
+- union layout: maximum field span,
 - pointer: pointer slot size.
 
 Some fields need an explicit size:
@@ -225,7 +226,7 @@ Some fields need an explicit size:
 
 Start with explicit sizes only where the type system cannot derive one.
 
-## Struct Operations
+## Symbol Layout Operations
 
 ### Add module
 Adding a module should be as simple as pressing `+` in the Symbol Tree.
@@ -239,8 +240,8 @@ Rename uses the standard F2 tree rename flow. The name is the resolver name.
 ### Promote field
 Promoting a static address should:
 1. resolve the module name and module offset,
-2. create the module struct if it does not exist,
-3. query and store the module size when the module struct is created from a live process,
+2. create the module layout if it does not exist,
+3. query and store the module size when the module layout is created from a live process,
 4. create an initial `u8[]` filler field from the stored size,
 5. split the filler around the new typed field,
 6. insert the new typed field in offset order.
@@ -257,7 +258,7 @@ Deleting a typed field should return its bytes to `u8[]` space.
 Adjacent `u8[]` chunks should merge.
 
 ### Promote discovery
-Promotion should route through the same module-struct mutation machinery.
+Promotion should route through the same module-layout mutation machinery.
 
 It is not a separate storage path. It is a convenient entry point from a discovered address, pointer, scan result, memory selection, or derived child.
 
@@ -288,8 +289,8 @@ It is not a separate storage path. It is a convenient entry point from a discove
 3. Store module roots as only `module_name` plus `size`.
 4. Keep empty projects empty until a module is added or promotion creates one.
 
-### Sprint 3: Make promotion reshape module structs
-1. Promote static address selections by creating the module struct when missing.
+### Sprint 3: Make promotion reshape module layouts
+1. Promote static address selections by creating the module layout when missing.
 2. Query module size during promotion when the process is attached.
 3. Seed the module with `u8[module_size]`.
 4. Split `u8[]` filler around promoted typed fields.
@@ -302,7 +303,7 @@ It is not a separate storage path. It is a convenient entry point from a discove
 4. Merge adjacent `u8[]` gaps in the derived view.
 
 ### Sprint 5: Keep derived children lazy
-1. Expand struct fields from field type layouts.
+1. Expand symbol-layout fields from field type layouts.
 2. Expand fixed arrays on demand.
 3. Resolve pointer children on demand.
 4. Promote derived children into module fields only when explicitly requested.
@@ -315,7 +316,7 @@ It is not a separate storage path. It is a convenient entry point from a discove
 ## GUI Shape
 
 ### Symbol Tree
-The Symbol Tree should be the module struct editor for placed symbols.
+The Symbol Tree should be the module layout editor for placed symbols.
 
 Responsibilities:
 - show manually added modules as top-level roots,
@@ -323,15 +324,15 @@ Responsibilities:
 - store each module root as only module name plus size,
 - support F2 rename for module roots and fields,
 - show ordered typed fields and `u8[]` filler fields,
-- lazily expand struct, array, and pointer children,
+- lazily expand symbol-layout, array, and pointer children,
 - promote `u8[]` chunks or derived children into typed fields,
 - retype, resize, rename, and delete fields,
 - jump fields to Memory Viewer or Code Viewer.
 
-The tree is not just a namespace browser. It is the literal parent struct for each module.
+The tree is not just a namespace browser. It is the literal parent layout for each module.
 
-### SymbolStructEditor
-The SymbolStructEditor window owns reusable layout authoring.
+### Symbol Layout Editor
+The Symbol Layout Editor window owns reusable layout authoring.
 
 It should not own module occupancy. It defines what a field means once placed.
 
@@ -394,6 +395,6 @@ The intended shape is:
 - a future runtime/symbol-provider plugin can contribute runtime-specific modules, fields, and resolution logic.
 
 ## Bottom Line
-The symbol-store plan should move from "sparse rooted symbols" to "module roots as literal structs."
+The symbol-store plan should move from "sparse rooted symbols" to "module roots as literal symbol layouts."
 
-Modules are the roots. The Symbol Tree starts empty until the user adds a module or promotion creates one. Each module root record is only `module_name` plus `size`; the address resolves at runtime by name. Expanding that root shows the module struct contents: `u8[]` filler and typed fields. Promotion creates the module root when needed, queries and stores the size when possible, and splits filler into meaningful data.
+Modules are the roots. The Symbol Tree starts empty until the user adds a module or promotion creates one. Each module root record is only `module_name` plus `size`; the address resolves at runtime by name. Expanding that root shows the module layout contents: `u8[]` filler and typed fields. Promotion creates the module root when needed, queries and stores the size when possible, and splits filler into meaningful data.

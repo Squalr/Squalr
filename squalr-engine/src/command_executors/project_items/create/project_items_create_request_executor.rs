@@ -1,5 +1,9 @@
 use crate::command_executors::project_items::project_item_sort_order::append_project_items_to_sort_order;
 use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
+use crate::services::projects::project_item_file_mutation::{
+    create_placeholder_file, generate_unique_project_item_file_path, resolve_project_file_parent_directory_path, resolve_project_item_path,
+    sanitize_file_name_component,
+};
 use squalr_engine_api::commands::project_items::create::project_items_create_request::ProjectItemsCreateRequest;
 use squalr_engine_api::commands::project_items::create::project_items_create_response::ProjectItemsCreateResponse;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
@@ -10,7 +14,7 @@ use squalr_engine_api::structures::projects::project_items::built_in_types::{
 };
 use squalr_engine_api::structures::projects::project_items::project_item_ref::ProjectItemRef;
 use squalr_engine_projects::project::serialization::serializable_project_file::SerializableProjectFile;
-use std::fs::{self, File};
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -158,7 +162,7 @@ fn create_address_item(
         }
     };
     let parent_directory_path = resolve_project_file_parent_directory_path(&project_directory_path, &project_items_create_request.parent_directory_path);
-    let project_item_file_stem = sanitize_file_name_component(&project_items_create_request.project_item_name);
+    let project_item_file_stem = sanitize_file_name_component(&project_items_create_request.project_item_name, "project_item");
     let created_project_item_path = generate_unique_project_item_file_path(&parent_directory_path, opened_project.get_project_items(), &project_item_file_stem);
     let project_item_ref = ProjectItemRef::new(created_project_item_path.clone());
     let address = project_items_create_request.address.unwrap_or(0);
@@ -213,31 +217,6 @@ fn create_address_item(
     }
 }
 
-fn resolve_project_item_path(
-    project_directory_path: &Path,
-    project_item_path: &Path,
-) -> PathBuf {
-    if project_item_path.is_absolute() {
-        project_item_path.to_path_buf()
-    } else {
-        project_directory_path.join(project_item_path)
-    }
-}
-
-fn resolve_project_file_parent_directory_path(
-    project_directory_path: &Path,
-    requested_parent_directory_path: &Path,
-) -> PathBuf {
-    let project_root_directory_path = project_directory_path.join(Project::PROJECT_DIR);
-    let resolved_parent_directory_path = resolve_project_item_path(project_directory_path, requested_parent_directory_path);
-
-    if resolved_parent_directory_path.starts_with(&project_root_directory_path) {
-        resolved_parent_directory_path
-    } else {
-        project_root_directory_path
-    }
-}
-
 fn reload_opened_project(
     opened_project_guard: &mut Option<Project>,
     project_directory_path: &Path,
@@ -251,77 +230,6 @@ fn reload_opened_project(
             log::error!("Failed to reload project after project item mutation: {}", error);
             false
         }
-    }
-}
-
-fn generate_unique_project_item_file_path(
-    parent_directory_path: &Path,
-    project_items: &std::collections::HashMap<ProjectItemRef, squalr_engine_api::structures::projects::project_items::project_item::ProjectItem>,
-    project_item_file_stem: &str,
-) -> PathBuf {
-    let mut duplicate_sequence_number = 0_u64;
-
-    loop {
-        let project_item_file_name = if duplicate_sequence_number == 0 {
-            format!("{}.{}", project_item_file_stem, Project::PROJECT_ITEM_EXTENSION.trim_start_matches('.'))
-        } else {
-            format!(
-                "{}_{}.{}",
-                project_item_file_stem,
-                duplicate_sequence_number,
-                Project::PROJECT_ITEM_EXTENSION.trim_start_matches('.')
-            )
-        };
-        let project_item_absolute_path = parent_directory_path.join(project_item_file_name);
-        let project_item_ref = ProjectItemRef::new(project_item_absolute_path.clone());
-
-        if project_items.contains_key(&project_item_ref) {
-            duplicate_sequence_number = duplicate_sequence_number.saturating_add(1);
-            continue;
-        }
-
-        return project_item_absolute_path;
-    }
-}
-
-fn create_placeholder_file(file_path: &Path) -> Result<(), String> {
-    if let Some(parent_path) = file_path.parent() {
-        fs::create_dir_all(parent_path).map_err(|error| format!("Failed creating project item parent directory {:?}: {}", parent_path, error))?;
-    }
-
-    if !file_path.exists() {
-        File::create(file_path).map_err(|error| format!("Failed creating project item file {:?}: {}", file_path, error))?;
-    }
-
-    Ok(())
-}
-
-fn sanitize_file_name_component(file_name_component: &str) -> String {
-    let mut sanitized_component = String::with_capacity(file_name_component.len());
-    let mut previous_character_was_underscore = false;
-
-    for name_character in file_name_component.chars() {
-        let mapped_character = if name_character.is_ascii_alphanumeric() { name_character } else { '_' };
-
-        if mapped_character == '_' {
-            if previous_character_was_underscore {
-                continue;
-            }
-
-            previous_character_was_underscore = true;
-        } else {
-            previous_character_was_underscore = false;
-        }
-
-        sanitized_component.push(mapped_character);
-    }
-
-    let trimmed_component = sanitized_component.trim_matches('_');
-
-    if trimmed_component.is_empty() {
-        String::from("project_item")
-    } else {
-        trimmed_component.to_string()
     }
 }
 

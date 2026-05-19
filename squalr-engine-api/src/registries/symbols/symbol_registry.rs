@@ -71,12 +71,9 @@ impl SymbolRegistry {
         &self,
         symbolic_struct_ref_id: &str,
     ) -> Option<Arc<SymbolicStructDefinition>> {
-        if let Some(symbolic_struct_definition) = self.symbolic_struct_registry.get(symbolic_struct_ref_id.trim()) {
-            Some(symbolic_struct_definition.clone())
-        } else {
-            log::warn!("Failed to find symbolic struct in registry: {}", symbolic_struct_ref_id);
-            None
-        }
+        self.symbolic_struct_registry
+            .get(symbolic_struct_ref_id.trim())
+            .cloned()
     }
 
     pub fn get_data_type_registry(&self) -> &HashMap<String, Arc<dyn DataType>> {
@@ -87,12 +84,9 @@ impl SymbolRegistry {
         &self,
         data_type_id: &str,
     ) -> Option<Arc<dyn DataType>> {
-        if let Some(data_type) = self.data_type_registry.get(data_type_id.trim()) {
-            Some(data_type.clone())
-        } else {
-            log::warn!("Failed to find data type in registry: {}", data_type_id);
-            None
-        }
+        self.data_type_registry
+            .get(data_type_id.trim())
+            .cloned()
     }
 
     /// Determines if the `DataType` this struct represents is currently registered and available.

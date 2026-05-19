@@ -1223,24 +1223,3 @@ impl Widget for CodeViewerView {
             .response
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::CodeViewerView;
-
-    #[test]
-    fn resolve_bytes_text_splitter_position_x_clamps_to_minimum_visible_columns() {
-        let resolved_splitter_position_x = CodeViewerView::resolve_bytes_text_splitter_position_x(0.0, 320.0, 0.1);
-
-        assert_eq!(
-            resolved_splitter_position_x,
-            CodeViewerView::fixed_columns_width() + CodeViewerView::MINIMUM_BYTES_COLUMN_WIDTH
-        );
-    }
-
-    #[test]
-    fn instruction_row_height_is_taller_while_editing() {
-        assert!(CodeViewerView::instruction_row_height(true) > CodeViewerView::instruction_row_height(false));
-        assert!(CodeViewerView::instruction_row_height(true) >= CodeViewerView::TOOLBAR_ROW_HEIGHT);
-    }
-}

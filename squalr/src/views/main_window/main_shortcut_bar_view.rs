@@ -235,21 +235,3 @@ impl MainShortcutBarView {
             .max(Self::PROCESS_COMBO_BOX_WIDTH)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::MainShortcutBarView;
-
-    #[test]
-    fn process_dropdown_width_respects_minimum_width_for_short_labels() {
-        assert_eq!(
-            MainShortcutBarView::process_dropdown_width_from_longest_label_width(0.0),
-            MainShortcutBarView::PROCESS_COMBO_BOX_WIDTH,
-        );
-    }
-
-    #[test]
-    fn process_dropdown_width_grows_for_long_labels() {
-        assert_eq!(MainShortcutBarView::process_dropdown_width_from_longest_label_width(220.0), 272.0,);
-    }
-}

@@ -1,7 +1,5 @@
-use crate::command_executors::project_symbols::{
-    project_symbol_name_scope::ProjectSymbolNameScope, project_symbol_store_mutation::save_and_sync_project_symbol_catalog,
-};
 use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
+use crate::services::projects::{project_symbol_catalog_persistence::save_and_sync_project_symbol_catalog, project_symbol_name_scope::ProjectSymbolNameScope};
 use squalr_engine_api::commands::project_symbols::rename::project_symbols_rename_request::ProjectSymbolsRenameRequest;
 use squalr_engine_api::commands::project_symbols::rename::project_symbols_rename_response::ProjectSymbolsRenameResponse;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;

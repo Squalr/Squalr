@@ -1,11 +1,10 @@
-use crate::command_executors::project_symbols::{
-    project_symbol_layout_mutation::ProjectSymbolLayoutMutation, project_symbol_store_mutation::save_and_sync_project_symbol_catalog,
-};
 use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
-use squalr_engine_api::commands::project_symbols::delete::project_symbols_delete_request::{ProjectSymbolsDeleteModuleRange, ProjectSymbolsDeleteRequest};
+use crate::services::projects::{
+    project_symbol_catalog_mutation::delete_project_symbols, project_symbol_catalog_persistence::save_and_sync_project_symbol_catalog,
+};
+use squalr_engine_api::commands::project_symbols::delete::project_symbols_delete_request::ProjectSymbolsDeleteRequest;
 use squalr_engine_api::commands::project_symbols::delete::project_symbols_delete_response::ProjectSymbolsDeleteResponse;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
-use std::collections::HashSet;
 use std::sync::Arc;
 
 impl UnprivilegedCommandRequestExecutor for ProjectSymbolsDeleteRequest {
@@ -41,63 +40,12 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsDeleteRequest {
             log::error!("Failed to resolve opened project directory for project-symbols delete command.");
             return ProjectSymbolsDeleteResponse::default();
         };
-        let symbol_locator_key_set = self
-            .symbol_locator_keys
-            .iter()
-            .map(|symbol_locator_key| symbol_locator_key.trim())
-            .filter(|symbol_locator_key| !symbol_locator_key.is_empty())
-            .map(str::to_string)
-            .collect::<HashSet<String>>();
-        let module_name_set = self
-            .module_names
-            .iter()
-            .map(|module_name| module_name.trim())
-            .filter(|module_name| !module_name.is_empty())
-            .map(str::to_string)
-            .collect::<HashSet<String>>();
-        let mut module_ranges = self
-            .module_ranges
-            .iter()
-            .filter_map(normalize_delete_module_range)
-            .collect::<Vec<_>>();
-        module_ranges.sort_by(|left_range, right_range| {
-            right_range
-                .module_name
-                .cmp(&left_range.module_name)
-                .then_with(|| right_range.offset.cmp(&left_range.offset))
-        });
         let project_symbol_catalog = opened_project
             .get_project_info_mut()
             .get_project_symbol_catalog_mut();
-        let symbol_modules = project_symbol_catalog.get_symbol_modules_mut();
-        let symbol_module_count_before_delete = symbol_modules.len();
+        let delete_summary = delete_project_symbols(project_symbol_catalog, self);
 
-        symbol_modules.retain(|symbol_module| !module_name_set.contains(symbol_module.get_module_name()));
-
-        let deleted_module_count = symbol_module_count_before_delete.saturating_sub(symbol_modules.len()) as u64;
-        let delete_module_field_summary = ProjectSymbolLayoutMutation::delete_module_fields_by_locator_key(project_symbol_catalog, &symbol_locator_key_set);
-        let delete_module_range_summary = ProjectSymbolLayoutMutation::delete_module_ranges(project_symbol_catalog, &module_ranges, &module_name_set);
-        let symbol_claims = project_symbol_catalog.get_symbol_claims_mut();
-        let symbol_claim_count_before_delete = symbol_claims.len();
-
-        symbol_claims.retain(|symbol_claim| {
-            if symbol_locator_key_set.contains(&symbol_claim.get_symbol_locator_key()) {
-                return false;
-            }
-
-            match symbol_claim.get_locator() {
-                squalr_engine_api::structures::projects::project_symbol_locator::ProjectSymbolLocator::ModuleOffset { module_name, .. } => {
-                    !module_name_set.contains(module_name)
-                }
-                squalr_engine_api::structures::projects::project_symbol_locator::ProjectSymbolLocator::AbsoluteAddress { .. } => true,
-            }
-        });
-
-        let deleted_symbol_count =
-            symbol_claim_count_before_delete.saturating_sub(symbol_claims.len()) as u64 + delete_module_field_summary.get_deleted_module_field_count();
-        let deleted_module_range_count = delete_module_range_summary.get_deleted_module_range_count();
-
-        if deleted_symbol_count == 0 && deleted_module_count == 0 && deleted_module_range_count == 0 {
+        if !delete_summary.did_delete_anything() {
             return ProjectSymbolsDeleteResponse {
                 success: true,
                 deleted_symbol_count: 0,
@@ -109,34 +57,19 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsDeleteRequest {
         if !save_and_sync_project_symbol_catalog(engine_unprivileged_state, opened_project, &project_directory_path) {
             return ProjectSymbolsDeleteResponse {
                 success: false,
-                deleted_symbol_count,
-                deleted_module_count,
-                deleted_module_range_count,
+                deleted_symbol_count: delete_summary.deleted_symbol_count,
+                deleted_module_count: delete_summary.deleted_module_count,
+                deleted_module_range_count: delete_summary.deleted_module_range_count,
             };
         }
 
         ProjectSymbolsDeleteResponse {
             success: true,
-            deleted_symbol_count,
-            deleted_module_count,
-            deleted_module_range_count,
+            deleted_symbol_count: delete_summary.deleted_symbol_count,
+            deleted_module_count: delete_summary.deleted_module_count,
+            deleted_module_range_count: delete_summary.deleted_module_range_count,
         }
     }
-}
-
-fn normalize_delete_module_range(project_symbols_delete_module_range: &ProjectSymbolsDeleteModuleRange) -> Option<ProjectSymbolsDeleteModuleRange> {
-    let module_name = project_symbols_delete_module_range.module_name.trim();
-
-    if module_name.is_empty() || project_symbols_delete_module_range.length == 0 {
-        return None;
-    }
-
-    Some(ProjectSymbolsDeleteModuleRange {
-        module_name: module_name.to_string(),
-        offset: project_symbols_delete_module_range.offset,
-        length: project_symbols_delete_module_range.length,
-        mode: project_symbols_delete_module_range.mode,
-    })
 }
 
 #[cfg(test)]
@@ -150,10 +83,12 @@ mod tests {
         ProjectSymbolsDeleteModuleRange, ProjectSymbolsDeleteModuleRangeMode,
     };
     use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
+    use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
     use squalr_engine_api::structures::projects::{
         project::Project, project_symbol_catalog::ProjectSymbolCatalog, project_symbol_claim::ProjectSymbolClaim, project_symbol_module::ProjectSymbolModule,
         project_symbol_module_field::ProjectSymbolModuleField,
     };
+    use squalr_engine_api::structures::structs::symbolic_struct_definition::SymbolicStructDefinition;
     use squalr_engine_projects::project::serialization::serializable_project_file::SerializableProjectFile;
     use std::sync::Arc;
 
@@ -255,7 +190,16 @@ mod tests {
                 ProjectSymbolModule::new(String::from("game.exe"), 0x2000),
                 ProjectSymbolModule::new(String::from("engine.dll"), 0x4000),
             ],
-            Vec::new(),
+            vec![
+                StructLayoutDescriptor::new(
+                    String::from("game.exe"),
+                    SymbolicStructDefinition::new(String::from("game.exe"), Vec::new()).with_declared_size_in_bytes(Some(0x2000)),
+                ),
+                StructLayoutDescriptor::new(
+                    String::from("engine.dll"),
+                    SymbolicStructDefinition::new(String::from("engine.dll"), Vec::new()).with_declared_size_in_bytes(Some(0x4000)),
+                ),
+            ],
             vec![
                 ProjectSymbolClaim::new_module_offset(String::from("Health"), String::from("game.exe"), 0x1234, String::from("u32")),
                 ProjectSymbolClaim::new_module_offset(String::from("State"), String::from("engine.dll"), 0x20, String::from("u8")),
@@ -288,10 +232,13 @@ mod tests {
         let loaded_project = Project::load_from_path(temp_directory.path()).expect("Expected module-deleted project to load from disk.");
         let project_symbol_catalog = loaded_project.get_project_info().get_project_symbol_catalog();
         let symbol_modules = project_symbol_catalog.get_symbol_modules();
+        let struct_layout_descriptors = project_symbol_catalog.get_struct_layout_descriptors();
         let symbol_claims = project_symbol_catalog.get_symbol_claims();
 
         assert_eq!(symbol_modules.len(), 1);
         assert_eq!(symbol_modules[0].get_module_name(), "engine.dll");
+        assert_eq!(struct_layout_descriptors.len(), 1);
+        assert_eq!(struct_layout_descriptors[0].get_struct_layout_id(), "engine.dll");
         assert_eq!(symbol_claims.len(), 2);
         assert!(symbol_claims.iter().all(|symbol_claim| {
             !symbol_claim
@@ -367,7 +314,7 @@ mod tests {
     }
 
     #[test]
-    fn delete_project_symbols_request_replaces_module_range_with_merged_u8_field() {
+    fn delete_project_symbols_request_replaces_module_range_with_unassigned_gap() {
         let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
         let mut symbol_module = ProjectSymbolModule::new(String::from("game.exe"), 0x20);
         symbol_module
@@ -397,7 +344,7 @@ mod tests {
                 module_name: String::from("game.exe"),
                 offset: 0x04,
                 length: 0x04,
-                mode: ProjectSymbolsDeleteModuleRangeMode::ReplaceWithU8,
+                mode: ProjectSymbolsDeleteModuleRangeMode::ReplaceWithUnassigned,
             }],
         }
         .execute(&engine_execution_context);
@@ -405,7 +352,7 @@ mod tests {
         assert!(project_symbols_delete_response.success);
         assert_eq!(project_symbols_delete_response.deleted_module_range_count, 1);
 
-        let loaded_project = Project::load_from_path(temp_directory.path()).expect("Expected replaced-field project to load from disk.");
+        let loaded_project = Project::load_from_path(temp_directory.path()).expect("Expected unassigned-gap project to load from disk.");
         let symbol_modules = loaded_project
             .get_project_info()
             .get_project_symbol_catalog()
@@ -413,8 +360,10 @@ mod tests {
         let module_fields = symbol_modules[0].get_fields();
 
         assert_eq!(symbol_modules[0].get_size(), 0x20);
-        assert_eq!(module_fields.len(), 1);
+        assert_eq!(module_fields.len(), 2);
         assert_eq!(module_fields[0].get_offset(), 0x00);
-        assert_eq!(module_fields[0].get_struct_layout_id(), "u8[16]");
+        assert_eq!(module_fields[0].get_struct_layout_id(), "u8[4]");
+        assert_eq!(module_fields[1].get_offset(), 0x08);
+        assert_eq!(module_fields[1].get_struct_layout_id(), "u8[8]");
     }
 }

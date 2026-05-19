@@ -5,6 +5,7 @@ pub enum PluginCapability {
     DataType,
     InstructionSet,
     MemoryView,
+    SymbolTree,
 }
 
 impl PluginCapability {
@@ -13,6 +14,7 @@ impl PluginCapability {
             Self::DataType => "data-type",
             Self::InstructionSet => "instruction-set",
             Self::MemoryView => "memory-view",
+            Self::SymbolTree => "symbol-tree",
         }
     }
 
@@ -21,6 +23,7 @@ impl PluginCapability {
             Self::DataType => "Data type",
             Self::InstructionSet => "Instruction set",
             Self::MemoryView => "Memory view",
+            Self::SymbolTree => "Symbol Tree",
         }
     }
 }

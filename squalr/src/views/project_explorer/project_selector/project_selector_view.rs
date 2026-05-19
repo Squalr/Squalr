@@ -3,6 +3,7 @@ use crate::{
     views::project_explorer::{
         project_explorer_view::ProjectExplorerView,
         project_selector::{
+            project_delete_confirmation_take_over_view::ProjectDeleteConfirmationTakeOverView,
             project_edit_take_over_view::ProjectEditTakeOverView,
             project_entry_view::ProjectEntryView,
             project_selector_toolbar_view::ProjectSelectorToolbarView,
@@ -56,6 +57,15 @@ impl Widget for ProjectSelectorView {
                 let rename_project_text = project_selector_view_data.rename_project_text.clone();
                 let editing_project_file_path = project_selector_view_data.editing_project_file_path.clone();
                 let renaming_project_file_path = project_selector_view_data.renaming_project_file_path.clone();
+                let delete_confirmation_project = project_selector_view_data
+                    .delete_confirmation_project_directory_path
+                    .as_ref()
+                    .zip(
+                        project_selector_view_data
+                            .delete_confirmation_project_name
+                            .as_ref(),
+                    )
+                    .map(|(project_directory_path, project_name)| (project_directory_path.clone(), project_name.clone()));
                 let selected_project_for_rename = project_selector_view_data
                     .selected_project_file_path
                     .as_ref()
@@ -69,7 +79,16 @@ impl Widget for ProjectSelectorView {
 
                 user_interface.add(self.project_selector_toolbar_view);
 
-                if let Some(editing_project_file_path) = editing_project_file_path.as_ref() {
+                if let Some((project_directory_path, project_name)) = delete_confirmation_project.as_ref() {
+                    let delete_confirmation_response =
+                        ProjectDeleteConfirmationTakeOverView::new(self.app_context.clone(), project_directory_path, project_name).show(&mut user_interface);
+
+                    if delete_confirmation_response.should_cancel {
+                        project_selector_frame_action = ProjectSelectorFrameAction::CancelDeleteConfirmation();
+                    } else if delete_confirmation_response.should_delete {
+                        project_selector_frame_action = ProjectSelectorFrameAction::DeleteProject(project_directory_path.clone(), project_name.to_string());
+                    }
+                } else if let Some(editing_project_file_path) = editing_project_file_path.as_ref() {
                     if let Some(project_info) = project_selector_view_data
                         .project_list
                         .iter()
@@ -86,7 +105,7 @@ impl Widget for ProjectSelectorView {
                         if edit_take_over_response.should_cancel {
                             project_selector_frame_action = ProjectSelectorFrameAction::CancelEditingProject();
                         } else if edit_take_over_response.should_delete {
-                            project_selector_frame_action = ProjectSelectorFrameAction::DeleteProject(
+                            project_selector_frame_action = ProjectSelectorFrameAction::RequestDeleteConfirmation(
                                 project_info.get_project_directory().unwrap_or_default(),
                                 project_info.get_name().to_string(),
                             );
@@ -183,6 +202,12 @@ impl Widget for ProjectSelectorView {
                     project_directory_path,
                     project_name,
                 );
+            }
+            ProjectSelectorFrameAction::RequestDeleteConfirmation(project_directory_path, project_name) => {
+                ProjectSelectorViewData::request_delete_confirmation(self.project_selector_view_data.clone(), project_directory_path, project_name);
+            }
+            ProjectSelectorFrameAction::CancelDeleteConfirmation() => {
+                ProjectSelectorViewData::cancel_delete_confirmation(self.project_selector_view_data.clone());
             }
             ProjectSelectorFrameAction::DeleteProject(project_directory_path, project_name) => {
                 ProjectSelectorViewData::delete_project(

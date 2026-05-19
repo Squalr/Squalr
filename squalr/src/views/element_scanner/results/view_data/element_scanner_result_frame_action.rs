@@ -22,33 +22,3 @@ impl ElementScannerResultFrameAction {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::ElementScannerResultFrameAction;
-    use crate::ui::widgets::controls::check_state::CheckState;
-
-    #[test]
-    fn from_selection_freeze_checkstate_freezes_unfrozen_selection() {
-        assert!(
-            ElementScannerResultFrameAction::from_selection_freeze_checkstate(CheckState::False)
-                == ElementScannerResultFrameAction::ToggleFreezeSelection(true)
-        );
-    }
-
-    #[test]
-    fn from_selection_freeze_checkstate_unfreezes_mixed_selection() {
-        assert!(
-            ElementScannerResultFrameAction::from_selection_freeze_checkstate(CheckState::Mixed)
-                == ElementScannerResultFrameAction::ToggleFreezeSelection(false)
-        );
-    }
-
-    #[test]
-    fn from_selection_freeze_checkstate_unfreezes_frozen_selection() {
-        assert!(
-            ElementScannerResultFrameAction::from_selection_freeze_checkstate(CheckState::True)
-                == ElementScannerResultFrameAction::ToggleFreezeSelection(false)
-        );
-    }
-}

@@ -51,6 +51,10 @@ pub const STARTUP_MESSAGES: &[&str] = &[
     "\"I saw the crown of France laying on the ground, so I picked it up with my sword.\" - Napoleon Bonaparte",
     "\"If the rule you followed brought you to this, of what use was the rule?\" - Anton Chigurh, No Country for Old Men",
     "\"Men are not hanged for stealing horses, but that horses may not be stolen.\" - George Savile",
+    "\"Nobody is coming to save you. Consequentially, nobody is coming to stop you either.\"",
+    "\"If you want peace, prepare for war.\" - Publilius Flavius Vegetius",
+    "\"Whatever you think the world is withholding from you, you are withholding from the world.\" - Eckhart Tolle",
+    "\"When I am weaker than you, I ask you for freedom because that is according to your principles; when I am stronger than you, I take away your freedom because that is according to my principles.\" - Frank Herbert",
 ];
 
 /// Picks a random startup message from the engine message bank.

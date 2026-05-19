@@ -4,6 +4,9 @@ use crate::commands::project_items::{
     duplicate::project_items_duplicate_request::ProjectItemsDuplicateRequest, list::project_items_list_request::ProjectItemsListRequest,
     move_item::project_items_move_request::ProjectItemsMoveRequest, promote_symbol::project_items_promote_symbol_request::ProjectItemsPromoteSymbolRequest,
     rename::project_items_rename_request::ProjectItemsRenameRequest, reorder::project_items_reorder_request::ProjectItemsReorderRequest,
+    strip_symbol::project_items_strip_symbol_request::ProjectItemsStripSymbolRequest,
+    update_details::project_items_update_details_request::ProjectItemsUpdateDetailsRequest,
+    write_value::project_items_write_value_request::ProjectItemsWriteValueRequest,
 };
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
@@ -59,5 +62,20 @@ pub enum ProjectItemsCommand {
     Reorder {
         #[structopt(flatten)]
         project_items_reorder_request: ProjectItemsReorderRequest,
+    },
+    /// Strips resolved symbol offsets from project items.
+    StripSymbol {
+        #[structopt(flatten)]
+        project_items_strip_symbol_request: ProjectItemsStripSymbolRequest,
+    },
+    /// Updates persisted details fields on project items.
+    UpdateDetails {
+        #[structopt(flatten)]
+        project_items_update_details_request: ProjectItemsUpdateDetailsRequest,
+    },
+    /// Writes the runtime value represented by a project item.
+    WriteValue {
+        #[structopt(flatten)]
+        project_items_write_value_request: ProjectItemsWriteValueRequest,
     },
 }

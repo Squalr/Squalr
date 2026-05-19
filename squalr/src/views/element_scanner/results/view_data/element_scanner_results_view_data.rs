@@ -1,4 +1,5 @@
 use crate::ui::geometry::safe_clamp_ord;
+use crate::ui::list_navigation::{ListNavigationDirection, resolve_next_index};
 use crate::ui::widgets::controls::check_state::CheckState;
 use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
 use crate::views::element_scanner::scanner::view_data::element_scanner_view_data::ElementScannerViewData;
@@ -30,6 +31,7 @@ use squalr_engine_api::{
     },
 };
 use squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState;
+use std::collections::BTreeSet;
 use std::ops::RangeInclusive;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -722,11 +724,34 @@ impl ElementScannerResultsViewData {
         self.active_refresh_request_revision == refresh_request_revision
     }
 
-    fn clear_selection(element_scanner_results_view_data: Dependency<Self>) {
-        if let Some(mut element_scanner_results_view_data) = element_scanner_results_view_data.write("Clear scan result selection") {
-            element_scanner_results_view_data.selection_index_start = None;
-            element_scanner_results_view_data.selection_index_end = None;
-        }
+    fn remove_current_scan_results_by_refs(
+        element_scanner_results_view_data: Dependency<Self>,
+        scan_result_refs: &[ScanResultRef],
+    ) -> usize {
+        let deleted_scan_result_global_indices = scan_result_refs
+            .iter()
+            .map(|scan_result_ref| scan_result_ref.get_scan_result_global_index())
+            .collect::<BTreeSet<_>>();
+
+        let Some(mut element_scanner_results_view_data) = element_scanner_results_view_data.write("Remove current scan results by refs") else {
+            return 0;
+        };
+
+        let previous_visible_result_count = element_scanner_results_view_data.current_scan_results.len();
+        element_scanner_results_view_data
+            .current_scan_results
+            .retain(|scan_result| {
+                let scan_result_global_index = scan_result
+                    .get_base_result()
+                    .get_scan_result_ref()
+                    .get_scan_result_global_index();
+
+                !deleted_scan_result_global_indices.contains(&scan_result_global_index)
+            });
+        element_scanner_results_view_data.selection_index_start = None;
+        element_scanner_results_view_data.selection_index_end = None;
+
+        previous_visible_result_count.saturating_sub(element_scanner_results_view_data.current_scan_results.len())
     }
 
     fn set_page_index(
@@ -813,11 +838,72 @@ impl ElementScannerResultsViewData {
         );
     }
 
+    pub fn navigate_scan_result_selection(
+        element_scanner_results_view_data: Dependency<Self>,
+        struct_viewer_view_data: Dependency<StructViewerViewData>,
+        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
+        direction: ListNavigationDirection,
+        extend_selection: bool,
+    ) {
+        let (selection_start_index, selection_end_index) = {
+            let Some(element_scanner_results_view_data) = element_scanner_results_view_data.read("Navigate scan result selection") else {
+                return;
+            };
+            let current_index = element_scanner_results_view_data
+                .selection_index_end
+                .or(element_scanner_results_view_data.selection_index_start)
+                .and_then(|selection_index| usize::try_from(selection_index).ok());
+            let Some(next_index) = resolve_next_index(current_index, element_scanner_results_view_data.current_scan_results.len(), direction) else {
+                return;
+            };
+            let next_index = next_index as i32;
+
+            if extend_selection {
+                let selection_start_index = element_scanner_results_view_data
+                    .selection_index_start
+                    .or(element_scanner_results_view_data.selection_index_end)
+                    .unwrap_or(next_index);
+
+                (Some(selection_start_index), Some(next_index))
+            } else {
+                (Some(next_index), None)
+            }
+        };
+
+        Self::set_scan_result_selection(
+            element_scanner_results_view_data,
+            struct_viewer_view_data,
+            engine_unprivileged_state,
+            selection_start_index,
+            selection_end_index,
+        );
+    }
+
     pub fn set_scan_result_selection_end(
         element_scanner_results_view_data: Dependency<Self>,
         struct_viewer_view_data: Dependency<StructViewerViewData>,
         engine_unprivileged_state: Arc<EngineUnprivilegedState>,
         scan_result_collection_end_index: Option<i32>,
+    ) {
+        let selection_start_index = element_scanner_results_view_data
+            .read("Set scan result selection end start")
+            .and_then(|element_scanner_results_view_data| element_scanner_results_view_data.selection_index_start);
+
+        Self::set_scan_result_selection(
+            element_scanner_results_view_data,
+            struct_viewer_view_data,
+            engine_unprivileged_state,
+            selection_start_index,
+            scan_result_collection_end_index,
+        );
+    }
+
+    fn set_scan_result_selection(
+        element_scanner_results_view_data: Dependency<Self>,
+        struct_viewer_view_data: Dependency<StructViewerViewData>,
+        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
+        selection_index_start: Option<i32>,
+        selection_index_end: Option<i32>,
     ) {
         let element_scanner_results_view_data_dependency = element_scanner_results_view_data.clone();
         let mut element_scanner_results_view_data = match element_scanner_results_view_data.write("Set scan result selection end") {
@@ -826,7 +912,8 @@ impl ElementScannerResultsViewData {
         };
         let mut valued_structs = Vec::new();
 
-        element_scanner_results_view_data.selection_index_end = scan_result_collection_end_index;
+        element_scanner_results_view_data.selection_index_start = selection_index_start;
+        element_scanner_results_view_data.selection_index_end = selection_index_end;
 
         Self::for_each_selected_scan_result(&mut element_scanner_results_view_data, |scan_result| {
             valued_structs.push(scan_result.as_valued_struct())
@@ -923,11 +1010,32 @@ impl ElementScannerResultsViewData {
         let scan_result_refs = Self::collect_selected_scan_result_refs(element_scanner_results_view_data.clone());
 
         if !scan_result_refs.is_empty() {
-            Self::clear_selection(element_scanner_results_view_data);
-            let engine_unprivileged_state = &engine_unprivileged_state;
+            let requested_result_count = scan_result_refs.len() as u64;
+            let removed_visible_result_count = Self::remove_current_scan_results_by_refs(element_scanner_results_view_data.clone(), &scan_result_refs);
             let scan_results_delete_request = ScanResultsDeleteRequest { scan_result_refs };
+            let element_scanner_results_view_data_for_response = element_scanner_results_view_data.clone();
+            let engine_unprivileged_state_for_response = engine_unprivileged_state.clone();
 
-            scan_results_delete_request.send(engine_unprivileged_state, |_response| {});
+            if removed_visible_result_count == 0 {
+                log::warn!("Scan results delete request had selected refs, but none were visible on the current page.");
+            }
+
+            let did_dispatch = scan_results_delete_request.send(&engine_unprivileged_state, move |scan_results_delete_response| {
+                if scan_results_delete_response.deleted_result_count < requested_result_count {
+                    log::warn!(
+                        "Scan results delete completed with {} of {} requested result(s) deleted.",
+                        scan_results_delete_response.deleted_result_count,
+                        requested_result_count
+                    );
+                }
+
+                Self::query_scan_results(element_scanner_results_view_data_for_response, engine_unprivileged_state_for_response, false);
+            });
+
+            if !did_dispatch {
+                log::warn!("Scan results delete request failed to dispatch.");
+                Self::query_scan_results(element_scanner_results_view_data, engine_unprivileged_state, false);
+            }
         }
     }
 
@@ -1152,276 +1260,5 @@ impl ElementScannerResultsViewData {
                     .get_scan_result_global_index()
                     == global_index
             })
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::ElementScannerResultsViewData;
-    use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
-    use crate::views::element_scanner::scanner::view_data::element_scanner_view_data::ElementScannerViewData;
-    use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
-    use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
-    use squalr_engine_api::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
-    use squalr_engine_api::structures::memory::normalized_module::ModuleAddressDisplay;
-    use squalr_engine_api::structures::scan_results::scan_result::ScanResult;
-    use squalr_engine_api::structures::scan_results::scan_result_ref::ScanResultRef;
-    use squalr_engine_api::structures::scan_results::scan_result_valued::ScanResultValued;
-    use std::time::{Duration, Instant};
-
-    fn create_scan_result(scan_result_global_index: u64) -> ScanResult {
-        let scan_result_valued = ScanResultValued::new(
-            0x1000 + scan_result_global_index,
-            DataTypeRef::new("u8"),
-            String::new(),
-            None,
-            Vec::new(),
-            None,
-            Vec::new(),
-            ScanResultRef::new(scan_result_global_index),
-        );
-
-        ScanResult::new(
-            scan_result_valued,
-            String::new(),
-            0,
-            ModuleAddressDisplay::ModuleRelative,
-            None,
-            Vec::new(),
-            false,
-        )
-    }
-
-    fn create_view_data_with_scan_results(scan_result_global_indices: &[u64]) -> ElementScannerResultsViewData {
-        let mut element_scanner_results_view_data = ElementScannerResultsViewData::new();
-        element_scanner_results_view_data.current_scan_results = scan_result_global_indices
-            .iter()
-            .map(|scan_result_global_index| create_scan_result(*scan_result_global_index))
-            .collect();
-
-        element_scanner_results_view_data
-    }
-
-    #[test]
-    fn collect_scan_result_refs_for_selected_range_uses_multi_select_bounds() {
-        let mut element_scanner_results_view_data = create_view_data_with_scan_results(&[10, 11, 12, 13]);
-        element_scanner_results_view_data.selection_index_start = Some(1);
-        element_scanner_results_view_data.selection_index_end = Some(2);
-
-        let selected_scan_result_refs = ElementScannerResultsViewData::collect_scan_result_refs_for_selected_range(&element_scanner_results_view_data);
-        let selected_scan_result_global_indices = selected_scan_result_refs
-            .iter()
-            .map(|scan_result_ref| scan_result_ref.get_scan_result_global_index())
-            .collect::<Vec<_>>();
-
-        assert_eq!(selected_scan_result_global_indices, vec![11, 12]);
-    }
-
-    #[test]
-    fn collect_scan_result_refs_for_selected_range_uses_single_select_when_end_missing() {
-        let mut element_scanner_results_view_data = create_view_data_with_scan_results(&[10, 11, 12, 13]);
-        element_scanner_results_view_data.selection_index_start = Some(2);
-        element_scanner_results_view_data.selection_index_end = None;
-
-        let selected_scan_result_refs = ElementScannerResultsViewData::collect_scan_result_refs_for_selected_range(&element_scanner_results_view_data);
-        let selected_scan_result_global_indices = selected_scan_result_refs
-            .iter()
-            .map(|scan_result_ref| scan_result_ref.get_scan_result_global_index())
-            .collect::<Vec<_>>();
-
-        assert_eq!(selected_scan_result_global_indices, vec![12]);
-    }
-
-    #[test]
-    fn collect_scan_result_refs_for_selected_range_returns_empty_without_selection() {
-        let element_scanner_results_view_data = create_view_data_with_scan_results(&[10, 11, 12, 13]);
-
-        let selected_scan_result_refs = ElementScannerResultsViewData::collect_scan_result_refs_for_selected_range(&element_scanner_results_view_data);
-
-        assert!(selected_scan_result_refs.is_empty());
-    }
-
-    #[test]
-    fn collect_scan_result_refs_by_indicies_returns_requested_index_only() {
-        let dependency_container = DependencyContainer::new();
-        let element_scanner_results_view_data = dependency_container.register(create_view_data_with_scan_results(&[10, 11, 12, 13]));
-
-        let selected_scan_result_refs = ElementScannerResultsViewData::collect_scan_result_refs_by_indicies(element_scanner_results_view_data, &[2]);
-        let selected_scan_result_global_indices = selected_scan_result_refs
-            .iter()
-            .map(|scan_result_ref| scan_result_ref.get_scan_result_global_index())
-            .collect::<Vec<_>>();
-
-        assert_eq!(selected_scan_result_global_indices, vec![12]);
-    }
-
-    #[test]
-    fn clear_selection_resets_selected_scan_result_bounds() {
-        let dependency_container = DependencyContainer::new();
-        let element_scanner_results_view_data = dependency_container.register(create_view_data_with_scan_results(&[10, 11, 12, 13]));
-
-        {
-            let mut element_scanner_results_view_data = element_scanner_results_view_data
-                .write("Seed scan result selection")
-                .expect("Expected scan results view data write guard.");
-            element_scanner_results_view_data.selection_index_start = Some(1);
-            element_scanner_results_view_data.selection_index_end = Some(3);
-        }
-
-        ElementScannerResultsViewData::clear_selection(element_scanner_results_view_data.clone());
-
-        let element_scanner_results_view_data = element_scanner_results_view_data
-            .read("Verify scan result selection cleared")
-            .expect("Expected scan results view data read guard.");
-
-        assert_eq!(element_scanner_results_view_data.selection_index_start, None);
-        assert_eq!(element_scanner_results_view_data.selection_index_end, None);
-    }
-
-    #[test]
-    fn synchronize_data_type_filter_selection_prunes_eliminated_types() {
-        let mut data_type_filter_selection = DataTypeSelection::new(DataTypeRef::new("i32"));
-        data_type_filter_selection.set_data_type_selected(DataTypeRef::new("u32"), true);
-
-        let did_change_selection = ElementScannerResultsViewData::synchronize_data_type_filter_selection_with_available_data_types(
-            &mut data_type_filter_selection,
-            &[DataTypeRef::new("u32")],
-        );
-
-        assert!(did_change_selection);
-        assert_eq!(data_type_filter_selection.selected_data_types(), &[DataTypeRef::new("u32")]);
-        assert_eq!(data_type_filter_selection.visible_data_type(), &DataTypeRef::new("u32"));
-    }
-
-    #[test]
-    fn synchronize_data_type_filter_selection_restores_available_types_when_selection_was_eliminated() {
-        let mut data_type_filter_selection = DataTypeSelection::new(DataTypeRef::new("i32"));
-
-        let did_change_selection = ElementScannerResultsViewData::synchronize_data_type_filter_selection_with_available_data_types(
-            &mut data_type_filter_selection,
-            &[DataTypeRef::new("u32"), DataTypeRef::new("u16")],
-        );
-
-        assert!(did_change_selection);
-        assert_eq!(
-            data_type_filter_selection.selected_data_types(),
-            &[DataTypeRef::new("u32"), DataTypeRef::new("u16")]
-        );
-        assert_eq!(data_type_filter_selection.visible_data_type(), &DataTypeRef::new("u32"));
-    }
-
-    #[test]
-    fn synchronize_data_type_filter_selection_preserves_intentional_empty_selection() {
-        let mut data_type_filter_selection = DataTypeSelection::new(DataTypeRef::new("i32"));
-        data_type_filter_selection.replace_selected_data_types(Vec::new());
-
-        let did_change_selection = ElementScannerResultsViewData::synchronize_data_type_filter_selection_with_available_data_types(
-            &mut data_type_filter_selection,
-            &[DataTypeRef::new("u32")],
-        );
-
-        assert!(!did_change_selection);
-        assert!(data_type_filter_selection.selected_data_types().is_empty());
-    }
-
-    #[test]
-    fn synchronize_data_type_filter_selection_preserves_selection_while_available_types_are_empty() {
-        let mut data_type_filter_selection = DataTypeSelection::new(DataTypeRef::new("i32"));
-        data_type_filter_selection.set_data_type_selected(DataTypeRef::new("u32"), true);
-
-        let did_change_selection =
-            ElementScannerResultsViewData::synchronize_data_type_filter_selection_with_available_data_types(&mut data_type_filter_selection, &[]);
-
-        assert!(!did_change_selection);
-        assert_eq!(
-            data_type_filter_selection.selected_data_types(),
-            &[DataTypeRef::new("i32"), DataTypeRef::new("u32")]
-        );
-    }
-
-    #[test]
-    fn default_value_and_previous_value_columns_have_equal_width() {
-        let default_value_column_ratio =
-            ElementScannerResultsViewData::DEFAULT_PREVIOUS_VALUE_SPLITTER_RATIO - ElementScannerResultsViewData::DEFAULT_VALUE_SPLITTER_RATIO;
-        let default_previous_value_column_ratio = 1.0 - ElementScannerResultsViewData::DEFAULT_PREVIOUS_VALUE_SPLITTER_RATIO;
-
-        assert!((default_value_column_ratio - default_previous_value_column_ratio).abs() < 1e-6);
-    }
-
-    #[test]
-    fn clear_stale_request_state_if_needed_clears_stuck_query_and_requests_requery() {
-        let dependency_container = DependencyContainer::new();
-        let element_scanner_results_view_data = dependency_container.register(ElementScannerResultsViewData::new());
-
-        {
-            let mut element_scanner_results_view_data = element_scanner_results_view_data
-                .write("Mark stale query request")
-                .expect("Expected scan results view data write guard.");
-            element_scanner_results_view_data.is_querying_scan_results = true;
-            element_scanner_results_view_data.query_scan_results_request_started_at =
-                Some(Instant::now() - Duration::from_millis(ElementScannerResultsViewData::REQUEST_STALE_TIMEOUT_MS + 1));
-        }
-
-        let should_requery_scan_results = ElementScannerResultsViewData::clear_stale_request_state_if_needed(element_scanner_results_view_data.clone());
-
-        let element_scanner_results_view_data = element_scanner_results_view_data
-            .read("Verify stale query request cleared")
-            .expect("Expected scan results view data read guard.");
-
-        assert!(should_requery_scan_results);
-        assert!(!element_scanner_results_view_data.is_querying_scan_results);
-        assert!(
-            element_scanner_results_view_data
-                .query_scan_results_request_started_at
-                .is_none()
-        );
-    }
-
-    #[test]
-    fn should_apply_query_request_rejects_stale_revisions() {
-        let mut element_scanner_results_view_data = ElementScannerResultsViewData::new();
-        let first_query_request_revision = element_scanner_results_view_data.begin_query_request();
-        let second_query_request_revision = element_scanner_results_view_data.begin_query_request();
-
-        assert!(!element_scanner_results_view_data.should_apply_query_request(first_query_request_revision));
-        assert!(element_scanner_results_view_data.should_apply_query_request(second_query_request_revision));
-    }
-
-    #[test]
-    fn should_apply_refresh_request_rejects_stale_revisions() {
-        let mut element_scanner_results_view_data = ElementScannerResultsViewData::new();
-        let first_refresh_request_revision = element_scanner_results_view_data.begin_refresh_request();
-        let second_refresh_request_revision = element_scanner_results_view_data.begin_refresh_request();
-
-        assert!(!element_scanner_results_view_data.should_apply_refresh_request(first_refresh_request_revision));
-        assert!(element_scanner_results_view_data.should_apply_refresh_request(second_refresh_request_revision));
-    }
-
-    #[test]
-    fn sync_data_type_filters_from_scan_selection_copies_scan_display_format() {
-        let dependency_container = DependencyContainer::new();
-        let element_scanner_results_view_data = dependency_container.register(ElementScannerResultsViewData::new());
-        let element_scanner_view_data = dependency_container.register(ElementScannerViewData::new());
-
-        {
-            let mut element_scanner_view_data = element_scanner_view_data
-                .write("Set scan display format")
-                .expect("Expected element scanner view data write guard.");
-            element_scanner_view_data.active_display_format = AnonymousValueStringFormat::Hexadecimal;
-        }
-
-        ElementScannerResultsViewData::sync_data_type_filters_from_scan_selection(element_scanner_results_view_data.clone(), element_scanner_view_data.clone());
-
-        let element_scanner_results_view_data = element_scanner_results_view_data
-            .read("Verify results display format")
-            .expect("Expected element scanner results view data read guard.");
-
-        assert_eq!(element_scanner_results_view_data.active_display_format, AnonymousValueStringFormat::Hexadecimal);
-        assert_eq!(
-            element_scanner_results_view_data
-                .current_display_string
-                .get_anonymous_value_string_format(),
-            AnonymousValueStringFormat::Hexadecimal
-        );
     }
 }

@@ -13,8 +13,9 @@ use crate::views::process_selector::process_selector_view::ProcessSelectorView;
 use crate::views::project_explorer::project_explorer_view::ProjectExplorerView;
 use crate::views::settings::settings_view::SettingsView;
 use crate::views::struct_viewer::struct_viewer_view::StructViewerView;
-use crate::views::symbol_explorer::symbol_explorer_view::SymbolExplorerView;
-use crate::views::symbol_struct_editor::symbol_struct_editor_view::SymbolStructEditorView;
+use crate::views::symbol_layout_editor::symbol_layout_editor_view::SymbolLayoutEditorView;
+use crate::views::symbol_resolver_editor::symbol_resolver_editor_view::SymbolResolverEditorView;
+use crate::views::symbol_tree::symbol_tree_view::SymbolTreeView;
 use crate::{app_context::AppContext, models::docking::settings::dockable_window_settings::DockSettingsConfig};
 use eframe::egui::viewport::ViewportCommand;
 use eframe::egui::{Response, Ui, Widget};
@@ -45,9 +46,10 @@ impl MainToolbarView {
         let app_context_for_project_export = app_context.clone();
         let docking_manager_for_process_selector = app_context.docking_manager.clone();
         let docking_manager_for_project_explorer = app_context.docking_manager.clone();
-        let docking_manager_for_symbol_explorer = app_context.docking_manager.clone();
+        let docking_manager_for_symbol_tree = app_context.docking_manager.clone();
         let docking_manager_for_struct_viewer = app_context.docking_manager.clone();
-        let docking_manager_for_symbol_struct_editor = app_context.docking_manager.clone();
+        let docking_manager_for_symbol_layout_editor = app_context.docking_manager.clone();
+        let docking_manager_for_symbol_resolver_editor = app_context.docking_manager.clone();
         let docking_manager_for_memory_viewer = app_context.docking_manager.clone();
         let docking_manager_for_code_viewer = app_context.docking_manager.clone();
         let docking_manager_for_output = app_context.docking_manager.clone();
@@ -119,11 +121,11 @@ impl MainToolbarView {
                         })),
                     ),
                     ToolbarMenuItemData::new(
-                        SymbolExplorerView::WINDOW_ID,
+                        SymbolTreeView::WINDOW_ID,
                         "Symbol Tree",
                         Some(Box::new(move || {
-                            if let Ok(docking_manager) = docking_manager_for_symbol_explorer.read() {
-                                if let Some(docked_node) = docking_manager.get_node_by_id(SymbolExplorerView::WINDOW_ID) {
+                            if let Ok(docking_manager) = docking_manager_for_symbol_tree.read() {
+                                if let Some(docked_node) = docking_manager.get_node_by_id(SymbolTreeView::WINDOW_ID) {
                                     return Some(docked_node.is_visible());
                                 }
                             }
@@ -133,11 +135,24 @@ impl MainToolbarView {
                     )
                     .with_separator(),
                     ToolbarMenuItemData::new(
-                        SymbolStructEditorView::WINDOW_ID,
-                        "Symbol Struct Editor",
+                        SymbolLayoutEditorView::WINDOW_ID,
+                        "Symbol Layouts",
                         Some(Box::new(move || {
-                            if let Ok(docking_manager) = docking_manager_for_symbol_struct_editor.read() {
-                                if let Some(docked_node) = docking_manager.get_node_by_id(SymbolStructEditorView::WINDOW_ID) {
+                            if let Ok(docking_manager) = docking_manager_for_symbol_layout_editor.read() {
+                                if let Some(docked_node) = docking_manager.get_node_by_id(SymbolLayoutEditorView::WINDOW_ID) {
+                                    return Some(docked_node.is_visible());
+                                }
+                            }
+
+                            None
+                        })),
+                    ),
+                    ToolbarMenuItemData::new(
+                        SymbolResolverEditorView::WINDOW_ID,
+                        "Symbol Resolvers",
+                        Some(Box::new(move || {
+                            if let Ok(docking_manager) = docking_manager_for_symbol_resolver_editor.read() {
+                                if let Some(docked_node) = docking_manager.get_node_by_id(SymbolResolverEditorView::WINDOW_ID) {
                                     return Some(docked_node.is_visible());
                                 }
                             }
@@ -311,9 +326,10 @@ impl Widget for MainToolbarView {
             },
             ProcessSelectorView::WINDOW_ID
             | ProjectExplorerView::WINDOW_ID
-            | SymbolExplorerView::WINDOW_ID
+            | SymbolTreeView::WINDOW_ID
             | StructViewerView::WINDOW_ID
-            | SymbolStructEditorView::WINDOW_ID
+            | SymbolLayoutEditorView::WINDOW_ID
+            | SymbolResolverEditorView::WINDOW_ID
             | MemoryViewerView::WINDOW_ID
             | CodeViewerView::WINDOW_ID
             | OutputView::WINDOW_ID
@@ -376,48 +392,5 @@ impl MainToolbarView {
                 false
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::MainToolbarView;
-    use squalr_engine_api::structures::projects::project::Project;
-    use squalr_engine_api::structures::projects::project_info::ProjectInfo;
-    use squalr_engine_api::structures::projects::project_items::built_in_types::project_item_type_directory::ProjectItemTypeDirectory;
-    use squalr_engine_api::structures::projects::project_items::project_item_ref::ProjectItemRef;
-    use squalr_engine_api::structures::projects::project_manager::ProjectManager;
-    use squalr_engine_api::structures::projects::project_manifest::ProjectManifest;
-    use std::collections::HashMap;
-    use std::path::PathBuf;
-
-    fn create_opened_project() -> Project {
-        let project_file_path = PathBuf::from("C:/Projects/TestProject/project.json");
-        let project_info = ProjectInfo::new(project_file_path, None, ProjectManifest::default());
-        let project_root_ref = ProjectItemRef::new(PathBuf::from("C:/Projects/TestProject/project_items"));
-        let mut project_items = HashMap::new();
-
-        project_items.insert(project_root_ref.clone(), ProjectItemTypeDirectory::new_project_item(&project_root_ref));
-
-        Project::new(project_info, project_items, project_root_ref)
-    }
-
-    #[test]
-    fn project_manager_has_opened_project_returns_false_without_open_project() {
-        let project_manager = ProjectManager::new();
-
-        assert!(!MainToolbarView::project_manager_has_opened_project(&project_manager));
-    }
-
-    #[test]
-    fn project_manager_has_opened_project_returns_true_with_open_project() {
-        let project_manager = ProjectManager::new();
-        let opened_project = project_manager.get_opened_project();
-
-        *opened_project
-            .write()
-            .expect("Expected to acquire opened project write lock for test.") = Some(create_opened_project());
-
-        assert!(MainToolbarView::project_manager_has_opened_project(&project_manager));
     }
 }

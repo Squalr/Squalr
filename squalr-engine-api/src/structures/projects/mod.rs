@@ -9,3 +9,6 @@ pub mod project_symbol_claim;
 pub mod project_symbol_locator;
 pub mod project_symbol_module;
 pub mod project_symbol_module_field;
+pub mod symbol_layouts;
+pub mod symbol_resolvers;
+pub mod symbol_tree;

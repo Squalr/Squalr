@@ -1,7 +1,7 @@
 use crate::{
     structures::structs::{
         symbol_resolver::SymbolResolver,
-        symbolic_struct_definition::SymbolicStructDefinition,
+        symbolic_struct_definition::{SymbolicLayoutKind, SymbolicStructDefinition},
         symbolic_struct_ref::SymbolicStructRef,
         valued_struct_error::ValuedStructError,
         valued_struct_field::{ValuedStructField, ValuedStructFieldData},
@@ -11,9 +11,11 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ValuedStruct {
     symbolic_struct_ref: SymbolicStructRef,
+    #[serde(default)]
+    layout_kind: SymbolicLayoutKind,
     fields: Vec<ValuedStructField>,
 }
 
@@ -22,12 +24,40 @@ impl ValuedStruct {
         symbolic_struct_ref: SymbolicStructRef,
         fields: Vec<ValuedStructField>,
     ) -> Self {
-        ValuedStruct { symbolic_struct_ref, fields }
+        ValuedStruct {
+            symbolic_struct_ref,
+            layout_kind: SymbolicLayoutKind::Struct,
+            fields,
+        }
+    }
+
+    pub fn new_with_layout_kind(
+        symbolic_struct_ref: SymbolicStructRef,
+        layout_kind: SymbolicLayoutKind,
+        fields: Vec<ValuedStructField>,
+    ) -> Self {
+        ValuedStruct {
+            symbolic_struct_ref,
+            layout_kind,
+            fields,
+        }
     }
 
     pub fn new_anonymous(fields: Vec<ValuedStructField>) -> Self {
         ValuedStruct {
             symbolic_struct_ref: SymbolicStructRef::new_anonymous(),
+            layout_kind: SymbolicLayoutKind::Struct,
+            fields,
+        }
+    }
+
+    pub fn new_anonymous_with_layout_kind(
+        layout_kind: SymbolicLayoutKind,
+        fields: Vec<ValuedStructField>,
+    ) -> Self {
+        ValuedStruct {
+            symbolic_struct_ref: SymbolicStructRef::new_anonymous(),
+            layout_kind,
             fields,
         }
     }
@@ -53,8 +83,20 @@ impl ValuedStruct {
         &self.symbolic_struct_ref
     }
 
+    pub fn get_layout_kind(&self) -> SymbolicLayoutKind {
+        self.layout_kind
+    }
+
     pub fn get_size_in_bytes(&self) -> u64 {
-        self.fields.iter().map(|field| field.get_size_in_bytes()).sum()
+        if self.layout_kind.is_union() {
+            self.fields
+                .iter()
+                .map(|field| field.get_size_in_bytes())
+                .max()
+                .unwrap_or(0)
+        } else {
+            self.fields.iter().map(|field| field.get_size_in_bytes()).sum()
+        }
     }
 
     pub fn get_display_string(
@@ -121,14 +163,25 @@ impl ValuedStruct {
     }
 
     pub fn get_bytes(&self) -> Vec<u8> {
-        self.fields.iter().flat_map(|field| field.get_bytes()).collect()
+        if !self.layout_kind.is_union() {
+            return self.fields.iter().flat_map(|field| field.get_bytes()).collect();
+        }
+
+        let mut bytes = vec![0_u8; self.get_size_in_bytes() as usize];
+        for field in &self.fields {
+            let field_bytes = field.get_bytes();
+            let copy_length = bytes.len().min(field_bytes.len());
+
+            bytes[..copy_length].copy_from_slice(&field_bytes[..copy_length]);
+        }
+
+        bytes
     }
 
     pub fn copy_from_bytes(
         &mut self,
         bytes: &[u8],
     ) -> bool {
-        let mut accumulated_size = 0u64;
         let total_size = bytes.len() as u64;
         let expected_size = self.get_size_in_bytes();
 
@@ -138,8 +191,23 @@ impl ValuedStruct {
             return false;
         }
 
+        if self.layout_kind.is_union() {
+            for field in self.fields.iter_mut() {
+                let field_size = field.get_size_in_bytes() as usize;
+
+                if field_size > bytes.len() {
+                    return false;
+                }
+
+                field.copy_from_bytes(&bytes[..field_size]);
+            }
+
+            return true;
+        }
+
+        let mut accumulated_size = 0u64;
         for field in self.fields.iter_mut() {
-            let field_size = field.get_size_in_bytes() as u64;
+            let field_size = field.get_size_in_bytes();
 
             if accumulated_size + field_size > total_size {
                 return false;
@@ -148,7 +216,6 @@ impl ValuedStruct {
             field.copy_from_bytes(&bytes[accumulated_size as usize..(accumulated_size + field_size) as usize]);
             accumulated_size += field_size;
         }
-
         debug_assert!(accumulated_size == total_size);
 
         true
@@ -168,7 +235,7 @@ impl ValuedStruct {
             })
         });
 
-        ValuedStruct::new_anonymous(std::mem::take(&mut first_struct.fields))
+        ValuedStruct::new_anonymous_with_layout_kind(first_struct.layout_kind, std::mem::take(&mut first_struct.fields))
     }
 }
 
@@ -212,7 +279,24 @@ impl<ContextType> FromStringPrivileged<ContextType> for ValuedStruct {
 #[cfg(test)]
 mod tests {
     use super::ValuedStruct;
-    use crate::structures::data_types::built_in_types::u8::data_type_u8::DataTypeU8;
+    use crate::structures::{
+        data_types::{built_in_types::u8::data_type_u8::DataTypeU8, built_in_types::u32::data_type_u32::DataTypeU32},
+        structs::symbolic_struct_definition::SymbolicLayoutKind,
+    };
+
+    #[test]
+    fn deserializes_legacy_valued_struct_without_layout_kind() {
+        let valued_struct: ValuedStruct = serde_json::from_str(r#"{"symbolic_struct_ref":{"symbolic_struct_namespace":"legacy.value"},"fields":[]}"#)
+            .expect("Expected legacy valued struct to deserialize.");
+
+        assert_eq!(
+            valued_struct
+                .get_symbolic_struct_ref()
+                .get_symbolic_struct_namespace(),
+            "legacy.value"
+        );
+        assert_eq!(valued_struct.get_layout_kind(), SymbolicLayoutKind::Struct);
+    }
 
     #[test]
     fn combine_exclusive_keeps_common_field_names_when_values_differ() {
@@ -261,5 +345,33 @@ mod tests {
         assert!(did_remove_field);
         assert!(valued_struct.get_field("value").is_none());
         assert!(valued_struct.get_field("other").is_some());
+    }
+
+    #[test]
+    fn union_layout_copies_same_bytes_to_all_fields() {
+        let mut valued_struct = ValuedStruct::new_anonymous_with_layout_kind(
+            SymbolicLayoutKind::Union,
+            vec![
+                DataTypeU32::get_value_from_primitive(0).to_named_valued_struct_field("as_u32".to_string(), false),
+                DataTypeU8::get_value_from_primitive(0).to_named_valued_struct_field("first_byte".to_string(), false),
+            ],
+        );
+
+        assert_eq!(valued_struct.get_size_in_bytes(), 4);
+        assert!(valued_struct.copy_from_bytes(&[0x78, 0x56, 0x34, 0x12]));
+        assert_eq!(
+            valued_struct
+                .get_field("as_u32")
+                .and_then(|field| field.get_data_value())
+                .map(|data_value| data_value.get_value_bytes().clone()),
+            Some(vec![0x78, 0x56, 0x34, 0x12])
+        );
+        assert_eq!(
+            valued_struct
+                .get_field("first_byte")
+                .and_then(|field| field.get_data_value())
+                .map(|data_value| data_value.get_value_bytes().clone()),
+            Some(vec![0x78])
+        );
     }
 }

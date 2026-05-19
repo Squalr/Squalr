@@ -1,5 +1,6 @@
 use crate::command_executors::project_items::project_item_sort_order::append_project_items_to_sort_order;
 use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
+use crate::services::projects::project_item_file_mutation::resolve_project_item_path;
 use squalr_engine_api::commands::project_items::duplicate::project_items_duplicate_request::ProjectItemsDuplicateRequest;
 use squalr_engine_api::commands::project_items::duplicate::project_items_duplicate_response::ProjectItemsDuplicateResponse;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
@@ -157,17 +158,6 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsDuplicateRequest {
             duplicated_project_item_count: duplicated_project_item_paths.len() as u64,
             duplicated_project_item_paths,
         }
-    }
-}
-
-fn resolve_project_item_path(
-    project_directory_path: &Path,
-    project_item_path: &Path,
-) -> PathBuf {
-    if FileSystemUtils::is_cross_platform_absolute_path(project_item_path) {
-        project_item_path.to_path_buf()
-    } else {
-        project_directory_path.join(project_item_path)
     }
 }
 

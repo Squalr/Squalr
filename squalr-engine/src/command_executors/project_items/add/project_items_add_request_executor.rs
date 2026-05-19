@@ -1,5 +1,8 @@
 use crate::command_executors::project_items::project_item_sort_order::append_project_items_to_sort_order;
 use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
+use crate::services::projects::project_item_file_mutation::{
+    create_placeholder_files, generate_unique_project_item_file_path, resolve_selected_directory_path, sanitize_file_name_component,
+};
 use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRequest;
 use squalr_engine_api::commands::privileged_command_response::TypedPrivilegedCommandResponse;
 use squalr_engine_api::commands::project_items::add::project_items_add_request::ProjectItemsAddRequest;
@@ -15,10 +18,8 @@ use squalr_engine_api::structures::projects::project_items::built_in_types::proj
 use squalr_engine_api::structures::projects::project_items::project_item_ref::ProjectItemRef;
 use squalr_engine_api::structures::scan_results::scan_result::ScanResult;
 use squalr_engine_api::structures::structs::symbolic_field_definition::SymbolicFieldDefinition;
-use squalr_engine_api::utils::file_system::file_system_utils::FileSystemUtils;
 use squalr_engine_projects::project::serialization::serializable_project_file::SerializableProjectFile;
-use std::fs::{self, File};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::time::Duration;
@@ -195,10 +196,6 @@ fn add_scan_results_to_project(
         project_items.insert(root_directory_project_item_ref, root_directory_project_item);
     }
     let selected_directory_path = resolve_selected_directory_path(project_directory_path, &project_root_directory_path, project_items, target_directory_path);
-    let directory_relative_path = selected_directory_path
-        .strip_prefix(project_directory_path)
-        .unwrap_or(&selected_directory_path)
-        .to_path_buf();
 
     for scan_result in scan_results {
         let data_type_ref = scan_result.get_data_type_ref();
@@ -210,8 +207,7 @@ fn add_scan_results_to_project(
             }
         };
         let project_item_file_stem = build_project_item_file_stem(scan_result);
-        let project_item_absolute_path =
-            generate_unique_project_item_file_path(project_directory_path, &directory_relative_path, project_items, &project_item_file_stem);
+        let project_item_absolute_path = generate_unique_project_item_file_path(&selected_directory_path, project_items, &project_item_file_stem);
         let project_item_ref = ProjectItemRef::new(project_item_absolute_path.clone());
 
         let project_item_name = build_project_item_name(scan_result);
@@ -286,98 +282,6 @@ fn resolve_scan_result_array_length(
     }
 }
 
-fn generate_unique_project_item_file_path(
-    project_directory_path: &Path,
-    directory_relative_path: &Path,
-    project_items: &std::collections::HashMap<ProjectItemRef, squalr_engine_api::structures::projects::project_items::project_item::ProjectItem>,
-    project_item_file_stem: &str,
-) -> PathBuf {
-    let mut duplicate_sequence_number: u64 = 0;
-
-    loop {
-        let project_item_file_name = if duplicate_sequence_number == 0 {
-            format!("{}.json", project_item_file_stem)
-        } else {
-            format!("{}_{}.json", project_item_file_stem, duplicate_sequence_number)
-        };
-        let project_item_relative_path = directory_relative_path.join(project_item_file_name);
-        let project_item_absolute_path = project_directory_path.join(project_item_relative_path);
-        let project_item_ref = ProjectItemRef::new(project_item_absolute_path.clone());
-
-        if !project_items.contains_key(&project_item_ref) {
-            return project_item_absolute_path;
-        }
-
-        duplicate_sequence_number = duplicate_sequence_number.saturating_add(1);
-    }
-}
-
-fn resolve_selected_directory_path(
-    project_directory_path: &Path,
-    project_root_directory_path: &Path,
-    project_items: &std::collections::HashMap<ProjectItemRef, squalr_engine_api::structures::projects::project_items::project_item::ProjectItem>,
-    target_directory_path: &Option<PathBuf>,
-) -> PathBuf {
-    let Some(target_directory_path) = target_directory_path else {
-        return project_root_directory_path.to_path_buf();
-    };
-    let resolved_target_path = resolve_project_item_path(project_directory_path, target_directory_path);
-    let resolved_directory_path = if is_directory_path(&resolved_target_path, project_items) {
-        resolved_target_path
-    } else {
-        match resolved_target_path.parent() {
-            Some(parent_path) => parent_path.to_path_buf(),
-            None => project_root_directory_path.to_path_buf(),
-        }
-    };
-
-    if resolved_directory_path.starts_with(project_root_directory_path) {
-        resolved_directory_path
-    } else {
-        project_root_directory_path.to_path_buf()
-    }
-}
-
-fn resolve_project_item_path(
-    project_directory_path: &Path,
-    project_item_path: &Path,
-) -> PathBuf {
-    if FileSystemUtils::is_cross_platform_absolute_path(project_item_path) {
-        project_item_path.to_path_buf()
-    } else {
-        project_directory_path.join(project_item_path)
-    }
-}
-
-fn is_directory_path(
-    project_item_path: &Path,
-    project_items: &std::collections::HashMap<ProjectItemRef, squalr_engine_api::structures::projects::project_items::project_item::ProjectItem>,
-) -> bool {
-    let project_item_ref = ProjectItemRef::new(project_item_path.to_path_buf());
-    project_items
-        .get(&project_item_ref)
-        .map(|project_item| project_item.get_item_type().get_project_item_type_id() == ProjectItemTypeDirectory::PROJECT_ITEM_TYPE_ID)
-        .unwrap_or(project_item_path.extension().is_none())
-}
-
-fn create_placeholder_files(file_paths: &[PathBuf]) -> Result<(), String> {
-    for file_path in file_paths {
-        if let Some(parent_path) = file_path.parent() {
-            if let Err(error) = fs::create_dir_all(parent_path) {
-                return Err(format!("Failed creating project item parent directory {:?}: {}", parent_path, error));
-            }
-        }
-
-        if !file_path.exists() {
-            if let Err(error) = File::create(file_path) {
-                return Err(format!("Failed creating project item file {:?}: {}", file_path, error));
-            }
-        }
-    }
-
-    Ok(())
-}
-
 fn build_project_item_name(scan_result: &ScanResult) -> String {
     if scan_result.is_module() {
         format_module_address(scan_result.get_module(), scan_result.get_module_offset())
@@ -388,7 +292,7 @@ fn build_project_item_name(scan_result: &ScanResult) -> String {
 
 fn build_project_item_file_stem(scan_result: &ScanResult) -> String {
     if scan_result.is_module() {
-        let sanitized_module_name = sanitize_file_name_component(scan_result.get_module());
+        let sanitized_module_name = sanitize_file_name_component(scan_result.get_module(), "module");
 
         format!("{}_0x{:X}", sanitized_module_name, scan_result.get_module_offset())
     } else {
@@ -396,42 +300,11 @@ fn build_project_item_file_stem(scan_result: &ScanResult) -> String {
     }
 }
 
-fn sanitize_file_name_component(file_name_component: &str) -> String {
-    let mut sanitized_component = String::with_capacity(file_name_component.len());
-    let mut previous_character_was_underscore = false;
-
-    for name_character in file_name_component.chars() {
-        let mapped_character = if name_character.is_ascii_alphanumeric() { name_character } else { '_' };
-
-        if mapped_character == '_' {
-            if previous_character_was_underscore {
-                continue;
-            }
-
-            previous_character_was_underscore = true;
-        } else {
-            previous_character_was_underscore = false;
-        }
-
-        sanitized_component.push(mapped_character);
-    }
-
-    let trimmed_component = sanitized_component.trim_matches('_');
-
-    if trimmed_component.is_empty() {
-        String::from("module")
-    } else {
-        trimmed_component.to_string()
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{
-        add_scan_results_to_project, build_project_item_file_stem, build_project_item_name, generate_unique_project_item_file_path,
-        resolve_selected_directory_path,
-    };
+    use super::{add_scan_results_to_project, build_project_item_file_stem, build_project_item_name};
     use crate::command_executors::project_items::add::project_items_add_request_executor::build_symbolic_field_definition_string;
+    use crate::services::projects::project_item_file_mutation::{generate_unique_project_item_file_path, resolve_selected_directory_path};
     use crossbeam_channel::{Receiver, unbounded};
     use squalr_engine_api::commands::{privileged_command::PrivilegedCommand, privileged_command_response::PrivilegedCommandResponse};
     use squalr_engine_api::engine::{
@@ -650,17 +523,17 @@ mod tests {
     #[test]
     fn generate_unique_project_item_file_path_adds_numeric_suffix_when_name_collides() {
         let project_directory_path = Path::new("C:/Projects/TestProject");
-        let directory_relative_path = Path::new("project_items/Addresses");
-        let existing_item_path = project_directory_path.join("project_items/Addresses/address_0x401000.json");
+        let parent_directory_path = project_directory_path.join("project_items/Addresses");
+        let existing_item_path = parent_directory_path.join("address_0x401000.json");
         let existing_item_ref = ProjectItemRef::new(existing_item_path);
         let existing_item = ProjectItemTypeAddress::new_project_item("Existing", 0x401000, "", "", DataTypeU8::get_value_from_primitive(0));
         let mut project_items = HashMap::new();
 
         project_items.insert(existing_item_ref, existing_item);
 
-        let generated_path = generate_unique_project_item_file_path(project_directory_path, directory_relative_path, &project_items, "address_0x401000");
+        let generated_path = generate_unique_project_item_file_path(&parent_directory_path, &project_items, "address_0x401000");
 
-        assert_eq!(generated_path, project_directory_path.join("project_items/Addresses/address_0x401000_1.json"));
+        assert_eq!(generated_path, parent_directory_path.join("address_0x401000_1.json"));
     }
 
     #[test]

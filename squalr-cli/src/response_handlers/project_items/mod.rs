@@ -26,6 +26,11 @@ pub fn handle_project_items_response(project_items_response: ProjectItemsRespons
         ProjectItemsResponse::PromoteSymbol {
             project_items_promote_symbol_response,
         } => {
+            if !project_items_promote_symbol_response.success && !project_items_promote_symbol_response.status_message.is_empty() {
+                log::warn!("{}", project_items_promote_symbol_response.status_message);
+                return;
+            }
+
             log::info!(
                 "promoted {} symbol(s), reused {} existing symbol(s), conflicts {}: {}",
                 project_items_promote_symbol_response.promoted_symbol_count,
@@ -35,6 +40,45 @@ pub fn handle_project_items_response(project_items_response: ProjectItemsRespons
                     .promoted_symbol_locator_keys
                     .join(", ")
             );
+        }
+        ProjectItemsResponse::WriteValue {
+            project_items_write_value_response,
+        } => {
+            if project_items_write_value_response.success {
+                log::info!("project item value write succeeded.");
+            } else if let Some(error) = project_items_write_value_response.error {
+                log::warn!("{}", error);
+            } else {
+                log::warn!("project item value write failed.");
+            }
+        }
+        ProjectItemsResponse::StripSymbol {
+            project_items_strip_symbol_response,
+        } => {
+            if project_items_strip_symbol_response.success {
+                log::info!(
+                    "stripped symbol information from {} project item(s).",
+                    project_items_strip_symbol_response.stripped_project_item_count
+                );
+            } else if let Some(error) = project_items_strip_symbol_response.error {
+                log::warn!("{}", error);
+            } else {
+                log::warn!("project item strip-symbol command failed.");
+            }
+        }
+        ProjectItemsResponse::UpdateDetails {
+            project_items_update_details_response,
+        } => {
+            if project_items_update_details_response.success {
+                log::info!(
+                    "updated details on {} project item(s).",
+                    project_items_update_details_response.updated_project_item_count
+                );
+            } else if let Some(error) = project_items_update_details_response.error {
+                log::warn!("{}", error);
+            } else {
+                log::warn!("project item update-details command failed.");
+            }
         }
         ProjectItemsResponse::Add { project_items_add_response } => {
             log::debug!("Unhandled project items add response: {:?}", project_items_add_response);

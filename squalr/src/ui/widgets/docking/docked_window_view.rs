@@ -176,8 +176,13 @@ impl<W: Widget> Widget for DockedWindowView<W> {
                 };
 
                 // Reserve the entire remaining area minus footer height for content.
-                let footer_height = if has_footer { self.docked_window_footer_view.get_height() } else { 0.0 };
                 let full_rectangle = inner_user_interface.available_rect_before_wrap();
+                let footer_height = if has_footer {
+                    self.docked_window_footer_view
+                        .get_height(&inner_user_interface, full_rectangle.width())
+                } else {
+                    0.0
+                };
                 let content_rectangle = Rect::from_min_max(full_rectangle.min, full_rectangle.max - vec2(0.0, footer_height));
                 let content_response = inner_user_interface.allocate_rect(content_rectangle, Sense::empty());
                 let mut content_user_interface = inner_user_interface.new_child(

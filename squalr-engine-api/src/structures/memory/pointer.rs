@@ -1,12 +1,12 @@
 use crate::structures::memory::address_display::{format_absolute_address, format_module_address};
-use crate::structures::memory::pointer_chain_segment::PointerChainSegment;
 use crate::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 use serde::{Deserialize, Serialize};
+use squalr_engine_domain::structures::memory::symbolic_pointer_chain::{SymbolicPointerChain, SymbolicPointerChainLink};
 
 #[derive(Clone, Debug, Hash, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Pointer {
     address: u64,
-    offsets: Vec<PointerChainSegment>,
+    offsets: Vec<SymbolicPointerChainLink>,
     module_name: String,
     pointer_size: PointerScanPointerSize,
 }
@@ -28,7 +28,10 @@ impl Pointer {
     ) -> Self {
         Self::new_with_size_and_segments(
             address,
-            offsets.into_iter().map(PointerChainSegment::Offset).collect(),
+            offsets
+                .into_iter()
+                .map(SymbolicPointerChainLink::Offset)
+                .collect(),
             module_name,
             pointer_size,
         )
@@ -36,7 +39,7 @@ impl Pointer {
 
     pub fn new_with_size_and_segments(
         address: u64,
-        offsets: Vec<PointerChainSegment>,
+        offsets: Vec<SymbolicPointerChainLink>,
         module_name: String,
         pointer_size: PointerScanPointerSize,
     ) -> Self {
@@ -62,11 +65,11 @@ impl Pointer {
     pub fn get_offsets(&self) -> Vec<i64> {
         self.offsets
             .iter()
-            .filter_map(PointerChainSegment::as_offset)
+            .filter_map(SymbolicPointerChainLink::as_offset)
             .collect()
     }
 
-    pub fn get_offset_segments(&self) -> &[PointerChainSegment] {
+    pub fn get_offset_segments(&self) -> &[SymbolicPointerChainLink] {
         &self.offsets
     }
 
@@ -74,12 +77,15 @@ impl Pointer {
         &mut self,
         offsets: Vec<i64>,
     ) {
-        self.offsets = offsets.into_iter().map(PointerChainSegment::Offset).collect();
+        self.offsets = offsets
+            .into_iter()
+            .map(SymbolicPointerChainLink::Offset)
+            .collect();
     }
 
     pub fn set_offset_segments(
         &mut self,
-        offsets: Vec<PointerChainSegment>,
+        offsets: Vec<SymbolicPointerChainLink>,
     ) {
         self.offsets = offsets;
     }
@@ -138,7 +144,7 @@ impl Pointer {
         for pointer_chain_segment in &self.offsets {
             let pointer_offset = pointer_chain_segment.as_offset()?;
             let pointer_value = read_pointer_value(resolved_address, self.pointer_size)?;
-            resolved_address = Self::apply_pointer_offset(pointer_value, pointer_offset)?;
+            resolved_address = SymbolicPointerChain::apply_pointer_offset(pointer_value, pointer_offset)?;
         }
 
         Some(resolved_address)
@@ -148,11 +154,7 @@ impl Pointer {
         address: u64,
         pointer_offset: i64,
     ) -> Option<u64> {
-        if pointer_offset >= 0 {
-            address.checked_add(pointer_offset as u64)
-        } else {
-            address.checked_sub(pointer_offset.unsigned_abs())
-        }
+        SymbolicPointerChain::apply_pointer_offset(address, pointer_offset)
     }
 }
 

@@ -77,9 +77,9 @@ mod tests {
         window_focus_manager.focus_window("window_project_explorer");
         assert!(window_focus_manager.is_window_focused("window_project_explorer"));
 
-        window_focus_manager.focus_window("window_symbol_explorer");
+        window_focus_manager.focus_window("window_symbol_tree");
         assert!(!window_focus_manager.is_window_focused("window_project_explorer"));
-        assert!(window_focus_manager.is_window_focused("window_symbol_explorer"));
+        assert!(window_focus_manager.is_window_focused("window_symbol_tree"));
     }
 
     #[test]
@@ -92,6 +92,6 @@ mod tests {
         window_focus_manager.focus_window("window_project_explorer");
 
         assert!(window_focus_manager.can_window_handle_shortcuts(&context, "window_project_explorer"));
-        assert!(!window_focus_manager.can_window_handle_shortcuts(&context, "window_symbol_explorer"));
+        assert!(!window_focus_manager.can_window_handle_shortcuts(&context, "window_symbol_tree"));
     }
 }

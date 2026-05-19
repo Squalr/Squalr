@@ -1,7 +1,42 @@
 use crate::app_context::AppContext;
-use eframe::egui::{Align, Area, Frame, Id, Key, Layout, Order, Ui};
+use crate::ui::widgets::controls::toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView;
+use eframe::egui::{Align, Area, Frame, Id, Key, Layout, Order, PointerButton, Ui};
 use epaint::{CornerRadius, Margin, Rect, Vec2};
 use std::sync::Arc;
+
+pub struct ContextMenuSizing;
+
+impl ContextMenuSizing {
+    pub fn width_for_labels<'label>(
+        app_context: &AppContext,
+        user_interface: &mut Ui,
+        item_labels: impl IntoIterator<Item = &'label str>,
+    ) -> f32 {
+        let mut longest_label_width: f32 = 0.0;
+
+        user_interface.ctx().fonts_mut(|fonts| {
+            for item_label in item_labels {
+                let galley = fonts.layout_no_wrap(
+                    item_label.to_string(),
+                    app_context
+                        .theme
+                        .font_library
+                        .font_noto_sans
+                        .font_normal
+                        .clone(),
+                    app_context.theme.foreground,
+                );
+                longest_label_width = longest_label_width.max(galley.size().x);
+            }
+        });
+
+        Self::width_from_longest_label_width(longest_label_width)
+    }
+
+    pub fn width_from_longest_label_width(longest_label_width: f32) -> f32 {
+        ToolbarMenuItemView::row_width_from_text_width(longest_label_width).ceil()
+    }
+}
 
 /// A generic context menu popup that displays arbitrary content.
 /// The caller fully controls open/close via `open: &mut bool`.
@@ -123,6 +158,11 @@ impl<'a, F: FnOnce(&mut Ui, &mut bool)> ContextMenu<'a, F> {
                     return false;
                 }
                 let click_pos = input.pointer.interact_pos().unwrap_or(self.pos);
+                let is_opening_secondary_click = input.pointer.button_clicked(PointerButton::Secondary) && click_pos.distance_sq(self.pos) <= 1.0;
+                if is_opening_secondary_click {
+                    return false;
+                }
+
                 !popup_rectangle.contains(click_pos)
             });
 

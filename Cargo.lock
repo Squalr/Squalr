@@ -5331,10 +5331,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "squalr-plugin-binary-symbols"
+version = "0.3.0"
+dependencies = [
+ "squalr-engine-api",
+]
+
+[[package]]
 name = "squalr-plugin-builtins"
 version = "0.3.0"
 dependencies = [
  "squalr-engine-api",
+ "squalr-plugin-binary-symbols",
  "squalr-plugin-data-types-24bit",
  "squalr-plugin-instructions-arm",
  "squalr-plugin-instructions-powerpc",

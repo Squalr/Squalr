@@ -1,4 +1,5 @@
 pub mod code_viewer;
+pub mod context_menu_labels;
 pub mod element_scanner;
 pub mod main_window;
 pub mod memory_viewer;
@@ -9,5 +10,6 @@ pub mod process_selector;
 pub mod project_explorer;
 pub mod settings;
 pub mod struct_viewer;
-pub mod symbol_explorer;
-pub mod symbol_struct_editor;
+pub mod symbol_layout_editor;
+pub mod symbol_resolver_editor;
+pub mod symbol_tree;

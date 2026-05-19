@@ -136,6 +136,39 @@ impl Snapshot {
         self.deleted_scan_result_indices.clear();
     }
 
+    /// Gets the number of manually deleted scan result indices that are still tracked as tombstones.
+    pub fn get_deleted_scan_result_index_count(&self) -> u64 {
+        self.deleted_scan_result_indices.len() as u64
+    }
+
+    /// Rebuilds snapshot filters so pending delete tombstones become part of the structural result layout.
+    pub fn commit_deleted_scan_result_indices(
+        &mut self,
+        symbol_registry: &SymbolRegistry,
+    ) -> u64 {
+        if self.deleted_scan_result_indices.is_empty() {
+            return 0;
+        }
+
+        let mut region_global_scan_result_index_base = 0u64;
+        let mut removed_result_count = 0u64;
+
+        for snapshot_region in &mut self.snapshot_regions {
+            let region_structural_result_count = snapshot_region.get_scan_results().get_number_of_results();
+
+            removed_result_count = removed_result_count.saturating_add(snapshot_region.remove_scan_results_by_global_indices(
+                symbol_registry,
+                region_global_scan_result_index_base,
+                &self.deleted_scan_result_indices,
+            ));
+            region_global_scan_result_index_base = region_global_scan_result_index_base.saturating_add(region_structural_result_count);
+        }
+
+        self.clear_deleted_scan_result_indices();
+
+        removed_result_count
+    }
+
     /// Gets the structural number of scan results contained in this snapshot before deleted indices are applied.
     pub fn get_structural_number_of_results(&self) -> u64 {
         self.snapshot_regions
@@ -471,6 +504,47 @@ mod tests {
 
         assert_eq!(page_addresses, vec![0x3000, 0x3002]);
         assert_eq!(scan_result_global_indices, vec![0, 2]);
+    }
+
+    #[test]
+    fn commit_deleted_scan_result_indices_rebuilds_filters_and_clears_tombstones() {
+        let mut snapshot = Snapshot::new();
+        let mut snapshot_region = SnapshotRegion::new(NormalizedRegion::new(0x7000, 0x100), Vec::new());
+        let symbol_registry = SymbolRegistry::new();
+        let u8_collection = SnapshotRegionFilterCollection::new(
+            &symbol_registry,
+            vec![vec![SnapshotRegionFilter::new(0x7000, 4)]],
+            DataTypeRef::new("u8"),
+            MemoryAlignment::Alignment1,
+        );
+
+        snapshot_region.set_scan_results(SnapshotRegionScanResults::new(vec![u8_collection]));
+        snapshot.set_snapshot_regions(vec![snapshot_region]);
+        snapshot.delete_scan_results([1]);
+
+        assert_eq!(snapshot.get_deleted_scan_result_index_count(), 1);
+        assert_eq!(snapshot.commit_deleted_scan_result_indices(&symbol_registry), 1);
+        assert_eq!(snapshot.get_deleted_scan_result_index_count(), 0);
+        assert_eq!(snapshot.get_structural_number_of_results(), 3);
+        assert_eq!(snapshot.get_number_of_results(), 3);
+
+        let (_effective_page_index, scan_results_page) = snapshot.get_scan_results_page(&symbol_registry, None, 0, 10);
+        let page_addresses = scan_results_page
+            .iter()
+            .map(|scan_result| scan_result.get_address())
+            .collect::<Vec<_>>();
+        let scan_result_global_indices = scan_results_page
+            .iter()
+            .map(|scan_result| {
+                scan_result
+                    .get_base_result()
+                    .get_scan_result_ref()
+                    .get_scan_result_global_index()
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(page_addresses, vec![0x7000, 0x7002, 0x7003]);
+        assert_eq!(scan_result_global_indices, vec![0, 1, 2]);
     }
 
     #[test]

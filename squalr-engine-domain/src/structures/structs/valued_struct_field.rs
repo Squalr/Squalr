@@ -1,11 +1,14 @@
-use crate::{structures::data_values::data_value::DataValue, traits::from_string_privileged::FromStringPrivileged};
+use crate::{
+    structures::{data_values::data_value::DataValue, structs::valued_struct::ValuedStruct},
+    traits::from_string_privileged::FromStringPrivileged,
+};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ValuedStructFieldData {
     Value(DataValue),
-    NestedStruct(Box<ValuedStructField>),
+    NestedStruct(Box<ValuedStruct>),
 }
 
 impl Default for ValuedStructFieldData {
@@ -78,7 +81,7 @@ impl ValuedStructField {
 
     pub fn get_size_in_bytes(&self) -> u64 {
         match &self.field_data {
-            ValuedStructFieldData::NestedStruct(nested_struct) => nested_struct.as_ref().get_size_in_bytes(),
+            ValuedStructFieldData::NestedStruct(nested_struct) => nested_struct.get_size_in_bytes(),
             ValuedStructFieldData::Value(data_value) => data_value.get_size_in_bytes(),
         }
     }
@@ -96,7 +99,7 @@ impl ValuedStructField {
     ) {
         match &mut self.field_data {
             ValuedStructFieldData::NestedStruct(nested) => {
-                nested.copy_from_bytes(bytes);
+                let _ = nested.copy_from_bytes(bytes);
             }
             ValuedStructFieldData::Value(data_value) => {
                 debug_assert!(bytes.len() as u64 >= data_value.get_size_in_bytes());
@@ -115,9 +118,7 @@ impl ValuedStructField {
 
         match &self.field_data {
             ValuedStructFieldData::NestedStruct(nested_struct) => {
-                let nested_str = nested_struct
-                    .as_ref()
-                    .get_display_string(pretty_print, tab_depth.saturating_add(1));
+                let nested_str = nested_struct.get_display_string(pretty_print);
                 if pretty_print {
                     format!("{}{{\n{}\n{}}}", indent, nested_str, indent)
                 } else {

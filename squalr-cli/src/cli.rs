@@ -161,7 +161,10 @@ impl Cli {
 #[cfg(test)]
 mod tests {
     use super::{Cli, ParsedInput};
+    use squalr_engine_api::commands::project_items::project_items_command::ProjectItemsCommand;
+    use squalr_engine_api::commands::project_symbols::project_symbols_command::ProjectSymbolsCommand;
     use squalr_engine_api::commands::unprivileged_command::UnprivilegedCommand;
+    use squalr_engine_api::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
 
     #[test]
     fn parse_input_returns_help_for_top_level_help_flag() {
@@ -182,6 +185,162 @@ mod tests {
         let parsed_input = Cli::parse_input("project_symbols list").expect("Expected project_symbols list command to parse successfully");
 
         assert!(matches!(parsed_input, ParsedInput::UnprivilegedCommand(UnprivilegedCommand::ProjectSymbols(_))));
+    }
+
+    #[test]
+    fn parse_input_returns_unprivileged_command_for_project_symbols_write_value_command() {
+        let parsed_input = Cli::parse_input("project_symbols write-value --address 4660 --type u32 --field value -v '255;decimal;'")
+            .expect("Expected project_symbols write-value command to parse successfully");
+
+        let ParsedInput::UnprivilegedCommand(UnprivilegedCommand::ProjectSymbols(ProjectSymbolsCommand::WriteValue {
+            project_symbols_write_value_request,
+        })) = parsed_input
+        else {
+            panic!("Expected project_symbols write-value command.");
+        };
+
+        assert_eq!(project_symbols_write_value_request.address, 4660);
+        assert_eq!(project_symbols_write_value_request.symbol_type_id, "u32");
+        assert_eq!(project_symbols_write_value_request.field_name, "value");
+        assert_eq!(
+            project_symbols_write_value_request
+                .anonymous_value_string
+                .get_anonymous_value_string_format(),
+            AnonymousValueStringFormat::Decimal
+        );
+    }
+
+    #[test]
+    fn parse_input_returns_unprivileged_command_for_project_symbols_upsert_layout_command() {
+        let parsed_input = Cli::parse_input("project_symbols upsert-layout --id player.stats --field health:u32 --field unassigned[4] --size 8")
+            .expect("Expected project_symbols upsert-layout command to parse successfully");
+
+        let ParsedInput::UnprivilegedCommand(UnprivilegedCommand::ProjectSymbols(ProjectSymbolsCommand::UpsertLayout {
+            project_symbols_upsert_layout_request,
+        })) = parsed_input
+        else {
+            panic!("Expected project_symbols upsert-layout command.");
+        };
+
+        assert_eq!(project_symbols_upsert_layout_request.struct_layout_id, "player.stats");
+        assert_eq!(project_symbols_upsert_layout_request.size_in_bytes, Some(8));
+        assert_eq!(project_symbols_upsert_layout_request.field_definitions.len(), 2);
+    }
+
+    #[test]
+    fn parse_input_returns_unprivileged_command_for_project_symbols_delete_layout_command() {
+        let parsed_input =
+            Cli::parse_input("project_symbols delete-layout --id player.stats").expect("Expected project_symbols delete-layout command to parse successfully");
+
+        let ParsedInput::UnprivilegedCommand(UnprivilegedCommand::ProjectSymbols(ProjectSymbolsCommand::DeleteLayout {
+            project_symbols_delete_layout_request,
+        })) = parsed_input
+        else {
+            panic!("Expected project_symbols delete-layout command.");
+        };
+
+        assert_eq!(project_symbols_delete_layout_request.struct_layout_id, "player.stats");
+        assert_eq!(project_symbols_delete_layout_request.replacement_data_type_id, "u8");
+    }
+
+    #[test]
+    fn parse_input_returns_unprivileged_command_for_project_symbols_upsert_resolver_command() {
+        let parsed_input = Cli::parse_input(r#"project_symbols upsert-resolver --id inventory.count --definition-json "{\"root_node\":{\"Literal\":4}}""#)
+            .expect("Expected project_symbols upsert-resolver command to parse successfully");
+
+        let ParsedInput::UnprivilegedCommand(UnprivilegedCommand::ProjectSymbols(ProjectSymbolsCommand::UpsertResolver {
+            project_symbols_upsert_resolver_request,
+        })) = parsed_input
+        else {
+            panic!("Expected project_symbols upsert-resolver command.");
+        };
+
+        assert_eq!(project_symbols_upsert_resolver_request.resolver_id, "inventory.count");
+    }
+
+    #[test]
+    fn parse_input_returns_unprivileged_command_for_project_symbols_delete_resolver_command() {
+        let parsed_input = Cli::parse_input("project_symbols delete-resolver --id inventory.count")
+            .expect("Expected project_symbols delete-resolver command to parse successfully");
+
+        let ParsedInput::UnprivilegedCommand(UnprivilegedCommand::ProjectSymbols(ProjectSymbolsCommand::DeleteResolver {
+            project_symbols_delete_resolver_request,
+        })) = parsed_input
+        else {
+            panic!("Expected project_symbols delete-resolver command.");
+        };
+
+        assert_eq!(project_symbols_delete_resolver_request.resolver_id, "inventory.count");
+    }
+
+    #[test]
+    fn parse_input_returns_unprivileged_command_for_project_items_write_value_command() {
+        let parsed_input = Cli::parse_input("project_items write-value -p project_items/health.json --field value -v '255;decimal;'")
+            .expect("Expected project_items write-value command to parse successfully");
+
+        let ParsedInput::UnprivilegedCommand(UnprivilegedCommand::ProjectItems(ProjectItemsCommand::WriteValue {
+            project_items_write_value_request,
+        })) = parsed_input
+        else {
+            panic!("Expected project_items write-value command.");
+        };
+
+        assert_eq!(
+            project_items_write_value_request.project_item_path,
+            std::path::PathBuf::from("project_items/health.json")
+        );
+        assert_eq!(project_items_write_value_request.field_name, "value");
+        assert_eq!(
+            project_items_write_value_request
+                .anonymous_value_string
+                .get_anonymous_value_string_format(),
+            AnonymousValueStringFormat::Decimal
+        );
+    }
+
+    #[test]
+    fn parse_input_returns_unprivileged_command_for_project_items_strip_symbol_command() {
+        let parsed_input = Cli::parse_input("project_items strip-symbol -p project_items/health.json")
+            .expect("Expected project_items strip-symbol command to parse successfully");
+
+        let ParsedInput::UnprivilegedCommand(UnprivilegedCommand::ProjectItems(ProjectItemsCommand::StripSymbol {
+            project_items_strip_symbol_request,
+        })) = parsed_input
+        else {
+            panic!("Expected project_items strip-symbol command.");
+        };
+
+        assert_eq!(
+            project_items_strip_symbol_request.project_item_paths,
+            vec![std::path::PathBuf::from("project_items/health.json")]
+        );
+    }
+
+    #[test]
+    fn parse_input_returns_unprivileged_command_for_project_items_update_details_command() {
+        let parsed_input = Cli::parse_input("project_items update-details -p project_items/health.json --property icon_id -v 'u64;string;'")
+            .expect("Expected project_items update-details command to parse successfully");
+
+        let ParsedInput::UnprivilegedCommand(UnprivilegedCommand::ProjectItems(ProjectItemsCommand::UpdateDetails {
+            project_items_update_details_request,
+        })) = parsed_input
+        else {
+            panic!("Expected project_items update-details command.");
+        };
+
+        assert_eq!(
+            project_items_update_details_request.project_item_paths,
+            vec![std::path::PathBuf::from("project_items/health.json")]
+        );
+        assert_eq!(project_items_update_details_request.property_name.as_deref(), Some("icon_id"));
+        assert_eq!(
+            project_items_update_details_request
+                .anonymous_value_string
+                .as_ref()
+                .expect("Expected parsed value.")
+                .get_anonymous_value_string_format(),
+            AnonymousValueStringFormat::String
+        );
     }
 
     #[test]

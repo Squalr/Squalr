@@ -1,5 +1,5 @@
-use crate::command_executors::project_symbols::project_symbol_store_mutation::save_and_sync_project_symbol_catalog;
 use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
+use crate::services::projects::project_symbol_catalog_persistence::save_and_sync_project_symbol_catalog;
 use squalr_engine_api::commands::project_symbols::create_module::project_symbols_create_module_request::ProjectSymbolsCreateModuleRequest;
 use squalr_engine_api::commands::project_symbols::create_module::project_symbols_create_module_response::ProjectSymbolsCreateModuleResponse;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
@@ -48,6 +48,11 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsCreateModuleRequest {
                 .get_symbol_modules_mut()
                 .push(ProjectSymbolModule::new(module_name.to_string(), self.size));
         }
+        project_symbol_catalog.ensure_module_root_struct_layout(module_name, self.size, |data_type_ref| {
+            let size_in_bytes = engine_unprivileged_state.get_unit_size_in_bytes(data_type_ref);
+
+            (size_in_bytes > 0).then_some(size_in_bytes)
+        });
 
         if !save_and_sync_project_symbol_catalog(engine_unprivileged_state, opened_project, &project_directory_path) {
             return ProjectSymbolsCreateModuleResponse::default();
@@ -105,6 +110,18 @@ mod tests {
         assert_eq!(symbol_modules.len(), 1);
         assert_eq!(symbol_modules[0].get_module_name(), "game.exe");
         assert_eq!(symbol_modules[0].get_size(), 0x2000);
+        let struct_layout_descriptors = loaded_project
+            .get_project_info()
+            .get_project_symbol_catalog()
+            .get_struct_layout_descriptors();
+        assert_eq!(struct_layout_descriptors.len(), 1);
+        assert_eq!(struct_layout_descriptors[0].get_struct_layout_id(), "game.exe");
+        assert_eq!(
+            struct_layout_descriptors[0]
+                .get_struct_layout_definition()
+                .get_declared_size_in_bytes(),
+            Some(0x2000)
+        );
 
         let captured_project_symbol_catalogs = captured_project_symbol_catalogs
             .lock()

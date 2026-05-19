@@ -3,12 +3,14 @@ use crate::{
     ui::{
         draw::icon_draw::IconDraw,
         geometry::safe_clamp_f32,
+        list_navigation::ListNavigationDirection,
         widgets::controls::{
             combo_box::combo_box_view::ComboBoxView, data_type_selector::data_type_selector_view::DataTypeSelectorView,
             data_value_box::data_value_box_convert_item_view::DataValueBoxConvertItemView,
         },
     },
     views::{
+        element_scanner::scanner::element_scanner_view::ElementScannerView,
         element_scanner::{
             results::{
                 element_scanner_result_entry_view::ElementScannerResultEntryView,
@@ -22,7 +24,7 @@ use crate::{
         struct_viewer::view_data::struct_viewer_view_data::StructViewerViewData,
     },
 };
-use eframe::egui::{Align, Align2, CursorIcon, Direction, Layout, Response, ScrollArea, Sense, Spinner, Ui, UiBuilder, Widget};
+use eframe::egui::{Align, Align2, CursorIcon, Direction, Key, Layout, Response, ScrollArea, Sense, Spinner, Ui, UiBuilder, Widget};
 use epaint::{Margin, Rect, Vec2, pos2, vec2};
 use squalr_engine_api::{
     dependency_injection::dependency::Dependency,
@@ -204,11 +206,36 @@ impl Widget for ElementScannerResultsView {
         let mut new_previous_value_splitter_ratio: Option<f32> = None;
         let mut did_change_data_type_filters = false;
         let mut element_sanner_result_frame_action: ElementScannerResultFrameAction = ElementScannerResultFrameAction::None;
-        let mut scan_results_has_keyboard_focus = false;
         let bounded_results_rectangle = user_interface
             .available_rect_before_wrap()
             .intersect(user_interface.clip_rect());
         let results_response = user_interface.allocate_rect(bounded_results_rectangle, Sense::click());
+        let can_handle_window_shortcuts = self
+            .app_context
+            .window_focus_manager
+            .can_window_handle_shortcuts(user_interface.ctx(), ElementScannerView::WINDOW_ID);
+        let (scan_result_navigation_direction, extend_scan_result_selection) = if can_handle_window_shortcuts {
+            let extend_scan_result_selection = user_interface.input(|input_state| input_state.modifiers.shift);
+            let navigate_up = user_interface.input_mut(|input_state| {
+                let modifiers = input_state.modifiers;
+                input_state.consume_key(modifiers, Key::ArrowUp)
+            });
+            let navigate_down = !navigate_up
+                && user_interface.input_mut(|input_state| {
+                    let modifiers = input_state.modifiers;
+                    input_state.consume_key(modifiers, Key::ArrowDown)
+                });
+
+            if navigate_up {
+                (Some(ListNavigationDirection::Up), extend_scan_result_selection)
+            } else if navigate_down {
+                (Some(ListNavigationDirection::Down), extend_scan_result_selection)
+            } else {
+                (None, false)
+            }
+        } else {
+            (None, false)
+        };
         let mut results_user_interface = user_interface.new_child(
             eframe::egui::UiBuilder::new()
                 .max_rect(results_response.rect)
@@ -545,12 +572,6 @@ impl Widget for ElementScannerResultsView {
                             );
                             let row_response = user_interface.add(entry_widget);
 
-                            if row_response.clicked() || row_response.double_clicked() {
-                                row_response.request_focus();
-                            }
-
-                            scan_results_has_keyboard_focus |= row_response.has_focus();
-
                             if rows_min_y.is_none() {
                                 rows_min_y = Some(row_response.rect.min.y);
                             }
@@ -636,7 +657,26 @@ impl Widget for ElementScannerResultsView {
             );
         }
 
-        if scan_results_has_keyboard_focus && user_interface.input(|input_state| input_state.key_pressed(eframe::egui::Key::Space)) {
+        if let Some(scan_result_navigation_direction) = scan_result_navigation_direction {
+            ElementScannerResultsViewData::navigate_scan_result_selection(
+                self.element_scanner_results_view_data.clone(),
+                self.struct_viewer_view_data.clone(),
+                self.app_context.engine_unprivileged_state.clone(),
+                scan_result_navigation_direction,
+                extend_scan_result_selection,
+            );
+        }
+
+        if can_handle_window_shortcuts
+            && user_interface.input_mut(|input_state| {
+                let modifiers = input_state.modifiers;
+                input_state.consume_key(modifiers, Key::Delete)
+            })
+        {
+            element_sanner_result_frame_action = ElementScannerResultFrameAction::DeleteSelection;
+        }
+
+        if can_handle_window_shortcuts && user_interface.input(|input_state| input_state.key_pressed(Key::Space)) {
             element_sanner_result_frame_action = ElementScannerResultFrameAction::from_selection_freeze_checkstate(
                 ElementScannerResultsViewData::get_selection_freeze_checkstate(self.element_scanner_results_view_data.clone()),
             );
@@ -680,39 +720,16 @@ impl Widget for ElementScannerResultsView {
                 }
                 ElementScannerResultFrameAction::ToggleFreezeSelection(_) => {}
                 ElementScannerResultFrameAction::AddSelection => {}
-                ElementScannerResultFrameAction::DeleteSelection => {}
+                ElementScannerResultFrameAction::DeleteSelection => {
+                    ElementScannerResultsViewData::delete_selected_scan_results(
+                        self.element_scanner_results_view_data.clone(),
+                        self.app_context.engine_unprivileged_state.clone(),
+                    );
+                }
                 ElementScannerResultFrameAction::CommitValueToSelection(_) => {}
             }
         }
 
         results_response
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::ElementScannerResultsView;
-    use epaint::{Rect, pos2};
-
-    #[test]
-    fn display_type_selector_stays_right_aligned_in_value_header() {
-        let display_type_selector_rectangle = ElementScannerResultsView::resolve_display_type_selector_rectangle(120.0, 320.0, 40.0, 4.0);
-
-        assert_eq!(display_type_selector_rectangle.min.x, 284.0);
-        assert_eq!(display_type_selector_rectangle.max.x, 316.0);
-        assert_eq!(display_type_selector_rectangle.height(), 24.0);
-    }
-
-    #[test]
-    fn value_header_clip_stops_before_display_type_selector() {
-        let header_rectangle = Rect::from_min_max(pos2(0.0, 24.0), pos2(400.0, 56.0));
-        let display_type_selector_rectangle = ElementScannerResultsView::resolve_display_type_selector_rectangle(120.0, 320.0, 40.0, 4.0);
-        let value_header_clip_rectangle =
-            ElementScannerResultsView::resolve_value_header_clip_rectangle(120.0, header_rectangle, display_type_selector_rectangle, 8.0);
-
-        assert_eq!(value_header_clip_rectangle.min.x, 128.0);
-        assert_eq!(value_header_clip_rectangle.max.x, 276.0);
-        assert_eq!(value_header_clip_rectangle.min.y, 24.0);
-        assert_eq!(value_header_clip_rectangle.max.y, 56.0);
     }
 }

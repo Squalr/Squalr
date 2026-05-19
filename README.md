@@ -47,11 +47,10 @@ Long term, we do wish to integrate into the AI landscape, in a manner that actua
 ### Developer-Facing Features
 - [ ] Command/event hooks
 - [ ] Plugin system: Data Types
-- [ ] Plugin system: Middleware (Filters for emu support, filter down virtual memory through custom logic)
-- [ ] Plugin system: Virtual Modules (custom defined static bases -- could be threadstack, special emulator memory regions, etc)
-- [ ] Plugin system: Project item types
+- [X] Plugin system: Middleware (Filters for emu support, filter down virtual memory through custom logic)
+- [X] Plugin system: Virtual Modules (custom defined static bases -- could be threadstack, special emulator memory regions, etc)
+- [X] Plugin system: Project item types
 - [ ] Scripting system (exact language TBD)
-- [ ] MCP APIs for LLM integrations (Needs architecting work)
 
 ### User-Facing Features
 - [X] Primitive scans
@@ -60,7 +59,7 @@ Long term, we do wish to integrate into the AI landscape, in a manner that actua
 - [X] Struct viewer
 - [X] Dockable window system
 - [ ] Struct scans
-- [ ] Pointer scans
+- [X] Pointer scans
 - [X] Project system
 
 ## Linux Build
@@ -160,11 +159,11 @@ Squalr has two components, a privileged interface, and an unprivileged core. Thi
 
 This allows us to create several different modes, such as a unified GUI/CLI/TUI build, an MPC shell, and a potential remote host to control a remote shell or MPC endpoint.
 
-| Platform   | GUI   | CLI   | TUI   | MCP    | Remote (Host)   | Remote (Shell)   |
-| ---------- | ----- | ----- | ----- | ------ | --------------- | ---------------- |
-| Desktop    | ✅    | ✅    | ✅    | ✅     | ✅              | ✅               |
-| Android    | ✅    | ✅    | ✅    | ✅     | ❌              | ✅               |
-| iPhone (Not Available Yet)     | ✅    | ✅    | ✅    | ✅     | ❌              | ✅               |
+| Platform   | GUI   | CLI   | TUI   | Remote (Host)   | Remote (Shell)   |
+| ---------- | ----- | ----- | ----- | --------------- | ---------------- |
+| Desktop    | ✅    | ✅    | ✅    | ✅              | ✅               |
+| Android    | ✅    | ✅    | ✅    | ❌              | ✅               |
+| iPhone (Not Available Yet)     | ✅    | ✅    | ✅     | ❌              | ✅               |
 
 ### Architecture Glossary
 - A **snapshot** is a full query of all virtual memory regions in an internal process. This is created in two passes, once to determine the virtual page addresses and sizes, and another pass to collect the values.
@@ -230,7 +229,7 @@ This is why selecting the best scanner is crucial, we have many such as:
 - Vector scanner (overlapping periodic): Performs a SIMD overlapping scan, but discards run lengths below a specified size as part of the periodic optimization mentioned earlier.
 - Booyer-Moore: Performs an arbitrary array of byte scan, using the scalar Booyer-Moore search algorithm.
 
-## Launch Tasklist
+## Feature List
 - [X] Custom installer and auto updater from Git tags.
 - [X] Dockable window system.
 - [X] Dependency Injection framework for GUI and engine.
@@ -256,23 +255,18 @@ This is why selecting the best scanner is crucial, we have many such as:
 - [X] String-based editing / committing of struct viewer entries.
 - [X] Projects with a per-file backing. Freezable addresses. Sortable.
 - [X] Editing scan results directly (via struct viewer).
-
-## Post-Launch Tasklist
-Lower priority features that we can defer, for now.
-
-Post-launch Features:
 - [ ] Struct Scans.
 - [ ] Improve coverage of conversion framework.
 - [ ] More string encodings
 - [ ] Custom and built in editors for property viewer data types.
-- [ ] Deleting scan results directly.
+- [X] Deleting scan results directly.
 - [ ] Case insensitive string scans.
 - [ ] Tolerance handling for float array scans.
-- [ ] Pointer Scans.
-- [ ] Memory viewer.
+- [X] Pointer Scans.
+- [X] Memory viewer.
 - [ ] Masked byte scans.
 - [ ] Bitfield scans.
-- [ ] Plugin system for new data types. The engine is already designed with this feature in mind, so actually this should be fairly easy.
+- [X] Plugin system for new data types. The engine is already designed with this feature in mind, so actually this should be fairly easy.
 - [ ] Plugin system to support emulator middleware (ie filtering queried virtual memory, remapping virtual address space, etc).
 - [ ] Plugin system to support virtual modules. Very similar to above, but registering fake modules, with emulators again being the primary use case.
 - [ ] Plugin system for new project item types (ie supporting a .NET item, or a JRE item).

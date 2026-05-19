@@ -3,12 +3,12 @@
 ## Purpose
 This document captures the symbol UX direction for Squalr.
 
-Squalr is not modeling symbols as a flat global table. Symbols are a typed memory map: modules are visible roots, module contents are ordered fields, and reusable struct definitions describe the types placed into that memory.
+Squalr is not modeling symbols as a flat global table. Symbols are a typed memory map: modules are visible roots, module contents are ordered fields, and reusable symbol layouts describe the types placed into that memory.
 
 ## Window Model
 
 ### Symbol Tree
-The Symbol Tree is the module struct tree.
+The Symbol Tree is the module layout tree.
 
 Responsibilities:
 - show manually added modules as top-level roots,
@@ -17,14 +17,14 @@ Responsibilities:
 - treat the module name as the resolver name,
 - store each module root as only `module_name` plus `size`,
 - show `u8[]` filler fields plus typed fields in module-offset order,
-- expand fields into struct fields, arrays, and pointer targets lazily,
+- expand fields into symbol-layout fields, arrays, and pointer targets lazily,
 - support promote, retype, delete, and split flows,
 - jump to memory, code, and details.
 
-The tree should answer "what fields exist in this module struct?" and "what space is still raw `u8[]`?"
+The tree should answer "what fields exist in this module layout?" and "what space is still raw `u8[]`?"
 
-### SymbolStructEditor
-The SymbolStructEditor window owns reusable type definitions.
+### Symbol Layout Editor
+The Symbol Layout Editor window owns reusable type definitions.
 
 Responsibilities:
 - create and edit reusable layouts,
@@ -33,7 +33,7 @@ Responsibilities:
 - show which fields use a layout,
 - block or guide destructive type edits that would invalidate placed fields.
 
-It should not own module occupancy. A reusable struct definition describes a type; the Symbol Tree places that type as a field inside a module struct.
+It should not own module occupancy. A reusable symbol layout describes a type; the Symbol Tree places that type as a field inside a module layout.
 
 ### Details Viewer
 The Details Viewer remains the focused inspector/editor for the selected field, derived child, or project item.
@@ -93,14 +93,14 @@ High-value authoring actions should be available directly in Memory Viewer and C
 - `Jump to Symbol Tree`,
 - `Rename Symbol`.
 
-These actions should route through the same module-struct mutation engine as the Symbol Tree. There should not be separate viewer-only symbol mutation paths.
+These actions should route through the same module-layout mutation engine as the Symbol Tree. There should not be separate viewer-only symbol mutation paths.
 
 ## Design Rules
 - Do not expose `Rooted Symbol` as product terminology.
 - Do treat modules as the visible roots of symbol space.
 - Do make unclaimed module space visible as `u8[]` fields.
 - Do make promotion reshape the typed memory map.
-- Do keep reusable type authoring in SymbolStructEditor.
+- Do keep reusable type authoring in the Symbol Layout Editor.
 - Do keep derived children lazy unless explicitly promoted.
 - Do keep module roots to only `module_name` plus `size`.
 - Do resolve module base addresses live by name.

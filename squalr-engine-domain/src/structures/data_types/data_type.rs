@@ -6,6 +6,7 @@ use crate::structures::data_types::data_type_scan_preference::DataTypeScanPrefer
 use crate::structures::data_values::anonymous_value_string::AnonymousValueString;
 use crate::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
 use crate::structures::data_values::data_value::DataValue;
+use crate::structures::data_values::scalar_integer_value::ScalarIntegerValue;
 use crate::structures::memory::endian::Endian;
 use std::fmt::Debug;
 
@@ -54,6 +55,37 @@ pub trait DataType: Debug + Send + Sync + ScalarComparable + VectorComparable {
 
     /// Gets a value indicating whether this value is unsigned.
     fn is_signed(&self) -> bool;
+
+    /// Gets a value indicating whether this type can provide integer scalar values for layout expressions.
+    fn supports_scalar_integer_values(&self) -> bool {
+        false
+    }
+
+    /// Attempts to interpret raw bytes as an integer scalar for layout expressions.
+    fn read_scalar_integer_value(
+        &self,
+        value_bytes: &[u8],
+    ) -> Result<Option<i128>, DataTypeError> {
+        if !self.supports_scalar_integer_values() {
+            return Ok(None);
+        }
+
+        let expected_byte_count = self.get_unit_size_in_bytes();
+        if value_bytes.len() as u64 != expected_byte_count {
+            return Err(DataTypeError::InvalidByteCount {
+                expected: expected_byte_count,
+                actual: value_bytes.len() as u64,
+            });
+        }
+
+        let scalar_integer_value = if self.is_signed() {
+            ScalarIntegerValue::read_signed(value_bytes, self.get_endian())?
+        } else {
+            ScalarIntegerValue::read_unsigned(value_bytes, self.get_endian())?
+        };
+
+        Ok(Some(scalar_integer_value))
+    }
 
     fn get_default_value(
         &self,

@@ -1,7 +1,8 @@
 use crate::{
     app_context::AppContext,
+    ui::converters::data_type_to_icon_converter::DataTypeToIconConverter,
     ui::converters::data_type_to_string_converter::DataTypeToStringConverter,
-    ui::widgets::controls::{checkbox::Checkbox, state_layer::StateLayer},
+    ui::widgets::controls::{checkbox::Checkbox, state_layer::StateLayer, tooltip::ThemedTooltip},
     views::element_scanner::results::view_data::element_scanner_result_frame_action::ElementScannerResultFrameAction,
 };
 use eframe::egui::{Align2, Rect, Response, Sense, Ui, Widget, pos2, vec2};
@@ -54,6 +55,7 @@ impl<'lifetime> ElementScannerResultEntryView<'lifetime> {
     }
 
     fn add_cell_tooltip(
+        app_context: &AppContext,
         user_interface: &mut Ui,
         cell_rectangle: Rect,
         tooltip_id_suffix: &str,
@@ -69,9 +71,14 @@ impl<'lifetime> ElementScannerResultEntryView<'lifetime> {
             return;
         }
 
-        user_interface
-            .interact(tooltip_rectangle, user_interface.id().with(tooltip_id_suffix), Sense::hover())
-            .on_hover_text(tooltip_text);
+        let tooltip_response = user_interface.interact(tooltip_rectangle, user_interface.id().with(tooltip_id_suffix), Sense::hover());
+        ThemedTooltip::show_text(
+            user_interface,
+            &tooltip_response,
+            tooltip_response.id.with("scan_result_cell_tooltip"),
+            &app_context.theme,
+            tooltip_text,
+        );
     }
 
     fn text_clip_rectangle(
@@ -174,10 +181,7 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
         let icon_size = vec2(16.0, 16.0);
         let data_type_ref = self.scan_result.get_data_type_ref();
         let data_type_label = DataTypeToStringConverter::convert_data_type_to_string(data_type_ref.get_data_type_id());
-        let icon_handle = crate::ui::converters::data_type_to_icon_converter::DataTypeToIconConverter::convert_data_type_to_icon(
-            data_type_ref.get_data_type_id(),
-            &theme.icon_library,
-        );
+        let icon_handle = DataTypeToIconConverter::convert_registered_data_type_to_icon(&self.app_context, data_type_ref);
         let data_type_icon_rectangle = Rect::from_min_size(
             pos2(self.data_type_splitter_position_x + text_left_padding, row_center_y - icon_size.y * 0.5),
             icon_size,
@@ -234,6 +238,7 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
             );
 
         Self::add_cell_tooltip(
+            &self.app_context,
             user_interface,
             address_cell_rectangle,
             &format!("scan_result_address_tooltip_{}", self.index),
@@ -271,6 +276,7 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
             );
 
         Self::add_cell_tooltip(
+            &self.app_context,
             user_interface,
             current_value_cell_rectangle,
             &format!("scan_result_current_value_tooltip_{}", self.index),
@@ -310,6 +316,7 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
             );
 
         Self::add_cell_tooltip(
+            &self.app_context,
             user_interface,
             previous_value_cell_rectangle,
             &format!("scan_result_previous_value_tooltip_{}", self.index),

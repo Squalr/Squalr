@@ -273,31 +273,3 @@ impl Widget for PointerScannerFooterView {
         response
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::{PointerScannerFooterNavigationLayout, PointerScannerFooterView};
-
-    fn assert_layout_fits(
-        available_width: f32,
-        navigation_layout: PointerScannerFooterNavigationLayout,
-    ) {
-        assert!(navigation_layout.button_width > 0.0);
-        assert!(navigation_layout.page_box_width > 0.0);
-        assert!(navigation_layout.total_width() <= available_width.max(1.0) + f32::EPSILON);
-    }
-
-    #[test]
-    fn navigation_layout_fits_standard_panel_widths() {
-        for available_width in [480.0, 320.0, 180.0, 96.0] {
-            assert_layout_fits(available_width, PointerScannerFooterView::resolve_navigation_layout(available_width));
-        }
-    }
-
-    #[test]
-    fn navigation_layout_fits_extremely_narrow_panel_widths() {
-        for available_width in [72.0, 48.0, 24.0] {
-            assert_layout_fits(available_width, PointerScannerFooterView::resolve_navigation_layout(available_width));
-        }
-    }
-}

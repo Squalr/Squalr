@@ -1,12 +1,10 @@
-use crate::command_executors::project_symbols::{
-    project_symbol_layout_mutation::ProjectSymbolLayoutMutation, project_symbol_name_scope::ProjectSymbolNameScope,
-    project_symbol_store_mutation::save_and_sync_project_symbol_catalog,
-};
 use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
+use crate::services::projects::{
+    project_symbol_catalog_mutation::create_project_symbol, project_symbol_catalog_persistence::save_and_sync_project_symbol_catalog,
+};
 use squalr_engine_api::commands::project_symbols::create::project_symbols_create_request::ProjectSymbolsCreateRequest;
 use squalr_engine_api::commands::project_symbols::create::project_symbols_create_response::ProjectSymbolsCreateResponse;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
-use squalr_engine_api::structures::projects::{project_symbol_claim::ProjectSymbolClaim, project_symbol_locator::ProjectSymbolLocator};
 use std::sync::Arc;
 
 impl UnprivilegedCommandRequestExecutor for ProjectSymbolsCreateRequest {
@@ -33,69 +31,16 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsCreateRequest {
             log::error!("Failed to resolve opened project directory for project-symbols create command.");
             return ProjectSymbolsCreateResponse::default();
         };
-        let Some(locator) = build_locator(self) else {
-            log::warn!("Project-symbols create request did not provide a valid locator.");
-            return ProjectSymbolsCreateResponse::default();
-        };
-        let trimmed_display_name = self.display_name.trim();
-
-        if trimmed_display_name.is_empty() || self.struct_layout_id.trim().is_empty() {
-            log::warn!("Project-symbols create request requires a non-empty display name and type id.");
-            return ProjectSymbolsCreateResponse::default();
-        }
-
-        let struct_layout_id = self.struct_layout_id.trim().to_string();
         let project_symbol_catalog = opened_project
             .get_project_info_mut()
             .get_project_symbol_catalog_mut();
-        let created_symbol_locator_key = locator.to_locator_key();
-        let display_name = ProjectSymbolNameScope::deduplicate_display_name(
-            project_symbol_catalog,
-            project_symbol_catalog.get_symbol_claims(),
-            &locator,
-            trimmed_display_name,
-            None,
-        );
-        let local_struct_layout_descriptors = project_symbol_catalog.get_struct_layout_descriptors().to_vec();
-        let resolve_field_size_in_bytes = |struct_layout_id: &str| {
-            ProjectSymbolLayoutMutation::resolve_struct_layout_id_size_in_bytes(
-                struct_layout_id,
-                |data_type_ref| {
-                    engine_unprivileged_state
-                        .get_default_value(data_type_ref)
-                        .map(|default_value| default_value.get_size_in_bytes())
-                },
-                |resolved_struct_layout_id| {
-                    local_struct_layout_descriptors
-                        .iter()
-                        .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == resolved_struct_layout_id)
-                        .map(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_definition().clone())
-                },
-            )
+        let created_symbol_locator_key = match create_project_symbol(engine_unprivileged_state, project_symbol_catalog, self) {
+            Ok(created_symbol_locator_key) => created_symbol_locator_key,
+            Err(error) => {
+                log::warn!("{}", error);
+                return ProjectSymbolsCreateResponse::default();
+            }
         };
-
-        match locator {
-            ProjectSymbolLocator::ModuleOffset { module_name, offset } => {
-                if let Err(error) = ProjectSymbolLayoutMutation::upsert_module_field(
-                    project_symbol_catalog,
-                    &module_name,
-                    display_name,
-                    offset,
-                    struct_layout_id,
-                    resolve_field_size_in_bytes,
-                ) {
-                    log::warn!("Project-symbols create module-field request failed: {}", error);
-                    return ProjectSymbolsCreateResponse::default();
-                }
-            }
-            ProjectSymbolLocator::AbsoluteAddress { .. } => {
-                let mut created_symbol = ProjectSymbolClaim::new(display_name, locator, struct_layout_id);
-                *created_symbol.get_metadata_mut() = self.metadata.clone();
-                project_symbol_catalog
-                    .get_symbol_claims_mut()
-                    .push(created_symbol);
-            }
-        }
 
         if !save_and_sync_project_symbol_catalog(engine_unprivileged_state, opened_project, &project_directory_path) {
             return ProjectSymbolsCreateResponse::default();
@@ -106,21 +51,6 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsCreateRequest {
             created_symbol_locator_key,
         }
     }
-}
-
-fn build_locator(project_symbols_create_request: &ProjectSymbolsCreateRequest) -> Option<ProjectSymbolLocator> {
-    if let Some(address) = project_symbols_create_request.address {
-        return Some(ProjectSymbolLocator::new_absolute_address(address));
-    }
-
-    let module_name = project_symbols_create_request
-        .module_name
-        .as_deref()
-        .map(str::trim)
-        .filter(|module_name| !module_name.is_empty())?;
-    let offset = project_symbols_create_request.offset?;
-
-    Some(ProjectSymbolLocator::new_module_offset(module_name.to_string(), offset))
 }
 
 #[cfg(test)]
@@ -201,14 +131,11 @@ mod tests {
     }
 
     #[test]
-    fn create_project_symbol_request_carves_existing_module_u8_field() {
-        use squalr_engine_api::structures::projects::{project_symbol_module::ProjectSymbolModule, project_symbol_module_field::ProjectSymbolModuleField};
+    fn create_project_symbol_request_inserts_module_field_into_unassigned_gap() {
+        use squalr_engine_api::structures::projects::project_symbol_module::ProjectSymbolModule;
 
         let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
-        let mut symbol_module = ProjectSymbolModule::new(String::from("game.exe"), 0x20);
-        symbol_module
-            .get_fields_mut()
-            .push(ProjectSymbolModuleField::new(String::from("u8_00000000"), 0x00, String::from("u8[32]")));
+        let symbol_module = ProjectSymbolModule::new(String::from("game.exe"), 0x20);
         let project = create_project_with_symbol_catalog(
             temp_directory.path(),
             ProjectSymbolCatalog::new_with_modules_and_symbol_claims(vec![symbol_module], Vec::new(), Vec::new()),
@@ -234,21 +161,17 @@ mod tests {
 
         assert!(project_symbols_create_response.success);
 
-        let loaded_project = Project::load_from_path(temp_directory.path()).expect("Expected carved-symbol project to load from disk.");
+        let loaded_project = Project::load_from_path(temp_directory.path()).expect("Expected module-field project to load from disk.");
         let symbol_modules = loaded_project
             .get_project_info()
             .get_project_symbol_catalog()
             .get_symbol_modules();
         let module_fields = symbol_modules[0].get_fields();
 
-        assert_eq!(module_fields.len(), 3);
-        assert_eq!(module_fields[0].get_offset(), 0x00);
-        assert_eq!(module_fields[0].get_struct_layout_id(), "u8[8]");
-        assert_eq!(module_fields[1].get_display_name(), "Health");
-        assert_eq!(module_fields[1].get_offset(), 0x08);
-        assert_eq!(module_fields[1].get_struct_layout_id(), "u32");
-        assert_eq!(module_fields[2].get_offset(), 0x0C);
-        assert_eq!(module_fields[2].get_struct_layout_id(), "u8[20]");
+        assert_eq!(module_fields.len(), 1);
+        assert_eq!(module_fields[0].get_display_name(), "Health");
+        assert_eq!(module_fields[0].get_offset(), 0x08);
+        assert_eq!(module_fields[0].get_struct_layout_id(), "u32");
     }
 
     #[test]

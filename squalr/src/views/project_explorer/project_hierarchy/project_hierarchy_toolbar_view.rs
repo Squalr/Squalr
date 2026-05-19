@@ -53,7 +53,6 @@ impl Widget for ProjectHierarchyToolbarView {
 
         toolbar_user_interface.with_layout(Layout::left_to_right(Align::Center), |user_interface| {
             let button_size = vec2(36.0, 28.0);
-            let has_deletable_selected_project_item = ProjectHierarchyViewData::has_deletable_selected_project_item(self.project_hierarchy_view_data.clone());
             let (is_busy, has_take_over_state) = self
                 .project_hierarchy_view_data
                 .read("Project hierarchy toolbar state")
@@ -65,19 +64,7 @@ impl Widget for ProjectHierarchyToolbarView {
                 })
                 .unwrap_or((false, false));
 
-            // Close project.
-            let button_refresh = user_interface.add_sized(
-                button_size,
-                Button::new_from_theme(&theme)
-                    .with_tooltip_text("Close this project.")
-                    .background_color(Color32::TRANSPARENT),
-            );
-            IconDraw::draw(user_interface, button_refresh.rect, &theme.icon_library.icon_handle_close);
-
-            if button_refresh.clicked() {
-                ProjectSelectorViewData::close_current_project(self.app_context.clone());
-            }
-
+            // Add project item.
             let button_add = user_interface.add_sized(
                 button_size,
                 Button::new_from_theme(&theme)
@@ -97,25 +84,28 @@ impl Widget for ProjectHierarchyToolbarView {
                     );
                 }
             }
+        });
 
-            user_interface.allocate_ui_with_layout(
-                vec2(user_interface.available_width(), height),
-                Layout::right_to_left(Align::Center),
-                |user_interface| {
-                    let button_delete = user_interface.add_sized(
-                        button_size,
-                        Button::new_from_theme(&theme)
-                            .with_tooltip_text("Delete selected project item.")
-                            .background_color(Color32::TRANSPARENT)
-                            .disabled(!has_deletable_selected_project_item || is_busy || has_take_over_state),
-                    );
-                    IconDraw::draw(user_interface, button_delete.rect, &theme.icon_library.icon_handle_common_delete);
+        let mut close_button_user_interface = user_interface.new_child(
+            UiBuilder::new()
+                .max_rect(allocated_size_rectangle)
+                .layout(Layout::right_to_left(Align::Center)),
+        );
+        close_button_user_interface.with_layout(Layout::right_to_left(Align::Center), |user_interface| {
+            let button_size = vec2(36.0, 28.0);
 
-                    if button_delete.clicked() {
-                        ProjectHierarchyViewData::request_delete_confirmation_for_selected_project_item(self.project_hierarchy_view_data.clone());
-                    }
-                },
+            // Close project.
+            let button_close = user_interface.add_sized(
+                button_size,
+                Button::new_from_theme(&theme)
+                    .with_tooltip_text("Close this project.")
+                    .background_color(Color32::TRANSPARENT),
             );
+            IconDraw::draw(user_interface, button_close.rect, &theme.icon_library.icon_handle_close);
+
+            if button_close.clicked() {
+                ProjectSelectorViewData::close_current_project(self.app_context.clone());
+            }
         });
 
         response

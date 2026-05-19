@@ -1,4 +1,5 @@
 use crate::logging::log_dispatcher::{LogDispatcher, LogDispatcherOptions};
+use crate::plugins::plugin_registry::PluginRegistry;
 use crate::registries::privileged_registry_cache::PrivilegedRegistryCache;
 use crate::virtual_snapshots::{
     virtual_snapshot::VirtualSnapshot, virtual_snapshot_query::VirtualSnapshotQuery, virtual_snapshot_resolver::materialize_virtual_snapshot_queries,
@@ -20,8 +21,8 @@ use squalr_engine_api::events::project_items::project_items_event::ProjectItemsE
 use squalr_engine_api::events::registry::registry_event::RegistryEvent;
 use squalr_engine_api::events::scan_results::scan_results_event::ScanResultsEvent;
 use squalr_engine_api::events::trackable_task::trackable_task_event::TrackableTaskEvent;
-use squalr_engine_api::registries::symbols::privileged_registry_catalog::PrivilegedRegistryCatalog;
 use squalr_engine_api::registries::symbols::symbol_registry_error::SymbolRegistryError;
+use squalr_engine_api::registries::symbols::{data_type_descriptor::DataTypeDescriptor, privileged_registry_catalog::PrivilegedRegistryCatalog};
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::{
     anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, data_value::DataValue,
@@ -46,6 +47,8 @@ pub struct EngineUnprivilegedState {
     file_system_logger: Arc<LogDispatcher>,
     /// Project manager for organizing and manipulating projects.
     project_manager: Arc<ProjectManager>,
+    /// Built-in plugin registry used by client-side extension points.
+    plugin_registry: Arc<PluginRegistry>,
     /// Cached privileged-owned registry catalog synchronized from the engine.
     privileged_registry_cache: Arc<RwLock<PrivilegedRegistryCache>>,
     /// Session-owned virtual snapshots used by interactive views.
@@ -72,6 +75,10 @@ impl EngineExecutionContext for EngineUnprivilegedState {
         &self.project_manager
     }
 
+    fn get_registered_data_type_refs(&self) -> Vec<DataTypeRef> {
+        EngineUnprivilegedState::get_registered_data_type_refs(self)
+    }
+
     fn get_default_anonymous_value_string_format(
         &self,
         data_type_ref: &DataTypeRef,
@@ -87,12 +94,34 @@ impl EngineExecutionContext for EngineUnprivilegedState {
         EngineUnprivilegedState::anonymize_value(self, data_value, anonymous_value_string_format)
     }
 
+    fn deanonymize_value_string(
+        &self,
+        data_type_ref: &DataTypeRef,
+        anonymous_value_string: &AnonymousValueString,
+    ) -> Result<DataValue, SymbolRegistryError> {
+        EngineUnprivilegedState::deanonymize_value_string(self, data_type_ref, anonymous_value_string)
+    }
+
     fn get_default_value(
         &self,
         data_type_ref: &DataTypeRef,
     ) -> Option<DataValue> {
         self.read_privileged_registry_cache(|privileged_registry_cache| privileged_registry_cache.get_default_value(data_type_ref))
             .unwrap_or_default()
+    }
+
+    fn get_data_type_descriptor(
+        &self,
+        data_type_ref: &DataTypeRef,
+    ) -> Option<DataTypeDescriptor> {
+        EngineUnprivilegedState::get_data_type_descriptor(self, data_type_ref)
+    }
+
+    fn get_unit_size_in_bytes(
+        &self,
+        data_type_ref: &DataTypeRef,
+    ) -> u64 {
+        EngineUnprivilegedState::get_unit_size_in_bytes(self, data_type_ref)
     }
 
     fn resolve_struct_layout_definition(
@@ -119,6 +148,7 @@ impl EngineUnprivilegedState {
         options: EngineUnprivilegedStateOptions,
     ) -> Arc<Self> {
         let project_manager = Arc::new(ProjectManager::new());
+        let plugin_registry = Arc::new(PluginRegistry::new());
 
         Arc::new(EngineUnprivilegedState {
             engine_api_unprivileged_bindings,
@@ -127,6 +157,7 @@ impl EngineUnprivilegedState {
                 enable_console_output: options.enable_console_logging,
             })),
             project_manager,
+            plugin_registry,
             privileged_registry_cache: Arc::new(RwLock::new(PrivilegedRegistryCache::default())),
             virtual_snapshots: Arc::new(RwLock::new(HashMap::new())),
         })
@@ -140,6 +171,10 @@ impl EngineUnprivilegedState {
     /// Gets the file system logger that routes log events to the log file.
     pub fn get_logger(&self) -> &Arc<LogDispatcher> {
         &self.file_system_logger
+    }
+
+    pub fn get_plugin_registry(&self) -> Arc<PluginRegistry> {
+        self.plugin_registry.clone()
     }
 
     pub fn get_privileged_registry_generation(&self) -> u64 {
@@ -287,6 +322,52 @@ impl EngineUnprivilegedState {
     ) -> Result<Vec<AnonymousValueString>, SymbolRegistryError> {
         self.read_privileged_registry_cache(|privileged_registry_cache| privileged_registry_cache.anonymize_value_to_supported_formats(data_value))
             .unwrap_or_else(|| Err(SymbolRegistryError::data_type_not_registered("anonymize value", data_value.get_data_type_id())))
+    }
+
+    pub fn supports_scalar_integer_values(
+        &self,
+        data_type_ref: &DataTypeRef,
+    ) -> bool {
+        self.read_privileged_registry_cache(|privileged_registry_cache| privileged_registry_cache.supports_scalar_integer_values(data_type_ref))
+            .unwrap_or(false)
+    }
+
+    pub fn read_scalar_integer_value(
+        &self,
+        data_value: &DataValue,
+    ) -> Result<Option<i128>, SymbolRegistryError> {
+        self.read_privileged_registry_cache(|privileged_registry_cache| privileged_registry_cache.read_scalar_integer_value(data_value))
+            .unwrap_or_else(|| {
+                Err(SymbolRegistryError::data_type_not_registered(
+                    "read scalar integer value",
+                    data_value.get_data_type_id(),
+                ))
+            })
+    }
+
+    pub fn get_unit_size_in_bytes(
+        &self,
+        data_type_ref: &DataTypeRef,
+    ) -> u64 {
+        self.read_privileged_registry_cache(|privileged_registry_cache| privileged_registry_cache.get_unit_size_in_bytes(data_type_ref))
+            .unwrap_or_default()
+    }
+
+    pub fn get_data_type_descriptor(
+        &self,
+        data_type_ref: &DataTypeRef,
+    ) -> Option<DataTypeDescriptor> {
+        self.read_privileged_registry_cache(|privileged_registry_cache| privileged_registry_cache.get_data_type_descriptor(data_type_ref))
+            .flatten()
+    }
+
+    pub fn get_icon_id(
+        &self,
+        data_type_ref: &DataTypeRef,
+    ) -> String {
+        self.get_data_type_descriptor(data_type_ref)
+            .map(|data_type_descriptor| data_type_descriptor.get_icon_id().to_string())
+            .unwrap_or_default()
     }
 
     pub fn set_virtual_snapshot_queries(

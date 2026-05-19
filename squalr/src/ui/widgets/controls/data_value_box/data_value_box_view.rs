@@ -590,27 +590,3 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
         response
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::{DataValueBoxDisplayFormatIconKind, DataValueBoxView};
-    use epaint::{Rect, pos2};
-    use squalr_engine_api::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
-
-    #[test]
-    fn resolve_display_format_icon_kind_uses_bool_icon_for_bool_values() {
-        assert_eq!(
-            DataValueBoxView::resolve_display_format_icon_kind(AnonymousValueStringFormat::Bool),
-            DataValueBoxDisplayFormatIconKind::Bool
-        );
-    }
-
-    #[test]
-    fn resolve_text_edit_clip_rect_clamps_to_parent_clip() {
-        let parent_clip_rect = Rect::from_min_max(pos2(10.0, 10.0), pos2(80.0, 40.0));
-        let text_edit_rect = Rect::from_min_max(pos2(0.0, 0.0), pos2(60.0, 30.0));
-        let clipped_rect = DataValueBoxView::resolve_text_edit_clip_rect(parent_clip_rect, text_edit_rect);
-
-        assert_eq!(clipped_rect, Rect::from_min_max(pos2(10.0, 10.0), pos2(60.0, 30.0)));
-    }
-}

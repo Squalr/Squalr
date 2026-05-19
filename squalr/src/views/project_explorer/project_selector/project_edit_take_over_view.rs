@@ -140,21 +140,6 @@ impl<'lifetime> ProjectEditTakeOverView<'lifetime> {
             vec2(header_action_width, Self::HEADER_HEIGHT),
             Layout::right_to_left(Align::Center),
             |user_interface| {
-                let delete_response = self.render_header_icon_button(
-                    user_interface,
-                    &theme.icon_library.icon_handle_common_delete,
-                    "Delete this project.",
-                    theme.background_control_danger,
-                    theme.background_control_danger_dark,
-                    Self::HEADER_HEIGHT,
-                    false,
-                );
-                if delete_response.clicked() {
-                    should_delete = true;
-                }
-
-                user_interface.add_space(Self::ROW_SPACING);
-
                 let cancel_response = self.render_header_icon_button(
                     user_interface,
                     &theme.icon_library.icon_handle_navigation_cancel,
@@ -166,6 +151,21 @@ impl<'lifetime> ProjectEditTakeOverView<'lifetime> {
                 );
                 if cancel_response.clicked() {
                     should_cancel = true;
+                }
+
+                user_interface.add_space(Self::ROW_SPACING);
+
+                let delete_response = self.render_header_icon_button(
+                    user_interface,
+                    &theme.icon_library.icon_handle_common_delete,
+                    "Delete this project.",
+                    theme.background_control_danger,
+                    theme.background_control_danger_dark,
+                    Self::HEADER_HEIGHT,
+                    false,
+                );
+                if delete_response.clicked() {
+                    should_delete = true;
                 }
             },
         );

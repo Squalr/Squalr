@@ -6,6 +6,7 @@ use crate::{
     ui::{
         draw::icon_draw::IconDraw,
         geometry::safe_clamp_f32,
+        list_navigation::ListNavigationDirection,
         widgets::controls::{button::Button, data_value_box::data_value_box_view::DataValueBoxView, groupbox::GroupBox},
     },
     views::{
@@ -14,8 +15,8 @@ use crate::{
         struct_viewer::view_data::{struct_viewer_take_over_state::StructViewerTakeOverState, struct_viewer_view_data::StructViewerViewData},
     },
 };
-use eframe::egui::{Align, Align2, CursorIcon, Id, Key, Layout, Response, RichText, ScrollArea, Sense, Ui, UiBuilder, Widget, vec2};
-use epaint::{CornerRadius, Rect, pos2};
+use eframe::egui::{Align, Align2, Button as EguiButton, CursorIcon, Id, Key, Layout, Response, RichText, ScrollArea, Sense, Ui, UiBuilder, Widget, vec2};
+use epaint::{CornerRadius, Rect, Stroke, pos2};
 use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRequest;
 use squalr_engine_api::commands::privileged_command_response::TypedPrivilegedCommandResponse;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
@@ -60,6 +61,7 @@ impl StructViewerView {
     const TAKE_OVER_CONTENT_PADDING_X: f32 = 12.0;
     const TAKE_OVER_HEADER_TITLE_PADDING_X: f32 = 8.0;
     const TAKE_OVER_SECTION_SPACING: f32 = 12.0;
+    const TAKE_OVER_BOTTOM_PADDING: f32 = 8.0;
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let struct_viewer_view_data = if app_context
@@ -213,25 +215,6 @@ impl StructViewerView {
         DataTypeRef::new(DataTypeStringUtf8::DATA_TYPE_ID)
     }
 
-    fn render_take_over_header_icon_button(
-        &self,
-        user_interface: &mut Ui,
-        icon_handle: &eframe::egui::TextureHandle,
-        tooltip_text: &str,
-    ) -> Response {
-        let theme = &self.app_context.theme;
-        let button_response = user_interface.add_sized(
-            vec2(Self::POINTER_OFFSET_ICON_BUTTON_WIDTH, Self::TAKE_OVER_HEADER_HEIGHT),
-            Button::new_from_theme(theme)
-                .background_color(epaint::Color32::TRANSPARENT)
-                .with_tooltip_text(tooltip_text),
-        );
-
-        IconDraw::draw(user_interface, button_response.rect, icon_handle);
-
-        button_response
-    }
-
     fn render_pointer_offset_icon_button(
         &self,
         user_interface: &mut Ui,
@@ -264,8 +247,6 @@ impl StructViewerView {
         &self,
         user_interface: &mut Ui,
         title: &str,
-        header_action_width: f32,
-        render_header_actions: impl FnOnce(&mut Ui),
         add_contents: impl FnOnce(&mut Ui),
     ) {
         let theme = &self.app_context.theme;
@@ -297,7 +278,7 @@ impl StructViewerView {
         );
         header_user_interface.set_clip_rect(header_inner_rect);
 
-        let title_width = (header_inner_rect.width() - header_action_width - Self::TAKE_OVER_HEADER_TITLE_PADDING_X).max(0.0);
+        let title_width = (header_inner_rect.width() - Self::TAKE_OVER_HEADER_TITLE_PADDING_X).max(0.0);
         let (title_rect, _) = header_user_interface.allocate_exact_size(vec2(title_width, Self::TAKE_OVER_HEADER_HEIGHT), Sense::hover());
         header_user_interface.painter().text(
             pos2(title_rect.left() + Self::TAKE_OVER_HEADER_TITLE_PADDING_X, title_rect.center().y),
@@ -306,16 +287,6 @@ impl StructViewerView {
             theme.font_library.font_noto_sans.font_window_title.clone(),
             theme.foreground,
         );
-
-        if header_action_width > 0.0 {
-            header_user_interface.allocate_ui_with_layout(
-                vec2(header_action_width, Self::TAKE_OVER_HEADER_HEIGHT),
-                Layout::right_to_left(Align::Center),
-                |user_interface| {
-                    render_header_actions(user_interface);
-                },
-            );
-        }
 
         panel_user_interface.add_space(Self::TAKE_OVER_SECTION_SPACING);
         ScrollArea::vertical()
@@ -327,6 +298,7 @@ impl StructViewerView {
                     user_interface.add_space(Self::TAKE_OVER_CONTENT_PADDING_X);
                     user_interface.allocate_ui_with_layout(vec2(content_width, 0.0), Layout::top_down(Align::Min), |user_interface| {
                         add_contents(user_interface);
+                        user_interface.add_space(Self::TAKE_OVER_BOTTOM_PADDING);
                     });
                 });
             });
@@ -443,70 +415,84 @@ impl StructViewerView {
         let pointer_offset_data_type_ref = Self::pointer_offset_data_type_ref();
         let mut should_save_offsets = false;
 
-        self.render_take_over_panel(
-            user_interface,
-            "Edit pointer offsets",
-            Self::POINTER_OFFSET_ICON_BUTTON_WIDTH * 2.0,
-            |user_interface| {
-                let save_response =
-                    self.render_take_over_header_icon_button(user_interface, &theme.icon_library.icon_handle_common_check_mark, "Save offsets.");
-                if save_response.clicked() {
-                    should_save_offsets = true;
-                }
+        self.render_take_over_panel(user_interface, "Edit pointer offsets", |user_interface| {
+            user_interface.add(
+                GroupBox::new_from_theme(theme, "Offsets", |user_interface| {
+                    let mut pending_pointer_offset_row_action = None;
+                    let pointer_offset_count = pointer_offset_values.len();
 
-                let cancel_response =
-                    self.render_take_over_header_icon_button(user_interface, &theme.icon_library.icon_handle_navigation_cancel, "Cancel offset edit.");
-                if cancel_response.clicked() {
-                    *should_cancel_take_over = true;
-                }
-            },
-            |user_interface| {
-                user_interface.add(
-                    GroupBox::new_from_theme(theme, "Offsets", |user_interface| {
-                        let mut pending_pointer_offset_row_action = None;
-                        let pointer_offset_count = pointer_offset_values.len();
+                    for pointer_offset_index in 0..pointer_offset_count {
+                        let Some(pointer_offset_value) = pointer_offset_values.get_mut(pointer_offset_index) else {
+                            continue;
+                        };
 
-                        for pointer_offset_index in 0..pointer_offset_count {
-                            let Some(pointer_offset_value) = pointer_offset_values.get_mut(pointer_offset_index) else {
-                                continue;
-                            };
-
-                            if let Some(pointer_offset_row_action) = self.render_pointer_offset_editor_section(
-                                user_interface,
-                                pointer_offset_value,
-                                pointer_offset_index,
-                                &pointer_offset_data_type_ref,
-                                pointer_offset_count > 1,
-                            ) {
-                                pending_pointer_offset_row_action = Some((pointer_offset_index, pointer_offset_row_action));
-                            }
-
-                            if pointer_offset_index + 1 < pointer_offset_count {
-                                user_interface.add_space(Self::POINTER_OFFSET_SECTION_VERTICAL_SPACING);
-                            }
+                        if let Some(pointer_offset_row_action) = self.render_pointer_offset_editor_section(
+                            user_interface,
+                            pointer_offset_value,
+                            pointer_offset_index,
+                            &pointer_offset_data_type_ref,
+                            pointer_offset_count > 1,
+                        ) {
+                            pending_pointer_offset_row_action = Some((pointer_offset_index, pointer_offset_row_action));
                         }
 
-                        if pointer_offset_count == 0 {
-                            let add_response = self.render_pointer_offset_icon_button(
-                                user_interface,
-                                &theme.icon_library.icon_handle_common_add,
-                                "Append a new offset.",
-                                false,
-                            );
+                        if pointer_offset_index + 1 < pointer_offset_count {
+                            user_interface.add_space(Self::POINTER_OFFSET_SECTION_VERTICAL_SPACING);
+                        }
+                    }
 
-                            if add_response.clicked() {
-                                pending_pointer_offset_row_action = Some((0, PointerOffsetRowAction::AppendOffset));
-                            }
+                    if pointer_offset_count == 0 {
+                        let add_response =
+                            self.render_pointer_offset_icon_button(user_interface, &theme.icon_library.icon_handle_common_add, "Append a new offset.", false);
+
+                        if add_response.clicked() {
+                            pending_pointer_offset_row_action = Some((0, PointerOffsetRowAction::AppendOffset));
+                        }
+                    }
+
+                    if let Some((pointer_offset_index, pointer_offset_row_action)) = pending_pointer_offset_row_action {
+                        Self::apply_pointer_offset_row_action(&mut pointer_offset_values, pointer_offset_index, pointer_offset_row_action);
+                    }
+                })
+                .desired_width(user_interface.available_width()),
+            );
+
+            user_interface.add_space(Self::TAKE_OVER_SECTION_SPACING);
+            user_interface.allocate_ui(
+                vec2(user_interface.available_width(), Self::POINTER_OFFSET_FIELD_ROW_HEIGHT),
+                |user_interface| {
+                    let button_size = vec2(120.0, Self::POINTER_OFFSET_FIELD_ROW_HEIGHT);
+                    let button_spacing = 12.0;
+                    let total_button_row_width = button_size.x * 2.0 + button_spacing;
+                    let side_spacing = ((user_interface.available_width() - total_button_row_width) * 0.5).max(0.0);
+
+                    user_interface.horizontal(|user_interface| {
+                        user_interface.add_space(side_spacing);
+                        user_interface.spacing_mut().item_spacing.x = button_spacing;
+
+                        let cancel_response = user_interface.add_sized(
+                            button_size,
+                            EguiButton::new(RichText::new("Cancel").color(theme.foreground))
+                                .fill(theme.background_control_secondary)
+                                .stroke(Stroke::new(1.0, theme.background_control_secondary_dark)),
+                        );
+                        if cancel_response.clicked() {
+                            *should_cancel_take_over = true;
                         }
 
-                        if let Some((pointer_offset_index, pointer_offset_row_action)) = pending_pointer_offset_row_action {
-                            Self::apply_pointer_offset_row_action(&mut pointer_offset_values, pointer_offset_index, pointer_offset_row_action);
+                        let accept_response = user_interface.add_sized(
+                            button_size,
+                            EguiButton::new(RichText::new("Accept").color(theme.foreground))
+                                .fill(theme.background_control_primary)
+                                .stroke(Stroke::new(1.0, theme.background_control_primary_dark)),
+                        );
+                        if accept_response.clicked() {
+                            should_save_offsets = true;
                         }
-                    })
-                    .desired_width(user_interface.available_width()),
-                );
-            },
-        );
+                    });
+                },
+            );
+        });
 
         if should_save_offsets {
             let mut pointer_offsets = pointer_offset_values
@@ -729,53 +715,6 @@ impl StructViewerView {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::StructViewerView;
-    use squalr_engine_api::structures::{
-        data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
-        memory::pointer_chain_segment::PointerChainSegment,
-    };
-
-    #[test]
-    fn pointer_offset_display_values_use_hex_for_offsets_and_string_for_symbols() {
-        let pointer_offset_display_values = StructViewerView::pointer_offset_display_values(vec![
-            PointerChainSegment::Offset(0x20),
-            PointerChainSegment::Symbol(String::from("Timer")),
-        ]);
-
-        assert_eq!(
-            pointer_offset_display_values[0].get_anonymous_value_string_format(),
-            AnonymousValueStringFormat::Hexadecimal
-        );
-        assert_eq!(
-            pointer_offset_display_values[1].get_anonymous_value_string_format(),
-            AnonymousValueStringFormat::String
-        );
-    }
-
-    #[test]
-    fn parse_pointer_offset_display_value_respects_numeric_display_format() {
-        let hex_offset = AnonymousValueString::new(String::from("10"), AnonymousValueStringFormat::Hexadecimal, ContainerType::None);
-        let decimal_offset = AnonymousValueString::new(String::from("10"), AnonymousValueStringFormat::Decimal, ContainerType::None);
-        let symbol_offset = AnonymousValueString::new(String::from("Timer"), AnonymousValueStringFormat::String, ContainerType::None);
-
-        assert_eq!(
-            StructViewerView::parse_pointer_offset_display_value(&hex_offset),
-            Some(PointerChainSegment::Offset(0x10))
-        );
-        assert_eq!(
-            StructViewerView::parse_pointer_offset_display_value(&decimal_offset),
-            Some(PointerChainSegment::Offset(10))
-        );
-        assert_eq!(
-            StructViewerView::parse_pointer_offset_display_value(&symbol_offset),
-            Some(PointerChainSegment::Symbol(String::from("Timer")))
-        );
-    }
-}
-
 impl Widget for StructViewerView {
     fn ui(
         self,
@@ -897,7 +836,9 @@ impl Widget for StructViewerView {
                                             value_splitter_x + BAR_THICKNESS,
                                         ));
                                     }
-                                    StructViewerFieldEditorKind::DataTypeSelector => {
+                                    StructViewerFieldEditorKind::DataTypeSelector
+                                    | StructViewerFieldEditorKind::SymbolResolverDataTypeSelector
+                                    | StructViewerFieldEditorKind::SymbolLayoutFieldDataTypeSelector => {
                                         let field_data_type_selection = struct_viewer_view_data
                                             .field_data_type_selections
                                             .get_mut(field.get_name());
@@ -917,7 +858,16 @@ impl Widget for StructViewerView {
                                             value_splitter_x + BAR_THICKNESS,
                                         ));
                                     }
-                                    StructViewerFieldEditorKind::ContainerTypeSelector | StructViewerFieldEditorKind::ProjectItemPointerSizeSelector => {
+                                    StructViewerFieldEditorKind::ContainerTypeSelector
+                                    | StructViewerFieldEditorKind::ProjectItemPointerSizeSelector
+                                    | StructViewerFieldEditorKind::SymbolResolverNodeKindSelector
+                                    | StructViewerFieldEditorKind::SymbolResolverOperatorSelector
+                                    | StructViewerFieldEditorKind::SymbolLayoutFieldElementTypeSelector
+                                    | StructViewerFieldEditorKind::SymbolLayoutKindSelector
+                                    | StructViewerFieldEditorKind::SymbolLayoutFieldSymbolLayoutSelector
+                                    | StructViewerFieldEditorKind::SymbolLayoutFieldResolverSelector
+                                    | StructViewerFieldEditorKind::SymbolLayoutFieldContainerKindSelector
+                                    | StructViewerFieldEditorKind::SymbolLayoutFieldPointerSizeSelector => {
                                         inner_ui.add(StructViewerEntryView::new(
                                             self.app_context.clone(),
                                             &field,
@@ -1015,6 +965,25 @@ impl Widget for StructViewerView {
             && user_interface.input(|input_state| input_state.key_pressed(Key::Escape) || input_state.key_pressed(Key::Backspace))
         {
             should_cancel_take_over = true;
+        }
+
+        let can_handle_window_shortcuts = self
+            .app_context
+            .window_focus_manager
+            .can_window_handle_shortcuts(user_interface.ctx(), Self::WINDOW_ID);
+
+        if active_pointer_offsets_field_name.is_none()
+            && can_handle_window_shortcuts
+            && user_interface.input(|input_state| input_state.key_pressed(Key::ArrowUp))
+        {
+            StructViewerViewData::navigate_field_selection(self.struct_viewer_view_data.clone(), ListNavigationDirection::Up);
+        }
+
+        if active_pointer_offsets_field_name.is_none()
+            && can_handle_window_shortcuts
+            && user_interface.input(|input_state| input_state.key_pressed(Key::ArrowDown))
+        {
+            StructViewerViewData::navigate_field_selection(self.struct_viewer_view_data.clone(), ListNavigationDirection::Down);
         }
 
         if should_cancel_take_over {

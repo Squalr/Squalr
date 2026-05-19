@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use squalr_engine_api::plugins::PluginPackage;
+use squalr_plugin_binary_symbols::BinarySymbolsPlugin;
 use squalr_plugin_data_types_24bit::TwentyFourBitDataTypesPlugin;
 use squalr_plugin_instructions_arm::ArmFamilyInstructionsPlugin;
 use squalr_plugin_instructions_powerpc::PowerPcFamilyInstructionsPlugin;
@@ -14,6 +15,7 @@ pub fn get_builtin_plugin_packages() -> Vec<Arc<dyn PluginPackage>> {
         Arc::new(ArmFamilyInstructionsPlugin::new()),
         Arc::new(PowerPcFamilyInstructionsPlugin::new()),
         Arc::new(X86FamilyInstructionsPlugin::new()),
+        Arc::new(BinarySymbolsPlugin::new()),
     ]
 }
 
@@ -110,5 +112,21 @@ mod tests {
                 .metadata()
                 .has_plugin_capability(PluginCapability::DataType)
         );
+    }
+
+    #[test]
+    fn builtins_include_binary_symbols_plugin_package() {
+        let plugins = get_builtin_plugin_packages();
+        let plugin = plugins
+            .iter()
+            .find(|plugin| plugin.metadata().get_plugin_id() == "builtin.symbols.binary")
+            .expect("Expected the binary symbols package to be registered.");
+
+        assert!(
+            plugin
+                .metadata()
+                .has_plugin_capability(PluginCapability::SymbolTree)
+        );
+        assert!(plugin.as_symbol_tree_plugin().is_some());
     }
 }
