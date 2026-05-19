@@ -18,6 +18,8 @@ pub struct SymbolTreeEntryView<'lifetime> {
     size_preview_text: &'lifetime str,
     size_tooltip_text: &'lifetime str,
     preview_value: &'lifetime str,
+    uses_symbol_layout_icon: bool,
+    is_expanded: bool,
     is_selected: bool,
 }
 
@@ -37,6 +39,8 @@ impl<'lifetime> SymbolTreeEntryView<'lifetime> {
         size_preview_text: &'lifetime str,
         size_tooltip_text: &'lifetime str,
         preview_value: &'lifetime str,
+        uses_symbol_layout_icon: bool,
+        is_expanded: bool,
         is_selected: bool,
     ) -> Self {
         Self {
@@ -45,6 +49,8 @@ impl<'lifetime> SymbolTreeEntryView<'lifetime> {
             size_preview_text,
             size_tooltip_text,
             preview_value,
+            uses_symbol_layout_icon,
+            is_expanded,
             is_selected,
         }
     }
@@ -105,7 +111,7 @@ impl<'lifetime> SymbolTreeEntryView<'lifetime> {
                 user_interface.make_persistent_id(("symbol_tree_entry_arrow", self.symbol_tree_entry.get_node_key())),
                 Sense::click(),
             );
-            let expand_icon = if self.symbol_tree_entry.is_expanded() {
+            let expand_icon = if self.is_expanded {
                 &theme.icon_library.icon_handle_navigation_down_arrow_small
             } else {
                 &theme.icon_library.icon_handle_navigation_right_arrow_small
@@ -123,7 +129,7 @@ impl<'lifetime> SymbolTreeEntryView<'lifetime> {
         );
         let data_type_icon = DataTypeToIconConverter::convert_data_type_or_symbol_layout_to_icon(
             &self.symbol_tree_entry.get_display_type_id(),
-            self.symbol_tree_entry.uses_symbol_layout_icon(),
+            self.uses_symbol_layout_icon,
             &theme.icon_library,
         );
         IconDraw::draw_sized(user_interface, data_type_icon_center, data_type_icon_size, &data_type_icon);

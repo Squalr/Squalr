@@ -297,7 +297,6 @@ mod tests {
             String::from("u32"),
             Default::default(),
             false,
-            false,
         )
     }
 
@@ -317,7 +316,6 @@ mod tests {
             String::from("UNASSIGNED"),
             ContainerType::ArrayFixed(0x20),
             false,
-            false,
         )
     }
 
@@ -335,7 +333,6 @@ mod tests {
             String::from("player"),
             Default::default(),
             true,
-            false,
         )
     }
 
@@ -395,7 +392,6 @@ mod tests {
             String::from("u8"),
             ContainerType::ArrayFixed(0x2000),
             false,
-            false,
         );
         let details_projection =
             SymbolTreeDetailsProjection::build_with_metadata_type_id(&symbol_tree_node, false, Some(0x2000), None, None, Some("winmine.exe"));
@@ -423,7 +419,6 @@ mod tests {
             ProjectSymbolLocator::new_absolute_address(0x1234),
             String::from("u8"),
             ContainerType::ArrayFixed(16),
-            false,
             false,
         );
         let details_projection = SymbolTreeDetailsProjection::build_external_value(&symbol_tree_node, true, Some(16));

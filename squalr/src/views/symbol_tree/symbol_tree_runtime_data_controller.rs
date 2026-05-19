@@ -136,6 +136,7 @@ impl SymbolTreeRuntimeDataController {
         self.sync_pointer_child_virtual_snapshot(
             project_symbol_catalog,
             &structural_symbol_tree_entries,
+            expanded_tree_node_keys,
             resolver_pointer_snapshot_queries.borrow().clone(),
         );
 
@@ -168,7 +169,12 @@ impl SymbolTreeRuntimeDataController {
         .into_nodes();
 
         self.sync_symbol_scalar_virtual_snapshot(scalar_snapshot_queries.borrow().clone());
-        self.sync_pointer_child_virtual_snapshot(project_symbol_catalog, &symbol_tree_entries, resolver_pointer_snapshot_queries.borrow().clone());
+        self.sync_pointer_child_virtual_snapshot(
+            project_symbol_catalog,
+            &symbol_tree_entries,
+            expanded_tree_node_keys,
+            resolver_pointer_snapshot_queries.borrow().clone(),
+        );
         self.sync_symbol_preview_virtual_snapshot(project_symbol_catalog, &symbol_tree_entries);
 
         let preview_values_by_node_key = self.collect_preview_values_by_node_key(&symbol_tree_entries);
@@ -267,9 +273,10 @@ impl SymbolTreeRuntimeDataController {
         &self,
         project_symbol_catalog: &ProjectSymbolCatalog,
         symbol_tree_entries: &[SymbolTreeNode],
+        expanded_tree_node_keys: &HashSet<String>,
         additional_pointer_snapshot_queries: Vec<VirtualSnapshotQuery>,
     ) {
-        let mut pointer_snapshot_queries = self.build_pointer_snapshot_queries(project_symbol_catalog, symbol_tree_entries);
+        let mut pointer_snapshot_queries = self.build_pointer_snapshot_queries(project_symbol_catalog, symbol_tree_entries, expanded_tree_node_keys);
 
         pointer_snapshot_queries.extend(additional_pointer_snapshot_queries);
 
@@ -289,11 +296,13 @@ impl SymbolTreeRuntimeDataController {
         &self,
         project_symbol_catalog: &ProjectSymbolCatalog,
         symbol_tree_entries: &[SymbolTreeNode],
+        expanded_tree_node_keys: &HashSet<String>,
     ) -> Vec<VirtualSnapshotQuery> {
         symbol_tree_entries
             .iter()
             .filter(|symbol_tree_entry| {
-                symbol_tree_entry.is_expanded()
+                symbol_tree_entry.can_expand()
+                    && expanded_tree_node_keys.contains(symbol_tree_entry.get_node_key())
                     && !matches!(symbol_tree_entry.get_kind(), SymbolTreeNodeKind::PointerTarget)
                     && symbol_tree_entry
                         .get_container_type()

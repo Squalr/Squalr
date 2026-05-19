@@ -434,8 +434,8 @@ impl Widget for SymbolTreeView {
         }
 
         if can_use_standard_toolbar_actions && can_handle_window_shortcuts && user_interface.input(|input_state| input_state.key_pressed(Key::ArrowLeft)) {
-            if let Some(selected_symbol_tree_entry) =
-                selected_symbol_tree_entry.filter(|symbol_tree_entry| symbol_tree_entry.can_expand() && symbol_tree_entry.is_expanded())
+            if let Some(selected_symbol_tree_entry) = selected_symbol_tree_entry
+                .filter(|symbol_tree_entry| symbol_tree_entry.can_expand() && expanded_tree_node_keys.contains(symbol_tree_entry.get_node_key()))
             {
                 SymbolTreeViewData::toggle_tree_node_expansion(self.symbol_tree_view_data.clone(), selected_symbol_tree_entry.get_node_key());
             }
@@ -525,6 +525,7 @@ impl Widget for SymbolTreeView {
                             &project_symbol_catalog,
                             &symbol_tree_entries,
                             &preview_values_by_node_key,
+                            &expanded_tree_node_keys,
                             selected_entry.as_ref(),
                             inline_rename_tree_node_key.as_deref(),
                             context_menu_target.as_ref(),

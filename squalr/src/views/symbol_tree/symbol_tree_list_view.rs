@@ -26,7 +26,7 @@ use squalr_engine_api::structures::projects::{
     },
     symbol_tree::symbol_tree_node::{SymbolTreeNode, SymbolTreeNodeKind, resolve_symbol_tree_node_size_in_bytes},
 };
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 pub struct SymbolTreeListView<'lifetime> {
@@ -34,6 +34,7 @@ pub struct SymbolTreeListView<'lifetime> {
     project_symbol_catalog: &'lifetime ProjectSymbolCatalog,
     symbol_tree_entries: &'lifetime [SymbolTreeNode],
     preview_values_by_node_key: &'lifetime HashMap<String, String>,
+    expanded_tree_node_keys: &'lifetime HashSet<String>,
     selected_entry: Option<&'lifetime SymbolTreeSelection>,
     inline_rename_tree_node_key: Option<&'lifetime str>,
     context_menu_target: Option<&'lifetime SymbolTreeContextMenuTarget>,
@@ -103,6 +104,7 @@ impl<'lifetime> SymbolTreeListView<'lifetime> {
         project_symbol_catalog: &'lifetime ProjectSymbolCatalog,
         symbol_tree_entries: &'lifetime [SymbolTreeNode],
         preview_values_by_node_key: &'lifetime HashMap<String, String>,
+        expanded_tree_node_keys: &'lifetime HashSet<String>,
         selected_entry: Option<&'lifetime SymbolTreeSelection>,
         inline_rename_tree_node_key: Option<&'lifetime str>,
         context_menu_target: Option<&'lifetime SymbolTreeContextMenuTarget>,
@@ -114,6 +116,7 @@ impl<'lifetime> SymbolTreeListView<'lifetime> {
             project_symbol_catalog,
             symbol_tree_entries,
             preview_values_by_node_key,
+            expanded_tree_node_keys,
             selected_entry,
             inline_rename_tree_node_key,
             context_menu_target,
@@ -138,7 +141,14 @@ impl<'lifetime> SymbolTreeListView<'lifetime> {
                 .is_some_and(|active_inline_rename_tree_node_key| symbol_tree_entry.get_node_key() == active_inline_rename_tree_node_key);
 
             if is_inline_rename_row {
-                Self::render_inline_rename_row(&self.app_context, user_interface, symbol_tree_entry, is_selected, &mut list_actions);
+                Self::render_inline_rename_row(
+                    &self.app_context,
+                    user_interface,
+                    self.expanded_tree_node_keys,
+                    symbol_tree_entry,
+                    is_selected,
+                    &mut list_actions,
+                );
                 continue;
             }
 
@@ -199,12 +209,16 @@ impl<'lifetime> SymbolTreeListView<'lifetime> {
         });
         let size_preview_text = Self::format_symbol_tree_size_preview(size_in_bytes);
         let size_tooltip_text = Self::format_symbol_tree_size_tooltip(size_in_bytes);
+        let uses_symbol_layout_icon = Self::symbol_tree_entry_uses_symbol_layout_icon(self.project_symbol_catalog, symbol_tree_entry);
+        let is_expanded = Self::symbol_tree_entry_is_expanded(self.expanded_tree_node_keys, symbol_tree_entry);
         let symbol_tree_entry_view_response = SymbolTreeEntryView::new(
             self.app_context.clone(),
             symbol_tree_entry,
             &size_preview_text,
             &size_tooltip_text,
             preview_value,
+            uses_symbol_layout_icon,
+            is_expanded,
             is_selected,
         )
         .show(user_interface);
@@ -269,6 +283,7 @@ impl<'lifetime> SymbolTreeListView<'lifetime> {
     fn render_inline_rename_row(
         app_context: &Arc<AppContext>,
         user_interface: &mut Ui,
+        expanded_tree_node_keys: &HashSet<String>,
         symbol_tree_entry: &SymbolTreeNode,
         is_selected: bool,
         list_actions: &mut Vec<SymbolTreeListAction>,
@@ -290,6 +305,7 @@ impl<'lifetime> SymbolTreeListView<'lifetime> {
             symbol_tree_entry,
             &mut rename_text,
             &mut should_highlight_text,
+            Self::symbol_tree_entry_is_expanded(expanded_tree_node_keys, symbol_tree_entry),
             is_selected,
         )
         .show(user_interface);
@@ -729,6 +745,28 @@ impl<'lifetime> SymbolTreeListView<'lifetime> {
 
     fn is_module_field_tree_entry(symbol_tree_entry: &SymbolTreeNode) -> bool {
         symbol_tree_entry.get_node_key().starts_with("module_field:")
+    }
+
+    fn symbol_tree_entry_uses_symbol_layout_icon(
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        symbol_tree_entry: &SymbolTreeNode,
+    ) -> bool {
+        let symbol_layout_id = match symbol_tree_entry.get_kind() {
+            SymbolTreeNodeKind::ModuleSpace { module_name, .. } => module_name.as_str(),
+            SymbolTreeNodeKind::UnassignedSegment { .. } => return false,
+            SymbolTreeNodeKind::SymbolClaim { .. } | SymbolTreeNodeKind::StructField | SymbolTreeNodeKind::PointerTarget => {
+                symbol_tree_entry.get_symbol_type_id()
+            }
+        };
+
+        project_symbol_catalog.contains_struct_layout_id(symbol_layout_id)
+    }
+
+    fn symbol_tree_entry_is_expanded(
+        expanded_tree_node_keys: &HashSet<String>,
+        symbol_tree_entry: &SymbolTreeNode,
+    ) -> bool {
+        symbol_tree_entry.can_expand() && expanded_tree_node_keys.contains(symbol_tree_entry.get_node_key())
     }
 
     fn format_symbol_tree_size_preview(size_in_bytes: u64) -> String {

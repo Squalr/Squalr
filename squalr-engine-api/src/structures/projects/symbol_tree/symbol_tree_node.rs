@@ -72,9 +72,7 @@ pub struct SymbolTreeNode {
     locator: ProjectSymbolLocator,
     symbol_type_id: String,
     container_type: ContainerType,
-    uses_symbol_layout_icon: bool,
     can_expand: bool,
-    is_expanded: bool,
 }
 
 impl SymbolTreeNode {
@@ -89,7 +87,6 @@ impl SymbolTreeNode {
         symbol_type_id: String,
         container_type: ContainerType,
         can_expand: bool,
-        is_expanded: bool,
     ) -> Self {
         Self {
             node_key,
@@ -101,15 +98,8 @@ impl SymbolTreeNode {
             locator,
             symbol_type_id,
             container_type,
-            uses_symbol_layout_icon: false,
             can_expand,
-            is_expanded,
         }
-    }
-
-    pub fn with_symbol_layout_icon(mut self) -> Self {
-        self.uses_symbol_layout_icon = true;
-        self
     }
 
     pub fn get_node_key(&self) -> &str {
@@ -152,16 +142,8 @@ impl SymbolTreeNode {
         self.container_type
     }
 
-    pub fn uses_symbol_layout_icon(&self) -> bool {
-        self.uses_symbol_layout_icon
-    }
-
     pub fn can_expand(&self) -> bool {
         self.can_expand
-    }
-
-    pub fn is_expanded(&self) -> bool {
-        self.is_expanded
     }
 }
 
@@ -294,14 +276,7 @@ where
         let module_node_key = module_node_key(&module_name);
         let can_expand = effective_module_size > 0 || !symbol_claims.is_empty();
         let is_expanded = can_expand && expanded_tree_node_keys.contains(&module_node_key);
-        append_module_space_node(
-            &mut symbol_tree_nodes,
-            module_name.clone(),
-            effective_module_size,
-            module_root_layout_descriptor.is_some(),
-            can_expand,
-            is_expanded,
-        );
+        append_module_space_node(&mut symbol_tree_nodes, module_name.clone(), effective_module_size, can_expand);
 
         if !is_expanded {
             continue;
@@ -376,7 +351,7 @@ where
         let module_name = String::from("Absolute / Unmapped");
         let module_node_key = module_node_key(&module_name);
         let is_expanded = expanded_tree_node_keys.contains(&module_node_key);
-        append_module_space_node(&mut symbol_tree_nodes, module_name, 0, false, true, is_expanded);
+        append_module_space_node(&mut symbol_tree_nodes, module_name, 0, true);
 
         if !is_expanded {
             return symbol_tree_nodes;
@@ -452,7 +427,6 @@ fn append_unassigned_segment_node(
         ProjectSymbolLocator::new_module_offset(module_name.to_string(), offset),
         String::from("UNASSIGNED"),
         ContainerType::ArrayFixed(length),
-        false,
         false,
     ));
 }
@@ -634,7 +608,6 @@ fn append_module_root_layout_field_node<ResolvePrimitiveSize, ReadScalarField, R
         field_definition.get_data_type_ref().to_string(),
         field_definition.get_container_type(),
         can_expand,
-        is_expanded,
     ));
 
     if is_expanded {
@@ -663,13 +636,11 @@ fn append_module_space_node(
     symbol_tree_nodes: &mut Vec<SymbolTreeNode>,
     module_name: String,
     size: u64,
-    uses_symbol_layout_icon: bool,
     can_expand: bool,
-    is_expanded: bool,
 ) {
     let node_key = module_node_key(&module_name);
 
-    let mut symbol_tree_node = SymbolTreeNode::new(
+    let symbol_tree_node = SymbolTreeNode::new(
         node_key,
         SymbolTreeNodeKind::ModuleSpace {
             module_name: module_name.clone(),
@@ -683,12 +654,7 @@ fn append_module_space_node(
         String::from("u8"),
         ContainerType::ArrayFixed(size),
         can_expand,
-        is_expanded,
     );
-
-    if uses_symbol_layout_icon {
-        symbol_tree_node = symbol_tree_node.with_symbol_layout_icon();
-    }
 
     symbol_tree_nodes.push(symbol_tree_node);
 }
@@ -727,7 +693,7 @@ fn append_symbol_claim_node<ResolvePrimitiveSize, ReadScalarField, ResolveRelati
     let can_expand = symbol_claim_type.can_expand(project_symbol_catalog);
     let is_expanded = can_expand && expanded_tree_node_keys.contains(&root_node_key);
 
-    let mut root_symbol_tree_node = SymbolTreeNode::new(
+    let root_symbol_tree_node = SymbolTreeNode::new(
         root_node_key.clone(),
         SymbolTreeNodeKind::SymbolClaim {
             symbol_locator_key: symbol_claim.get_symbol_locator_key().to_string(),
@@ -740,12 +706,7 @@ fn append_symbol_claim_node<ResolvePrimitiveSize, ReadScalarField, ResolveRelati
         symbol_claim_type.symbol_type_id().to_string(),
         symbol_claim_type.container_type(),
         can_expand,
-        is_expanded,
     );
-
-    if symbol_claim_type.uses_symbol_layout_icon() {
-        root_symbol_tree_node = root_symbol_tree_node.with_symbol_layout_icon();
-    }
 
     symbol_tree_nodes.push(root_symbol_tree_node);
 
@@ -932,7 +893,7 @@ fn append_struct_field_nodes<ResolvePrimitiveSize, ReadScalarField, ResolveRelat
         );
         let is_expanded = can_expand && expanded_tree_node_keys.contains(&field_node_key);
 
-        let mut field_symbol_tree_node = SymbolTreeNode::new(
+        let field_symbol_tree_node = SymbolTreeNode::new(
             field_node_key.clone(),
             SymbolTreeNodeKind::StructField,
             depth,
@@ -943,12 +904,7 @@ fn append_struct_field_nodes<ResolvePrimitiveSize, ReadScalarField, ResolveRelat
             field_definition.get_data_type_ref().to_string(),
             field_container_type,
             can_expand,
-            is_expanded,
         );
-
-        if is_symbol_layout_data_type_ref(project_symbol_catalog, field_definition.get_data_type_ref()) {
-            field_symbol_tree_node = field_symbol_tree_node.with_symbol_layout_icon();
-        }
 
         symbol_tree_nodes.push(field_symbol_tree_node);
 
@@ -1076,7 +1032,7 @@ fn append_field_children<ResolvePrimitiveSize, ReadScalarField, ResolveRelativeP
             let can_expand = data_type_ref_can_expand(project_symbol_catalog, data_type_ref, ContainerType::None, visited_struct_layout_ids);
             let is_expanded = can_expand && expanded_tree_node_keys.contains(&pointer_target_node_key);
 
-            let mut pointer_target_symbol_tree_node = SymbolTreeNode::new(
+            let pointer_target_symbol_tree_node = SymbolTreeNode::new(
                 pointer_target_node_key.clone(),
                 SymbolTreeNodeKind::PointerTarget,
                 depth,
@@ -1087,12 +1043,7 @@ fn append_field_children<ResolvePrimitiveSize, ReadScalarField, ResolveRelativeP
                 data_type_ref.to_string(),
                 ContainerType::None,
                 can_expand,
-                is_expanded,
             );
-
-            if is_symbol_layout_data_type_ref(project_symbol_catalog, data_type_ref) {
-                pointer_target_symbol_tree_node = pointer_target_symbol_tree_node.with_symbol_layout_icon();
-            }
 
             symbol_tree_nodes.push(pointer_target_symbol_tree_node);
 
@@ -1166,7 +1117,7 @@ fn append_fixed_array_element_nodes<ResolvePrimitiveSize, ReadScalarField, Resol
         let can_expand = data_type_ref_can_expand(project_symbol_catalog, data_type_ref, element_container_type, visited_struct_layout_ids);
         let is_expanded = can_expand && expanded_tree_node_keys.contains(&element_node_key);
 
-        let mut element_symbol_tree_node = SymbolTreeNode::new(
+        let element_symbol_tree_node = SymbolTreeNode::new(
             element_node_key.clone(),
             SymbolTreeNodeKind::StructField,
             depth,
@@ -1177,12 +1128,7 @@ fn append_fixed_array_element_nodes<ResolvePrimitiveSize, ReadScalarField, Resol
             data_type_ref.to_string(),
             element_container_type,
             can_expand,
-            is_expanded,
         );
-
-        if is_symbol_layout_data_type_ref(project_symbol_catalog, data_type_ref) {
-            element_symbol_tree_node = element_symbol_tree_node.with_symbol_layout_icon();
-        }
 
         symbol_tree_nodes.push(element_symbol_tree_node);
 
@@ -1488,10 +1434,6 @@ impl ResolvedSymbolClaimType {
         }
     }
 
-    fn uses_symbol_layout_icon(&self) -> bool {
-        matches!(self, Self::Struct { .. })
-    }
-
     fn can_expand(
         &self,
         project_symbol_catalog: &ProjectSymbolCatalog,
@@ -1517,13 +1459,6 @@ impl ResolvedSymbolClaimType {
             },
         }
     }
-}
-
-fn is_symbol_layout_data_type_ref(
-    project_symbol_catalog: &ProjectSymbolCatalog,
-    data_type_ref: &DataTypeRef,
-) -> bool {
-    project_symbol_catalog.contains_struct_layout_id(data_type_ref.get_data_type_id())
 }
 
 fn resolve_symbol_claim_type(
@@ -1574,55 +1509,6 @@ mod tests {
     };
     use std::collections::{HashMap, HashSet};
     use std::str::FromStr;
-
-    #[test]
-    fn build_symbol_tree_nodes_marks_symbol_claim_layouts_for_struct_icon() {
-        let project_symbol_catalog = ProjectSymbolCatalog::new_with_symbol_claims(
-            vec![StructLayoutDescriptor::new(
-                String::from("player.stats"),
-                SymbolicStructDefinition::new(
-                    String::from("player.stats"),
-                    vec![SymbolicFieldDefinition::new_named(
-                        String::from("health"),
-                        DataTypeRef::new("u32"),
-                        ContainerType::None,
-                    )],
-                ),
-            )],
-            vec![ProjectSymbolClaim::new_absolute_address(
-                String::from("Stats"),
-                0x1234,
-                String::from("player.stats"),
-            )],
-        );
-        let expanded_tree_node_keys = HashSet::from([String::from("module:Absolute / Unmapped")]);
-        let symbol_tree_nodes = build_symbol_tree_nodes(&project_symbol_catalog, &expanded_tree_node_keys, &HashMap::new(), |_| Some(4));
-        let symbol_claim_node = symbol_tree_nodes
-            .iter()
-            .find(|symbol_tree_node| matches!(symbol_tree_node.get_kind(), SymbolTreeNodeKind::SymbolClaim { .. }))
-            .expect("Expected symbol claim node.");
-
-        assert!(symbol_claim_node.uses_symbol_layout_icon());
-    }
-
-    #[test]
-    fn build_symbol_tree_nodes_marks_module_root_layouts_for_struct_icon() {
-        let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_and_symbol_claims(
-            vec![ProjectSymbolModule::new(String::from("game.exe"), 0x1000)],
-            vec![StructLayoutDescriptor::new(
-                String::from("game.exe"),
-                SymbolicStructDefinition::new(String::from("game.exe"), Vec::new()),
-            )],
-            Vec::new(),
-        );
-        let symbol_tree_nodes = build_symbol_tree_nodes(&project_symbol_catalog, &HashSet::new(), &HashMap::new(), |_| Some(4));
-        let module_node = symbol_tree_nodes
-            .iter()
-            .find(|symbol_tree_node| matches!(symbol_tree_node.get_kind(), SymbolTreeNodeKind::ModuleSpace { .. }))
-            .expect("Expected module node.");
-
-        assert!(module_node.uses_symbol_layout_icon());
-    }
 
     #[test]
     fn build_symbol_tree_nodes_derives_nested_struct_and_array_children() {

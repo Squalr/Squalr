@@ -17,6 +17,7 @@ pub struct SymbolTreeInlineRenameView<'lifetime> {
     symbol_tree_entry: &'lifetime SymbolTreeNode,
     rename_text: &'lifetime mut String,
     should_highlight_text: &'lifetime mut bool,
+    is_expanded: bool,
     is_selected: bool,
 }
 
@@ -33,6 +34,7 @@ impl<'lifetime> SymbolTreeInlineRenameView<'lifetime> {
         symbol_tree_entry: &'lifetime SymbolTreeNode,
         rename_text: &'lifetime mut String,
         should_highlight_text: &'lifetime mut bool,
+        is_expanded: bool,
         is_selected: bool,
     ) -> Self {
         Self {
@@ -41,6 +43,7 @@ impl<'lifetime> SymbolTreeInlineRenameView<'lifetime> {
             symbol_tree_entry,
             rename_text,
             should_highlight_text,
+            is_expanded,
             is_selected,
         }
     }
@@ -94,7 +97,7 @@ impl<'lifetime> SymbolTreeInlineRenameView<'lifetime> {
         );
 
         if self.symbol_tree_entry.can_expand() {
-            let expand_icon = if self.symbol_tree_entry.is_expanded() {
+            let expand_icon = if self.is_expanded {
                 &theme.icon_library.icon_handle_navigation_down_arrow_small
             } else {
                 &theme.icon_library.icon_handle_navigation_right_arrow_small
