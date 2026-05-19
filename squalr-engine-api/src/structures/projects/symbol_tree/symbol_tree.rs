@@ -4,9 +4,12 @@ use crate::structures::{
     projects::{
         project_symbol_catalog::ProjectSymbolCatalog,
         project_symbol_locator::ProjectSymbolLocator,
-        symbol_tree::symbol_tree_node::{
-            ResolvedPointerTarget, SymbolTreeNode, build_symbol_tree_nodes, build_symbol_tree_nodes_with_scalar_reader,
-            build_symbol_tree_nodes_with_scalar_reader_and_pointer_chains,
+        symbol_tree::{
+            operations::build_symbol_tree::{
+                ResolvedPointerTarget, build_symbol_tree_nodes, build_symbol_tree_nodes_with_scalar_reader,
+                build_symbol_tree_nodes_with_scalar_reader_and_pointer_chains,
+            },
+            symbol_tree_node::SymbolTreeNode,
         },
     },
     structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_resolver_definition::SymbolicResolverEvaluationError},

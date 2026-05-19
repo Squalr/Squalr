@@ -21,8 +21,9 @@ use squalr_engine_api::structures::projects::{
     project_symbol_locator::ProjectSymbolLocator,
     symbol_layouts::symbol_layout_size_resolver::SymbolLayoutSizeResolver,
     symbol_tree::details::SymbolTreeDetailsProjection,
+    symbol_tree::operations::build_symbol_tree::ResolvedPointerTarget,
     symbol_tree::symbol_tree::SymbolTree,
-    symbol_tree::symbol_tree_node::{ResolvedPointerTarget, SymbolTreeNode, SymbolTreeNodeKind},
+    symbol_tree::symbol_tree_node::{SymbolTreeNode, SymbolTreeNodeKind},
 };
 use squalr_engine_api::structures::structs::{
     symbolic_field_definition::SymbolicFieldDefinition, symbolic_resolver_definition::SymbolicResolverEvaluationError,

@@ -21,10 +21,11 @@ use squalr_engine_api::structures::projects::{
     project_symbol_locator::ProjectSymbolLocator,
     symbol_tree::operations::{
         add_symbol_to_project::{AddSymbolToProjectTarget, build_add_symbol_to_project_target},
+        build_symbol_tree::resolve_symbol_tree_node_size_in_bytes,
         delete_symbol::{ModuleChildRangeTarget, build_module_child_range_target},
         edit_symbol_layout::build_symbol_layout_edit_target,
     },
-    symbol_tree::symbol_tree_node::{SymbolTreeNode, SymbolTreeNodeKind, resolve_symbol_tree_node_size_in_bytes},
+    symbol_tree::symbol_tree_node::{SymbolTreeNode, SymbolTreeNodeKind},
 };
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;

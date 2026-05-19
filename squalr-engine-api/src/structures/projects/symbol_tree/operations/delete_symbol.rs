@@ -3,7 +3,10 @@ use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::projects::{
     project_symbol_catalog::ProjectSymbolCatalog,
     project_symbol_locator::ProjectSymbolLocator,
-    symbol_tree::symbol_tree_node::{SymbolTreeNode, SymbolTreeNodeKind, resolve_symbol_tree_node_size_in_bytes},
+    symbol_tree::{
+        operations::build_symbol_tree::resolve_symbol_tree_node_size_in_bytes,
+        symbol_tree_node::{SymbolTreeNode, SymbolTreeNodeKind},
+    },
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
