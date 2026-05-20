@@ -5,7 +5,6 @@ use std::str::FromStr;
 pub enum MemoryReadMode {
     Skip,
     ReadBeforeScan,
-    ReadInterleavedWithScan,
 }
 
 impl Default for MemoryReadMode {
@@ -21,7 +20,6 @@ impl FromStr for MemoryReadMode {
         match string {
             "s" => Ok(MemoryReadMode::Skip),
             "b" => Ok(MemoryReadMode::ReadBeforeScan),
-            "i" => Ok(MemoryReadMode::ReadInterleavedWithScan),
             _ => Err("Unknown memory reading mode.".to_string()),
         }
     }

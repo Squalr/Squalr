@@ -20,8 +20,7 @@ use squalr_engine_api::structures::scanning::memory_read_mode::MemoryReadMode;
 use squalr_engine_api::structures::scanning::plans::element_scan::element_scan_plan::ElementScanPlan;
 use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
 use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
-use squalr_engine_scanning::scanners::element_scan_executor_task::ElementScanExecutor;
-use squalr_engine_scanning::scanners::scan_execution_context::ScanExecutionContext;
+use squalr_engine_scanning::{ElementScanner, ScanControl};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
@@ -109,12 +108,10 @@ impl PointerScanTargetResolver {
         symbol_registry: &SymbolRegistry,
         address_pointer_size: PointerScanPointerSize,
         snapshot: Arc<RwLock<Snapshot>>,
-        process_info: OpenedProcessInfo,
         memory_alignment: MemoryAlignment,
         floating_point_tolerance: squalr_engine_api::structures::data_types::floating_point_tolerance::FloatingPointTolerance,
         is_single_thread_scan: bool,
         debug_perform_validation_scan: bool,
-        scan_execution_context: &ScanExecutionContext,
     ) -> Result<ResolvedPointerScanTargets, String> {
         match (
             target_request.target_address.as_ref(),
@@ -127,12 +124,10 @@ impl PointerScanTargetResolver {
                 target_value,
                 target_data_type_ref,
                 snapshot,
-                process_info,
                 memory_alignment,
                 floating_point_tolerance,
                 is_single_thread_scan,
                 debug_perform_validation_scan,
-                scan_execution_context,
             ),
             (None, None, None) => Err("Pointer scan target is missing.".to_string()),
             (Some(_target_address), Some(_target_value), _target_data_type_ref) => {
@@ -168,12 +163,10 @@ impl PointerScanTargetResolver {
         target_value: &AnonymousValueString,
         target_data_type_ref: &DataTypeRef,
         snapshot: Arc<RwLock<Snapshot>>,
-        process_info: OpenedProcessInfo,
         memory_alignment: MemoryAlignment,
         floating_point_tolerance: squalr_engine_api::structures::data_types::floating_point_tolerance::FloatingPointTolerance,
         is_single_thread_scan: bool,
         debug_perform_validation_scan: bool,
-        scan_execution_context: &ScanExecutionContext,
     ) -> Result<ResolvedPointerScanTargets, String> {
         let exact_scan_constraint = AnonymousScanConstraint::new(ScanCompareType::Immediate(ScanCompareTypeImmediate::Equal), Some(target_value.clone()));
         let scan_constraint_builder = ScanConstraintBuilder::new(symbol_registry, floating_point_tolerance);
@@ -201,17 +194,10 @@ impl PointerScanTargetResolver {
         );
         let temporary_value_scan_snapshot = Arc::new(RwLock::new(Self::clone_snapshot_for_value_target_scan(snapshot.as_ref())?));
 
-        ElementScanExecutor::execute_scan(
-            process_info,
-            temporary_value_scan_snapshot.clone(),
-            symbol_registry,
-            element_scan_plan,
-            true,
-            scan_execution_context,
-        );
-        let snapshot_guard = temporary_value_scan_snapshot
-            .read()
+        let mut snapshot_guard = temporary_value_scan_snapshot
+            .write()
             .map_err(|error| format!("Failed to access pointer scan value target snapshot: {}", error))?;
+        ElementScanner::scan_snapshot(&mut snapshot_guard, symbol_registry, &element_scan_plan, &ScanControl::default());
         let result_count = snapshot_guard.get_number_of_results();
         let (_page_index, scan_results_page) = snapshot_guard.get_scan_results_page(symbol_registry, None, 0, result_count.max(1));
         let mut target_addresses = scan_results_page

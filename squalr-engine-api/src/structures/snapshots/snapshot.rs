@@ -20,6 +20,15 @@ impl Snapshot {
         }
     }
 
+    /// Creates a snapshot from caller-provided regions.
+    pub fn from_regions(snapshot_regions: Vec<SnapshotRegion>) -> Self {
+        let mut snapshot = Self::new();
+
+        snapshot.set_snapshot_regions(snapshot_regions);
+
+        snapshot
+    }
+
     /// Assigns new snapshot regions to this snapshot.
     pub fn set_snapshot_regions(
         &mut self,

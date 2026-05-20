@@ -16,7 +16,7 @@ use squalr_engine_api::{
         processes::opened_process_info::OpenedProcessInfo,
     },
 };
-use squalr_engine_operating_system::{
+use squalr_engine_targets_native::{
     memory_reader::{MemoryReader, memory_reader_trait::MemoryReaderTrait},
     memory_writer::{MemoryWriter, memory_writer_trait::MemoryWriterTrait},
 };

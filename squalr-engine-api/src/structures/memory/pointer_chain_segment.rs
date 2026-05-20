@@ -1,6 +1,6 @@
-use squalr_engine_domain::structures::memory::symbolic_pointer_chain::IntoSymbolicPointerChainLinks;
+use crate::structures::memory::symbolic_pointer_chain::IntoSymbolicPointerChainLinks;
 
-pub use squalr_engine_domain::structures::memory::symbolic_pointer_chain::SymbolicPointerChainLink as PointerChainSegment;
+pub use crate::structures::memory::symbolic_pointer_chain::SymbolicPointerChainLink as PointerChainSegment;
 
 pub trait IntoPointerChainSegments {
     fn into_pointer_chain_segments(self) -> Vec<PointerChainSegment>;

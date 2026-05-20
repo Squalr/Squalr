@@ -23,7 +23,7 @@ use squalr_engine_api::registries::symbols::{data_type_descriptor::DataTypeDescr
 use squalr_engine_api::structures::pointer_scans::pointer_scan_results::PointerScanResults;
 use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
 use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
-use squalr_engine_operating_system::process_query::process_query_error::ProcessQueryError;
+use squalr_engine_targets::ProcessQueryError;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 
@@ -404,7 +404,7 @@ mod tests {
         projects::project_symbol_catalog::ProjectSymbolCatalog,
         structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition},
     };
-    use squalr_engine_operating_system::process_query::{process_query_error::ProcessQueryError, process_query_options::ProcessQueryOptions};
+    use squalr_engine_targets::{ProcessQueryError, ProcessQueryOptions};
     use std::sync::{Arc, Mutex, RwLock};
 
     struct NoOpProcessQueryProvider;

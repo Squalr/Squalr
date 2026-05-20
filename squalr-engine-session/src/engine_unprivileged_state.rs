@@ -1,5 +1,6 @@
 use crate::logging::log_dispatcher::{LogDispatcher, LogDispatcherOptions};
 use crate::plugins::plugin_registry::PluginRegistry;
+use crate::projects::project_manager::ProjectManager;
 use crate::registries::privileged_registry_cache::PrivilegedRegistryCache;
 use crate::virtual_snapshots::{
     virtual_snapshot::VirtualSnapshot, virtual_snapshot_query::VirtualSnapshotQuery, virtual_snapshot_resolver::materialize_virtual_snapshot_queries,
@@ -27,7 +28,7 @@ use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::{
     anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, data_value::DataValue,
 };
-use squalr_engine_api::structures::projects::project_manager::ProjectManager;
+use squalr_engine_api::structures::projects::project_context::ProjectContext;
 use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
 use std::{
@@ -71,8 +72,8 @@ impl EngineExecutionContext for EngineUnprivilegedState {
         &self.engine_api_unprivileged_bindings
     }
 
-    fn get_project_manager(&self) -> &Arc<ProjectManager> {
-        &self.project_manager
+    fn get_project_manager(&self) -> Arc<dyn ProjectContext> {
+        self.project_manager.clone()
     }
 
     fn get_registered_data_type_refs(&self) -> Vec<DataTypeRef> {

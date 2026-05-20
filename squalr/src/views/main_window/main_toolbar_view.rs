@@ -22,7 +22,7 @@ use eframe::egui::{Response, Ui, Widget};
 use squalr_engine_api::commands::project::export::project_export_request::ProjectExportRequest;
 use squalr_engine_api::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
-use squalr_engine_api::structures::projects::project_manager::ProjectManager;
+use squalr_engine_api::structures::projects::project_context::ProjectContext;
 use std::sync::{Arc, RwLock};
 
 #[derive(Clone)]
@@ -382,7 +382,7 @@ impl MainToolbarView {
         )
     }
 
-    fn project_manager_has_opened_project(project_manager: &ProjectManager) -> bool {
+    fn project_manager_has_opened_project(project_manager: &dyn ProjectContext) -> bool {
         let opened_project = project_manager.get_opened_project();
 
         match opened_project.read() {

@@ -4864,12 +4864,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d767eb0aabc880b29956c35734170f26ed551a859dbd361d140cdbeca61ab1e2"
 
 [[package]]
-name = "seq-macro"
-version = "0.3.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1bc711410fbe7399f390ca1c3b60ad0f53f80e95c5eb935e52268a0e2cd49acc"
-
-[[package]]
 name = "serde"
 version = "1.0.228"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5190,6 +5184,7 @@ dependencies = [
  "interprocess",
  "log",
  "opener",
+ "rayon",
  "rfd",
  "self-replace",
  "semver",
@@ -5222,52 +5217,16 @@ dependencies = [
  "encoding",
  "encoding_rs",
  "log",
- "notify",
  "num-traits",
  "rayon",
  "serde",
  "serde_json",
  "slab",
  "smallvec",
- "squalr-engine-domain",
  "structopt",
  "thiserror 2.0.18",
  "typetag",
  "uuid",
-]
-
-[[package]]
-name = "squalr-engine-domain"
-version = "0.3.0"
-dependencies = [
- "log",
- "num-traits",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "squalr-engine-operating-system"
-version = "0.3.0"
-dependencies = [
- "bitflags 2.10.0",
- "image",
- "libc",
- "log",
- "mach2",
- "objc",
- "once_cell",
- "rayon",
- "regex",
- "resvg",
- "serde",
- "serde_json",
- "squalr-engine-api",
- "sysinfo",
- "thiserror 2.0.18",
- "windows-sys 0.61.2",
- "zip",
 ]
 
 [[package]]
@@ -5286,18 +5245,9 @@ dependencies = [
 name = "squalr-engine-scanning"
 version = "0.3.0"
 dependencies = [
- "bitflags 2.10.0",
- "bytemuck",
- "futures",
- "lazy_static",
  "log",
  "rayon",
- "seq-macro",
- "serde",
- "serde_json",
- "smallvec",
  "squalr-engine-api",
- "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -5310,11 +5260,46 @@ dependencies = [
  "dirs",
  "log",
  "log4rs",
+ "notify",
+ "serde_json",
  "squalr-engine-api",
- "squalr-engine-operating-system",
- "squalr-engine-scanning",
+ "squalr-engine-targets",
+ "squalr-engine-targets-native",
  "squalr-plugin-builtins",
  "sysinfo",
+]
+
+[[package]]
+name = "squalr-engine-targets"
+version = "0.3.0"
+dependencies = [
+ "squalr-engine-api",
+ "sysinfo",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "squalr-engine-targets-native"
+version = "0.3.0"
+dependencies = [
+ "bitflags 2.10.0",
+ "image",
+ "libc",
+ "log",
+ "mach2",
+ "objc",
+ "once_cell",
+ "rayon",
+ "regex",
+ "resvg",
+ "serde",
+ "serde_json",
+ "squalr-engine-api",
+ "squalr-engine-targets",
+ "sysinfo",
+ "thiserror 2.0.18",
+ "windows-sys 0.61.2",
+ "zip",
 ]
 
 [[package]]
@@ -5384,7 +5369,7 @@ name = "squalr-plugin-memory-view-dolphin"
 version = "0.3.0"
 dependencies = [
  "squalr-engine-api",
- "squalr-engine-operating-system",
+ "squalr-engine-targets-native",
 ]
 
 [[package]]
@@ -5394,8 +5379,8 @@ dependencies = [
  "crossbeam-channel",
  "squalr-engine",
  "squalr-engine-api",
- "squalr-engine-operating-system",
  "squalr-engine-session",
+ "squalr-engine-targets",
  "structopt",
 ]
 

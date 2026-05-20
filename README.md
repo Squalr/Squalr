@@ -20,6 +20,45 @@ This project is unaffiliated with any employers of our team members, past, prese
 
 ![SqualrGUI](docs/Squalr.png)
 
+## Usage
+
+Squalr can be used as a desktop app, a terminal tool, an Android app, or as Rust crates for custom scanning workflows.
+
+### Standalone App
+Use this when you want the full interactive workflow: process selection, element scans, array/string scans, pointer scans, the memory viewer, project files, symbol layouts, and plugin-backed tooling.
+
+| Platform   | GUI   | CLI   | TUI   | Remote (Host)   | Remote (Shell)   |
+| ---------- | ----- | ----- | ----- | --------------- | ---------------- |
+| Windows    | ✅    | ✅    | ✅    | ✅              | ✅               |
+| Linux    | ✅    | ✅    | ✅    | ✅              | ✅               |
+| Mac    | ✅    | ✅    | ✅    | ✅              | ✅               |
+| Android (Rooted)   | ✅    | ✅    | ✅    | ❌              | ✅               |
+| iPhone (Not Available Yet)     | ✅    | ✅    | ✅     | ❌              | ✅               |
+
+### Plugins and Extensions
+Plugins are the path for extending Squalr's behavior. Existing plugin crates cover built-in plugins, 24-bit data types, instruction providers, binary symbols, and Dolphin memory-view routing. The medium-term goal is for plugins to extend data types, project item types, virtual modules, middleware, and tools without requiring changes to the core app.
+
+Scripting is planned, but there is not yet a stable public scripting surface.
+
+### Squalr as a Library
+Use the crates directly when you want to embed pieces of Squalr instead of running a Squalr frontend. Pick the layer based on how much of the workflow you want Squalr to own.
+
+| Consumer | You bring | Squalr provides | Crates |
+| -------- | --------- | --------------- | ------ |
+| Byte scanner | Your own bytes, snapshots, files, emulator dumps, or captured memory buffers. | Scan plans, data types, snapshot structures, scan execution, and result filters. | `squalr-engine-api`, `squalr-engine-scanning` |
+| Custom target integrator | Your own target implementation, such as an emulator, debugger, remote agent, trace recorder, or sandbox. | Stable target traits for memory maps, reads, writes, modules, and target handles. | `squalr-engine-api`, `squalr-engine-targets`, `squalr-engine-scanning` |
+| Native process scanner | A local process you want Squalr to enumerate, open, read, write, and scan. | Native Windows/macOS/Linux/Android target access plus the scanner crates. | `squalr-engine-api`, `squalr-engine-targets`, `squalr-engine-targets-native`, `squalr-engine-scanning` |
+| Squalr frontend or automation shell | A GUI, CLI, TUI, bot, or command runner that wants the normal Squalr workflow. | Session state, command dispatch, app-level orchestration, target I/O coordination, scans, projects, and responses. | `squalr-engine-session`, `squalr-engine` |
+| Project and symbol tooling | Tools that need to read, write, inspect, or transform Squalr projects. | Project files, symbol catalogs, layouts, locators, and shared data models. | `squalr-engine-api`, `squalr-engine-projects` |
+
+`squalr-engine-api` is the shared model crate. It contains the public data types that the other layers speak: scan plans, values, snapshots, results, commands, symbols, and project-facing structures.
+
+If you already own the bytes, stay in the byte scanner layer: construct `SnapshotRegion` values, wrap them in a `Snapshot`, and call `ElementScanner::scan_snapshot`. This path does not need a process handle or native target backend.
+
+If you want to scan a real process, keep target I/O and scanning as separate phases. Use `squalr-engine-targets` for the abstraction, `squalr-engine-targets-native` when you want Squalr's native backend, and feed the collected memory into `squalr-engine-scanning`.
+
+If you want the full Squalr app workflow, use the session/command crates instead of assembling the lower layers yourself. That path is for consumers who want Squalr to coordinate target access, scans, projects, and responses.
+
 ## Development Philosophy
 Systems level work demands a systems level language. Rust was chosen because it eliminates entire classes of bugs and is perfectly suited to the job.
 
@@ -157,13 +196,7 @@ This process can be reversed at any time to undo the security changes with `csru
 ### Command Response System
 Squalr has two components, a privileged interface, and an unprivileged core. This naturally gives rise to a command/response architecture, which makes for clear separation of concerns. To do this cleanly, we use structopts to make all commands have a text input equivalent, meaning that both a GUI and CLI can invoke the command fairly easily.
 
-This allows us to create several different modes, such as a unified GUI/CLI/TUI build, an MPC shell, and a potential remote host to control a remote shell or MPC endpoint.
-
-| Platform   | GUI   | CLI   | TUI   | Remote (Host)   | Remote (Shell)   |
-| ---------- | ----- | ----- | ----- | --------------- | ---------------- |
-| Desktop    | ✅    | ✅    | ✅    | ✅              | ✅               |
-| Android    | ✅    | ✅    | ✅    | ❌              | ✅               |
-| iPhone (Not Available Yet)     | ✅    | ✅    | ✅     | ❌              | ✅               |
+This allows us to create several different modes, such as a unified GUI/CLI/TUI build, and a potential remote host to control a remote shell.
 
 ### Architecture Glossary
 - A **snapshot** is a full query of all virtual memory regions in an internal process. This is created in two passes, once to determine the virtual page addresses and sizes, and another pass to collect the values.
@@ -317,14 +350,6 @@ Struct scans will be very challenging. Imagine scanning for {float} {float} {flo
 Our existing architecture is quite flexible, but this definitely requires a special scanner implementation, and it is highly unlikely to benefit from any of the rules engine optimizations.
 
 ## Detailed Tasklist
-This is a highly descriptive list of tasks to be implemented, with enough detail such that an agent should be able to audit the codebase and come up with a plan.
-
-### Conversion Testing
-Branch: `pr/conversion-testing`
-
-The conversions in the squalr-engine-api should probably have a dedicated test suite.
-
-Additionally, conversions should be architecturally audited for robustness.
 
 ### Engine Event Hooks
 Branch: `pr/engine-event-hooks`

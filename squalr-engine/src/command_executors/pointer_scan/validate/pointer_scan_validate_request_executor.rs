@@ -1,4 +1,5 @@
 use crate::command_executors::privileged_request_executor::PrivilegedCommandRequestExecutor;
+use crate::command_executors::scan::snapshot_value_collector::SnapshotValueCollector;
 use crate::command_executors::snapshot_region_builder::merge_memory_regions_into_snapshot_regions;
 use crate::engine_privileged_state::EnginePrivilegedState;
 use crate::services::pointer_scans::pointer_scan_target_resolution::PointerScanTargetResolver;
@@ -7,11 +8,10 @@ use squalr_engine_api::commands::pointer_scan::validate::pointer_scan_validate_r
 use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_address_space::PointerScanAddressSpace;
 use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
+use squalr_engine_scanning::ScanControl;
 use squalr_engine_scanning::pointer_scans::pointer_scan_validator::PointerScanValidator;
-use squalr_engine_scanning::scan_settings_config::ScanSettingsConfig;
-use squalr_engine_scanning::scanners::scan_execution_context::ScanExecutionContext;
-use squalr_engine_scanning::scanners::value_collector_task::ValueCollector;
 use squalr_engine_session::os::PageRetrievalMode;
+use squalr_engine_session::settings::scan_settings_store::ScanSettingsStore;
 use std::sync::{Arc, RwLock};
 
 impl PrivilegedCommandRequestExecutor for PointerScanValidateRequest {
@@ -138,31 +138,26 @@ impl PrivilegedCommandRequestExecutor for PointerScanValidateRequest {
                 pointer_scan_summary: Some(pointer_scan_results.summarize()),
             };
         }
-        let memory_read_provider = engine_privileged_state.get_os_providers().memory_read.clone();
-        let scan_execution_context = ScanExecutionContext::new(
-            None,
-            None,
-            Some(Arc::new(move |opened_process_info, address, values| {
-                memory_read_provider.read_bytes(opened_process_info, address, values)
-            })),
-        );
         let mut validation_snapshot = Snapshot::new();
         validation_snapshot.set_snapshot_regions(merge_memory_regions_into_snapshot_regions(memory_regions));
         let validation_snapshot = Arc::new(RwLock::new(validation_snapshot));
 
-        ValueCollector::collect_values(process_info.clone(), validation_snapshot.clone(), true, &scan_execution_context);
+        SnapshotValueCollector::collect_values(
+            process_info.clone(),
+            validation_snapshot.clone(),
+            engine_privileged_state.get_os_providers().memory_read.clone(),
+            true,
+        );
         let resolved_targets = match engine_privileged_state.read_symbol_registry(|symbol_registry| {
             PointerScanTargetResolver::resolve_targets(
                 &self.target,
                 symbol_registry,
                 pointer_scan_results.get_pointer_size(),
                 validation_snapshot.clone(),
-                process_info.clone(),
-                ScanSettingsConfig::get_memory_alignment().unwrap_or(MemoryAlignment::Alignment1),
-                ScanSettingsConfig::get_floating_point_tolerance(),
-                ScanSettingsConfig::get_is_single_threaded_scan(),
-                ScanSettingsConfig::get_debug_perform_validation_scan(),
-                &scan_execution_context,
+                ScanSettingsStore::get_memory_alignment().unwrap_or(MemoryAlignment::Alignment1),
+                ScanSettingsStore::get_floating_point_tolerance(),
+                ScanSettingsStore::get_is_single_threaded_scan(),
+                ScanSettingsStore::get_debug_perform_validation_scan(),
             )
         }) {
             Ok(resolved_targets) => resolved_targets,
@@ -194,13 +189,12 @@ impl PrivilegedCommandRequestExecutor for PointerScanValidateRequest {
             }
         };
         let validated_pointer_scan_results = PointerScanValidator::validate_scan(
-            process_info,
             &pointer_scan_results,
             resolved_targets.target_descriptor,
             resolved_targets.target_addresses,
             &validation_snapshot_guard,
             &modules,
-            &scan_execution_context,
+            &ScanControl::default(),
             true,
         );
         let validated_pointer_scan_summary = validated_pointer_scan_results.summarize();

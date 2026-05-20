@@ -45,6 +45,34 @@ impl SnapshotRegion {
         }
     }
 
+    /// Creates a standalone snapshot region from caller-provided current bytes.
+    pub fn from_bytes(
+        base_address: u64,
+        current_values: Vec<u8>,
+    ) -> Self {
+        let region_size = current_values.len() as u64;
+        let mut snapshot_region = Self::new(NormalizedRegion::new(base_address, region_size), Vec::new());
+
+        snapshot_region.current_values = current_values;
+
+        snapshot_region
+    }
+
+    /// Creates a standalone snapshot region from caller-provided current and previous bytes.
+    pub fn from_current_and_previous_bytes(
+        base_address: u64,
+        current_values: Vec<u8>,
+        previous_values: Vec<u8>,
+    ) -> Self {
+        let region_size = current_values.len().max(previous_values.len()) as u64;
+        let mut snapshot_region = Self::new(NormalizedRegion::new(base_address, region_size), Vec::new());
+
+        snapshot_region.current_values = current_values;
+        snapshot_region.previous_values = previous_values;
+
+        snapshot_region
+    }
+
     /// Gets the most recent values collected from memory within this snapshot region bounds.
     pub fn get_current_values(&self) -> &Vec<u8> {
         &self.current_values
