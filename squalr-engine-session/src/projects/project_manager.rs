@@ -1,7 +1,9 @@
-use crate::structures::projects::{project::Project, project_info::ProjectInfo, project_manifest::ProjectManifest};
 use notify::{
     Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher,
     event::{CreateKind, ModifyKind, RemoveKind, RenameMode},
+};
+use squalr_engine_api::structures::projects::{
+    project::Project, project_context::ProjectContext, project_info::ProjectInfo, project_manifest::ProjectManifest,
 };
 use std::{
     path::PathBuf,
@@ -132,6 +134,16 @@ impl ProjectManager {
         let project_info = ProjectInfo::new(path.clone(), None, ProjectManifest::default());
 
         project_info
+    }
+}
+
+impl ProjectContext for ProjectManager {
+    fn get_opened_project(&self) -> Arc<RwLock<Option<Project>>> {
+        ProjectManager::get_opened_project(self)
+    }
+
+    fn notify_project_items_changed(&self) {
+        ProjectManager::notify_project_items_changed(self);
     }
 }
 

@@ -4,7 +4,7 @@ use crate::{
     structures::{
         data_types::data_type_ref::DataTypeRef,
         data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, data_value::DataValue},
-        projects::project_manager::ProjectManager,
+        projects::project_context::ProjectContext,
         structs::symbolic_struct_definition::SymbolicStructDefinition,
     },
 };
@@ -15,8 +15,8 @@ pub trait EngineExecutionContext: Send + Sync {
     /// Gets the engine bindings used to dispatch privileged and unprivileged commands.
     fn get_bindings(&self) -> &Arc<RwLock<dyn EngineApiUnprivilegedBindings>>;
 
-    /// Gets the project manager owned by the interactive unprivileged session.
-    fn get_project_manager(&self) -> &Arc<ProjectManager>;
+    /// Gets the project context owned by the interactive unprivileged session.
+    fn get_project_manager(&self) -> Arc<dyn ProjectContext>;
 
     /// Gets the registered data type references.
     fn get_registered_data_type_refs(&self) -> Vec<DataTypeRef>;

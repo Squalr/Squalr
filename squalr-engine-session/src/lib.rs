@@ -3,6 +3,7 @@ pub mod engine_unprivileged_state;
 mod logging;
 pub mod os;
 pub mod plugins;
+pub mod projects;
 pub mod registries;
 pub mod settings;
 pub mod tasks;
