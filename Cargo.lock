@@ -5268,6 +5268,7 @@ dependencies = [
  "squalr-engine-targets-native",
  "squalr-plugin-builtins",
  "sysinfo",
+ "tempfile",
 ]
 
 [[package]]

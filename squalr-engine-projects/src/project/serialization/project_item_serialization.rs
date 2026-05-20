@@ -33,7 +33,8 @@ impl SerializableProjectFile for ProjectItem {
                 Err(anyhow::anyhow!("Unable to load directory item, path is not a file: {:?}", project_item_path))
             } else {
                 let file = File::open(project_item_path)?;
-                let project_item = serde_json::from_reader(file)?;
+                let mut project_item: ProjectItem = serde_json::from_reader(file)?;
+                project_item.set_has_unsaved_changes(false);
 
                 Ok(project_item)
             }

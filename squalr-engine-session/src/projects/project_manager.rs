@@ -16,12 +16,16 @@ pub struct ProjectManager {
 
 impl ProjectManager {
     pub fn new() -> Self {
+        let opened_project = Arc::new(RwLock::new(None));
+        let mut project_refresh_service = ProjectRefreshService::new(ProjectRefreshConfig {
+            watch_file_system: ScanSettingsStore::get_project_file_system_watch_enabled(),
+            ..ProjectRefreshConfig::default()
+        });
+        project_refresh_service.set_opened_project(opened_project.clone());
+
         let project_manager = ProjectManager {
-            opened_project: Arc::new(RwLock::new(None)),
-            project_refresh_service: RwLock::new(ProjectRefreshService::new(ProjectRefreshConfig {
-                watch_file_system: ScanSettingsStore::get_project_file_system_watch_enabled(),
-                ..ProjectRefreshConfig::default()
-            })),
+            opened_project,
+            project_refresh_service: RwLock::new(project_refresh_service),
         };
 
         project_manager.watch_projects_root(ProjectSettingsConfig::get_projects_root());

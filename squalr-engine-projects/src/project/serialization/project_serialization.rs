@@ -74,7 +74,10 @@ impl SerializableProjectFile for Project {
 
         load_recursive(&project_root_directory_path, &mut project_items)?;
 
-        Ok(Project::new(project_info, project_items, project_root_ref))
+        let mut project = Project::new(project_info, project_items, project_root_ref);
+        project.set_has_unsaved_changes(false);
+
+        Ok(project)
     }
 }
 
@@ -95,6 +98,11 @@ fn is_project_item_file_path(project_item_path: &Path) -> bool {
 #[cfg(test)]
 mod tests {
     use super::is_project_item_file_path;
+    use crate::project::serialization::serializable_project_file::SerializableProjectFile;
+    use squalr_engine_api::structures::data_types::built_in_types::u8::data_type_u8::DataTypeU8;
+    use squalr_engine_api::structures::projects::project::Project;
+    use squalr_engine_api::structures::projects::project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress;
+    use std::fs::{self, File};
     use std::path::PathBuf;
 
     #[test]
@@ -109,5 +117,32 @@ mod tests {
         let project_item_path = PathBuf::from("C:/Projects/TestProject/project_items/Addresses/notes.txt");
 
         assert!(!is_project_item_file_path(&project_item_path));
+    }
+
+    #[test]
+    fn load_from_path_marks_project_and_items_clean() {
+        let temp_directory = tempfile::tempdir().expect("Expected temporary project directory.");
+        let project_directory_path = temp_directory.path();
+        let project_items_directory_path = project_directory_path.join(Project::PROJECT_DIR);
+        fs::create_dir_all(&project_items_directory_path).expect("Expected project items directory to be created.");
+        fs::write(
+            project_directory_path.join(Project::PROJECT_FILE),
+            r#"{"icon":null,"manifest":{"sort_order":[]},"symbols":{}}"#,
+        )
+        .expect("Expected project info file to be written.");
+        let project_item_path = project_items_directory_path.join("health.json");
+        let project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "module", "", DataTypeU8::get_value_from_primitive(7));
+        let project_item_file = File::create(project_item_path).expect("Expected project item file to be created.");
+        serde_json::to_writer_pretty(project_item_file, &project_item).expect("Expected project item to be written.");
+
+        let project = Project::load_from_path(project_directory_path).expect("Expected project to load.");
+
+        assert!(!project.get_has_unsaved_changes());
+        assert!(
+            project
+                .get_project_items()
+                .values()
+                .all(|project_item| !project_item.get_has_unsaved_changes())
+        );
     }
 }

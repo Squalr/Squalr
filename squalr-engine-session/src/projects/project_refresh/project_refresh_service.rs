@@ -9,7 +9,9 @@ use squalr_engine_api::events::{
     },
     project_items::changed::project_items_changed_event::ProjectItemsChangedEvent,
 };
-use squalr_engine_api::structures::projects::project_info::ProjectInfo;
+use squalr_engine_api::structures::projects::{project::Project, project_info::ProjectInfo, project_items::project_item_ref::ProjectItemRef};
+use squalr_engine_projects::project::serialization::serializable_project_file::SerializableProjectFile;
+use std::collections::HashSet;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -30,6 +32,7 @@ enum ProjectRefreshWatcherScope {
 pub struct ProjectRefreshService {
     config: ProjectRefreshConfig,
     event_emitter: Arc<RwLock<Option<ProjectRefreshEventEmitter>>>,
+    opened_project: Option<Arc<RwLock<Option<Project>>>>,
     projects_root_path: Option<PathBuf>,
     opened_project_directory_path: Option<PathBuf>,
     projects_root_watcher: Option<RecommendedWatcher>,
@@ -41,11 +44,20 @@ impl ProjectRefreshService {
         Self {
             config,
             event_emitter: Arc::new(RwLock::new(None)),
+            opened_project: None,
             projects_root_path: None,
             opened_project_directory_path: None,
             projects_root_watcher: None,
             opened_project_watcher: None,
         }
+    }
+
+    /// Installs the opened-project lock used to reconcile external file-system edits.
+    pub fn set_opened_project(
+        &mut self,
+        opened_project: Arc<RwLock<Option<Project>>>,
+    ) {
+        self.opened_project = Some(opened_project);
     }
 
     /// Installs the event emitter used to notify GUI/CLI/TUI listeners about project invalidations.
@@ -161,6 +173,7 @@ impl ProjectRefreshService {
                 "project catalog",
                 ProjectRefreshWatcherScope::ProjectCatalog,
                 self.event_emitter.clone(),
+                self.opened_project.clone(),
             )?);
         }
 
@@ -171,6 +184,7 @@ impl ProjectRefreshService {
                 "opened project",
                 ProjectRefreshWatcherScope::OpenedProject,
                 self.event_emitter.clone(),
+                self.opened_project.clone(),
             )?);
         }
 
@@ -206,6 +220,7 @@ impl ProjectRefreshService {
         label: &'static str,
         watcher_scope: ProjectRefreshWatcherScope,
         event_emitter: Arc<RwLock<Option<ProjectRefreshEventEmitter>>>,
+        opened_project: Option<Arc<RwLock<Option<Project>>>>,
     ) -> notify::Result<RecommendedWatcher> {
         let (event_sender, event_receiver) = std::sync::mpsc::channel();
         let mut watcher = notify::recommended_watcher(event_sender)?;
@@ -224,7 +239,7 @@ impl ProjectRefreshService {
                 match event_result {
                     Ok(_event) => {
                         Self::drain_debounced_events(&event_receiver);
-                        Self::emit_watcher_event(watcher_scope, &event_emitter);
+                        Self::emit_watcher_event(watcher_scope, &event_emitter, opened_project.as_ref());
                     }
                     Err(error) => log::error!("Project watcher error: {:?}", error),
                 }
@@ -237,6 +252,7 @@ impl ProjectRefreshService {
     fn emit_watcher_event(
         watcher_scope: ProjectRefreshWatcherScope,
         event_emitter: &Arc<RwLock<Option<ProjectRefreshEventEmitter>>>,
+        opened_project: Option<&Arc<RwLock<Option<Project>>>>,
     ) {
         if !ScanSettingsStore::get_project_file_system_watch_enabled() {
             return;
@@ -255,6 +271,7 @@ impl ProjectRefreshService {
                             );
                         }
                         ProjectRefreshWatcherScope::OpenedProject => {
+                            Self::reload_opened_project_from_disk_if_clean(opened_project);
                             event_emitter(ProjectItemsChangedEvent { project_root: None }.to_engine_event());
                         }
                     }
@@ -279,6 +296,71 @@ impl ProjectRefreshService {
     fn should_watch_file_system(&self) -> bool {
         self.config.watch_file_system && ScanSettingsStore::get_project_file_system_watch_enabled()
     }
+
+    fn reload_opened_project_from_disk_if_clean(opened_project: Option<&Arc<RwLock<Option<Project>>>>) {
+        let Some(opened_project) = opened_project else {
+            return;
+        };
+
+        match opened_project.write() {
+            Ok(mut opened_project_guard) => {
+                let Some(current_project) = opened_project_guard.as_ref() else {
+                    return;
+                };
+                let Some(project_directory_path) = current_project.get_project_info().get_project_directory() else {
+                    return;
+                };
+
+                if current_project.get_has_unsaved_changes() {
+                    log::warn!(
+                        "Skipping external project reload for '{}' because the opened project has unsaved changes.",
+                        project_directory_path.display()
+                    );
+                    return;
+                }
+
+                let activated_project_item_refs = Self::collect_activated_project_item_refs(current_project);
+
+                match Project::load_from_path(&project_directory_path) {
+                    Ok(mut reloaded_project) => {
+                        Self::restore_activated_project_items(&mut reloaded_project, &activated_project_item_refs);
+                        *opened_project_guard = Some(reloaded_project);
+                    }
+                    Err(error) => {
+                        log::warn!("Failed to reload externally changed project '{}': {}.", project_directory_path.display(), error);
+                    }
+                }
+            }
+            Err(error) => {
+                log::error!("Failed to acquire opened project lock for external project reload: {}", error);
+            }
+        }
+    }
+
+    fn collect_activated_project_item_refs(project: &Project) -> HashSet<ProjectItemRef> {
+        project
+            .get_project_items()
+            .iter()
+            .filter_map(|(project_item_ref, project_item)| {
+                project_item
+                    .get_is_activated()
+                    .then_some(project_item_ref.clone())
+            })
+            .collect()
+    }
+
+    fn restore_activated_project_items(
+        project: &mut Project,
+        activated_project_item_refs: &HashSet<ProjectItemRef>,
+    ) {
+        for activated_project_item_ref in activated_project_item_refs {
+            if let Some(project_item) = project.get_project_item_mut(activated_project_item_ref) {
+                if !project_item.get_is_activated() {
+                    project_item.toggle_activated();
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -287,8 +369,16 @@ mod tests {
     use crate::projects::project_refresh::project_refresh_config::ProjectRefreshConfig;
     use crossbeam_channel::unbounded;
     use squalr_engine_api::events::{engine_event::EngineEvent, project_items::project_items_event::ProjectItemsEvent};
-    use std::sync::Arc;
+    use squalr_engine_api::structures::data_types::built_in_types::u8::data_type_u8::DataTypeU8;
+    use squalr_engine_api::structures::projects::project::Project;
+    use squalr_engine_api::structures::projects::project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress;
+    use squalr_engine_api::structures::projects::project_items::project_item_ref::ProjectItemRef;
+    use squalr_engine_projects::project::serialization::serializable_project_file::SerializableProjectFile;
+    use std::fs::{self, File};
+    use std::path::{Path, PathBuf};
+    use std::sync::{Arc, RwLock};
     use std::time::Duration;
+    use tempfile::TempDir;
 
     #[test]
     fn notify_project_items_changed_emits_lightweight_event_when_enabled() {
@@ -334,5 +424,93 @@ mod tests {
         project_refresh_service.notify_project_items_changed();
 
         assert!(event_receiver.try_recv().is_err());
+    }
+
+    #[test]
+    fn reload_opened_project_from_disk_if_clean_reloads_items_and_preserves_activation() {
+        let temp_directory = tempfile::tempdir().expect("Expected temporary project directory.");
+        let item_path = write_project_to_disk(&temp_directory, "Original");
+        let mut opened_project = Project::load_from_path(temp_directory.path()).expect("Expected project to load.");
+        let item_ref = ProjectItemRef::new(item_path.clone());
+        opened_project
+            .get_project_item_mut(&item_ref)
+            .expect("Expected loaded project item to exist.")
+            .toggle_activated();
+        let opened_project = Arc::new(RwLock::new(Some(opened_project)));
+
+        write_project_item_to_disk(&item_path, "Reloaded");
+
+        ProjectRefreshService::reload_opened_project_from_disk_if_clean(Some(&opened_project));
+
+        let opened_project_guard = opened_project
+            .read()
+            .expect("Expected opened project lock to be readable.");
+        let reloaded_project = opened_project_guard
+            .as_ref()
+            .expect("Expected project to remain opened after reload.");
+        let reloaded_project_item = reloaded_project
+            .get_project_items()
+            .get(&item_ref)
+            .expect("Expected reloaded project item to exist.");
+
+        assert_eq!(reloaded_project_item.get_field_name(), "Reloaded");
+        assert!(reloaded_project_item.get_is_activated());
+        assert!(!reloaded_project.get_has_unsaved_changes());
+    }
+
+    #[test]
+    fn reload_opened_project_from_disk_if_clean_skips_dirty_project() {
+        let temp_directory = tempfile::tempdir().expect("Expected temporary project directory.");
+        let item_path = write_project_to_disk(&temp_directory, "Original");
+        let mut opened_project = Project::load_from_path(temp_directory.path()).expect("Expected project to load.");
+        opened_project.set_has_unsaved_changes(true);
+        let opened_project = Arc::new(RwLock::new(Some(opened_project)));
+
+        write_project_item_to_disk(&item_path, "Disk Edit");
+
+        ProjectRefreshService::reload_opened_project_from_disk_if_clean(Some(&opened_project));
+
+        let opened_project_guard = opened_project
+            .read()
+            .expect("Expected opened project lock to be readable.");
+        let current_project = opened_project_guard
+            .as_ref()
+            .expect("Expected project to remain opened after skipped reload.");
+        let current_project_item = current_project
+            .get_project_items()
+            .get(&ProjectItemRef::new(item_path))
+            .expect("Expected current project item to exist.");
+
+        assert_eq!(current_project_item.get_field_name(), "Original");
+        assert!(current_project.get_has_unsaved_changes());
+    }
+
+    fn write_project_to_disk(
+        temp_directory: &TempDir,
+        item_name: &str,
+    ) -> PathBuf {
+        let project_directory_path = temp_directory.path();
+        fs::create_dir_all(project_directory_path.join(Project::PROJECT_DIR)).expect("Expected project items directory to be created.");
+        fs::write(
+            project_directory_path.join(Project::PROJECT_FILE),
+            r#"{"icon":null,"manifest":{"sort_order":[]},"symbols":{}}"#,
+        )
+        .expect("Expected project file to be written.");
+        let item_path = project_directory_path
+            .join(Project::PROJECT_DIR)
+            .join("watched.json");
+        write_project_item_to_disk(&item_path, item_name);
+
+        item_path
+    }
+
+    fn write_project_item_to_disk(
+        item_path: &Path,
+        item_name: &str,
+    ) {
+        let project_item = ProjectItemTypeAddress::new_project_item(item_name, 0x1234, "module", "", DataTypeU8::get_value_from_primitive(7));
+        let item_file = File::create(item_path).expect("Expected project item file to be created.");
+
+        serde_json::to_writer_pretty(item_file, &project_item).expect("Expected project item to be serialized.");
     }
 }
