@@ -238,6 +238,7 @@ fn scan_settings_set_request_dispatches_set_command_and_invokes_typed_callback()
         results_page_size: Some(256),
         results_read_interval_ms: None,
         project_read_interval_ms: None,
+        project_file_system_watch_enabled: Some(false),
         freeze_interval_ms: None,
         memory_alignment: Some(MemoryAlignment::Alignment4),
         memory_read_mode: Some(MemoryReadMode::ReadBeforeScan),
@@ -268,6 +269,7 @@ fn scan_settings_set_request_dispatches_set_command_and_invokes_typed_callback()
         }) => {
             assert_eq!(captured_scan_settings_set_request.page_retrieval_mode, Some(PageRetrievalMode::FromSettings));
             assert_eq!(captured_scan_settings_set_request.results_page_size, Some(256));
+            assert_eq!(captured_scan_settings_set_request.project_file_system_watch_enabled, Some(false));
             assert_eq!(captured_scan_settings_set_request.memory_alignment, Some(MemoryAlignment::Alignment4));
             assert_eq!(captured_scan_settings_set_request.memory_read_mode, Some(MemoryReadMode::ReadBeforeScan));
             assert_eq!(
@@ -366,6 +368,8 @@ fn privileged_command_parser_accepts_scan_settings_set_with_long_flags() {
             "epsilon",
             "--is-single-threaded-scan",
             "true",
+            "--project-file-system-watch-enabled",
+            "false",
         ])
     });
 
@@ -386,6 +390,7 @@ fn privileged_command_parser_accepts_scan_settings_set_with_long_flags() {
                 Some(FloatingPointTolerance::ToleranceEpsilon)
             );
             assert_eq!(scan_settings_set_request.is_single_threaded_scan, Some(true));
+            assert_eq!(scan_settings_set_request.project_file_system_watch_enabled, Some(false));
         }
         parsed_command => panic!("unexpected parsed command: {parsed_command:?}"),
     }

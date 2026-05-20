@@ -257,6 +257,7 @@ impl AppShell {
                     results_page_size: Some(scan_settings.results_page_size),
                     results_read_interval_ms: Some(scan_settings.results_read_interval_ms),
                     project_read_interval_ms: Some(scan_settings.project_read_interval_ms),
+                    project_file_system_watch_enabled: Some(scan_settings.project_file_system_watch_enabled),
                     freeze_interval_ms: Some(scan_settings.freeze_interval_ms),
                     memory_alignment: scan_settings.memory_alignment,
                     memory_read_mode: Some(scan_settings.memory_read_mode),
@@ -271,6 +272,9 @@ impl AppShell {
 
                 match response_receiver.recv_timeout(Duration::from_secs(3)) {
                     Ok(_scan_settings_set_response) => {
+                        engine_unprivileged_state
+                            .get_project_manager()
+                            .set_project_file_system_watch_enabled(scan_settings.project_file_system_watch_enabled);
                         self.app_state.settings_pane_state.has_pending_changes = false;
                         self.app_state.settings_pane_state.status_message = "Applied scan settings.".to_string();
                     }

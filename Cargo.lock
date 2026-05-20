@@ -5263,6 +5263,7 @@ dependencies = [
  "notify",
  "serde_json",
  "squalr-engine-api",
+ "squalr-engine-projects",
  "squalr-engine-targets",
  "squalr-engine-targets-native",
  "squalr-plugin-builtins",

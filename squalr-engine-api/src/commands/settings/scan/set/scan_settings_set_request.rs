@@ -21,6 +21,8 @@ pub struct ScanSettingsSetRequest {
     #[structopt(long)]
     pub project_read_interval_ms: Option<u64>,
     #[structopt(long)]
+    pub project_file_system_watch_enabled: Option<bool>,
+    #[structopt(long)]
     pub freeze_interval_ms: Option<u64>,
     #[structopt(long)]
     pub memory_alignment: Option<MemoryAlignment>,

@@ -81,9 +81,10 @@ impl UnprivilegedCommandRequestExecutor for ProjectRenameRequest {
         let new_project_info = ProjectInfo::load_from_path(&new_project_path.join(Project::PROJECT_FILE))
             .unwrap_or_else(|_| ProjectInfo::new(new_project_path.join(Project::PROJECT_FILE), None, ProjectManifest::default()));
         project_manager.notify_project_deleted(previous_project_info);
-        project_manager.notify_project_created(new_project_info);
+        project_manager.notify_project_created(new_project_info.clone());
 
         if is_renaming_opened_project {
+            project_manager.watch_opened_project(new_project_info.get_project_directory());
             project_manager.notify_project_items_changed();
         }
 

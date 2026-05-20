@@ -1,4 +1,5 @@
 use crate::projects::project_refresh::project_refresh_config::ProjectRefreshConfig;
+use crate::settings::scan_settings_store::ScanSettingsStore;
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use squalr_engine_api::events::{
     engine_event::{EngineEvent, EngineEventRequest},
@@ -10,14 +11,16 @@ use squalr_engine_api::events::{
 };
 use squalr_engine_api::structures::projects::project_info::ProjectInfo;
 use std::{
+    fs,
     path::{Path, PathBuf},
-    sync::{Arc, RwLock, mpsc},
+    sync::{Arc, RwLock, mpsc::RecvTimeoutError},
     thread,
+    time::Duration,
 };
 
 type ProjectRefreshEventEmitter = Arc<dyn Fn(EngineEvent) + Send + Sync>;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum ProjectRefreshWatcherScope {
     ProjectCatalog,
     OpenedProject,
@@ -27,6 +30,8 @@ enum ProjectRefreshWatcherScope {
 pub struct ProjectRefreshService {
     config: ProjectRefreshConfig,
     event_emitter: Arc<RwLock<Option<ProjectRefreshEventEmitter>>>,
+    projects_root_path: Option<PathBuf>,
+    opened_project_directory_path: Option<PathBuf>,
     projects_root_watcher: Option<RecommendedWatcher>,
     opened_project_watcher: Option<RecommendedWatcher>,
 }
@@ -36,6 +41,8 @@ impl ProjectRefreshService {
         Self {
             config,
             event_emitter: Arc::new(RwLock::new(None)),
+            projects_root_path: None,
+            opened_project_directory_path: None,
             projects_root_watcher: None,
             opened_project_watcher: None,
         }
@@ -113,21 +120,8 @@ impl ProjectRefreshService {
         &mut self,
         projects_root: PathBuf,
     ) -> notify::Result<()> {
-        self.projects_root_watcher = None;
-
-        if !self.config.watch_file_system {
-            return Ok(());
-        }
-
-        self.projects_root_watcher = Some(Self::create_watcher(
-            projects_root,
-            RecursiveMode::NonRecursive,
-            "project catalog",
-            ProjectRefreshWatcherScope::ProjectCatalog,
-            self.event_emitter.clone(),
-        )?);
-
-        Ok(())
+        self.projects_root_path = Some(projects_root);
+        self.refresh_file_system_watchers()
     }
 
     /// Starts watching the opened project tree when file-system watching is enabled.
@@ -135,23 +129,50 @@ impl ProjectRefreshService {
         &mut self,
         opened_project_directory_path: Option<PathBuf>,
     ) -> notify::Result<()> {
-        self.opened_project_watcher = None;
+        self.opened_project_directory_path = opened_project_directory_path;
+        self.refresh_file_system_watchers()
+    }
 
-        if !self.config.watch_file_system {
+    /// Applies the current file-system watcher setting immediately.
+    pub fn set_file_system_watch_enabled(
+        &mut self,
+        watch_file_system: bool,
+    ) -> notify::Result<()> {
+        if self.config.watch_file_system == watch_file_system {
             return Ok(());
         }
 
-        let Some(opened_project_directory_path) = opened_project_directory_path else {
-            return Ok(());
-        };
+        self.config.watch_file_system = watch_file_system;
+        self.refresh_file_system_watchers()
+    }
 
-        self.opened_project_watcher = Some(Self::create_watcher(
-            opened_project_directory_path,
-            RecursiveMode::Recursive,
-            "opened project",
-            ProjectRefreshWatcherScope::OpenedProject,
-            self.event_emitter.clone(),
-        )?);
+    fn refresh_file_system_watchers(&mut self) -> notify::Result<()> {
+        self.projects_root_watcher = None;
+        self.opened_project_watcher = None;
+
+        if !self.should_watch_file_system() {
+            return Ok(());
+        }
+
+        if let Some(projects_root_path) = self.projects_root_path.clone() {
+            self.projects_root_watcher = Some(Self::create_watcher(
+                projects_root_path,
+                RecursiveMode::NonRecursive,
+                "project catalog",
+                ProjectRefreshWatcherScope::ProjectCatalog,
+                self.event_emitter.clone(),
+            )?);
+        }
+
+        if let Some(opened_project_directory_path) = self.opened_project_directory_path.clone() {
+            self.opened_project_watcher = Some(Self::create_watcher(
+                opened_project_directory_path,
+                RecursiveMode::Recursive,
+                "opened project",
+                ProjectRefreshWatcherScope::OpenedProject,
+                self.event_emitter.clone(),
+            )?);
+        }
 
         Ok(())
     }
@@ -186,8 +207,14 @@ impl ProjectRefreshService {
         watcher_scope: ProjectRefreshWatcherScope,
         event_emitter: Arc<RwLock<Option<ProjectRefreshEventEmitter>>>,
     ) -> notify::Result<RecommendedWatcher> {
-        let (event_sender, event_receiver) = mpsc::channel();
+        let (event_sender, event_receiver) = std::sync::mpsc::channel();
         let mut watcher = notify::recommended_watcher(event_sender)?;
+
+        if watcher_scope == ProjectRefreshWatcherScope::ProjectCatalog {
+            if let Err(error) = fs::create_dir_all(&watched_path) {
+                log::error!("Failed to create project catalog directory before watching: {}", error);
+            }
+        }
 
         watcher.watch(Path::new(&watched_path), recursive_mode)?;
         log::info!("Watching {} directory: {}", label, watched_path.display());
@@ -195,34 +222,62 @@ impl ProjectRefreshService {
         thread::spawn(move || {
             while let Ok(event_result) = event_receiver.recv() {
                 match event_result {
-                    Ok(_event) => match event_emitter.read() {
-                        Ok(stored_event_emitter) => {
-                            if let Some(event_emitter) = stored_event_emitter.as_ref() {
-                                match watcher_scope {
-                                    ProjectRefreshWatcherScope::ProjectCatalog => {
-                                        event_emitter(
-                                            ProjectCatalogChangedEvent {
-                                                changed_project_directory_path: None,
-                                            }
-                                            .to_engine_event(),
-                                        );
-                                    }
-                                    ProjectRefreshWatcherScope::OpenedProject => {
-                                        event_emitter(ProjectItemsChangedEvent { project_root: None }.to_engine_event());
-                                    }
-                                }
-                            }
-                        }
-                        Err(error) => {
-                            log::error!("Failed to acquire project refresh event emitter lock: {}", error);
-                        }
-                    },
+                    Ok(_event) => {
+                        Self::drain_debounced_events(&event_receiver);
+                        Self::emit_watcher_event(watcher_scope, &event_emitter);
+                    }
                     Err(error) => log::error!("Project watcher error: {:?}", error),
                 }
             }
         });
 
         Ok(watcher)
+    }
+
+    fn emit_watcher_event(
+        watcher_scope: ProjectRefreshWatcherScope,
+        event_emitter: &Arc<RwLock<Option<ProjectRefreshEventEmitter>>>,
+    ) {
+        if !ScanSettingsStore::get_project_file_system_watch_enabled() {
+            return;
+        }
+
+        match event_emitter.read() {
+            Ok(stored_event_emitter) => {
+                if let Some(event_emitter) = stored_event_emitter.as_ref() {
+                    match watcher_scope {
+                        ProjectRefreshWatcherScope::ProjectCatalog => {
+                            event_emitter(
+                                ProjectCatalogChangedEvent {
+                                    changed_project_directory_path: None,
+                                }
+                                .to_engine_event(),
+                            );
+                        }
+                        ProjectRefreshWatcherScope::OpenedProject => {
+                            event_emitter(ProjectItemsChangedEvent { project_root: None }.to_engine_event());
+                        }
+                    }
+                }
+            }
+            Err(error) => {
+                log::error!("Failed to acquire project refresh event emitter lock: {}", error);
+            }
+        }
+    }
+
+    fn drain_debounced_events(event_receiver: &std::sync::mpsc::Receiver<notify::Result<notify::Event>>) {
+        loop {
+            match event_receiver.recv_timeout(Duration::from_millis(150)) {
+                Ok(_) => {}
+                Err(RecvTimeoutError::Timeout) => return,
+                Err(RecvTimeoutError::Disconnected) => return,
+            }
+        }
+    }
+
+    fn should_watch_file_system(&self) -> bool {
+        self.config.watch_file_system && ScanSettingsStore::get_project_file_system_watch_enabled()
     }
 }
 

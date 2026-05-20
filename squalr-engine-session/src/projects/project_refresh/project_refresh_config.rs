@@ -12,7 +12,7 @@ impl Default for ProjectRefreshConfig {
     fn default() -> Self {
         Self {
             emit_internal_project_events: true,
-            watch_file_system: false,
+            watch_file_system: true,
         }
     }
 }

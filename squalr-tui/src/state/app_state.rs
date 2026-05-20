@@ -407,6 +407,8 @@ mod tests {
 
         assert_eq!(tui_app_state.focused_pane(), TuiPane::MemoryViewer);
         tui_app_state.cycle_focus_forward();
+        assert_eq!(tui_app_state.focused_pane(), TuiPane::MemoryInterpretation);
+        tui_app_state.cycle_focus_forward();
         assert_eq!(tui_app_state.focused_pane(), TuiPane::Output);
         tui_app_state.cycle_focus_forward();
         assert_eq!(tui_app_state.focused_pane(), TuiPane::MemoryViewer);

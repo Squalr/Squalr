@@ -1,7 +1,9 @@
 use crate::projects::project_refresh::project_refresh_config::ProjectRefreshConfig;
 use crate::projects::project_refresh::project_refresh_service::ProjectRefreshService;
+use crate::settings::scan_settings_store::ScanSettingsStore;
 use squalr_engine_api::events::engine_event::EngineEvent;
 use squalr_engine_api::structures::projects::{project::Project, project_context::ProjectContext, project_info::ProjectInfo};
+use squalr_engine_projects::settings::project_settings_config::ProjectSettingsConfig;
 use std::{
     path::PathBuf,
     sync::{Arc, RwLock},
@@ -14,10 +16,17 @@ pub struct ProjectManager {
 
 impl ProjectManager {
     pub fn new() -> Self {
-        ProjectManager {
+        let project_manager = ProjectManager {
             opened_project: Arc::new(RwLock::new(None)),
-            project_refresh_service: RwLock::new(ProjectRefreshService::new(ProjectRefreshConfig::default())),
-        }
+            project_refresh_service: RwLock::new(ProjectRefreshService::new(ProjectRefreshConfig {
+                watch_file_system: ScanSettingsStore::get_project_file_system_watch_enabled(),
+                ..ProjectRefreshConfig::default()
+            })),
+        };
+
+        project_manager.watch_projects_root(ProjectSettingsConfig::get_projects_root());
+
+        project_manager
     }
 
     /// Installs the session-local event emitter used for project invalidation events.
@@ -132,6 +141,23 @@ impl ProjectManager {
             }
         }
     }
+
+    /// Applies the file-system watcher setting immediately.
+    pub fn set_project_file_system_watch_enabled(
+        &self,
+        project_file_system_watch_enabled: bool,
+    ) {
+        match self.project_refresh_service.write() {
+            Ok(mut project_refresh_service) => {
+                if let Err(error) = project_refresh_service.set_file_system_watch_enabled(project_file_system_watch_enabled) {
+                    log::error!("Failed to apply project file-system watcher setting: {}", error);
+                }
+            }
+            Err(error) => {
+                log::error!("Failed to acquire project refresh service lock while applying watcher setting: {}", error);
+            }
+        }
+    }
 }
 
 impl ProjectContext for ProjectManager {
@@ -159,6 +185,20 @@ impl ProjectContext for ProjectManager {
 
     fn notify_project_closed(&self) {
         ProjectManager::notify_project_closed(self);
+    }
+
+    fn watch_opened_project(
+        &self,
+        opened_project_directory_path: Option<PathBuf>,
+    ) {
+        ProjectManager::watch_opened_project(self, opened_project_directory_path);
+    }
+
+    fn set_project_file_system_watch_enabled(
+        &self,
+        project_file_system_watch_enabled: bool,
+    ) {
+        ProjectManager::set_project_file_system_watch_enabled(self, project_file_system_watch_enabled);
     }
 }
 

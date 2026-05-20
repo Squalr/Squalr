@@ -88,6 +88,7 @@ impl SettingsPaneState {
                     || self.scan_settings.page_retrieval_mode != default_scan_settings.page_retrieval_mode
                     || self.scan_settings.freeze_interval_ms != default_scan_settings.freeze_interval_ms
                     || self.scan_settings.project_read_interval_ms != default_scan_settings.project_read_interval_ms
+                    || self.scan_settings.project_file_system_watch_enabled != default_scan_settings.project_file_system_watch_enabled
                     || self.scan_settings.results_read_interval_ms != default_scan_settings.results_read_interval_ms
                     || self.scan_settings.memory_alignment != default_scan_settings.memory_alignment
                     || self.scan_settings.memory_read_mode != default_scan_settings.memory_read_mode
@@ -233,6 +234,10 @@ impl SettingsPaneState {
                 }
                 8 => {
                     self.scan_settings.debug_perform_validation_scan = !self.scan_settings.debug_perform_validation_scan;
+                    did_change_value = true;
+                }
+                10 => {
+                    self.scan_settings.project_file_system_watch_enabled = !self.scan_settings.project_file_system_watch_enabled;
                     did_change_value = true;
                 }
                 _ => {}
@@ -565,7 +570,7 @@ impl SettingsPaneState {
         match self.selected_category {
             SettingsCategory::General => 1,
             SettingsCategory::Memory => 13,
-            SettingsCategory::Scan => 10,
+            SettingsCategory::Scan => 11,
         }
     }
 
@@ -745,7 +750,7 @@ mod tests {
 
         settings_pane_state.select_last_field();
 
-        assert_eq!(settings_pane_state.selected_field_index, 9);
+        assert_eq!(settings_pane_state.selected_field_index, 10);
     }
 
     #[test]

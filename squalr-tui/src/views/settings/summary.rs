@@ -209,6 +209,18 @@ fn scan_summary_lines(settings_pane_state: &SettingsPaneState) -> Vec<String> {
             selection_marker(settings_pane_state.selected_field_index, 9),
             page_retrieval_mode_label(settings_pane_state.scan_settings.page_retrieval_mode)
         ),
+        format!(
+            "{} watch_project_files={}{}.",
+            selection_marker(settings_pane_state.selected_field_index, 10),
+            bool_indicator(
+                settings_pane_state
+                    .scan_settings
+                    .project_file_system_watch_enabled
+            ),
+            settings_pane_state
+                .scan_settings
+                .project_file_system_watch_enabled
+        ),
     ]
 }
 
