@@ -1,6 +1,9 @@
 use crate::projects::project_refresh::project_refresh_config::ProjectRefreshConfig;
 use crate::settings::scan_settings_store::ScanSettingsStore;
-use notify::{RecommendedWatcher, RecursiveMode, Watcher};
+use notify::{
+    RecommendedWatcher, RecursiveMode, Watcher,
+    event::{EventKind, ModifyKind, RenameMode},
+};
 use squalr_engine_api::events::{
     engine_event::{EngineEvent, EngineEventRequest},
     project::{
@@ -9,9 +12,12 @@ use squalr_engine_api::events::{
     },
     project_items::changed::project_items_changed_event::ProjectItemsChangedEvent,
 };
-use squalr_engine_api::structures::projects::{project::Project, project_info::ProjectInfo, project_items::project_item_ref::ProjectItemRef};
+use squalr_engine_api::structures::projects::{
+    project::Project,
+    project_info::ProjectInfo,
+    project_items::{built_in_types::project_item_type_directory::ProjectItemTypeDirectory, project_item::ProjectItem, project_item_ref::ProjectItemRef},
+};
 use squalr_engine_projects::project::serialization::serializable_project_file::SerializableProjectFile;
-use std::collections::HashSet;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -237,9 +243,10 @@ impl ProjectRefreshService {
         thread::spawn(move || {
             while let Ok(event_result) = event_receiver.recv() {
                 match event_result {
-                    Ok(_event) => {
-                        Self::drain_debounced_events(&event_receiver);
-                        Self::emit_watcher_event(watcher_scope, &event_emitter, opened_project.as_ref());
+                    Ok(event) => {
+                        let mut events = vec![event];
+                        Self::drain_debounced_events(&event_receiver, &mut events);
+                        Self::emit_watcher_event(watcher_scope, &events, &event_emitter, opened_project.as_ref());
                     }
                     Err(error) => log::error!("Project watcher error: {:?}", error),
                 }
@@ -251,6 +258,7 @@ impl ProjectRefreshService {
 
     fn emit_watcher_event(
         watcher_scope: ProjectRefreshWatcherScope,
+        events: &[notify::Event],
         event_emitter: &Arc<RwLock<Option<ProjectRefreshEventEmitter>>>,
         opened_project: Option<&Arc<RwLock<Option<Project>>>>,
     ) {
@@ -258,23 +266,24 @@ impl ProjectRefreshService {
             return;
         }
 
+        let engine_event = match watcher_scope {
+            ProjectRefreshWatcherScope::ProjectCatalog => ProjectCatalogChangedEvent {
+                changed_project_directory_path: Self::first_event_path(events),
+            }
+            .to_engine_event(),
+            ProjectRefreshWatcherScope::OpenedProject => {
+                if !Self::apply_opened_project_file_system_events(opened_project, events) {
+                    return;
+                }
+
+                ProjectItemsChangedEvent { project_root: None }.to_engine_event()
+            }
+        };
+
         match event_emitter.read() {
             Ok(stored_event_emitter) => {
                 if let Some(event_emitter) = stored_event_emitter.as_ref() {
-                    match watcher_scope {
-                        ProjectRefreshWatcherScope::ProjectCatalog => {
-                            event_emitter(
-                                ProjectCatalogChangedEvent {
-                                    changed_project_directory_path: None,
-                                }
-                                .to_engine_event(),
-                            );
-                        }
-                        ProjectRefreshWatcherScope::OpenedProject => {
-                            Self::reload_opened_project_from_disk_if_clean(opened_project);
-                            event_emitter(ProjectItemsChangedEvent { project_root: None }.to_engine_event());
-                        }
-                    }
+                    event_emitter(engine_event);
                 }
             }
             Err(error) => {
@@ -283,10 +292,14 @@ impl ProjectRefreshService {
         }
     }
 
-    fn drain_debounced_events(event_receiver: &std::sync::mpsc::Receiver<notify::Result<notify::Event>>) {
+    fn drain_debounced_events(
+        event_receiver: &std::sync::mpsc::Receiver<notify::Result<notify::Event>>,
+        events: &mut Vec<notify::Event>,
+    ) {
         loop {
             match event_receiver.recv_timeout(Duration::from_millis(150)) {
-                Ok(_) => {}
+                Ok(Ok(event)) => events.push(event),
+                Ok(Err(error)) => log::error!("Project watcher error while draining debounced events: {:?}", error),
                 Err(RecvTimeoutError::Timeout) => return,
                 Err(RecvTimeoutError::Disconnected) => return,
             }
@@ -297,69 +310,278 @@ impl ProjectRefreshService {
         self.config.watch_file_system && ScanSettingsStore::get_project_file_system_watch_enabled()
     }
 
-    fn reload_opened_project_from_disk_if_clean(opened_project: Option<&Arc<RwLock<Option<Project>>>>) {
+    fn apply_opened_project_file_system_events(
+        opened_project: Option<&Arc<RwLock<Option<Project>>>>,
+        events: &[notify::Event],
+    ) -> bool {
         let Some(opened_project) = opened_project else {
-            return;
+            return false;
         };
 
         match opened_project.write() {
             Ok(mut opened_project_guard) => {
-                let Some(current_project) = opened_project_guard.as_ref() else {
-                    return;
+                let Some(opened_project) = opened_project_guard.as_mut() else {
+                    return false;
                 };
-                let Some(project_directory_path) = current_project.get_project_info().get_project_directory() else {
-                    return;
+                let Some(project_directory_path) = opened_project.get_project_info().get_project_directory() else {
+                    return false;
                 };
 
-                if current_project.get_has_unsaved_changes() {
+                if opened_project.get_has_unsaved_changes() {
                     log::warn!(
-                        "Skipping external project reload for '{}' because the opened project has unsaved changes.",
+                        "Skipping external project file-system reconciliation for '{}' because the opened project has unsaved changes.",
                         project_directory_path.display()
                     );
-                    return;
+                    return false;
                 }
 
-                let activated_project_item_refs = Self::collect_activated_project_item_refs(current_project);
-
-                match Project::load_from_path(&project_directory_path) {
-                    Ok(mut reloaded_project) => {
-                        Self::restore_activated_project_items(&mut reloaded_project, &activated_project_item_refs);
-                        *opened_project_guard = Some(reloaded_project);
-                    }
-                    Err(error) => {
-                        log::warn!("Failed to reload externally changed project '{}': {}.", project_directory_path.display(), error);
-                    }
-                }
+                events.iter().fold(false, |did_change_project, event| {
+                    Self::apply_opened_project_file_system_event(opened_project, &project_directory_path, event) || did_change_project
+                })
             }
             Err(error) => {
-                log::error!("Failed to acquire opened project lock for external project reload: {}", error);
+                log::error!("Failed to acquire opened project lock for external project reconciliation: {}", error);
+                false
             }
         }
     }
 
-    fn collect_activated_project_item_refs(project: &Project) -> HashSet<ProjectItemRef> {
-        project
-            .get_project_items()
-            .iter()
-            .filter_map(|(project_item_ref, project_item)| {
-                project_item
-                    .get_is_activated()
-                    .then_some(project_item_ref.clone())
-            })
-            .collect()
-    }
-
-    fn restore_activated_project_items(
+    fn apply_opened_project_file_system_event(
         project: &mut Project,
-        activated_project_item_refs: &HashSet<ProjectItemRef>,
-    ) {
-        for activated_project_item_ref in activated_project_item_refs {
-            if let Some(project_item) = project.get_project_item_mut(activated_project_item_ref) {
-                if !project_item.get_is_activated() {
-                    project_item.toggle_activated();
+        project_directory_path: &Path,
+        event: &notify::Event,
+    ) -> bool {
+        match event.kind {
+            EventKind::Create(_) => Self::upsert_project_paths(project, project_directory_path, &event.paths),
+            EventKind::Remove(_) => Self::remove_project_paths(project, project_directory_path, &event.paths),
+            EventKind::Modify(ModifyKind::Data(_)) | EventKind::Modify(ModifyKind::Any) | EventKind::Modify(ModifyKind::Other) => {
+                Self::sync_project_paths(project, project_directory_path, &event.paths)
+            }
+            EventKind::Modify(ModifyKind::Name(RenameMode::Both)) => {
+                if event.paths.len() >= 2 {
+                    let did_remove = Self::remove_project_paths(project, project_directory_path, &event.paths[0..1]);
+                    let did_upsert = Self::upsert_project_paths(project, project_directory_path, &event.paths[1..2]);
+
+                    did_remove || did_upsert
+                } else {
+                    Self::sync_project_paths(project, project_directory_path, &event.paths)
                 }
             }
+            EventKind::Modify(ModifyKind::Name(RenameMode::From)) => Self::remove_project_paths(project, project_directory_path, &event.paths),
+            EventKind::Modify(ModifyKind::Name(RenameMode::To | RenameMode::Any | RenameMode::Other)) => {
+                Self::sync_project_paths(project, project_directory_path, &event.paths)
+            }
+            EventKind::Any => Self::sync_project_paths(project, project_directory_path, &event.paths),
+            EventKind::Modify(ModifyKind::Metadata(_)) | EventKind::Access(_) | EventKind::Other => false,
         }
+    }
+
+    fn sync_project_paths(
+        project: &mut Project,
+        project_directory_path: &Path,
+        paths: &[PathBuf],
+    ) -> bool {
+        paths.iter().fold(false, |did_change_project, path| {
+            let did_change_path = if path.exists() {
+                Self::upsert_project_path(project, project_directory_path, path)
+            } else {
+                Self::remove_project_path(project, project_directory_path, path)
+            };
+
+            did_change_path || did_change_project
+        })
+    }
+
+    fn upsert_project_paths(
+        project: &mut Project,
+        project_directory_path: &Path,
+        paths: &[PathBuf],
+    ) -> bool {
+        paths.iter().fold(false, |did_change_project, path| {
+            Self::upsert_project_path(project, project_directory_path, path) || did_change_project
+        })
+    }
+
+    fn upsert_project_path(
+        project: &mut Project,
+        project_directory_path: &Path,
+        path: &Path,
+    ) -> bool {
+        if Self::is_project_info_path(project_directory_path, path) {
+            match ProjectInfo::load_from_path(path) {
+                Ok(project_info) => {
+                    project.set_project_info(project_info);
+                    true
+                }
+                Err(error) => {
+                    log::warn!("Failed to load changed project info '{}': {}.", path.display(), error);
+                    false
+                }
+            }
+        } else if Self::is_project_item_file_path(project_directory_path, path) {
+            Self::upsert_project_item_file(project, path)
+        } else if Self::is_project_item_directory_path(project_directory_path, path) {
+            Self::upsert_project_item_directory_tree(project, project_directory_path, path)
+        } else {
+            false
+        }
+    }
+
+    fn upsert_project_item_file(
+        project: &mut Project,
+        path: &Path,
+    ) -> bool {
+        let project_item_ref = ProjectItemRef::new(path.to_path_buf());
+        let was_activated = project
+            .get_project_items()
+            .get(&project_item_ref)
+            .map(|project_item| project_item.get_is_activated())
+            .unwrap_or(false);
+
+        match ProjectItem::load_from_path(path) {
+            Ok(mut project_item) => {
+                if was_activated && !project_item.get_is_activated() {
+                    project_item.toggle_activated();
+                }
+                project
+                    .get_project_items_mut()
+                    .insert(project_item_ref, project_item);
+                true
+            }
+            Err(error) => {
+                log::warn!("Failed to load changed project item '{}': {}.", path.display(), error);
+                false
+            }
+        }
+    }
+
+    fn upsert_project_item_directory_tree(
+        project: &mut Project,
+        project_directory_path: &Path,
+        directory_path: &Path,
+    ) -> bool {
+        if !directory_path.exists() || !directory_path.is_dir() {
+            return false;
+        }
+
+        let mut did_change_project = Self::upsert_project_item_directory(project, project_directory_path, directory_path);
+        let Ok(directory_entries) = fs::read_dir(directory_path) else {
+            return did_change_project;
+        };
+
+        for directory_entry in directory_entries.flatten() {
+            let directory_entry_path = directory_entry.path();
+            let did_change_path = if directory_entry_path.is_dir() {
+                Self::upsert_project_item_directory_tree(project, project_directory_path, &directory_entry_path)
+            } else {
+                Self::upsert_project_path(project, project_directory_path, &directory_entry_path)
+            };
+
+            did_change_project = did_change_path || did_change_project;
+        }
+
+        did_change_project
+    }
+
+    fn upsert_project_item_directory(
+        project: &mut Project,
+        project_directory_path: &Path,
+        directory_path: &Path,
+    ) -> bool {
+        if !Self::is_project_item_directory_path(project_directory_path, directory_path) {
+            return false;
+        }
+
+        let project_item_ref = ProjectItemRef::new(directory_path.to_path_buf());
+        let project_item = ProjectItemTypeDirectory::new_project_item(&project_item_ref);
+
+        project
+            .get_project_items_mut()
+            .insert(project_item_ref, project_item);
+        true
+    }
+
+    fn remove_project_paths(
+        project: &mut Project,
+        project_directory_path: &Path,
+        paths: &[PathBuf],
+    ) -> bool {
+        paths.iter().fold(false, |did_change_project, path| {
+            Self::remove_project_path(project, project_directory_path, path) || did_change_project
+        })
+    }
+
+    fn remove_project_path(
+        project: &mut Project,
+        project_directory_path: &Path,
+        path: &Path,
+    ) -> bool {
+        if Self::is_project_info_path(project_directory_path, path) {
+            log::warn!("Project info was removed from disk for opened project '{}'.", project_directory_path.display());
+            return false;
+        }
+
+        if !Self::is_project_item_path(project_directory_path, path) {
+            return false;
+        }
+
+        let root_project_item_ref = project.get_project_root_ref().clone();
+        let project_item_refs_to_remove = project
+            .get_project_items()
+            .keys()
+            .filter(|project_item_ref| {
+                project_item_ref != &&root_project_item_ref
+                    && (project_item_ref.get_project_item_path() == path || project_item_ref.get_project_item_path().starts_with(path))
+            })
+            .cloned()
+            .collect::<Vec<ProjectItemRef>>();
+
+        let did_remove_project_items = !project_item_refs_to_remove.is_empty();
+        for project_item_ref in project_item_refs_to_remove {
+            project.get_project_items_mut().remove(&project_item_ref);
+        }
+
+        did_remove_project_items
+    }
+
+    fn first_event_path(events: &[notify::Event]) -> Option<PathBuf> {
+        events
+            .iter()
+            .flat_map(|event| event.paths.iter())
+            .next()
+            .cloned()
+    }
+
+    fn is_project_info_path(
+        project_directory_path: &Path,
+        path: &Path,
+    ) -> bool {
+        path == project_directory_path.join(Project::PROJECT_FILE)
+    }
+
+    fn is_project_item_directory_path(
+        project_directory_path: &Path,
+        path: &Path,
+    ) -> bool {
+        Self::is_project_item_path(project_directory_path, path) && path.is_dir()
+    }
+
+    fn is_project_item_file_path(
+        project_directory_path: &Path,
+        path: &Path,
+    ) -> bool {
+        Self::is_project_item_path(project_directory_path, path)
+            && path
+                .extension()
+                .and_then(|extension| extension.to_str())
+                .is_some_and(|extension| extension.eq_ignore_ascii_case(Project::PROJECT_ITEM_EXTENSION.trim_start_matches('.')))
+    }
+
+    fn is_project_item_path(
+        project_directory_path: &Path,
+        path: &Path,
+    ) -> bool {
+        path.starts_with(project_directory_path.join(Project::PROJECT_DIR))
     }
 }
 
@@ -368,6 +590,10 @@ mod tests {
     use super::ProjectRefreshService;
     use crate::projects::project_refresh::project_refresh_config::ProjectRefreshConfig;
     use crossbeam_channel::unbounded;
+    use notify::{
+        Event,
+        event::{CreateKind, EventKind, ModifyKind, RemoveKind, RenameMode},
+    };
     use squalr_engine_api::events::{engine_event::EngineEvent, project_items::project_items_event::ProjectItemsEvent};
     use squalr_engine_api::structures::data_types::built_in_types::u8::data_type_u8::DataTypeU8;
     use squalr_engine_api::structures::projects::project::Project;
@@ -427,7 +653,7 @@ mod tests {
     }
 
     #[test]
-    fn reload_opened_project_from_disk_if_clean_reloads_items_and_preserves_activation() {
+    fn apply_opened_project_file_system_events_updates_item_file_and_preserves_activation() {
         let temp_directory = tempfile::tempdir().expect("Expected temporary project directory.");
         let item_path = write_project_to_disk(&temp_directory, "Original");
         let mut opened_project = Project::load_from_path(temp_directory.path()).expect("Expected project to load.");
@@ -440,26 +666,119 @@ mod tests {
 
         write_project_item_to_disk(&item_path, "Reloaded");
 
-        ProjectRefreshService::reload_opened_project_from_disk_if_clean(Some(&opened_project));
+        let event = Event::new(EventKind::Modify(ModifyKind::Any)).add_path(item_path.clone());
+        assert!(ProjectRefreshService::apply_opened_project_file_system_events(Some(&opened_project), &[event]));
 
         let opened_project_guard = opened_project
             .read()
             .expect("Expected opened project lock to be readable.");
-        let reloaded_project = opened_project_guard
+        let current_project = opened_project_guard
             .as_ref()
-            .expect("Expected project to remain opened after reload.");
-        let reloaded_project_item = reloaded_project
+            .expect("Expected project to remain opened after reconciliation.");
+        let current_project_item = current_project
             .get_project_items()
             .get(&item_ref)
-            .expect("Expected reloaded project item to exist.");
+            .expect("Expected reconciled project item to exist.");
 
-        assert_eq!(reloaded_project_item.get_field_name(), "Reloaded");
-        assert!(reloaded_project_item.get_is_activated());
-        assert!(!reloaded_project.get_has_unsaved_changes());
+        assert_eq!(current_project_item.get_field_name(), "Reloaded");
+        assert!(current_project_item.get_is_activated());
+        assert!(!current_project.get_has_unsaved_changes());
     }
 
     #[test]
-    fn reload_opened_project_from_disk_if_clean_skips_dirty_project() {
+    fn apply_opened_project_file_system_events_removes_deleted_item_file() {
+        let temp_directory = tempfile::tempdir().expect("Expected temporary project directory.");
+        let item_path = write_project_to_disk(&temp_directory, "Original");
+        let opened_project = Project::load_from_path(temp_directory.path()).expect("Expected project to load.");
+        let opened_project = Arc::new(RwLock::new(Some(opened_project)));
+
+        fs::remove_file(&item_path).expect("Expected project item file to be removed.");
+
+        let event = Event::new(EventKind::Remove(RemoveKind::File)).add_path(item_path.clone());
+        assert!(ProjectRefreshService::apply_opened_project_file_system_events(Some(&opened_project), &[event]));
+
+        let opened_project_guard = opened_project
+            .read()
+            .expect("Expected opened project lock to be readable.");
+        let current_project = opened_project_guard
+            .as_ref()
+            .expect("Expected project to remain opened after item removal.");
+
+        assert!(
+            !current_project
+                .get_project_items()
+                .contains_key(&ProjectItemRef::new(item_path))
+        );
+    }
+
+    #[test]
+    fn apply_opened_project_file_system_events_adds_created_directory_tree() {
+        let temp_directory = tempfile::tempdir().expect("Expected temporary project directory.");
+        write_project_to_disk(&temp_directory, "Original");
+        let opened_project = Project::load_from_path(temp_directory.path()).expect("Expected project to load.");
+        let opened_project = Arc::new(RwLock::new(Some(opened_project)));
+        let created_directory_path = temp_directory.path().join(Project::PROJECT_DIR).join("Created");
+        fs::create_dir_all(&created_directory_path).expect("Expected created project directory.");
+        let created_item_path = created_directory_path.join("mana.json");
+        write_project_item_to_disk(&created_item_path, "Mana");
+
+        let event = Event::new(EventKind::Create(CreateKind::Folder)).add_path(created_directory_path.clone());
+        assert!(ProjectRefreshService::apply_opened_project_file_system_events(Some(&opened_project), &[event]));
+
+        let opened_project_guard = opened_project
+            .read()
+            .expect("Expected opened project lock to be readable.");
+        let current_project = opened_project_guard
+            .as_ref()
+            .expect("Expected project to remain opened after directory create.");
+
+        assert!(
+            current_project
+                .get_project_items()
+                .contains_key(&ProjectItemRef::new(created_directory_path))
+        );
+        assert!(
+            current_project
+                .get_project_items()
+                .contains_key(&ProjectItemRef::new(created_item_path))
+        );
+    }
+
+    #[test]
+    fn apply_opened_project_file_system_events_moves_renamed_item_file() {
+        let temp_directory = tempfile::tempdir().expect("Expected temporary project directory.");
+        let item_path = write_project_to_disk(&temp_directory, "Original");
+        let opened_project = Project::load_from_path(temp_directory.path()).expect("Expected project to load.");
+        let opened_project = Arc::new(RwLock::new(Some(opened_project)));
+        let renamed_item_path = item_path.with_file_name("renamed.json");
+        fs::rename(&item_path, &renamed_item_path).expect("Expected project item to be renamed.");
+
+        let event = Event::new(EventKind::Modify(ModifyKind::Name(RenameMode::Both)))
+            .add_path(item_path.clone())
+            .add_path(renamed_item_path.clone());
+        assert!(ProjectRefreshService::apply_opened_project_file_system_events(Some(&opened_project), &[event]));
+
+        let opened_project_guard = opened_project
+            .read()
+            .expect("Expected opened project lock to be readable.");
+        let current_project = opened_project_guard
+            .as_ref()
+            .expect("Expected project to remain opened after item rename.");
+
+        assert!(
+            !current_project
+                .get_project_items()
+                .contains_key(&ProjectItemRef::new(item_path))
+        );
+        assert!(
+            current_project
+                .get_project_items()
+                .contains_key(&ProjectItemRef::new(renamed_item_path))
+        );
+    }
+
+    #[test]
+    fn apply_opened_project_file_system_events_skips_dirty_project() {
         let temp_directory = tempfile::tempdir().expect("Expected temporary project directory.");
         let item_path = write_project_to_disk(&temp_directory, "Original");
         let mut opened_project = Project::load_from_path(temp_directory.path()).expect("Expected project to load.");
@@ -468,14 +787,15 @@ mod tests {
 
         write_project_item_to_disk(&item_path, "Disk Edit");
 
-        ProjectRefreshService::reload_opened_project_from_disk_if_clean(Some(&opened_project));
+        let event = Event::new(EventKind::Modify(ModifyKind::Any)).add_path(item_path.clone());
+        assert!(!ProjectRefreshService::apply_opened_project_file_system_events(Some(&opened_project), &[event]));
 
         let opened_project_guard = opened_project
             .read()
             .expect("Expected opened project lock to be readable.");
         let current_project = opened_project_guard
             .as_ref()
-            .expect("Expected project to remain opened after skipped reload.");
+            .expect("Expected project to remain opened after skipped reconciliation.");
         let current_project_item = current_project
             .get_project_items()
             .get(&ProjectItemRef::new(item_path))

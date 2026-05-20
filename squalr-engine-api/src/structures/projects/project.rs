@@ -60,6 +60,13 @@ impl Project {
         &mut self.project_info
     }
 
+    pub fn set_project_info(
+        &mut self,
+        project_info: ProjectInfo,
+    ) {
+        self.project_info = project_info;
+    }
+
     pub fn set_project_icon(
         &mut self,
         project_icon: Option<ProcessIcon>,
