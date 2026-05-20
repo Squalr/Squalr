@@ -21,6 +21,7 @@ impl SerializableProjectFile for ProjectItem {
                 let file = File::create(&project_item_path)?;
 
                 serde_json::to_writer_pretty(file, &self)?;
+                self.set_has_unsaved_changes(false);
             }
         }
 

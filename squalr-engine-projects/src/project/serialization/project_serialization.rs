@@ -145,4 +145,33 @@ mod tests {
                 .all(|project_item| !project_item.get_has_unsaved_changes())
         );
     }
+
+    #[test]
+    fn save_to_path_marks_written_project_items_clean() {
+        let temp_directory = tempfile::tempdir().expect("Expected temporary project directory.");
+        let project_directory_path = temp_directory.path();
+        let project_items_directory_path = project_directory_path.join(Project::PROJECT_DIR);
+        fs::create_dir_all(&project_items_directory_path).expect("Expected project items directory to be created.");
+        fs::write(
+            project_directory_path.join(Project::PROJECT_FILE),
+            r#"{"icon":null,"manifest":{"sort_order":[]},"symbols":{}}"#,
+        )
+        .expect("Expected project info file to be written.");
+        let project_item_path = project_items_directory_path.join("health.json");
+        let project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "module", "", DataTypeU8::get_value_from_primitive(7));
+        let project_item_file = File::create(&project_item_path).expect("Expected project item file to be created.");
+        serde_json::to_writer_pretty(project_item_file, &project_item).expect("Expected project item to be written.");
+        let mut project = Project::load_from_path(project_directory_path).expect("Expected project to load.");
+        let project_item_ref = squalr_engine_api::structures::projects::project_items::project_item_ref::ProjectItemRef::new(project_item_path);
+        project
+            .get_project_item_mut(&project_item_ref)
+            .expect("Expected project item to be available.")
+            .set_has_unsaved_changes(true);
+
+        project
+            .save_to_path(project_directory_path, false)
+            .expect("Expected project to save.");
+
+        assert!(!project.get_has_unsaved_changes());
+    }
 }
