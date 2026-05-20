@@ -1,4 +1,4 @@
-use squalr_engine_operating_system::{
+use squalr_engine_targets_native::{
     memory_queryer::{memory_queryer::MemoryQueryer, memory_queryer_trait::MemoryQueryerTrait},
     memory_reader::{MemoryReader, memory_reader_trait::MemoryReaderTrait},
     process_query::{process_query_options::ProcessQueryOptions, process_queryer::ProcessQuery},

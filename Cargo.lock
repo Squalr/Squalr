@@ -5248,29 +5248,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "squalr-engine-operating-system"
-version = "0.3.0"
-dependencies = [
- "bitflags 2.10.0",
- "image",
- "libc",
- "log",
- "mach2",
- "objc",
- "once_cell",
- "rayon",
- "regex",
- "resvg",
- "serde",
- "serde_json",
- "squalr-engine-api",
- "sysinfo",
- "thiserror 2.0.18",
- "windows-sys 0.61.2",
- "zip",
-]
-
-[[package]]
 name = "squalr-engine-projects"
 version = "0.3.0"
 dependencies = [
@@ -5311,10 +5288,44 @@ dependencies = [
  "log",
  "log4rs",
  "squalr-engine-api",
- "squalr-engine-operating-system",
  "squalr-engine-scanning",
+ "squalr-engine-targets",
+ "squalr-engine-targets-native",
  "squalr-plugin-builtins",
  "sysinfo",
+]
+
+[[package]]
+name = "squalr-engine-targets"
+version = "0.3.0"
+dependencies = [
+ "squalr-engine-api",
+ "sysinfo",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "squalr-engine-targets-native"
+version = "0.3.0"
+dependencies = [
+ "bitflags 2.10.0",
+ "image",
+ "libc",
+ "log",
+ "mach2",
+ "objc",
+ "once_cell",
+ "rayon",
+ "regex",
+ "resvg",
+ "serde",
+ "serde_json",
+ "squalr-engine-api",
+ "squalr-engine-targets",
+ "sysinfo",
+ "thiserror 2.0.18",
+ "windows-sys 0.61.2",
+ "zip",
 ]
 
 [[package]]
@@ -5384,7 +5395,7 @@ name = "squalr-plugin-memory-view-dolphin"
 version = "0.3.0"
 dependencies = [
  "squalr-engine-api",
- "squalr-engine-operating-system",
+ "squalr-engine-targets-native",
 ]
 
 [[package]]
@@ -5394,8 +5405,8 @@ dependencies = [
  "crossbeam-channel",
  "squalr-engine",
  "squalr-engine-api",
- "squalr-engine-operating-system",
  "squalr-engine-session",
+ "squalr-engine-targets",
  "structopt",
 ]
 

@@ -3,7 +3,7 @@ use squalr_engine_api::{
     plugins::memory_view::MemoryViewPluginError,
     structures::{memory::normalized_region::NormalizedRegion, processes::opened_process_info::OpenedProcessInfo},
 };
-use squalr_engine_operating_system::{
+use squalr_engine_targets_native::{
     memory_queryer::{memory_queryer::MemoryQueryer, memory_queryer_trait::MemoryQueryerTrait},
     memory_reader::{MemoryReader, memory_reader_trait::MemoryReaderTrait},
 };

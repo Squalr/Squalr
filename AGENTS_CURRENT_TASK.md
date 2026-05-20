@@ -10,8 +10,8 @@ Our current task, from `README.md`, is:
 
 ## Current Tasklist
 
-- 
+- Continue target/scanning boundary cleanup after the target/native crate split.
 
 ## Important Information
 
-- 
+- Current target-abstraction refactor pass split target provider traits and shared process-query types into `squalr-engine-targets`, renamed the native platform backend crate to `squalr-engine-targets-native`, and updated the Dolphin memory-view plugin/tests/session routing to depend on the new target/native crate boundary. `squalr-engine-session` still owns memory-view routing around those providers. Validated with `cargo fmt --all`, `cargo check -p squalr --locked`, `cargo check -p squalr-cli --locked`, `cargo check -p squalr-tui --locked`, `cargo test -p squalr-engine-targets --locked`, `cargo test -p squalr-engine-targets-native --locked`, `cargo test -p squalr-engine-session --locked`, `cargo test -p squalr-plugin-memory-view-dolphin --locked`, `cargo test -p squalr-tests --test os_behavior_command_tests --locked`, `cargo test -p squalr-tests --test process_command_tests --locked`, `cargo test -p squalr-tests --test memory_command_tests --locked`, `cargo test -p squalr-engine process --lib --locked`, and legacy-native-crate-name search. Needs human verification for native process open/list, memory read/write/query, and Dolphin memory-view target routing.

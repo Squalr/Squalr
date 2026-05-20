@@ -6,4 +6,4 @@ edition = "2024"
 
 [dependencies]
 squalr-engine-api = { path = "../../squalr-engine-api" }
-squalr-engine-operating-system = { path = "../../squalr-engine-operating-system" }
+squalr-engine-targets-native = { path = "../../squalr-engine-targets-native" }

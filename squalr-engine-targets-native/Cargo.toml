@@ -1,11 +1,12 @@
 [package]
-name = "squalr-engine-operating-system"
+name = "squalr-engine-targets-native"
 version = "0.3.0"
 authors = ["Zachary Canann"]
 edition = "2024"
 
 [dependencies]
 squalr-engine-api = { path = "../squalr-engine-api" }
+squalr-engine-targets = { path = "../squalr-engine-targets" }
 bitflags = "2.10.0"
 image = "0.25.9"
 libc = "0.2.180"
