@@ -87,7 +87,9 @@ impl ProjectRefreshService {
             return;
         }
 
-        self.emit(ProjectItemsChangedEvent { project_root: None });
+        self.emit(ProjectItemsChangedEvent {
+            changed_project_paths: Vec::new(),
+        });
     }
 
     /// Emits a lightweight invalidation for project creation.
@@ -276,7 +278,10 @@ impl ProjectRefreshService {
                     return;
                 }
 
-                ProjectItemsChangedEvent { project_root: None }.to_engine_event()
+                ProjectItemsChangedEvent {
+                    changed_project_paths: Self::project_refresh_paths(events),
+                }
+                .to_engine_event()
             }
         };
 
@@ -493,7 +498,8 @@ impl ProjectRefreshService {
         }
 
         let project_item_ref = ProjectItemRef::new(directory_path.to_path_buf());
-        let project_item = ProjectItemTypeDirectory::new_project_item(&project_item_ref);
+        let mut project_item = ProjectItemTypeDirectory::new_project_item(&project_item_ref);
+        project_item.set_has_unsaved_changes(false);
 
         project
             .get_project_items_mut()
@@ -552,6 +558,18 @@ impl ProjectRefreshService {
             .cloned()
     }
 
+    fn project_refresh_paths(events: &[notify::Event]) -> Vec<PathBuf> {
+        let mut changed_project_paths = Vec::new();
+
+        for event_path in events.iter().flat_map(|event| event.paths.iter()) {
+            if !changed_project_paths.contains(event_path) {
+                changed_project_paths.push(event_path.clone());
+            }
+        }
+
+        changed_project_paths
+    }
+
     fn is_project_info_path(
         project_directory_path: &Path,
         path: &Path,
@@ -587,14 +605,15 @@ impl ProjectRefreshService {
 
 #[cfg(test)]
 mod tests {
-    use super::ProjectRefreshService;
+    use super::{ProjectRefreshService, ProjectRefreshWatcherScope};
     use crate::projects::project_refresh::project_refresh_config::ProjectRefreshConfig;
+    use crate::settings::scan_settings_store::ScanSettingsStore;
     use crossbeam_channel::unbounded;
     use notify::{
         Event,
         event::{CreateKind, EventKind, ModifyKind, RemoveKind, RenameMode},
     };
-    use squalr_engine_api::events::{engine_event::EngineEvent, project_items::project_items_event::ProjectItemsEvent};
+    use squalr_engine_api::events::{engine_event::EngineEvent, project::project_event::ProjectEvent, project_items::project_items_event::ProjectItemsEvent};
     use squalr_engine_api::structures::data_types::built_in_types::u8::data_type_u8::DataTypeU8;
     use squalr_engine_api::structures::projects::project::Project;
     use squalr_engine_api::structures::projects::project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress;
@@ -629,7 +648,32 @@ mod tests {
         assert!(matches!(
             event,
             EngineEvent::ProjectItems(ProjectItemsEvent::ProjectItemsChanged { project_items_changed_event })
-                if project_items_changed_event.project_root.is_none()
+                if project_items_changed_event.changed_project_paths.is_empty()
+        ));
+    }
+
+    #[test]
+    fn watcher_catalog_event_emits_catalog_changed_path() {
+        let _watch_setting_guard = ProjectFileSystemWatchSettingGuard::enabled();
+        let changed_project_directory_path = PathBuf::from("C:/Projects/Squalr/ExternalProject");
+        let (event_sender, event_receiver) = unbounded();
+        let event_emitter = Arc::new(RwLock::new(Some(Arc::new(move |event| {
+            event_sender
+                .send(event)
+                .expect("Expected test event channel to accept project catalog event.");
+        }) as Arc<dyn Fn(EngineEvent) + Send + Sync>)));
+        let event = Event::new(EventKind::Create(CreateKind::Folder)).add_path(changed_project_directory_path.clone());
+
+        ProjectRefreshService::emit_watcher_event(ProjectRefreshWatcherScope::ProjectCatalog, &[event], &event_emitter, None);
+
+        let emitted_event = event_receiver
+            .recv_timeout(Duration::from_millis(250))
+            .expect("Expected catalog watcher event to emit.");
+
+        assert!(matches!(
+            emitted_event,
+            EngineEvent::Project(ProjectEvent::ProjectCatalogChanged { project_catalog_changed_event })
+                if project_catalog_changed_event.changed_project_directory_path == Some(changed_project_directory_path)
         ));
     }
 
@@ -745,6 +789,40 @@ mod tests {
     }
 
     #[test]
+    fn apply_opened_project_file_system_events_updates_project_info_file() {
+        let temp_directory = tempfile::tempdir().expect("Expected temporary project directory.");
+        write_project_to_disk(&temp_directory, "Original");
+        let opened_project = Project::load_from_path(temp_directory.path()).expect("Expected project to load.");
+        let opened_project = Arc::new(RwLock::new(Some(opened_project)));
+        let project_info_path = temp_directory.path().join(Project::PROJECT_FILE);
+
+        fs::write(
+            &project_info_path,
+            r#"{"icon":null,"manifest":{"sort_order":["project_items/updated.json"]},"symbols":{}}"#,
+        )
+        .expect("Expected updated project info file to be written.");
+
+        let event = Event::new(EventKind::Modify(ModifyKind::Data(notify::event::DataChange::Content))).add_path(project_info_path);
+        assert!(ProjectRefreshService::apply_opened_project_file_system_events(Some(&opened_project), &[event]));
+
+        let opened_project_guard = opened_project
+            .read()
+            .expect("Expected opened project lock to be readable.");
+        let current_project = opened_project_guard
+            .as_ref()
+            .expect("Expected project to remain opened after project info reconciliation.");
+
+        assert_eq!(
+            current_project
+                .get_project_manifest()
+                .get_project_item_sort_order()
+                .as_slice(),
+            &[PathBuf::from("project_items/updated.json")]
+        );
+        assert!(!current_project.get_has_unsaved_changes());
+    }
+
+    #[test]
     fn apply_opened_project_file_system_events_moves_renamed_item_file() {
         let temp_directory = tempfile::tempdir().expect("Expected temporary project directory.");
         let item_path = write_project_to_disk(&temp_directory, "Original");
@@ -778,6 +856,42 @@ mod tests {
     }
 
     #[test]
+    fn apply_opened_project_file_system_events_removes_deleted_directory_subtree() {
+        let temp_directory = tempfile::tempdir().expect("Expected temporary project directory.");
+        write_project_to_disk(&temp_directory, "Original");
+        let opened_project = Project::load_from_path(temp_directory.path()).expect("Expected project to load.");
+        let opened_project = Arc::new(RwLock::new(Some(opened_project)));
+        let removed_directory_path = temp_directory.path().join(Project::PROJECT_DIR).join("Deleted");
+        fs::create_dir_all(&removed_directory_path).expect("Expected deleted project directory to be created.");
+        let removed_item_path = removed_directory_path.join("removed.json");
+        write_project_item_to_disk(&removed_item_path, "Removed");
+        let event = Event::new(EventKind::Create(CreateKind::Folder)).add_path(removed_directory_path.clone());
+        assert!(ProjectRefreshService::apply_opened_project_file_system_events(Some(&opened_project), &[event]));
+        fs::remove_dir_all(&removed_directory_path).expect("Expected project directory subtree to be removed.");
+
+        let event = Event::new(EventKind::Remove(RemoveKind::Folder)).add_path(removed_directory_path.clone());
+        assert!(ProjectRefreshService::apply_opened_project_file_system_events(Some(&opened_project), &[event]));
+
+        let opened_project_guard = opened_project
+            .read()
+            .expect("Expected opened project lock to be readable.");
+        let current_project = opened_project_guard
+            .as_ref()
+            .expect("Expected project to remain opened after directory removal.");
+
+        assert!(
+            !current_project
+                .get_project_items()
+                .contains_key(&ProjectItemRef::new(removed_directory_path))
+        );
+        assert!(
+            !current_project
+                .get_project_items()
+                .contains_key(&ProjectItemRef::new(removed_item_path))
+        );
+    }
+
+    #[test]
     fn apply_opened_project_file_system_events_skips_dirty_project() {
         let temp_directory = tempfile::tempdir().expect("Expected temporary project directory.");
         let item_path = write_project_to_disk(&temp_directory, "Original");
@@ -803,6 +917,31 @@ mod tests {
 
         assert_eq!(current_project_item.get_field_name(), "Original");
         assert!(current_project.get_has_unsaved_changes());
+    }
+
+    #[test]
+    fn apply_opened_project_file_system_events_ignores_non_project_paths() {
+        let temp_directory = tempfile::tempdir().expect("Expected temporary project directory.");
+        write_project_to_disk(&temp_directory, "Original");
+        let opened_project = Project::load_from_path(temp_directory.path()).expect("Expected project to load.");
+        let opened_project = Arc::new(RwLock::new(Some(opened_project)));
+        let ignored_path = temp_directory.path().join("notes.txt");
+        fs::write(&ignored_path, "not a project item").expect("Expected ignored file to be written.");
+
+        let event = Event::new(EventKind::Modify(ModifyKind::Any)).add_path(ignored_path);
+
+        assert!(!ProjectRefreshService::apply_opened_project_file_system_events(Some(&opened_project), &[event]));
+    }
+
+    #[test]
+    fn project_refresh_paths_deduplicate_debounced_watcher_paths() {
+        let item_path = PathBuf::from("C:/Projects/Squalr/Test/project_items/health.json");
+        let first_event = Event::new(EventKind::Modify(ModifyKind::Any)).add_path(item_path.clone());
+        let second_event = Event::new(EventKind::Modify(ModifyKind::Any)).add_path(item_path.clone());
+
+        let changed_project_paths = ProjectRefreshService::project_refresh_paths(&[first_event, second_event]);
+
+        assert_eq!(changed_project_paths, vec![item_path]);
     }
 
     fn write_project_to_disk(
@@ -832,5 +971,24 @@ mod tests {
         let item_file = File::create(item_path).expect("Expected project item file to be created.");
 
         serde_json::to_writer_pretty(item_file, &project_item).expect("Expected project item to be serialized.");
+    }
+
+    struct ProjectFileSystemWatchSettingGuard {
+        original_value: bool,
+    }
+
+    impl ProjectFileSystemWatchSettingGuard {
+        fn enabled() -> Self {
+            let original_value = ScanSettingsStore::get_project_file_system_watch_enabled();
+            ScanSettingsStore::set_project_file_system_watch_enabled(true);
+
+            Self { original_value }
+        }
+    }
+
+    impl Drop for ProjectFileSystemWatchSettingGuard {
+        fn drop(&mut self) {
+            ScanSettingsStore::set_project_file_system_watch_enabled(self.original_value);
+        }
     }
 }
