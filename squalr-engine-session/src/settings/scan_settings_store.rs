@@ -6,21 +6,31 @@ use squalr_engine_api::structures::scanning::memory_read_mode::MemoryReadMode;
 use squalr_engine_api::structures::settings::scan_settings::ScanSettings;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::Once;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, OnceLock, RwLock};
 
-pub struct ScanSettingsConfig {
+pub struct ScanSettingsStore {
     config: Arc<RwLock<ScanSettings>>,
     config_file: PathBuf,
 }
 
-impl ScanSettingsConfig {
+impl ScanSettingsStore {
     fn new() -> Self {
         let config_file = Self::default_config_path();
         let config = if config_file.exists() {
             match fs::read_to_string(&config_file) {
-                Ok(json) => serde_json::from_str(&json).unwrap_or_default(),
-                Err(_) => ScanSettings::default(),
+                Ok(json) => match serde_json::from_str(&json) {
+                    Ok(scan_settings) => scan_settings,
+                    Err(error) => {
+                        log::error!("Failed to parse scan settings config: {}", error);
+
+                        ScanSettings::default()
+                    }
+                },
+                Err(error) => {
+                    log::error!("Failed to read scan settings config: {}", error);
+
+                    ScanSettings::default()
+                }
             }
         } else {
             ScanSettings::default()
@@ -32,34 +42,40 @@ impl ScanSettingsConfig {
         }
     }
 
-    fn get_instance() -> &'static ScanSettingsConfig {
-        static mut INSTANCE: Option<ScanSettingsConfig> = None;
-        static ONCE: Once = Once::new();
+    fn get_instance() -> &'static ScanSettingsStore {
+        static INSTANCE: OnceLock<ScanSettingsStore> = OnceLock::new();
 
-        unsafe {
-            ONCE.call_once(|| {
-                let instance = ScanSettingsConfig::new();
-                INSTANCE = Some(instance);
-            });
-
-            #[allow(static_mut_refs)]
-            INSTANCE.as_ref().unwrap_unchecked()
-        }
+        INSTANCE.get_or_init(ScanSettingsStore::new)
     }
 
     fn default_config_path() -> PathBuf {
         std::env::current_exe()
             .unwrap_or_default()
             .parent()
-            .unwrap_or(&Path::new(""))
+            .unwrap_or(Path::new(""))
             .join("scan_settings.json")
     }
 
     fn save_config() {
-        if let Ok(config) = Self::get_instance().config.read() {
-            if let Ok(json) = to_string_pretty(&*config) {
-                let _ = fs::write(&Self::get_instance().config_file, json);
+        let config_guard = match Self::get_instance().config.read() {
+            Ok(config_guard) => config_guard,
+            Err(error) => {
+                log::error!("Failed to acquire scan settings read lock before save: {}", error);
+
+                return;
             }
+        };
+        let json = match to_string_pretty(&*config_guard) {
+            Ok(json) => json,
+            Err(error) => {
+                log::error!("Failed to serialize scan settings: {}", error);
+
+                return;
+            }
+        };
+
+        if let Err(error) = fs::write(&Self::get_instance().config_file, json) {
+            log::error!("Failed to write scan settings config: {}", error);
         }
     }
 

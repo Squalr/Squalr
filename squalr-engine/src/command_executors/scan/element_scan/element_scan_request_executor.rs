@@ -11,8 +11,8 @@ use squalr_engine_api::structures::scanning::constraints::scan_constraint_builde
 use squalr_engine_api::structures::scanning::constraints::scan_constraint_finalized::ScanConstraintFinalized;
 use squalr_engine_api::structures::scanning::memory_read_mode::MemoryReadMode;
 use squalr_engine_api::structures::scanning::plans::element_scan::element_scan_plan::ElementScanPlan;
-use squalr_engine_scanning::scan_settings_config::ScanSettingsConfig;
 use squalr_engine_scanning::{ElementScanner, ScanControl};
+use squalr_engine_session::settings::scan_settings_store::ScanSettingsStore;
 use std::sync::Arc;
 
 impl PrivilegedCommandRequestExecutor for ElementScanRequest {
@@ -27,11 +27,11 @@ impl PrivilegedCommandRequestExecutor for ElementScanRequest {
             .get_opened_process()
         {
             let snapshot = engine_privileged_state.get_snapshot();
-            let alignment = ScanSettingsConfig::get_memory_alignment().unwrap_or(MemoryAlignment::Alignment1);
-            let floating_point_tolerance = ScanSettingsConfig::get_floating_point_tolerance();
-            let memory_read_mode = ScanSettingsConfig::get_memory_read_mode();
-            let is_single_thread_scan = ScanSettingsConfig::get_is_single_threaded_scan();
-            let debug_perform_validation_scan = ScanSettingsConfig::get_debug_perform_validation_scan();
+            let alignment = ScanSettingsStore::get_memory_alignment().unwrap_or(MemoryAlignment::Alignment1);
+            let floating_point_tolerance = ScanSettingsStore::get_floating_point_tolerance();
+            let memory_read_mode = ScanSettingsStore::get_memory_read_mode();
+            let is_single_thread_scan = ScanSettingsStore::get_is_single_threaded_scan();
+            let debug_perform_validation_scan = ScanSettingsStore::get_debug_perform_validation_scan();
 
             if debug_perform_validation_scan {
                 log::warn!(

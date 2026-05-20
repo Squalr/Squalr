@@ -1,8 +1,8 @@
 use crate::os::engine_os_provider::EngineOsProviders;
+use crate::settings::scan_settings_store::ScanSettingsStore;
 use squalr_engine_api::registries::freeze_list::freeze_list_registry::FreezeListRegistry;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::tasks::trackable_task::TrackableTask;
-use squalr_engine_scanning::scan_settings_config::ScanSettingsConfig;
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::sync::atomic::Ordering;
@@ -30,7 +30,7 @@ impl SnapshotScanResultFreezeTask {
                 }
 
                 Self::freeze_values(&process_info, &freeze_list_registry, &os_providers);
-                thread::sleep(Duration::from_millis(ScanSettingsConfig::get_results_read_interval_ms()));
+                thread::sleep(Duration::from_millis(ScanSettingsStore::get_results_read_interval_ms()));
             }
 
             task_clone.complete();

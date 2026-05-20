@@ -5248,7 +5248,6 @@ version = "0.3.0"
 dependencies = [
  "log",
  "rayon",
- "serde_json",
  "squalr-engine-api",
 ]
 
@@ -5262,8 +5261,8 @@ dependencies = [
  "dirs",
  "log",
  "log4rs",
+ "serde_json",
  "squalr-engine-api",
- "squalr-engine-scanning",
  "squalr-engine-targets",
  "squalr-engine-targets-native",
  "squalr-plugin-builtins",

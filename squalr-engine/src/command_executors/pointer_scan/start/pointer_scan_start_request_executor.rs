@@ -12,8 +12,8 @@ use squalr_engine_api::structures::pointer_scans::pointer_scan_address_space::Po
 use squalr_engine_api::structures::scanning::plans::pointer_scan::pointer_scan_parameters::PointerScanParameters;
 use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
 use squalr_engine_scanning::PointerScanExecutor;
-use squalr_engine_scanning::scan_settings_config::ScanSettingsConfig;
 use squalr_engine_session::os::PageRetrievalMode;
+use squalr_engine_session::settings::scan_settings_store::ScanSettingsStore;
 use std::sync::{Arc, RwLock};
 
 impl PrivilegedCommandRequestExecutor for PointerScanStartRequest {
@@ -82,8 +82,8 @@ impl PrivilegedCommandRequestExecutor for PointerScanStartRequest {
             effective_pointer_size,
             self.offset_radius,
             self.max_depth,
-            ScanSettingsConfig::get_is_single_threaded_scan(),
-            ScanSettingsConfig::get_debug_perform_validation_scan(),
+            ScanSettingsStore::get_is_single_threaded_scan(),
+            ScanSettingsStore::get_debug_perform_validation_scan(),
         );
         SnapshotValueCollector::collect_values(
             process_info.clone(),
@@ -97,10 +97,10 @@ impl PrivilegedCommandRequestExecutor for PointerScanStartRequest {
                 symbol_registry,
                 effective_pointer_size,
                 pointer_scan_snapshot.clone(),
-                ScanSettingsConfig::get_memory_alignment().unwrap_or(MemoryAlignment::Alignment1),
-                ScanSettingsConfig::get_floating_point_tolerance(),
-                ScanSettingsConfig::get_is_single_threaded_scan(),
-                ScanSettingsConfig::get_debug_perform_validation_scan(),
+                ScanSettingsStore::get_memory_alignment().unwrap_or(MemoryAlignment::Alignment1),
+                ScanSettingsStore::get_floating_point_tolerance(),
+                ScanSettingsStore::get_is_single_threaded_scan(),
+                ScanSettingsStore::get_debug_perform_validation_scan(),
             )
         }) {
             Ok(resolved_targets) => resolved_targets,

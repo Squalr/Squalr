@@ -5,7 +5,7 @@ use squalr_engine_api::commands::scan_results::list::scan_results_list_response:
 use squalr_engine_api::structures::memory::normalized_module::{ModuleAddressDisplay, NormalizedModule};
 use squalr_engine_api::structures::memory::pointer::Pointer;
 use squalr_engine_api::structures::scan_results::scan_result::ScanResult;
-use squalr_engine_scanning::scan_settings_config::ScanSettingsConfig;
+use squalr_engine_session::settings::scan_settings_store::ScanSettingsStore;
 use std::sync::Arc;
 
 fn resolve_module_address_display(
@@ -32,7 +32,7 @@ impl PrivilegedCommandRequestExecutor for ScanResultsListRequest {
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
-        let results_page_size = (ScanSettingsConfig::get_results_page_size() as u64).max(1);
+        let results_page_size = (ScanSettingsStore::get_results_page_size() as u64).max(1);
         let mut scan_results_list = vec![];
         let mut data_type_result_counts = vec![];
         let mut last_page_index = 0;

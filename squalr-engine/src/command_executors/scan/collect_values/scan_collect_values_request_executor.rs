@@ -7,7 +7,7 @@ use squalr_engine_api::commands::scan::collect_values::scan_collect_values_reque
 use squalr_engine_api::commands::scan::collect_values::scan_collect_values_response::ScanCollectValuesResponse;
 use squalr_engine_api::events::scan_results::updated::scan_results_updated_event::ScanResultsUpdatedEvent;
 use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
-use squalr_engine_scanning::scan_settings_config::ScanSettingsConfig;
+use squalr_engine_session::settings::scan_settings_store::ScanSettingsStore;
 use std::sync::Arc;
 
 impl PrivilegedCommandRequestExecutor for ScanCollectValuesRequest {
@@ -22,7 +22,7 @@ impl PrivilegedCommandRequestExecutor for ScanCollectValuesRequest {
             .get_opened_process()
         {
             let snapshot = engine_privileged_state.get_snapshot();
-            let memory_alignment = ScanSettingsConfig::get_memory_alignment().unwrap_or(MemoryAlignment::Alignment1);
+            let memory_alignment = ScanSettingsStore::get_memory_alignment().unwrap_or(MemoryAlignment::Alignment1);
             let did_initialize_new_scan = match engine_privileged_state.read_symbol_registry(|symbol_registry| match snapshot.write() {
                 Ok(mut snapshot_guard) => Some({
                     ensure_snapshot_regions_for_scan(engine_privileged_state, &process_info, &mut snapshot_guard);

@@ -5,8 +5,8 @@ use squalr_engine_api::structures::{
     data_types::data_type_ref::DataTypeRef, memory::memory_alignment::MemoryAlignment, processes::opened_process_info::OpenedProcessInfo,
     snapshots::snapshot::Snapshot,
 };
-use squalr_engine_scanning::scan_settings_config::ScanSettingsConfig;
 use squalr_engine_session::os::PageRetrievalMode;
+use squalr_engine_session::settings::scan_settings_store::ScanSettingsStore;
 
 pub fn ensure_snapshot_regions_for_scan(
     engine_privileged_state: &EnginePrivilegedState,
@@ -29,7 +29,7 @@ pub fn ensure_snapshot_regions_for_scan(
 }
 
 fn effective_page_retrieval_mode() -> PageRetrievalMode {
-    match ScanSettingsConfig::get_page_retrieval_mode() {
+    match ScanSettingsStore::get_page_retrieval_mode() {
         PageRetrievalMode::FromSettings => PageRetrievalMode::FromSettings,
         PageRetrievalMode::FromUserMode => PageRetrievalMode::FromUserMode,
         PageRetrievalMode::FromNonModules => PageRetrievalMode::FromNonModules,

@@ -3,7 +3,6 @@
 
 pub mod element_scans;
 pub mod pointer_scans;
-pub mod scan_settings_config;
 pub mod scanners;
 
 pub use element_scans::{ElementScanReport, ElementScanner};

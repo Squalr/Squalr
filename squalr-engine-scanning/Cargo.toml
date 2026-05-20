@@ -9,7 +9,6 @@ edition = "2024"
 squalr-engine-api = { path = "../squalr-engine-api" }
 log = { version = "0.4.29" }
 rayon = "1.10.0"
-serde_json = "1.0.149"
 
 [build-dependencies]
 
