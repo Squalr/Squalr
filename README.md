@@ -20,6 +20,79 @@ This project is unaffiliated with any employers of our team members, past, prese
 
 ![SqualrGUI](docs/Squalr.png)
 
+## Usage
+
+Squalr can be used as a desktop app, a terminal tool, an Android privileged app, or as Rust crates for custom scanning workflows.
+
+### Desktop GUI
+
+Run the primary GUI from the workspace root:
+```sh
+cargo run -p squalr
+```
+
+Use this when you want the full interactive workflow: process selection, element scans, array/string scans, pointer scans, the memory viewer, project files, symbol layouts, and plugin-backed tooling.
+
+### CLI
+
+Run a one-shot command:
+```sh
+cargo run -p squalr-cli -- process list -w -l 20
+```
+
+Or start the interactive command loop:
+```sh
+cargo run -p squalr-cli
+```
+
+The CLI uses the same command/response engine as the GUI, so it is the right fit for smoke tests, scripted command invocations, remote shell experiments, and debugging privileged process access without the GUI in the way.
+
+### TUI
+
+Run the terminal interface:
+```sh
+cargo run -p squalr-tui
+```
+
+The TUI is a keyboard-oriented terminal frontend over the same engine/session model used by the GUI and CLI. Use it when you want an interactive scanner without a desktop window.
+
+### Android
+
+For a rooted Android device, use the privileged GUI path:
+```sh
+python ./build_and_deploy.py
+```
+
+For compile-only validation without deploying to a device:
+```sh
+python ./build_and_deploy.py --compile-check
+```
+
+The Android path builds the GUI APK, pushes the privileged worker, and validates the IPC-backed worker startup. See the Android Build section below for prerequisites and troubleshooting.
+
+### Rust Library Usage
+
+Use the crates directly when you want to embed pieces of Squalr instead of running a Squalr frontend:
+
+| Goal | Crates |
+| ---- | ------ |
+| Build scan plans, data values, data types, snapshots, scan results, and shared command models. | `squalr-engine-api` |
+| Scan caller-owned bytes or prebuilt snapshots without process I/O. | `squalr-engine-api`, `squalr-engine-scanning` |
+| Discover, open, read, write, and query target memory through traits. | `squalr-engine-targets` |
+| Use the native Windows/macOS/Linux/Android target implementation. | `squalr-engine-targets-native` |
+| Build a GUI/CLI/TUI-style app around the command/session workflow. | `squalr-engine-session`, `squalr-engine` |
+| Load and manipulate Squalr projects. | `squalr-engine-projects` |
+
+For pure scans, construct `SnapshotRegion` values from your own bytes, wrap them in a `Snapshot`, then call `ElementScanner::scan_snapshot`. This path does not need a process handle or native target backend.
+
+For process scans, use `squalr-engine-targets` to abstract your target I/O, use `squalr-engine-targets-native` if you want Squalr's native backend, and feed collected memory into `squalr-engine-scanning`. If you want Squalr's full app behavior instead, use the session/command crates and let the existing executors coordinate target I/O, scans, projects, and responses.
+
+### Plugins and Extensions
+
+Plugins are the path for extending Squalr's domain behavior. Existing plugin crates cover built-in plugins, 24-bit data types, instruction providers, binary symbols, and Dolphin memory-view routing. The medium-term goal is for plugins to extend data types, project item types, virtual modules, middleware, and tools without requiring changes to the core app.
+
+Scripting is planned, but there is not yet a stable public scripting surface.
+
 ## Development Philosophy
 Systems level work demands a systems level language. Rust was chosen because it eliminates entire classes of bugs and is perfectly suited to the job.
 
