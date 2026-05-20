@@ -1,9 +1,9 @@
+use directories::UserDirs;
 use serde_json::to_string_pretty;
 use squalr_engine_api::structures::settings::project_settings::ProjectSettings;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::Once;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, OnceLock, RwLock};
 
 pub struct ProjectSettingsConfig {
     config: Arc<RwLock<ProjectSettings>>,
@@ -15,11 +15,17 @@ impl ProjectSettingsConfig {
         let config_file = Self::default_config_path();
         let config = if config_file.exists() {
             match fs::read_to_string(&config_file) {
-                Ok(json) => serde_json::from_str(&json).unwrap_or_default(),
-                Err(_) => ProjectSettings::default(),
+                Ok(json) => serde_json::from_str(&json).unwrap_or_else(|error| {
+                    log::warn!("Failed to parse project settings config '{}': {}.", config_file.display(), error);
+                    Self::default_project_settings()
+                }),
+                Err(error) => {
+                    log::warn!("Failed to read project settings config '{}': {}.", config_file.display(), error);
+                    Self::default_project_settings()
+                }
             }
         } else {
-            ProjectSettings::default()
+            Self::default_project_settings()
         };
 
         Self {
@@ -29,18 +35,25 @@ impl ProjectSettingsConfig {
     }
 
     fn get_instance() -> &'static ProjectSettingsConfig {
-        static mut INSTANCE: Option<ProjectSettingsConfig> = None;
-        static ONCE: Once = Once::new();
+        static INSTANCE: OnceLock<ProjectSettingsConfig> = OnceLock::new();
 
-        unsafe {
-            ONCE.call_once(|| {
-                let instance = ProjectSettingsConfig::new();
-                INSTANCE = Some(instance);
-            });
+        INSTANCE.get_or_init(ProjectSettingsConfig::new)
+    }
 
-            #[allow(static_mut_refs)]
-            INSTANCE.as_ref().unwrap_unchecked()
+    fn default_project_settings() -> ProjectSettings {
+        ProjectSettings {
+            projects_root: Self::default_projects_root(),
+            ..ProjectSettings::default()
         }
+    }
+
+    fn default_projects_root() -> PathBuf {
+        UserDirs::new()
+            .and_then(|dirs| {
+                dirs.document_dir()
+                    .map(|documents_directory| documents_directory.join("Squalr"))
+            })
+            .unwrap_or_else(|| PathBuf::from("./Squalr"))
     }
 
     fn default_config_path() -> PathBuf {
@@ -67,7 +80,7 @@ impl ProjectSettingsConfig {
         if let Ok(config) = Self::get_instance().config.read() {
             config.projects_root.clone()
         } else {
-            ProjectSettings::default().projects_root
+            Self::default_projects_root()
         }
     }
 
@@ -83,7 +96,7 @@ impl ProjectSettingsConfig {
         if let Ok(config) = Self::get_instance().config.read() {
             config.project_update_interval_ms
         } else {
-            ProjectSettings::default().project_update_interval_ms
+            Self::default_project_settings().project_update_interval_ms
         }
     }
 
@@ -93,5 +106,24 @@ impl ProjectSettingsConfig {
         }
 
         Self::save_config();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ProjectSettingsConfig;
+
+    #[test]
+    fn default_project_settings_uses_app_projects_root() {
+        let default_project_settings = ProjectSettingsConfig::default_project_settings();
+
+        assert_eq!(default_project_settings.project_update_interval_ms, 200);
+        assert_eq!(
+            default_project_settings
+                .projects_root
+                .file_name()
+                .and_then(|file_name| file_name.to_str()),
+            Some("Squalr")
+        );
     }
 }

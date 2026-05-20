@@ -5213,7 +5213,6 @@ dependencies = [
  "arc-swap",
  "bus",
  "crossbeam-channel",
- "directories",
  "encoding",
  "encoding_rs",
  "log",
@@ -5234,6 +5233,7 @@ name = "squalr-engine-projects"
 version = "0.3.0"
 dependencies = [
  "anyhow",
+ "directories",
  "log",
  "serde",
  "serde_json",
