@@ -7,8 +7,7 @@ use squalr_engine_api::commands::scan::collect_values::scan_collect_values_respo
 use squalr_engine_api::events::scan_results::updated::scan_results_updated_event::ScanResultsUpdatedEvent;
 use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
 use squalr_engine_scanning::scan_settings_config::ScanSettingsConfig;
-use squalr_engine_scanning::scanners::scan_execution_context::ScanExecutionContext;
-use squalr_engine_scanning::scanners::value_collector_task::ValueCollector;
+use squalr_engine_scanning::{ScanExecutionContext, ValueCollector};
 use std::sync::Arc;
 
 impl PrivilegedCommandRequestExecutor for ScanCollectValuesRequest {

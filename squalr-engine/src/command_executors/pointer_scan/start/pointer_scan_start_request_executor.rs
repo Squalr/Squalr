@@ -10,9 +10,8 @@ use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_address_space::PointerScanAddressSpace;
 use squalr_engine_api::structures::scanning::plans::pointer_scan::pointer_scan_parameters::PointerScanParameters;
 use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
-use squalr_engine_scanning::pointer_scans::pointer_scan_executor_task::PointerScanExecutor;
 use squalr_engine_scanning::scan_settings_config::ScanSettingsConfig;
-use squalr_engine_scanning::scanners::scan_execution_context::ScanExecutionContext;
+use squalr_engine_scanning::{PointerScanExecutor, ScanExecutionContext};
 use squalr_engine_session::os::PageRetrievalMode;
 use std::sync::{Arc, RwLock};
 

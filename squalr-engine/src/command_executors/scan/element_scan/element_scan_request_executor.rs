@@ -10,8 +10,7 @@ use squalr_engine_api::structures::scanning::constraints::scan_constraint_builde
 use squalr_engine_api::structures::scanning::constraints::scan_constraint_finalized::ScanConstraintFinalized;
 use squalr_engine_api::structures::scanning::plans::element_scan::element_scan_plan::ElementScanPlan;
 use squalr_engine_scanning::scan_settings_config::ScanSettingsConfig;
-use squalr_engine_scanning::scanners::element_scan_executor_task::ElementScanExecutor;
-use squalr_engine_scanning::scanners::scan_execution_context::ScanExecutionContext;
+use squalr_engine_scanning::{ElementScanExecutor, ScanExecutionContext};
 use std::sync::Arc;
 
 impl PrivilegedCommandRequestExecutor for ElementScanRequest {
@@ -435,7 +434,7 @@ mod tests {
             .expect("Expected opened process in scan test.");
         let snapshot = engine_privileged_state.get_snapshot();
         let memory_read_provider = engine_privileged_state.get_os_providers().memory_read.clone();
-        let scan_execution_context = squalr_engine_scanning::scanners::scan_execution_context::ScanExecutionContext::new(
+        let scan_execution_context = squalr_engine_scanning::ScanExecutionContext::new(
             None,
             None,
             Some(Arc::new(move |opened_process_info, address, values| {

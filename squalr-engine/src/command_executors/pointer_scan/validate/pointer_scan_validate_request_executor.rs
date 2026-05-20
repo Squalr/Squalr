@@ -9,8 +9,7 @@ use squalr_engine_api::structures::pointer_scans::pointer_scan_address_space::Po
 use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
 use squalr_engine_scanning::pointer_scans::pointer_scan_validator::PointerScanValidator;
 use squalr_engine_scanning::scan_settings_config::ScanSettingsConfig;
-use squalr_engine_scanning::scanners::scan_execution_context::ScanExecutionContext;
-use squalr_engine_scanning::scanners::value_collector_task::ValueCollector;
+use squalr_engine_scanning::{ScanExecutionContext, ValueCollector};
 use squalr_engine_session::os::PageRetrievalMode;
 use std::sync::{Arc, RwLock};
 

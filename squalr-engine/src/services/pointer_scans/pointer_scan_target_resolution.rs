@@ -20,8 +20,7 @@ use squalr_engine_api::structures::scanning::memory_read_mode::MemoryReadMode;
 use squalr_engine_api::structures::scanning::plans::element_scan::element_scan_plan::ElementScanPlan;
 use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
 use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
-use squalr_engine_scanning::scanners::element_scan_executor_task::ElementScanExecutor;
-use squalr_engine_scanning::scanners::scan_execution_context::ScanExecutionContext;
+use squalr_engine_scanning::{ElementScanExecutor, ScanExecutionContext};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
