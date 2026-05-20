@@ -237,7 +237,6 @@ fn memory_read_mode_label(memory_read_mode: MemoryReadMode) -> &'static str {
     match memory_read_mode {
         MemoryReadMode::Skip => "skip",
         MemoryReadMode::ReadBeforeScan => "before_scan",
-        MemoryReadMode::ReadInterleavedWithScan => "interleaved",
     }
 }
 

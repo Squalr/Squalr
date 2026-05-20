@@ -1,50 +1,18 @@
 use crate::pointer_scans::pointer_scan_level_collector::PointerScanLevelCollector;
 use crate::pointer_scans::pointer_scan_results_builder::PointerScanResultsBuilder;
-use crate::scanners::scan_execution_context::ScanExecutionContext;
-use crate::scanners::value_collector_task::ValueCollector;
 use squalr_engine_api::structures::memory::normalized_module::NormalizedModule;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_address_space::PointerScanAddressSpace;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_results::PointerScanResults;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_target_descriptor::PointerScanTargetDescriptor;
-use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::scanning::plans::pointer_scan::pointer_scan_parameters::PointerScanParameters;
 use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
 use std::sync::{Arc, RwLock};
-use std::time::Instant;
 
 pub struct PointerScanExecutor;
 
-/// Performs an initial pointer scan by collecting values, discovering levels, and materializing the retained results.
+/// Performs an initial pointer scan against already-collected snapshot values.
 impl PointerScanExecutor {
     pub fn execute_scan(
-        process_info: OpenedProcessInfo,
-        statics_snapshot: Arc<RwLock<Snapshot>>,
-        heaps_snapshot: Arc<RwLock<Snapshot>>,
-        pointer_scan_session_id: u64,
-        pointer_scan_parameters: PointerScanParameters,
-        target_descriptor: PointerScanTargetDescriptor,
-        target_addresses: Vec<u64>,
-        address_space: PointerScanAddressSpace,
-        modules: &[NormalizedModule],
-        with_logging: bool,
-        scan_execution_context: &ScanExecutionContext,
-    ) -> PointerScanResults {
-        Self::scan_task(
-            process_info,
-            statics_snapshot,
-            heaps_snapshot,
-            pointer_scan_session_id,
-            pointer_scan_parameters,
-            target_descriptor,
-            target_addresses,
-            address_space,
-            modules,
-            with_logging,
-            scan_execution_context,
-        )
-    }
-
-    pub fn execute_scan_with_precollected_values(
         statics_snapshot: Arc<RwLock<Snapshot>>,
         heaps_snapshot: Arc<RwLock<Snapshot>>,
         pointer_scan_session_id: u64,
@@ -66,90 +34,6 @@ impl PointerScanExecutor {
             modules,
             with_logging,
         )
-    }
-
-    fn scan_task(
-        process_info: OpenedProcessInfo,
-        statics_snapshot: Arc<RwLock<Snapshot>>,
-        heaps_snapshot: Arc<RwLock<Snapshot>>,
-        pointer_scan_session_id: u64,
-        pointer_scan_parameters: PointerScanParameters,
-        target_descriptor: PointerScanTargetDescriptor,
-        target_addresses: Vec<u64>,
-        address_space: PointerScanAddressSpace,
-        modules: &[NormalizedModule],
-        with_logging: bool,
-        scan_execution_context: &ScanExecutionContext,
-    ) -> PointerScanResults {
-        let total_start_time = Instant::now();
-
-        if with_logging {
-            log::info!(
-                "Performing pointer scan for {} using {} pointers, max depth {}, and offset {}.",
-                target_descriptor,
-                pointer_scan_parameters.get_pointer_size(),
-                pointer_scan_parameters.get_max_depth(),
-                pointer_scan_parameters.get_offset_radius(),
-            );
-        }
-
-        // Step 1) Collect fresh values for the static and heap snapshots.
-        let value_collection_start_time = Instant::now();
-        Self::collect_pointer_scan_values(
-            process_info.clone(),
-            statics_snapshot.clone(),
-            heaps_snapshot.clone(),
-            with_logging,
-            scan_execution_context,
-        );
-        let value_collection_duration = value_collection_start_time.elapsed();
-
-        // Step 2) Discover retained pointer levels from the collected snapshots and materialize the results.
-        let discovery_start_time = Instant::now();
-        let pointer_scan_results = Self::build_session_from_collected_values(
-            statics_snapshot,
-            heaps_snapshot,
-            pointer_scan_session_id,
-            pointer_scan_parameters,
-            target_descriptor,
-            target_addresses,
-            address_space,
-            modules,
-            with_logging,
-        );
-        let discovery_duration = discovery_start_time.elapsed();
-
-        if with_logging {
-            let pointer_scan_summary = pointer_scan_results.summarize();
-
-            log::info!(
-                "Pointer scan complete: roots={}, total_nodes={}, static_nodes={}, heap_nodes={}",
-                pointer_scan_summary.get_root_node_count(),
-                pointer_scan_summary.get_total_node_count(),
-                pointer_scan_summary.get_total_static_node_count(),
-                pointer_scan_summary.get_total_heap_node_count(),
-            );
-            log::info!("Pointer scan value collection time: {:?}", value_collection_duration);
-            log::info!("Pointer scan reachability discovery time: {:?}", discovery_duration);
-            log::info!("Total pointer scan time: {:?}", total_start_time.elapsed());
-        }
-
-        pointer_scan_results
-    }
-
-    pub fn collect_pointer_scan_values(
-        process_info: OpenedProcessInfo,
-        statics_snapshot: Arc<RwLock<Snapshot>>,
-        heaps_snapshot: Arc<RwLock<Snapshot>>,
-        with_logging: bool,
-        scan_execution_context: &ScanExecutionContext,
-    ) {
-        if Arc::ptr_eq(&statics_snapshot, &heaps_snapshot) {
-            ValueCollector::collect_values(process_info, statics_snapshot, with_logging, scan_execution_context);
-        } else {
-            ValueCollector::collect_values(process_info.clone(), statics_snapshot, with_logging, scan_execution_context);
-            ValueCollector::collect_values(process_info, heaps_snapshot, with_logging, scan_execution_context);
-        }
     }
 
     fn build_session_from_collected_values(
@@ -276,15 +160,12 @@ impl PointerScanExecutor {
 #[cfg(test)]
 mod tests {
     use super::PointerScanExecutor;
-    use crate::scanners::scan_execution_context::ScanExecutionContext;
-    use squalr_engine_api::structures::memory::bitness::Bitness;
     use squalr_engine_api::structures::memory::normalized_module::NormalizedModule;
     use squalr_engine_api::structures::memory::normalized_region::NormalizedRegion;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_address_space::PointerScanAddressSpace;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_node_type::PointerScanNodeType;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_target_descriptor::PointerScanTargetDescriptor;
-    use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
     use squalr_engine_api::structures::scanning::plans::pointer_scan::pointer_scan_parameters::PointerScanParameters;
     use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
     use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
@@ -293,20 +174,10 @@ mod tests {
 
     #[test]
     fn execute_scan_builds_pointer_chains_and_classifies_static_nodes() {
-        let memory_map = Arc::new(build_pointer_scan_memory_map());
-        let scan_execution_context = ScanExecutionContext::new(
-            None,
-            None,
-            Some(Arc::new({
-                let memory_map = memory_map.clone();
-
-                move |_opened_process_info, address, values| read_memory_from_map(&memory_map, address, values)
-            })),
-        );
-        let snapshot = Arc::new(RwLock::new(build_pointer_scan_snapshot()));
+        let memory_map = build_pointer_scan_memory_map();
+        let snapshot = Arc::new(RwLock::new(build_pointer_scan_snapshot(&memory_map)));
         let pointer_scan_parameters = PointerScanParameters::new(PointerScanPointerSize::Pointer64, 0x20, 3, true, false);
         let mut pointer_scan_results = PointerScanExecutor::execute_scan(
-            OpenedProcessInfo::new(7, "pointer-test".to_string(), 0, Bitness::Bit64, None),
             snapshot.clone(),
             snapshot,
             41,
@@ -316,7 +187,6 @@ mod tests {
             PointerScanAddressSpace::EmulatorMemory,
             &[NormalizedModule::new("game.exe", 0x1000, 0x100)],
             false,
-            &scan_execution_context,
         );
 
         assert_eq!(pointer_scan_results.get_session_id(), 41);
@@ -385,20 +255,10 @@ mod tests {
 
     #[test]
     fn execute_scan_omits_terminal_heap_candidates() {
-        let memory_map = Arc::new(build_terminal_heap_pointer_scan_memory_map());
-        let scan_execution_context = ScanExecutionContext::new(
-            None,
-            None,
-            Some(Arc::new({
-                let memory_map = memory_map.clone();
-
-                move |_opened_process_info, address, values| read_memory_from_map(&memory_map, address, values)
-            })),
-        );
-        let snapshot = Arc::new(RwLock::new(build_terminal_heap_pointer_scan_snapshot()));
+        let memory_map = build_terminal_heap_pointer_scan_memory_map();
+        let snapshot = Arc::new(RwLock::new(build_terminal_heap_pointer_scan_snapshot(&memory_map)));
         let pointer_scan_parameters = PointerScanParameters::new(PointerScanPointerSize::Pointer64, 0x20, 2, true, false);
         let pointer_scan_results = PointerScanExecutor::execute_scan(
-            OpenedProcessInfo::new(8, "pointer-terminal-heap-test".to_string(), 0, Bitness::Bit64, None),
             snapshot.clone(),
             snapshot,
             42,
@@ -408,7 +268,6 @@ mod tests {
             PointerScanAddressSpace::EmulatorMemory,
             &[NormalizedModule::new("game.exe", 0x1000, 0x100)],
             false,
-            &scan_execution_context,
         );
 
         let pointer_scan_levels = pointer_scan_results.get_pointer_scan_levels();
@@ -420,28 +279,44 @@ mod tests {
         assert_eq!(pointer_scan_results.get_total_heap_node_count(), 1);
     }
 
-    fn build_pointer_scan_snapshot() -> Snapshot {
+    fn build_pointer_scan_snapshot(memory_map: &HashMap<u64, u8>) -> Snapshot {
         let mut snapshot = Snapshot::new();
 
         snapshot.set_snapshot_regions(vec![
-            SnapshotRegion::new(NormalizedRegion::new(0x1000, 0x40), Vec::new()),
-            SnapshotRegion::new(NormalizedRegion::new(0x2000, 0x40), Vec::new()),
-            SnapshotRegion::new(NormalizedRegion::new(0x3000, 0x40), Vec::new()),
+            build_snapshot_region(NormalizedRegion::new(0x1000, 0x40), memory_map),
+            build_snapshot_region(NormalizedRegion::new(0x2000, 0x40), memory_map),
+            build_snapshot_region(NormalizedRegion::new(0x3000, 0x40), memory_map),
         ]);
 
         snapshot
     }
 
-    fn build_terminal_heap_pointer_scan_snapshot() -> Snapshot {
+    fn build_terminal_heap_pointer_scan_snapshot(memory_map: &HashMap<u64, u8>) -> Snapshot {
         let mut snapshot = Snapshot::new();
 
         snapshot.set_snapshot_regions(vec![
-            SnapshotRegion::new(NormalizedRegion::new(0x1000, 0x40), Vec::new()),
-            SnapshotRegion::new(NormalizedRegion::new(0x2000, 0x40), Vec::new()),
-            SnapshotRegion::new(NormalizedRegion::new(0x4000, 0x40), Vec::new()),
+            build_snapshot_region(NormalizedRegion::new(0x1000, 0x40), memory_map),
+            build_snapshot_region(NormalizedRegion::new(0x2000, 0x40), memory_map),
+            build_snapshot_region(NormalizedRegion::new(0x4000, 0x40), memory_map),
         ]);
 
         snapshot
+    }
+
+    fn build_snapshot_region(
+        normalized_region: NormalizedRegion,
+        memory_map: &HashMap<u64, u8>,
+    ) -> SnapshotRegion {
+        let mut snapshot_region = SnapshotRegion::new(normalized_region.clone(), Vec::new());
+        snapshot_region.current_values = (0..normalized_region.get_region_size())
+            .map(|byte_offset| {
+                *memory_map
+                    .get(&normalized_region.get_base_address().saturating_add(byte_offset))
+                    .unwrap_or(&0)
+            })
+            .collect();
+
+        snapshot_region
     }
 
     fn build_pointer_scan_memory_map() -> HashMap<u64, u8> {
@@ -473,19 +348,5 @@ mod tests {
         for (byte_index, byte_value) in value.to_le_bytes().iter().enumerate() {
             memory_map.insert(address.saturating_add(byte_index as u64), *byte_value);
         }
-    }
-
-    fn read_memory_from_map(
-        memory_map: &HashMap<u64, u8>,
-        address: u64,
-        values: &mut [u8],
-    ) -> bool {
-        for (byte_index, value) in values.iter_mut().enumerate() {
-            *value = *memory_map
-                .get(&address.saturating_add(byte_index as u64))
-                .unwrap_or(&0);
-        }
-
-        true
     }
 }

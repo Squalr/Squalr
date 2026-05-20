@@ -4864,12 +4864,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d767eb0aabc880b29956c35734170f26ed551a859dbd361d140cdbeca61ab1e2"
 
 [[package]]
-name = "seq-macro"
-version = "0.3.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1bc711410fbe7399f390ca1c3b60ad0f53f80e95c5eb935e52268a0e2cd49acc"
-
-[[package]]
 name = "serde"
 version = "1.0.228"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5190,6 +5184,7 @@ dependencies = [
  "interprocess",
  "log",
  "opener",
+ "rayon",
  "rfd",
  "self-replace",
  "semver",
@@ -5251,18 +5246,10 @@ dependencies = [
 name = "squalr-engine-scanning"
 version = "0.3.0"
 dependencies = [
- "bitflags 2.10.0",
- "bytemuck",
- "futures",
- "lazy_static",
  "log",
  "rayon",
- "seq-macro",
- "serde",
  "serde_json",
- "smallvec",
  "squalr-engine-api",
- "thiserror 2.0.18",
 ]
 
 [[package]]

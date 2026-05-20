@@ -1,4 +1,5 @@
 use crate::command_executors::privileged_request_executor::PrivilegedCommandRequestExecutor;
+use crate::command_executors::scan::snapshot_value_collector::SnapshotValueCollector;
 use crate::command_executors::snapshot_region_builder::merge_memory_regions_into_snapshot_regions;
 use crate::engine_privileged_state::EnginePrivilegedState;
 use crate::services::pointer_scans::pointer_scan_target_resolution::{
@@ -10,8 +11,8 @@ use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_address_space::PointerScanAddressSpace;
 use squalr_engine_api::structures::scanning::plans::pointer_scan::pointer_scan_parameters::PointerScanParameters;
 use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
+use squalr_engine_scanning::PointerScanExecutor;
 use squalr_engine_scanning::scan_settings_config::ScanSettingsConfig;
-use squalr_engine_scanning::{PointerScanExecutor, ScanExecutionContext};
 use squalr_engine_session::os::PageRetrievalMode;
 use std::sync::{Arc, RwLock};
 
@@ -77,14 +78,6 @@ impl PrivilegedCommandRequestExecutor for PointerScanStartRequest {
         let mut pointer_scan_snapshot = Snapshot::new();
         pointer_scan_snapshot.set_snapshot_regions(merge_memory_regions_into_snapshot_regions(pointer_scan_memory_regions));
         let pointer_scan_snapshot = Arc::new(RwLock::new(pointer_scan_snapshot));
-        let memory_read_provider = engine_privileged_state.get_os_providers().memory_read.clone();
-        let scan_execution_context = ScanExecutionContext::new(
-            None,
-            None,
-            Some(Arc::new(move |opened_process_info, address, values| {
-                memory_read_provider.read_bytes(opened_process_info, address, values)
-            })),
-        );
         let pointer_scan_parameters = PointerScanParameters::new(
             effective_pointer_size,
             self.offset_radius,
@@ -92,12 +85,11 @@ impl PrivilegedCommandRequestExecutor for PointerScanStartRequest {
             ScanSettingsConfig::get_is_single_threaded_scan(),
             ScanSettingsConfig::get_debug_perform_validation_scan(),
         );
-        PointerScanExecutor::collect_pointer_scan_values(
+        SnapshotValueCollector::collect_values(
             process_info.clone(),
             pointer_scan_snapshot.clone(),
-            pointer_scan_snapshot.clone(),
+            engine_privileged_state.get_os_providers().memory_read.clone(),
             true,
-            &scan_execution_context,
         );
         let resolved_targets = match engine_privileged_state.read_symbol_registry(|symbol_registry| {
             PointerScanTargetResolver::resolve_targets(
@@ -105,12 +97,10 @@ impl PrivilegedCommandRequestExecutor for PointerScanStartRequest {
                 symbol_registry,
                 effective_pointer_size,
                 pointer_scan_snapshot.clone(),
-                process_info.clone(),
                 ScanSettingsConfig::get_memory_alignment().unwrap_or(MemoryAlignment::Alignment1),
                 ScanSettingsConfig::get_floating_point_tolerance(),
                 ScanSettingsConfig::get_is_single_threaded_scan(),
                 ScanSettingsConfig::get_debug_perform_validation_scan(),
-                &scan_execution_context,
             )
         }) {
             Ok(resolved_targets) => resolved_targets,
@@ -120,7 +110,7 @@ impl PrivilegedCommandRequestExecutor for PointerScanStartRequest {
             }
         };
         let pointer_scan_results_id = engine_privileged_state.allocate_pointer_scan_results_id();
-        let pointer_scan_results = PointerScanExecutor::execute_scan_with_precollected_values(
+        let pointer_scan_results = PointerScanExecutor::execute_scan(
             pointer_scan_snapshot.clone(),
             pointer_scan_snapshot,
             pointer_scan_results_id,

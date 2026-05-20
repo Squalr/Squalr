@@ -240,7 +240,7 @@ fn scan_settings_set_request_dispatches_set_command_and_invokes_typed_callback()
         project_read_interval_ms: None,
         freeze_interval_ms: None,
         memory_alignment: Some(MemoryAlignment::Alignment4),
-        memory_read_mode: Some(MemoryReadMode::ReadInterleavedWithScan),
+        memory_read_mode: Some(MemoryReadMode::ReadBeforeScan),
         floating_point_tolerance: Some(FloatingPointTolerance::Tolerance10E3),
         is_single_threaded_scan: Some(false),
         debug_perform_validation_scan: Some(true),
@@ -269,10 +269,7 @@ fn scan_settings_set_request_dispatches_set_command_and_invokes_typed_callback()
             assert_eq!(captured_scan_settings_set_request.page_retrieval_mode, Some(PageRetrievalMode::FromSettings));
             assert_eq!(captured_scan_settings_set_request.results_page_size, Some(256));
             assert_eq!(captured_scan_settings_set_request.memory_alignment, Some(MemoryAlignment::Alignment4));
-            assert_eq!(
-                captured_scan_settings_set_request.memory_read_mode,
-                Some(MemoryReadMode::ReadInterleavedWithScan)
-            );
+            assert_eq!(captured_scan_settings_set_request.memory_read_mode, Some(MemoryReadMode::ReadBeforeScan));
             assert_eq!(
                 captured_scan_settings_set_request.floating_point_tolerance,
                 Some(FloatingPointTolerance::Tolerance10E3)
@@ -364,7 +361,7 @@ fn privileged_command_parser_accepts_scan_settings_set_with_long_flags() {
             "--memory-alignment",
             "8",
             "--memory-read-mode",
-            "i",
+            "b",
             "--floating-point-tolerance",
             "epsilon",
             "--is-single-threaded-scan",
@@ -383,7 +380,7 @@ fn privileged_command_parser_accepts_scan_settings_set_with_long_flags() {
         }) => {
             assert_eq!(scan_settings_set_request.results_page_size, Some(512));
             assert_eq!(scan_settings_set_request.memory_alignment, Some(MemoryAlignment::Alignment8));
-            assert_eq!(scan_settings_set_request.memory_read_mode, Some(MemoryReadMode::ReadInterleavedWithScan));
+            assert_eq!(scan_settings_set_request.memory_read_mode, Some(MemoryReadMode::ReadBeforeScan));
             assert_eq!(
                 scan_settings_set_request.floating_point_tolerance,
                 Some(FloatingPointTolerance::ToleranceEpsilon)

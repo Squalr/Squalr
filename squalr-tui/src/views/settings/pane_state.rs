@@ -630,11 +630,7 @@ impl SettingsPaneState {
         current_mode: MemoryReadMode,
         move_forward: bool,
     ) -> MemoryReadMode {
-        let all_modes = [
-            MemoryReadMode::Skip,
-            MemoryReadMode::ReadBeforeScan,
-            MemoryReadMode::ReadInterleavedWithScan,
-        ];
+        let all_modes = [MemoryReadMode::Skip, MemoryReadMode::ReadBeforeScan];
         let current_position = all_modes
             .iter()
             .position(|memory_read_mode| *memory_read_mode == current_mode)

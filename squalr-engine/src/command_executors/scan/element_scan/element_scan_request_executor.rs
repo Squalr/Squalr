@@ -1,5 +1,6 @@
 use crate::command_executors::privileged_request_executor::PrivilegedCommandRequestExecutor;
 use crate::command_executors::scan::scan_results_metadata_collector::collect_scan_results_metadata;
+use crate::command_executors::scan::snapshot_value_collector::SnapshotValueCollector;
 use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::scan::element_scan::element_scan_request::ElementScanRequest;
 use squalr_engine_api::commands::scan::element_scan::element_scan_response::ElementScanResponse;
@@ -8,9 +9,10 @@ use squalr_engine_api::registries::scan_rules::element_scan_rule_registry::Eleme
 use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
 use squalr_engine_api::structures::scanning::constraints::scan_constraint_builder::ScanConstraintBuilder;
 use squalr_engine_api::structures::scanning::constraints::scan_constraint_finalized::ScanConstraintFinalized;
+use squalr_engine_api::structures::scanning::memory_read_mode::MemoryReadMode;
 use squalr_engine_api::structures::scanning::plans::element_scan::element_scan_plan::ElementScanPlan;
 use squalr_engine_scanning::scan_settings_config::ScanSettingsConfig;
-use squalr_engine_scanning::{ElementScanExecutor, ScanExecutionContext};
+use squalr_engine_scanning::{ElementScanner, ScanControl};
 use std::sync::Arc;
 
 impl PrivilegedCommandRequestExecutor for ElementScanRequest {
@@ -86,22 +88,20 @@ impl PrivilegedCommandRequestExecutor for ElementScanRequest {
                 debug_perform_validation_scan,
             );
             let memory_read_provider = engine_privileged_state.get_os_providers().memory_read.clone();
-            let scan_execution_context = ScanExecutionContext::new(
-                None,
-                None,
-                Some(Arc::new(move |opened_process_info, address, values| {
-                    memory_read_provider.read_bytes(opened_process_info, address, values)
-                })),
-            );
+            if memory_read_mode != MemoryReadMode::Skip {
+                SnapshotValueCollector::collect_values(process_info, snapshot.clone(), memory_read_provider, true);
+            }
+
             engine_privileged_state.read_symbol_registry(|symbol_registry| {
-                ElementScanExecutor::execute_scan(
-                    process_info,
-                    snapshot.clone(),
-                    symbol_registry,
-                    element_scan_plan,
-                    true,
-                    &scan_execution_context,
-                );
+                let mut snapshot_guard = match snapshot.write() {
+                    Ok(snapshot_guard) => snapshot_guard,
+                    Err(error) => {
+                        log::error!("Failed to acquire write lock on snapshot before element scan: {}", error);
+                        return;
+                    }
+                };
+
+                ElementScanner::scan_snapshot(&mut snapshot_guard, symbol_registry, &element_scan_plan, &ScanControl::default());
             });
 
             engine_privileged_state.emit_event(ScanResultsUpdatedEvent { is_new_scan: false });
@@ -119,7 +119,7 @@ impl PrivilegedCommandRequestExecutor for ElementScanRequest {
 
 #[cfg(test)]
 mod tests {
-    use super::ElementScanExecutor;
+    use super::{ElementScanner, ScanControl, SnapshotValueCollector};
     use crate::command_executors::privileged_request_executor::PrivilegedCommandRequestExecutor;
     use crate::engine_privileged_state::EnginePrivilegedState;
     use squalr_engine_api::commands::scan::element_scan::element_scan_request::ElementScanRequest;
@@ -434,23 +434,12 @@ mod tests {
             .expect("Expected opened process in scan test.");
         let snapshot = engine_privileged_state.get_snapshot();
         let memory_read_provider = engine_privileged_state.get_os_providers().memory_read.clone();
-        let scan_execution_context = squalr_engine_scanning::ScanExecutionContext::new(
-            None,
-            None,
-            Some(Arc::new(move |opened_process_info, address, values| {
-                memory_read_provider.read_bytes(opened_process_info, address, values)
-            })),
-        );
+        SnapshotValueCollector::collect_values(process_info, snapshot.clone(), memory_read_provider, false);
 
         engine_privileged_state.read_symbol_registry(|symbol_registry| {
-            ElementScanExecutor::execute_scan(
-                process_info,
-                snapshot.clone(),
-                symbol_registry,
-                element_scan_plan,
-                false,
-                &scan_execution_context,
-            );
+            let mut snapshot_guard = snapshot.write().expect("Expected snapshot write lock.");
+
+            ElementScanner::scan_snapshot(&mut snapshot_guard, symbol_registry, &element_scan_plan, &ScanControl::default());
         });
     }
 

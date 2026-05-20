@@ -6,14 +6,13 @@ use crate::pointer_scans::structures::pointer_scan_collected_candidate::PointerS
 use crate::pointer_scans::structures::pointer_scan_collected_level::PointerScanCollectedLevel;
 use crate::pointer_scans::structures::pointer_scan_target_ranges::PointerScanTargetRangeSet;
 use crate::pointer_scans::structures::snapshot_region_scan_task::SnapshotRegionScanTask;
-use crate::scanners::scan_execution_context::ScanExecutionContext;
+use crate::scanners::scan_control::ScanControl;
 use rayon::prelude::*;
 use squalr_engine_api::structures::memory::normalized_module::NormalizedModule;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_candidate::PointerScanCandidate;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_results::PointerScanResults;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_target_descriptor::PointerScanTargetDescriptor;
-use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
 use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
 use std::time::Instant;
@@ -32,7 +31,7 @@ struct PointerValidationContext<'a> {
     validation_target_addresses: &'a [u64],
     offset_radius: u64,
     pointer_size: PointerScanPointerSize,
-    scan_execution_context: &'a ScanExecutionContext,
+    scan_control: &'a ScanControl,
 }
 
 impl<'a> PointerValidationContext<'a> {
@@ -41,7 +40,7 @@ impl<'a> PointerValidationContext<'a> {
         validation_target_addresses: &'a [u64],
         validation_snapshot: &'a Snapshot,
         modules: &'a [NormalizedModule],
-        scan_execution_context: &'a ScanExecutionContext,
+        scan_control: &'a ScanControl,
     ) -> Self {
         let mut current_modules_by_name = modules
             .iter()
@@ -55,7 +54,7 @@ impl<'a> PointerValidationContext<'a> {
             validation_target_addresses,
             offset_radius: original_pointer_scan_results.get_offset_radius(),
             pointer_size: original_pointer_scan_results.get_pointer_size(),
-            scan_execution_context,
+            scan_control,
         }
     }
 }
@@ -64,13 +63,12 @@ pub struct PointerScanValidator;
 
 impl PointerScanValidator {
     pub fn validate_scan(
-        _process_info: OpenedProcessInfo,
         pointer_scan_results: &PointerScanResults,
         validation_target_descriptor: PointerScanTargetDescriptor,
         validation_target_addresses: Vec<u64>,
         validation_snapshot: &Snapshot,
         modules: &[NormalizedModule],
-        scan_execution_context: &ScanExecutionContext,
+        scan_control: &ScanControl,
         with_logging: bool,
     ) -> PointerScanResults {
         let total_start_time = Instant::now();
@@ -92,7 +90,7 @@ impl PointerScanValidator {
             validation_target_addresses.as_slice(),
             validation_snapshot,
             modules,
-            scan_execution_context,
+            scan_control,
         );
         let validation_heap_scan_tasks =
             PointerScanTaskBuilder::build_heap_scan_tasks(validation_context.validation_snapshot_regions, modules, validation_context.pointer_size);
@@ -145,7 +143,7 @@ impl PointerScanValidator {
             .iter()
             .enumerate()
         {
-            if validation_context.scan_execution_context.should_cancel() || frontier_target_ranges.is_empty() {
+            if validation_context.scan_control.should_cancel() || frontier_target_ranges.is_empty() {
                 break;
             }
 
@@ -235,7 +233,7 @@ impl PointerScanValidator {
                 let mut validated_static_candidates = Vec::with_capacity(static_pointer_scan_candidate_chunk.len());
 
                 for static_pointer_scan_candidate in static_pointer_scan_candidate_chunk {
-                    if validation_context.scan_execution_context.should_cancel() {
+                    if validation_context.scan_control.should_cancel() {
                         break;
                     }
 
@@ -437,8 +435,7 @@ impl PointerScanValidator {
 mod tests {
     use super::PointerScanValidator;
     use crate::pointer_scans::pointer_scan_executor_task::PointerScanExecutor;
-    use crate::scanners::scan_execution_context::ScanExecutionContext;
-    use squalr_engine_api::structures::memory::bitness::Bitness;
+    use crate::scanners::scan_control::ScanControl;
     use squalr_engine_api::structures::memory::normalized_module::NormalizedModule;
     use squalr_engine_api::structures::memory::normalized_region::NormalizedRegion;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_address_space::PointerScanAddressSpace;
@@ -449,7 +446,6 @@ mod tests {
     use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_results::PointerScanResults;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_target_descriptor::PointerScanTargetDescriptor;
-    use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
     use squalr_engine_api::structures::scanning::plans::pointer_scan::pointer_scan_parameters::PointerScanParameters;
     use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
     use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
@@ -459,24 +455,14 @@ mod tests {
     #[test]
     fn validate_scan_rebuilds_live_heap_nodes_and_prunes_invalid_static_roots() {
         let original_pointer_scan_results = build_original_pointer_scan_results();
-        let validation_memory_map = Arc::new(build_validation_memory_map());
-        let scan_execution_context = ScanExecutionContext::new(
-            None,
-            None,
-            Some(Arc::new({
-                let validation_memory_map = validation_memory_map.clone();
-
-                move |_opened_process_info, address, values| read_memory_from_map(&validation_memory_map, address, values)
-            })),
-        );
+        let validation_memory_map = build_validation_memory_map();
         let mut validated_pointer_scan_results = PointerScanValidator::validate_scan(
-            OpenedProcessInfo::new(7, "pointer-test".to_string(), 0, Bitness::Bit64, None),
             &original_pointer_scan_results,
             PointerScanTargetDescriptor::address(0x4010),
             vec![0x4010],
             &build_snapshot_from_memory_map(&build_validation_memory_regions(), &validation_memory_map),
             &[NormalizedModule::new("game.exe", 0x1000, 0x100)],
-            &scan_execution_context,
+            &ScanControl::default(),
             false,
         );
 
@@ -517,24 +503,14 @@ mod tests {
     #[test]
     fn validate_scan_rebases_static_module_addresses_before_pruning() {
         let original_pointer_scan_results = build_original_pointer_scan_results();
-        let rebased_validation_memory_map = Arc::new(build_rebased_validation_memory_map());
-        let scan_execution_context = ScanExecutionContext::new(
-            None,
-            None,
-            Some(Arc::new({
-                let rebased_validation_memory_map = rebased_validation_memory_map.clone();
-
-                move |_opened_process_info, address, values| read_memory_from_map(&rebased_validation_memory_map, address, values)
-            })),
-        );
+        let rebased_validation_memory_map = build_rebased_validation_memory_map();
         let mut validated_pointer_scan_results = PointerScanValidator::validate_scan(
-            OpenedProcessInfo::new(7, "pointer-test".to_string(), 0, Bitness::Bit64, None),
             &original_pointer_scan_results,
             PointerScanTargetDescriptor::address(0x8010),
             vec![0x8010],
             &build_snapshot_from_memory_map(&build_rebased_validation_memory_regions(), &rebased_validation_memory_map),
             &[NormalizedModule::new("game.exe", 0x5000, 0x100)],
-            &scan_execution_context,
+            &ScanControl::default(),
             false,
         );
 
@@ -561,24 +537,14 @@ mod tests {
     #[test]
     fn validate_scan_rebuilds_live_heap_candidates_from_validation_snapshot() {
         let original_pointer_scan_results = build_original_pointer_scan_results();
-        let validation_memory_map = Arc::new(build_validation_memory_map_with_extra_heap_match());
-        let scan_execution_context = ScanExecutionContext::new(
-            None,
-            None,
-            Some(Arc::new({
-                let validation_memory_map = validation_memory_map.clone();
-
-                move |_opened_process_info, address, values| read_memory_from_map(&validation_memory_map, address, values)
-            })),
-        );
+        let validation_memory_map = build_validation_memory_map_with_extra_heap_match();
         let mut validated_pointer_scan_results = PointerScanValidator::validate_scan(
-            OpenedProcessInfo::new(7, "pointer-test".to_string(), 0, Bitness::Bit64, None),
             &original_pointer_scan_results,
             PointerScanTargetDescriptor::address(0x4010),
             vec![0x4010],
             &build_snapshot_from_memory_map(&build_validation_memory_regions_with_extra_heap_match(), &validation_memory_map),
             &[NormalizedModule::new("game.exe", 0x1000, 0x100)],
-            &scan_execution_context,
+            &ScanControl::default(),
             false,
         );
 
@@ -595,24 +561,14 @@ mod tests {
     #[test]
     fn validate_scan_deduplicates_shared_live_heap_children() {
         let original_pointer_scan_results = build_shared_child_original_pointer_scan_results();
-        let validation_memory_map = Arc::new(build_shared_child_validation_memory_map());
-        let scan_execution_context = ScanExecutionContext::new(
-            None,
-            None,
-            Some(Arc::new({
-                let validation_memory_map = validation_memory_map.clone();
-
-                move |_opened_process_info, address, values| read_memory_from_map(&validation_memory_map, address, values)
-            })),
-        );
+        let validation_memory_map = build_shared_child_validation_memory_map();
         let mut validated_pointer_scan_results = PointerScanValidator::validate_scan(
-            OpenedProcessInfo::new(9, "pointer-shared-child-test".to_string(), 0, Bitness::Bit64, None),
             &original_pointer_scan_results,
             PointerScanTargetDescriptor::address(0x4010),
             vec![0x4010],
             &build_snapshot_from_memory_map(&build_shared_child_validation_memory_regions(), &validation_memory_map),
             &[NormalizedModule::new("game.exe", 0x1000, 0x100)],
-            &scan_execution_context,
+            &ScanControl::default(),
             false,
         );
 
@@ -638,21 +594,18 @@ mod tests {
     }
 
     fn build_original_pointer_scan_results() -> PointerScanResults {
-        let original_memory_map = Arc::new(build_original_pointer_scan_memory_map());
-        let scan_execution_context = ScanExecutionContext::new(
-            None,
-            None,
-            Some(Arc::new({
-                let original_memory_map = original_memory_map.clone();
-
-                move |_opened_process_info, address, values| read_memory_from_map(&original_memory_map, address, values)
-            })),
-        );
-        let snapshot = Arc::new(RwLock::new(build_pointer_scan_snapshot()));
+        let original_memory_map = build_original_pointer_scan_memory_map();
+        let snapshot = Arc::new(RwLock::new(build_snapshot_from_memory_map(
+            &[
+                NormalizedRegion::new(0x1000, 0x40),
+                NormalizedRegion::new(0x2000, 0x40),
+                NormalizedRegion::new(0x3000, 0x40),
+            ],
+            &original_memory_map,
+        )));
         let pointer_scan_parameters = PointerScanParameters::new(PointerScanPointerSize::Pointer64, 0x20, 3, true, false);
 
         PointerScanExecutor::execute_scan(
-            OpenedProcessInfo::new(7, "pointer-test".to_string(), 0, Bitness::Bit64, None),
             snapshot.clone(),
             snapshot,
             41,
@@ -662,7 +615,6 @@ mod tests {
             PointerScanAddressSpace::EmulatorMemory,
             &[NormalizedModule::new("game.exe", 0x1000, 0x100)],
             false,
-            &scan_execution_context,
         )
     }
 
@@ -706,18 +658,6 @@ mod tests {
             2,
             1,
         )
-    }
-
-    fn build_pointer_scan_snapshot() -> Snapshot {
-        let mut snapshot = Snapshot::new();
-
-        snapshot.set_snapshot_regions(vec![
-            SnapshotRegion::new(NormalizedRegion::new(0x1000, 0x40), Vec::new()),
-            SnapshotRegion::new(NormalizedRegion::new(0x2000, 0x40), Vec::new()),
-            SnapshotRegion::new(NormalizedRegion::new(0x3000, 0x40), Vec::new()),
-        ]);
-
-        snapshot
     }
 
     fn build_snapshot_from_memory_map(
@@ -828,19 +768,5 @@ mod tests {
         for (byte_index, byte_value) in value.to_le_bytes().iter().enumerate() {
             memory_map.insert(address.saturating_add(byte_index as u64), *byte_value);
         }
-    }
-
-    fn read_memory_from_map(
-        memory_map: &HashMap<u64, u8>,
-        address: u64,
-        values: &mut [u8],
-    ) -> bool {
-        for (byte_index, value) in values.iter_mut().enumerate() {
-            *value = *memory_map
-                .get(&address.saturating_add(byte_index as u64))
-                .unwrap_or(&0);
-        }
-
-        true
     }
 }
