@@ -6,7 +6,6 @@ edition = "2024"
 # build = "build.rs"
 
 [dependencies]
-squalr-engine-domain = { path = "../squalr-engine-domain" }
 anyhow = "1.0.101"
 arc-swap = "1.8.1"
 bus = "2.4.1"

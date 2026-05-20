@@ -5229,22 +5229,10 @@ dependencies = [
  "serde_json",
  "slab",
  "smallvec",
- "squalr-engine-domain",
  "structopt",
  "thiserror 2.0.18",
  "typetag",
  "uuid",
-]
-
-[[package]]
-name = "squalr-engine-domain"
-version = "0.3.0"
-dependencies = [
- "log",
- "num-traits",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
 ]
 
 [[package]]

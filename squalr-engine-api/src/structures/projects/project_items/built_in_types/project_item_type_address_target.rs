@@ -1,11 +1,11 @@
 use crate::structures::memory::{
     pointer::Pointer,
     pointer_chain_segment::{IntoPointerChainSegments, PointerChainSegment},
+    symbolic_pointer_chain::SymbolicPointerChain,
 };
 use crate::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 use crate::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
 use serde::{Deserialize, Serialize};
-use squalr_engine_domain::structures::memory::symbolic_pointer_chain::SymbolicPointerChain;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProjectItemAddressTarget {

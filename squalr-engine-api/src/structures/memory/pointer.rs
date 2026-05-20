@@ -1,7 +1,7 @@
 use crate::structures::memory::address_display::{format_absolute_address, format_module_address};
+use crate::structures::memory::symbolic_pointer_chain::{SymbolicPointerChain, SymbolicPointerChainLink};
 use crate::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 use serde::{Deserialize, Serialize};
-use squalr_engine_domain::structures::memory::symbolic_pointer_chain::{SymbolicPointerChain, SymbolicPointerChainLink};
 
 #[derive(Clone, Debug, Hash, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Pointer {
