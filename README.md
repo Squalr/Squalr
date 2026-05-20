@@ -317,14 +317,6 @@ Struct scans will be very challenging. Imagine scanning for {float} {float} {flo
 Our existing architecture is quite flexible, but this definitely requires a special scanner implementation, and it is highly unlikely to benefit from any of the rules engine optimizations.
 
 ## Detailed Tasklist
-This is a highly descriptive list of tasks to be implemented, with enough detail such that an agent should be able to audit the codebase and come up with a plan.
-
-### Conversion Testing
-Branch: `pr/conversion-testing`
-
-The conversions in the squalr-engine-api should probably have a dedicated test suite.
-
-Additionally, conversions should be architecturally audited for robustness.
 
 ### Engine Event Hooks
 Branch: `pr/engine-event-hooks`
