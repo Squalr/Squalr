@@ -9,7 +9,6 @@ pub enum AnonymousValueStringFormat {
     String,
     Binary,
     Decimal,
-    #[serde(alias = "HexPattern", alias = "hex_pattern")]
     Hexadecimal,
     Address,
     DataTypeRef,
@@ -45,11 +44,29 @@ impl FromStr for AnonymousValueStringFormat {
             "string" => Ok(AnonymousValueStringFormat::String),
             "bin" | "binary" => Ok(AnonymousValueStringFormat::Binary),
             "dec" | "decimal" => Ok(AnonymousValueStringFormat::Decimal),
-            "hex" | "hexadecimal" | "hex_pattern" => Ok(AnonymousValueStringFormat::Hexadecimal),
+            "hex" | "hexadecimal" => Ok(AnonymousValueStringFormat::Hexadecimal),
             "address" => Ok(AnonymousValueStringFormat::Address),
             "data_type_ref" => Ok(AnonymousValueStringFormat::DataTypeRef),
             "enumeration" => Ok(AnonymousValueStringFormat::Enumeration),
             _ => Err(format!("Unknown display type: {}", input)),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AnonymousValueStringFormat;
+    use std::str::FromStr;
+
+    #[test]
+    fn from_str_rejects_legacy_hex_pattern_name() {
+        assert!(AnonymousValueStringFormat::from_str("hex_pattern").is_err());
+    }
+
+    #[test]
+    fn serde_rejects_legacy_hex_pattern_name() {
+        let parse_result = serde_json::from_str::<AnonymousValueStringFormat>("\"HexPattern\"");
+
+        assert!(parse_result.is_err());
     }
 }
