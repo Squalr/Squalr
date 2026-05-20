@@ -31,11 +31,10 @@ use eframe::egui::{Align, CursorIcon, Key, Layout, Pos2, Response, Ui, Widget};
 use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRequest;
 use squalr_engine_api::commands::settings::scan::list::scan_settings_list_request::ScanSettingsListRequest;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
-use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::anonymous_value_string::AnonymousValueString;
-use squalr_engine_api::structures::projects::project_items::{project_item::ProjectItem, project_item_ref::ProjectItemRef};
-use std::collections::{HashMap, HashSet};
+use squalr_engine_api::structures::projects::project_items::project_item::ProjectItem;
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -49,14 +48,6 @@ pub struct ProjectHierarchyView {
     memory_viewer_view_data: Dependency<MemoryViewerViewData>,
     pointer_scanner_view_data: Dependency<PointerScannerViewData>,
     struct_viewer_view_data: Dependency<StructViewerViewData>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct ProjectItemChangeSignature {
-    project_item_type_id: String,
-    project_item_name: String,
-    project_item_description: String,
-    project_item_properties: Vec<(String, Vec<u8>)>,
 }
 
 impl ProjectHierarchyView {
@@ -118,7 +109,6 @@ impl Widget for ProjectHierarchyView {
             .ctx()
             .request_repaint_after(project_read_interval);
 
-        self.refresh_if_project_changed();
         runtime_preview_controller.refresh_if_project_preview_values_stale(project_read_interval);
 
         let project_hierarchy_toolbar_view = self.project_hierarchy_toolbar_view.clone();
@@ -882,102 +872,5 @@ impl ProjectHierarchyView {
                 log::error!("Failed to acquire docking manager while opening the code viewer: {}", error);
             }
         }
-    }
-
-    fn refresh_if_project_changed(&self) {
-        let (opened_project_directory_path, opened_project_item_signatures, opened_project_sort_order) = match self
-            .app_context
-            .engine_unprivileged_state
-            .get_project_manager()
-            .get_opened_project()
-            .read()
-        {
-            Ok(opened_project_guard) => opened_project_guard
-                .as_ref()
-                .map(|opened_project| {
-                    let opened_project_directory_path = opened_project.get_project_info().get_project_directory();
-                    let opened_project_item_signatures = Self::collect_project_item_change_signatures(opened_project.get_project_items().iter());
-                    let opened_project_sort_order = opened_project
-                        .get_project_info()
-                        .get_project_manifest()
-                        .get_project_item_sort_order()
-                        .iter()
-                        .cloned()
-                        .collect::<Vec<PathBuf>>();
-
-                    (opened_project_directory_path, opened_project_item_signatures, opened_project_sort_order)
-                })
-                .unwrap_or((None, HashMap::new(), Vec::new())),
-            Err(error) => {
-                log::error!("Failed to acquire opened project lock for hierarchy refresh check: {}", error);
-                (None, HashMap::new(), Vec::new())
-            }
-        };
-
-        let (loaded_project_directory_path, loaded_project_item_signatures, loaded_project_sort_order) = self
-            .project_hierarchy_view_data
-            .read("Project hierarchy refresh check")
-            .map(|project_hierarchy_view_data| {
-                let loaded_project_directory_path = project_hierarchy_view_data
-                    .opened_project_info
-                    .as_ref()
-                    .and_then(|project_info| project_info.get_project_directory());
-                let loaded_project_item_signatures = Self::collect_project_item_change_signatures(
-                    project_hierarchy_view_data
-                        .project_items
-                        .iter()
-                        .map(|(project_item_ref, project_item)| (project_item_ref, project_item)),
-                );
-                let loaded_project_sort_order = project_hierarchy_view_data
-                    .opened_project_info
-                    .as_ref()
-                    .map(|project_info| {
-                        project_info
-                            .get_project_manifest()
-                            .get_project_item_sort_order()
-                            .iter()
-                            .cloned()
-                            .collect::<Vec<PathBuf>>()
-                    })
-                    .unwrap_or_default();
-
-                (loaded_project_directory_path, loaded_project_item_signatures, loaded_project_sort_order)
-            })
-            .unwrap_or((None, HashMap::new(), Vec::new()));
-
-        let project_directory_changed = opened_project_directory_path != loaded_project_directory_path;
-        let project_items_changed = opened_project_item_signatures != loaded_project_item_signatures;
-        let sort_order_changed = opened_project_sort_order != loaded_project_sort_order;
-
-        if project_directory_changed || project_items_changed || sort_order_changed {
-            ProjectHierarchyViewData::refresh_project_items(self.project_hierarchy_view_data.clone(), self.app_context.clone());
-        }
-    }
-
-    fn collect_project_item_change_signatures<'a>(
-        project_items: impl IntoIterator<Item = (&'a ProjectItemRef, &'a ProjectItem)>
-    ) -> HashMap<PathBuf, ProjectItemChangeSignature> {
-        project_items
-            .into_iter()
-            .map(|(project_item_ref, project_item)| {
-                (
-                    project_item_ref.get_project_item_path().clone(),
-                    ProjectItemChangeSignature {
-                        project_item_type_id: project_item
-                            .get_item_type()
-                            .get_project_item_type_id()
-                            .to_string(),
-                        project_item_name: project_item.get_field_name(),
-                        project_item_description: project_item.get_field_description(),
-                        project_item_properties: project_item
-                            .get_properties()
-                            .get_fields()
-                            .iter()
-                            .map(|field| (field.get_name().to_string(), field.get_bytes()))
-                            .collect(),
-                    },
-                )
-            })
-            .collect()
     }
 }

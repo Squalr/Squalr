@@ -6,7 +6,14 @@ use crate::{
     },
 };
 use eframe::egui::{Align, Layout, Response, Ui, Widget};
-use squalr_engine_api::{dependency_injection::dependency::Dependency, engine::engine_execution_context::EngineExecutionContext};
+use squalr_engine_api::{
+    dependency_injection::dependency::Dependency,
+    engine::engine_execution_context::EngineExecutionContext,
+    events::{
+        project::{catalog_changed::project_catalog_changed_event::ProjectCatalogChangedEvent, closed::project_closed_event::ProjectClosedEvent},
+        project_items::changed::project_items_changed_event::ProjectItemsChangedEvent,
+    },
+};
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -31,6 +38,8 @@ impl ProjectExplorerView {
         let project_selector_view = ProjectSelectorView::new(app_context.clone());
         let project_hierarchy_view = ProjectHierarchyView::new(app_context.clone());
 
+        Self::install_project_refresh_listeners(&app_context, &project_selector_view_data, &project_hierarchy_view_data);
+
         Self {
             app_context,
             project_selector_view,
@@ -38,6 +47,36 @@ impl ProjectExplorerView {
             _project_selector_view_data: project_selector_view_data,
             _project_hierarchy_view_data: project_hierarchy_view_data,
         }
+    }
+
+    fn install_project_refresh_listeners(
+        app_context: &Arc<AppContext>,
+        project_selector_view_data: &Dependency<ProjectSelectorViewData>,
+        project_hierarchy_view_data: &Dependency<ProjectHierarchyViewData>,
+    ) {
+        let project_hierarchy_view_data_for_items = project_hierarchy_view_data.clone();
+        let app_context_for_items = app_context.clone();
+        app_context
+            .engine_unprivileged_state
+            .listen_for_engine_event::<ProjectItemsChangedEvent>(move |_project_items_changed_event| {
+                ProjectHierarchyViewData::refresh_project_items(project_hierarchy_view_data_for_items.clone(), app_context_for_items.clone());
+            });
+
+        let project_hierarchy_view_data_for_close = project_hierarchy_view_data.clone();
+        let app_context_for_close = app_context.clone();
+        app_context
+            .engine_unprivileged_state
+            .listen_for_engine_event::<ProjectClosedEvent>(move |_project_closed_event| {
+                ProjectHierarchyViewData::refresh_project_items(project_hierarchy_view_data_for_close.clone(), app_context_for_close.clone());
+            });
+
+        let project_selector_view_data_for_catalog = project_selector_view_data.clone();
+        let app_context_for_catalog = app_context.clone();
+        app_context
+            .engine_unprivileged_state
+            .listen_for_engine_event::<ProjectCatalogChangedEvent>(move |_project_catalog_changed_event| {
+                ProjectSelectorViewData::refresh_project_list(project_selector_view_data_for_catalog.clone(), app_context_for_catalog.clone());
+            });
     }
 }
 
