@@ -231,7 +231,13 @@ impl<'lifetime> ProjectHierarchyListView<'lifetime> {
             );
 
         if self.allow_interaction {
-            self.handle_empty_space_context_menu(user_interface, scroll_area_output.inner_rect, &visible_row_rects, &mut list_response);
+            self.handle_empty_space_interactions(
+                user_interface,
+                scroll_area_output.inner_rect,
+                &visible_row_rects,
+                drag_started_project_item_path.as_ref(),
+                &mut list_response,
+            );
         }
 
         list_response
@@ -369,13 +375,34 @@ impl<'lifetime> ProjectHierarchyListView<'lifetime> {
         Self::paint_drop_target_indicator(&self.app_context, user_interface, row_rect, &hovered_drop_target);
     }
 
-    fn handle_empty_space_context_menu(
+    fn handle_empty_space_interactions(
         &self,
         user_interface: &mut Ui,
         scroll_area_rect: Rect,
         visible_row_rects: &[Rect],
+        drag_started_project_item_path: Option<&PathBuf>,
         list_response: &mut ProjectHierarchyListResponse,
     ) {
+        let pointer_position = user_interface.input(|input_state| input_state.pointer.hover_pos());
+        let is_pointer_in_empty_space = pointer_position
+            .filter(|pointer_position| scroll_area_rect.contains(*pointer_position))
+            .map(|pointer_position| {
+                !visible_row_rects
+                    .iter()
+                    .any(|row_rect| row_rect.contains(pointer_position))
+            })
+            .unwrap_or(false);
+
+        if is_pointer_in_empty_space {
+            self.handle_empty_space_drop_target(
+                user_interface,
+                scroll_area_rect,
+                visible_row_rects,
+                drag_started_project_item_path,
+                list_response,
+            );
+        }
+
         let secondary_clicked_position = user_interface.input(|input_state| {
             if input_state.pointer.secondary_clicked() {
                 input_state.pointer.hover_pos()
@@ -385,11 +412,11 @@ impl<'lifetime> ProjectHierarchyListView<'lifetime> {
         });
 
         if let Some(context_menu_position) = secondary_clicked_position.filter(|context_menu_position| scroll_area_rect.contains(*context_menu_position)) {
-            let is_over_project_item_row = visible_row_rects
+            let is_context_menu_position_empty = !visible_row_rects
                 .iter()
                 .any(|row_rect| row_rect.contains(context_menu_position));
 
-            if !is_over_project_item_row {
+            if is_context_menu_position_empty {
                 if let Some(project_root_directory_path) = ProjectHierarchyViewData::get_project_root_directory_path(self.project_hierarchy_view_data.clone()) {
                     ProjectHierarchyViewData::show_empty_space_menu(
                         self.project_hierarchy_view_data.clone(),
@@ -412,6 +439,52 @@ impl<'lifetime> ProjectHierarchyListView<'lifetime> {
                 .actions
                 .push(ProjectHierarchyListAction::Frame(frame_action));
         }
+    }
+
+    fn handle_empty_space_drop_target(
+        &self,
+        user_interface: &mut Ui,
+        scroll_area_rect: Rect,
+        visible_row_rects: &[Rect],
+        drag_started_project_item_path: Option<&PathBuf>,
+        list_response: &mut ProjectHierarchyListResponse,
+    ) {
+        let active_dragged_project_item_paths = drag_started_project_item_path
+            .map(|drag_started_project_item_path| vec![drag_started_project_item_path.clone()])
+            .or_else(|| self.dragged_project_item_paths.clone());
+        let Some(active_dragged_project_item_paths) = active_dragged_project_item_paths else {
+            return;
+        };
+        let Some(drop_target) = self.resolve_empty_space_drop_target(&active_dragged_project_item_paths) else {
+            return;
+        };
+        list_response
+            .actions
+            .push(ProjectHierarchyListAction::HoveredDropTarget(drop_target));
+
+        Self::paint_empty_space_drop_target_indicator(&self.app_context, user_interface, scroll_area_rect, visible_row_rects);
+    }
+
+    fn resolve_empty_space_drop_target(
+        &self,
+        active_dragged_project_item_paths: &[PathBuf],
+    ) -> Option<ProjectHierarchyDropTarget> {
+        let project_root_directory_path = ProjectHierarchyViewData::get_project_root_directory_path(self.project_hierarchy_view_data.clone())?;
+
+        if !Self::can_render_into_directory_drop_target(active_dragged_project_item_paths, &project_root_directory_path) {
+            return None;
+        }
+
+        self.tree_entries
+            .iter()
+            .rev()
+            .map(|tree_entry| &tree_entry.project_item_path)
+            .find(|project_item_path| {
+                project_item_path.parent() == Some(project_root_directory_path.as_path()) && !active_dragged_project_item_paths.contains(project_item_path)
+            })
+            .cloned()
+            .map(ProjectHierarchyDropTarget::After)
+            .or_else(|| Some(ProjectHierarchyDropTarget::Into(project_root_directory_path)))
     }
 
     fn resolve_drop_target(
@@ -517,6 +590,36 @@ impl<'lifetime> ProjectHierarchyListView<'lifetime> {
                     Stroke::new(3.0, theme.selected_border),
                 );
             }
+        }
+    }
+
+    fn paint_empty_space_drop_target_indicator(
+        app_context: &Arc<AppContext>,
+        user_interface: &mut Ui,
+        scroll_area_rect: Rect,
+        visible_row_rects: &[Rect],
+    ) {
+        let theme = &app_context.theme;
+        let empty_space_top = visible_row_rects
+            .iter()
+            .map(Rect::bottom)
+            .fold(scroll_area_rect.top(), f32::max)
+            .min(scroll_area_rect.bottom());
+        let empty_space_rect = Rect::from_min_max(
+            Pos2::new(scroll_area_rect.left(), empty_space_top),
+            Pos2::new(scroll_area_rect.right(), scroll_area_rect.bottom()),
+        );
+
+        if empty_space_rect.is_positive() {
+            user_interface
+                .painter()
+                .rect_filled(empty_space_rect, CornerRadius::ZERO, theme.selected_background);
+            user_interface.painter().rect_stroke(
+                empty_space_rect,
+                CornerRadius::ZERO,
+                Stroke::new(1.0, theme.selected_border),
+                StrokeKind::Inside,
+            );
         }
     }
 
