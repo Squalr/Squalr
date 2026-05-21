@@ -2,6 +2,7 @@ use crate::{
     app_context::AppContext,
     ui::converters::data_type_to_icon_converter::DataTypeToIconConverter,
     views::project_explorer::project_hierarchy::{
+        project_hierarchy_empty_space_context_menu_view::ProjectHierarchyEmptySpaceContextMenuView,
         project_hierarchy_project_item_context_menu_view::ProjectHierarchyProjectItemContextMenuView,
         project_item_entry_view::ProjectItemEntryView,
         project_item_inline_rename_view::ProjectItemInlineRenameView,
@@ -12,7 +13,7 @@ use crate::{
         },
     },
 };
-use eframe::egui::{Id, Pos2, Rect, ScrollArea, TextureHandle, Ui};
+use eframe::egui::{Id, Pos2, Rect, ScrollArea, Sense, TextureHandle, Ui};
 use epaint::{CornerRadius, Stroke, StrokeKind};
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::structures::projects::{
@@ -99,8 +100,9 @@ impl<'lifetime> ProjectHierarchyListView<'lifetime> {
     ) -> ProjectHierarchyListResponse {
         let mut list_response = ProjectHierarchyListResponse::default();
         let mut drag_started_project_item_path: Option<PathBuf> = None;
+        let mut visible_row_rects = Vec::new();
 
-        ScrollArea::vertical()
+        let scroll_area_output = ScrollArea::vertical()
             .id_salt("project_hierarchy")
             .auto_shrink([false, false])
             .show_rows(
@@ -174,6 +176,7 @@ impl<'lifetime> ProjectHierarchyListView<'lifetime> {
                                 project_item_entry_view_response.should_request_value_edit,
                             )
                         };
+                        visible_row_rects.push(row_response.rect);
 
                         if !self.allow_interaction {
                             continue;
@@ -226,6 +229,10 @@ impl<'lifetime> ProjectHierarchyListView<'lifetime> {
                     }
                 },
             );
+
+        if self.allow_interaction {
+            self.handle_empty_space_context_menu(user_interface, scroll_area_output.inner_rect, &visible_row_rects, &mut list_response);
+        }
 
         list_response
     }
@@ -360,6 +367,48 @@ impl<'lifetime> ProjectHierarchyListView<'lifetime> {
             .actions
             .push(ProjectHierarchyListAction::HoveredDropTarget(hovered_drop_target.clone()));
         Self::paint_drop_target_indicator(&self.app_context, user_interface, row_rect, &hovered_drop_target);
+    }
+
+    fn handle_empty_space_context_menu(
+        &self,
+        user_interface: &mut Ui,
+        scroll_area_rect: Rect,
+        visible_row_rects: &[Rect],
+        list_response: &mut ProjectHierarchyListResponse,
+    ) {
+        let background_response = user_interface.interact(scroll_area_rect, user_interface.id().with("project_hierarchy_empty_space"), Sense::click());
+
+        if background_response.secondary_clicked() {
+            let context_menu_position = background_response
+                .hover_pos()
+                .unwrap_or(scroll_area_rect.left_top());
+            let is_over_project_item_row = visible_row_rects
+                .iter()
+                .any(|row_rect| row_rect.contains(context_menu_position));
+
+            if !is_over_project_item_row {
+                if let Some(project_root_directory_path) = ProjectHierarchyViewData::get_project_root_directory_path(self.project_hierarchy_view_data.clone()) {
+                    ProjectHierarchyViewData::show_empty_space_menu(
+                        self.project_hierarchy_view_data.clone(),
+                        project_root_directory_path,
+                        context_menu_position,
+                    );
+                }
+            }
+        }
+
+        for frame_action in ProjectHierarchyEmptySpaceContextMenuView::new(
+            self.app_context.clone(),
+            self.project_hierarchy_view_data.clone(),
+            self.menu_target,
+            self.menu_position,
+        )
+        .show(user_interface)
+        {
+            list_response
+                .actions
+                .push(ProjectHierarchyListAction::Frame(frame_action));
+        }
     }
 
     fn resolve_drop_target(
