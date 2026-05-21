@@ -140,6 +140,7 @@ mod tests {
     use squalr_engine_api::structures::projects::project_items::project_item::ProjectItem;
     use squalr_engine_api::structures::projects::project_items::project_item_ref::ProjectItemRef;
     use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
+    use std::fs::{self, File};
     use std::path::PathBuf;
     use std::sync::Arc;
 
@@ -192,5 +193,84 @@ mod tests {
 
         assert_eq!(updated_project_item.get_field_icon_id(), "u64");
         assert!(updated_project_item.get_has_unsaved_changes());
+    }
+
+    #[test]
+    fn update_details_request_renames_display_name_without_renaming_project_item_file() {
+        let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
+        let mut project = create_project_with_symbol_catalog(temp_directory.path(), ProjectSymbolCatalog::default());
+        let source_project_item_relative_path = PathBuf::from(Project::PROJECT_DIR).join("winmine.exe+0x579C.json");
+        let source_project_item_absolute_path = temp_directory.path().join(&source_project_item_relative_path);
+        let source_project_item_ref = ProjectItemRef::new(source_project_item_absolute_path.clone());
+        let source_project_item =
+            ProjectItemTypeAddress::new_project_item("winmine.exe+0x579C", 0x579C, "winmine.exe", "", DataTypeU64::get_value_from_primitive(0));
+        let colliding_project_item_relative_path = PathBuf::from(Project::PROJECT_DIR).join("winmine_exe_0x579C.json");
+        let colliding_project_item_absolute_path = temp_directory
+            .path()
+            .join(&colliding_project_item_relative_path);
+        let colliding_project_item_ref = ProjectItemRef::new(colliding_project_item_absolute_path.clone());
+        let colliding_project_item = ProjectItemTypeAddress::new_project_item("Existing", 0x579C, "winmine.exe", "", DataTypeU64::get_value_from_primitive(0));
+
+        fs::create_dir_all(temp_directory.path().join(Project::PROJECT_DIR)).expect("Expected project items directory to be created.");
+        serde_json::to_writer_pretty(
+            File::create(&source_project_item_absolute_path).expect("Expected source project item file to be created."),
+            &source_project_item,
+        )
+        .expect("Expected source project item to be written.");
+        serde_json::to_writer_pretty(
+            File::create(&colliding_project_item_absolute_path).expect("Expected colliding project item file to be created."),
+            &colliding_project_item,
+        )
+        .expect("Expected colliding project item to be written.");
+
+        project
+            .get_project_items_mut()
+            .insert(source_project_item_ref.clone(), source_project_item);
+        project
+            .get_project_items_mut()
+            .insert(colliding_project_item_ref.clone(), colliding_project_item);
+
+        let engine_unprivileged_state = create_engine_unprivileged_state(MockProjectSymbolsBindings::new());
+        *engine_unprivileged_state
+            .get_project_manager()
+            .get_opened_project()
+            .write()
+            .expect("Expected opened project write lock in test.") = Some(project);
+
+        let engine_execution_context: Arc<dyn EngineExecutionContext> = engine_unprivileged_state.clone();
+        let project_items_update_details_response = ProjectItemsUpdateDetailsRequest::from_details_update(
+            vec![source_project_item_relative_path],
+            DetailsFieldSource::ProjectItemProperty {
+                property_name: ProjectItem::PROPERTY_NAME.to_string(),
+            },
+            DetailsValue::Text(String::from("winmine_exe_0x579C")),
+        )
+        .execute(&engine_execution_context);
+
+        assert!(project_items_update_details_response.success);
+        assert_eq!(project_items_update_details_response.updated_project_item_count, 1);
+        assert!(source_project_item_absolute_path.exists());
+        assert!(colliding_project_item_absolute_path.exists());
+
+        let opened_project_lock = engine_unprivileged_state
+            .get_project_manager()
+            .get_opened_project();
+        let opened_project_guard = opened_project_lock
+            .read()
+            .expect("Expected opened project read lock in test.");
+        let opened_project = opened_project_guard
+            .as_ref()
+            .expect("Expected opened project in test.");
+        let updated_project_item = opened_project
+            .get_project_items()
+            .get(&source_project_item_ref)
+            .expect("Expected updated source project item.");
+
+        assert_eq!(updated_project_item.get_field_name(), "winmine_exe_0x579C");
+        assert!(
+            opened_project
+                .get_project_items()
+                .contains_key(&colliding_project_item_ref)
+        );
     }
 }

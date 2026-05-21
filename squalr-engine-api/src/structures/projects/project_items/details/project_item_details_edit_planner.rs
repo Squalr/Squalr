@@ -1,5 +1,5 @@
 use crate::structures::{
-    details::{DetailsEdit, DetailsEditOperation, DetailsEditPlan, DetailsFieldSource, DetailsValue},
+    details::{DetailsEdit, DetailsEditOperation, DetailsEditPlan, DetailsFieldSource},
     projects::project_items::{
         built_in_types::{
             project_item_type_address::ProjectItemTypeAddress, project_item_type_directory::ProjectItemTypeDirectory,
@@ -73,28 +73,18 @@ impl ProjectItemDetailsEditPlanner {
             return DetailsEditPlan::noop(Some("Directory item names are owned by their directory path.".to_string()));
         }
 
-        let mut operations = vec![DetailsEditOperation::UpdateStoredField {
-            target: details_edit.get_target().clone(),
-            source: DetailsFieldSource::ProjectItemProperty {
-                property_name: property_name.to_string(),
+        DetailsEditPlan::new(vec![
+            DetailsEditOperation::UpdateStoredField {
+                target: details_edit.get_target().clone(),
+                source: DetailsFieldSource::ProjectItemProperty {
+                    property_name: property_name.to_string(),
+                },
+                value: details_edit.get_value().clone(),
             },
-            value: details_edit.get_value().clone(),
-        }];
-
-        if property_name == ProjectItem::PROPERTY_NAME {
-            if let Some(name) = Self::details_value_to_text(details_edit.get_value()) {
-                operations.push(DetailsEditOperation::RenameTarget {
-                    target: details_edit.get_target().clone(),
-                    name,
-                });
-            }
-        }
-
-        operations.push(DetailsEditOperation::RefreshProjection {
-            target: details_edit.get_target().clone(),
-        });
-
-        DetailsEditPlan::new(operations)
+            DetailsEditOperation::RefreshProjection {
+                target: details_edit.get_target().clone(),
+            },
+        ])
     }
 
     fn plan_runtime_value_update(
@@ -146,18 +136,6 @@ impl ProjectItemDetailsEditPlanner {
                 ProjectItemTypePointer::PROPERTY_FREEZE_DISPLAY_VALUE
             )
         )
-    }
-
-    fn details_value_to_text(details_value: &DetailsValue) -> Option<String> {
-        match details_value {
-            DetailsValue::Text(text) => Some(text.clone()),
-            DetailsValue::DataValue(data_value) => String::from_utf8(data_value.get_value_bytes().clone()).ok(),
-            DetailsValue::AnonymousValue(anonymous_value_string) => Some(anonymous_value_string.get_anonymous_value_string().to_string()),
-            DetailsValue::Boolean(value) => Some(value.to_string()),
-            DetailsValue::UnsignedInteger(value) => Some(value.to_string()),
-            DetailsValue::SignedInteger(value) => Some(value.to_string()),
-            DetailsValue::Empty => Some(String::new()),
-        }
     }
 }
 
@@ -293,7 +271,7 @@ mod tests {
     }
 
     #[test]
-    fn plan_edit_includes_rename_for_file_item_name() {
+    fn plan_edit_updates_file_item_name_without_renaming_file() {
         let project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU64::get_value_from_primitive(0));
         let details_edit = DetailsEdit::new(
             DetailsTarget::new(ProjectItemDetailsProjection::TARGET_KIND_PROJECT_ITEM, "/Health"),
@@ -310,7 +288,16 @@ mod tests {
             edit_plan
                 .get_operations()
                 .iter()
-                .any(|operation| matches!(operation, DetailsEditOperation::RenameTarget { name, .. } if name == "New Health"))
+                .any(|operation| matches!(operation, DetailsEditOperation::UpdateStoredField {
+                    source: DetailsFieldSource::ProjectItemProperty { property_name },
+                    ..
+                } if property_name == ProjectItem::PROPERTY_NAME))
+        );
+        assert!(
+            !edit_plan
+                .get_operations()
+                .iter()
+                .any(|operation| matches!(operation, DetailsEditOperation::Reject { .. } | DetailsEditOperation::Noop { .. }))
         );
     }
 

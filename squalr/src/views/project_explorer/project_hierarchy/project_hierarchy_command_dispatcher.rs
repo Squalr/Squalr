@@ -23,11 +23,9 @@ use squalr_engine_api::commands::project_items::update_details::project_items_up
 use squalr_engine_api::commands::project_items::write_value::project_items_write_value_request::ProjectItemsWriteValueRequest;
 use squalr_engine_api::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
-use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::anonymous_value_string::AnonymousValueString;
 use squalr_engine_api::structures::details::{DetailsFieldSource, DetailsValue};
-use squalr_engine_api::structures::projects::project_items::project_item_ref::ProjectItemRef;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -582,51 +580,6 @@ impl ProjectHierarchyCommandDispatcher {
                 }
             },
         );
-    }
-
-    pub fn rename_project_items_from_details(
-        &self,
-        project_item_paths: &[PathBuf],
-        edited_name: &str,
-    ) {
-        let project_manager = self.app_context.engine_unprivileged_state.get_project_manager();
-        let opened_project_lock = project_manager.get_opened_project();
-        let opened_project_guard = match opened_project_lock.read() {
-            Ok(opened_project_guard) => opened_project_guard,
-            Err(error) => {
-                log::error!("Failed to acquire opened project lock for project item details rename: {}", error);
-                return;
-            }
-        };
-        let Some(opened_project) = opened_project_guard.as_ref() else {
-            log::warn!("Cannot rename project item from details without an opened project.");
-            return;
-        };
-        let project_items_rename_requests = project_item_paths
-            .iter()
-            .filter_map(|project_item_path| {
-                let project_item_ref = ProjectItemRef::new(project_item_path.clone());
-                let Some(project_item) = opened_project.get_project_items().get(&project_item_ref) else {
-                    log::warn!("Cannot rename project item from details, project item was not found: {:?}", project_item_path);
-                    return None;
-                };
-                let project_item_type_id = project_item
-                    .get_item_type()
-                    .get_project_item_type_id()
-                    .to_string();
-
-                ProjectItemRenameRequestBuilder::build(project_item_path, &project_item_type_id, edited_name)
-            })
-            .collect::<Vec<_>>();
-        drop(opened_project_guard);
-
-        for project_items_rename_request in project_items_rename_requests {
-            project_items_rename_request.send(&self.app_context.engine_unprivileged_state, |project_items_rename_response| {
-                if !project_items_rename_response.success {
-                    log::warn!("Project item rename command failed while committing details edit.");
-                }
-            });
-        }
     }
 
     fn dispatch_drop_operation(

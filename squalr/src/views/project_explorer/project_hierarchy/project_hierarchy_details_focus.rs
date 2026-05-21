@@ -200,11 +200,6 @@ impl ProjectHierarchyDetailsFocus {
                         log::warn!("Rejected project item details edit: {}", reason);
                     }
                     DetailsEditOperation::RefreshProjection { .. } => {}
-                    DetailsEditOperation::RenameTarget { name, .. } => {
-                        details_focus
-                            .command_dispatcher()
-                            .rename_project_items_from_details(&project_item_paths, name);
-                    }
                     DetailsEditOperation::UpdateStoredField { source, value, .. } => {
                         details_focus
                             .command_dispatcher()
