@@ -13,7 +13,7 @@ use crate::{
         },
     },
 };
-use eframe::egui::{Id, Pos2, Rect, ScrollArea, Sense, TextureHandle, Ui};
+use eframe::egui::{Id, Pos2, Rect, ScrollArea, TextureHandle, Ui};
 use epaint::{CornerRadius, Stroke, StrokeKind};
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::structures::projects::{
@@ -376,12 +376,15 @@ impl<'lifetime> ProjectHierarchyListView<'lifetime> {
         visible_row_rects: &[Rect],
         list_response: &mut ProjectHierarchyListResponse,
     ) {
-        let background_response = user_interface.interact(scroll_area_rect, user_interface.id().with("project_hierarchy_empty_space"), Sense::click());
+        let secondary_clicked_position = user_interface.input(|input_state| {
+            if input_state.pointer.secondary_clicked() {
+                input_state.pointer.hover_pos()
+            } else {
+                None
+            }
+        });
 
-        if background_response.secondary_clicked() {
-            let context_menu_position = background_response
-                .hover_pos()
-                .unwrap_or(scroll_area_rect.left_top());
+        if let Some(context_menu_position) = secondary_clicked_position.filter(|context_menu_position| scroll_area_rect.contains(*context_menu_position)) {
             let is_over_project_item_row = visible_row_rects
                 .iter()
                 .any(|row_rect| row_rect.contains(context_menu_position));
