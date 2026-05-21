@@ -4,7 +4,9 @@ use crate::services::projects::project_item_file_mutation::{
     generate_unique_project_item_file_path_allowing, resolve_project_item_path, sanitize_file_name_component,
 };
 use squalr_engine_api::commands::project_items::update_details::project_items_update_details_request::ProjectItemsUpdateDetailsRequest;
-use squalr_engine_api::commands::project_items::update_details::project_items_update_details_response::ProjectItemsUpdateDetailsResponse;
+use squalr_engine_api::commands::project_items::update_details::project_items_update_details_response::{
+    ProjectItemsUpdateDetailsPathChange, ProjectItemsUpdateDetailsResponse,
+};
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::structures::details::DetailsFieldSource;
 use squalr_engine_api::structures::projects::project::Project;
@@ -29,6 +31,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsUpdateDetailsRequest {
             return ProjectItemsUpdateDetailsResponse {
                 success: true,
                 updated_project_item_count: 0,
+                path_changes: Vec::new(),
                 error: None,
             };
         }
@@ -40,6 +43,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsUpdateDetailsRequest {
                 return ProjectItemsUpdateDetailsResponse {
                     success: false,
                     updated_project_item_count: 0,
+                    path_changes: Vec::new(),
                     error: Some(error),
                 };
             }
@@ -55,6 +59,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsUpdateDetailsRequest {
                 return ProjectItemsUpdateDetailsResponse {
                     success: false,
                     updated_project_item_count: 0,
+                    path_changes: Vec::new(),
                     error: Some(error),
                 };
             }
@@ -66,6 +71,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsUpdateDetailsRequest {
             return ProjectItemsUpdateDetailsResponse {
                 success: false,
                 updated_project_item_count: 0,
+                path_changes: Vec::new(),
                 error: Some(error),
             };
         };
@@ -76,10 +82,12 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsUpdateDetailsRequest {
             return ProjectItemsUpdateDetailsResponse {
                 success: false,
                 updated_project_item_count: 0,
+                path_changes: Vec::new(),
                 error: Some(error),
             };
         };
         let mut updated_project_item_count = 0_u64;
+        let mut path_changes = Vec::new();
 
         for project_item_path in &self.project_item_paths {
             let resolved_project_item_path = resolve_project_item_path(&project_directory_path, project_item_path);
@@ -110,8 +118,13 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsUpdateDetailsRequest {
             }
 
             if should_align_file_name {
-                if let Err(error) = align_project_item_file_name(opened_project, &project_directory_path, &resolved_project_item_path) {
-                    log::warn!("{}", error);
+                match align_project_item_file_name(opened_project, &project_directory_path, &resolved_project_item_path) {
+                    Ok(Some(updated_project_item_path)) => path_changes.push(ProjectItemsUpdateDetailsPathChange {
+                        previous_project_item_path: resolved_project_item_path,
+                        updated_project_item_path,
+                    }),
+                    Ok(None) => {}
+                    Err(error) => log::warn!("{}", error),
                 }
             }
         }
@@ -120,6 +133,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsUpdateDetailsRequest {
             return ProjectItemsUpdateDetailsResponse {
                 success: true,
                 updated_project_item_count,
+                path_changes,
                 error: None,
             };
         }
@@ -134,6 +148,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsUpdateDetailsRequest {
             return ProjectItemsUpdateDetailsResponse {
                 success: false,
                 updated_project_item_count,
+                path_changes,
                 error: Some(error),
             };
         }
@@ -144,6 +159,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsUpdateDetailsRequest {
         ProjectItemsUpdateDetailsResponse {
             success: true,
             updated_project_item_count,
+            path_changes,
             error: None,
         }
     }
@@ -293,6 +309,7 @@ mod tests {
 
         assert!(project_items_update_details_response.success);
         assert_eq!(project_items_update_details_response.updated_project_item_count, 1);
+        assert!(project_items_update_details_response.path_changes.is_empty());
 
         let opened_project_lock = engine_unprivileged_state
             .get_project_manager()
@@ -371,6 +388,15 @@ mod tests {
 
         assert!(project_items_update_details_response.success);
         assert_eq!(project_items_update_details_response.updated_project_item_count, 1);
+        assert_eq!(project_items_update_details_response.path_changes.len(), 1);
+        assert_eq!(
+            project_items_update_details_response.path_changes[0].previous_project_item_path,
+            source_project_item_absolute_path
+        );
+        assert_eq!(
+            project_items_update_details_response.path_changes[0].updated_project_item_path,
+            expected_renamed_project_item_absolute_path
+        );
         assert!(!source_project_item_absolute_path.exists());
         assert!(expected_renamed_project_item_absolute_path.exists());
         assert!(colliding_project_item_absolute_path.exists());

@@ -188,6 +188,7 @@ impl ProjectHierarchyDetailsFocus {
                 .get_operations()
                 .iter()
                 .any(|operation| matches!(operation, DetailsEditOperation::RefreshProjection { .. }));
+            let mut did_schedule_async_refocus = false;
 
             for operation in edit_plan.get_operations() {
                 match operation {
@@ -201,9 +202,20 @@ impl ProjectHierarchyDetailsFocus {
                     }
                     DetailsEditOperation::RefreshProjection { .. } => {}
                     DetailsEditOperation::UpdateStoredField { source, value, .. } => {
+                        let after_successful_update_callback = if should_refocus_details {
+                            did_schedule_async_refocus = true;
+                            let details_focus = details_focus.clone();
+
+                            Some(Arc::new(move |updated_project_item_paths: Vec<PathBuf>| {
+                                details_focus.focus_project_item_paths(updated_project_item_paths);
+                            }) as Arc<dyn Fn(Vec<PathBuf>) + Send + Sync>)
+                        } else {
+                            None
+                        };
+
                         details_focus
                             .command_dispatcher()
-                            .update_project_item_details_stored_field(&project_item_paths, source, value);
+                            .update_project_item_details_stored_field(&project_item_paths, source, value, after_successful_update_callback);
                     }
                     DetailsEditOperation::WriteRuntimeValue { source, value, .. } => {
                         let Some(anonymous_value_string) = details_focus.details_value_to_anonymous_value_string(value) else {
@@ -221,7 +233,7 @@ impl ProjectHierarchyDetailsFocus {
                 }
             }
 
-            if should_refocus_details {
+            if should_refocus_details && !did_schedule_async_refocus {
                 details_focus.focus_project_item_paths(project_item_paths.clone());
             }
         })

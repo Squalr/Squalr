@@ -20,6 +20,7 @@ use squalr_engine_api::commands::project_items::promote_symbol::project_items_pr
 use squalr_engine_api::commands::project_items::reorder::project_items_reorder_request::ProjectItemsReorderRequest;
 use squalr_engine_api::commands::project_items::strip_symbol::project_items_strip_symbol_request::ProjectItemsStripSymbolRequest;
 use squalr_engine_api::commands::project_items::update_details::project_items_update_details_request::ProjectItemsUpdateDetailsRequest;
+use squalr_engine_api::commands::project_items::update_details::project_items_update_details_response::ProjectItemsUpdateDetailsPathChange;
 use squalr_engine_api::commands::project_items::write_value::project_items_write_value_request::ProjectItemsWriteValueRequest;
 use squalr_engine_api::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
@@ -571,15 +572,54 @@ impl ProjectHierarchyCommandDispatcher {
         project_item_paths: &[PathBuf],
         details_field_source: &DetailsFieldSource,
         details_value: &DetailsValue,
+        after_successful_update_callback: Option<Arc<dyn Fn(Vec<PathBuf>) + Send + Sync>>,
     ) {
-        ProjectItemsUpdateDetailsRequest::from_details_update(project_item_paths.to_vec(), details_field_source.clone(), details_value.clone()).send(
+        let project_item_paths = project_item_paths.to_vec();
+        let app_context = self.app_context.clone();
+        let project_hierarchy_view_data = self.project_hierarchy_view_data.clone();
+
+        ProjectItemsUpdateDetailsRequest::from_details_update(project_item_paths.clone(), details_field_source.clone(), details_value.clone()).send(
             &self.app_context.engine_unprivileged_state,
-            |project_items_update_details_response| {
+            move |project_items_update_details_response| {
                 if !project_items_update_details_response.success {
                     log::warn!("Project item update-details command failed while committing details edit.");
+                    return;
                 }
+
+                let updated_project_item_paths =
+                    Self::apply_project_item_path_changes(project_item_paths.clone(), &project_items_update_details_response.path_changes);
+
+                for path_change in &project_items_update_details_response.path_changes {
+                    ProjectHierarchyViewData::finish_project_item_rename(
+                        project_hierarchy_view_data.clone(),
+                        &path_change.previous_project_item_path,
+                        &path_change.updated_project_item_path,
+                    );
+                }
+
+                if let Some(after_successful_update_callback) = after_successful_update_callback {
+                    after_successful_update_callback(updated_project_item_paths);
+                }
+
+                ProjectHierarchyViewData::refresh_project_items(project_hierarchy_view_data.clone(), app_context.clone());
             },
         );
+    }
+
+    fn apply_project_item_path_changes(
+        project_item_paths: Vec<PathBuf>,
+        path_changes: &[ProjectItemsUpdateDetailsPathChange],
+    ) -> Vec<PathBuf> {
+        project_item_paths
+            .into_iter()
+            .map(|project_item_path| {
+                path_changes
+                    .iter()
+                    .find(|path_change| path_change.previous_project_item_path == project_item_path)
+                    .map(|path_change| path_change.updated_project_item_path.clone())
+                    .unwrap_or(project_item_path)
+            })
+            .collect()
     }
 
     fn dispatch_drop_operation(
