@@ -22,6 +22,10 @@ impl OutputCommandState {
         &mut self.command_text
     }
 
+    pub fn command_text(&self) -> &str {
+        &self.command_text
+    }
+
     pub fn has_pending_command(&self) -> bool {
         !self.command_text.trim().is_empty()
     }

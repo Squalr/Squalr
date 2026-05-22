@@ -1,8 +1,11 @@
 use crate::app_context::AppContext;
 use crate::views::output::output_command_dispatcher::OutputCommandDispatcher;
 use crate::views::output::output_command_state::OutputCommandState;
-use eframe::egui::{Align, Button, Key, Layout, Response, RichText, ScrollArea, Sense, TextEdit, Ui, UiBuilder, ViewportCommand, Widget};
-use epaint::{CornerRadius, Rect, Stroke, Vec2, pos2};
+use crate::views::output::output_context_menu_state::OutputContextMenuState;
+use crate::views::output::output_context_menu_view::OutputContextMenuView;
+use eframe::egui::text::CCursorRange;
+use eframe::egui::{Align, Id, Key, Layout, Response, RichText, ScrollArea, Sense, TextEdit, Ui, UiBuilder, Widget};
+use epaint::{CornerRadius, Margin, Rect, Stroke, Vec2, pos2};
 use log::Level;
 use squalr_engine_api::structures::logging::log_event::LogEvent;
 use std::collections::VecDeque;
@@ -12,6 +15,13 @@ use std::sync::{Arc, RwLock};
 pub struct OutputView {
     app_context: Arc<AppContext>,
     command_state: Arc<RwLock<OutputCommandState>>,
+    context_menu_state: Arc<RwLock<OutputContextMenuState>>,
+}
+
+struct OutputCommandLineResponse {
+    command_to_dispatch: Option<String>,
+    cursor_range: Option<CCursorRange>,
+    text_edit_id: Option<Id>,
 }
 
 impl OutputView {
@@ -21,6 +31,7 @@ impl OutputView {
         Self {
             app_context,
             command_state: Arc::new(RwLock::new(OutputCommandState::new())),
+            context_menu_state: Arc::new(RwLock::new(OutputContextMenuState::default())),
         }
     }
 
@@ -32,53 +43,34 @@ impl OutputView {
             .join("\n")
     }
 
-    fn render_output_context_menu(
+    fn show_context_menu_for_response(
+        &self,
         response: &Response,
-        copy_text: String,
+        show_menu: impl FnOnce(&mut OutputContextMenuState, epaint::Pos2),
     ) {
-        response.context_menu(|menu_user_interface| {
-            if menu_user_interface
-                .add_enabled(!copy_text.is_empty(), Button::new("Copy"))
-                .clicked()
-            {
-                menu_user_interface.ctx().copy_text(copy_text);
-                menu_user_interface.close();
-            }
-        });
-    }
+        if !response.secondary_clicked() {
+            return;
+        }
 
-    fn render_command_input_context_menu(response: &Response) {
-        response.context_menu(|menu_user_interface| {
-            if menu_user_interface.button("Cut").clicked() {
-                menu_user_interface
-                    .ctx()
-                    .send_viewport_cmd(ViewportCommand::RequestCut);
-                menu_user_interface.close();
-            }
+        let menu_position = response
+            .interact_pointer_pos()
+            .unwrap_or_else(|| response.rect.left_top());
 
-            if menu_user_interface.button("Copy").clicked() {
-                menu_user_interface
-                    .ctx()
-                    .send_viewport_cmd(ViewportCommand::RequestCopy);
-                menu_user_interface.close();
-            }
-
-            if menu_user_interface.button("Paste").clicked() {
-                menu_user_interface
-                    .ctx()
-                    .send_viewport_cmd(ViewportCommand::RequestPaste);
-                menu_user_interface.close();
-            }
-        });
+        match self.context_menu_state.write() {
+            Ok(mut context_menu_state) => show_menu(&mut context_menu_state, menu_position),
+            Err(error) => log::error!("Failed to acquire output context menu state write lock: {}", error),
+        }
     }
 
     fn draw_command_line(
         &self,
         user_interface: &mut Ui,
         command_line_rectangle: Rect,
-    ) -> Option<String> {
+    ) -> OutputCommandLineResponse {
         let theme = &self.app_context.theme;
         let mut command_to_dispatch = None;
+        let mut cursor_range = None;
+        let mut text_edit_id = None;
 
         user_interface
             .painter()
@@ -99,17 +91,22 @@ impl OutputView {
 
         match self.command_state.write() {
             Ok(mut command_state) => {
-                let text_edit_response = command_line_user_interface.put(
-                    command_line_rectangle,
-                    TextEdit::singleline(command_state.command_text_mut())
-                        .vertical_align(Align::Center)
-                        .font(theme.font_library.font_noto_sans.font_normal.clone())
-                        .background_color(theme.background_primary)
-                        .text_color(theme.foreground)
-                        .frame(false),
-                );
+                let text_edit_output = TextEdit::singleline(command_state.command_text_mut())
+                    .id_salt("output_command_input")
+                    .vertical_align(Align::Center)
+                    .font(theme.font_library.font_noto_sans.font_normal.clone())
+                    .background_color(theme.background_primary)
+                    .text_color(theme.foreground)
+                    .frame(false)
+                    .margin(Margin::ZERO)
+                    .desired_width(command_line_rectangle.width())
+                    .min_size(command_line_rectangle.size())
+                    .show(&mut command_line_user_interface);
+                let text_edit_response = text_edit_output.response;
+                cursor_range = text_edit_output.cursor_range;
+                text_edit_id = Some(text_edit_response.id);
 
-                Self::render_command_input_context_menu(&text_edit_response);
+                self.show_context_menu_for_response(&text_edit_response, OutputContextMenuState::show_command_input_menu);
 
                 if text_edit_response.has_focus() && command_line_user_interface.input(|input_state| input_state.key_pressed(Key::ArrowUp)) {
                     command_state.navigate_previous();
@@ -131,7 +128,11 @@ impl OutputView {
             }
         }
 
-        command_to_dispatch
+        OutputCommandLineResponse {
+            command_to_dispatch,
+            cursor_range,
+            text_edit_id,
+        }
     }
 }
 
@@ -195,13 +196,29 @@ impl Widget for OutputView {
                 }
 
                 let log_context_menu_response = user_interface.interact(log_rectangle, user_interface.id().with("output_log_context_menu"), Sense::click());
-                Self::render_output_context_menu(&log_context_menu_response, log_copy_text);
+                self.show_context_menu_for_response(&log_context_menu_response, OutputContextMenuState::show_log_menu);
 
+                let mut command_line_cursor_range = None;
+                let mut command_line_text_edit_id = None;
                 if command_line_rectangle.height() > 0.0 {
-                    if let Some(command_text) = self.draw_command_line(user_interface, command_line_rectangle) {
+                    let command_line_response = self.draw_command_line(user_interface, command_line_rectangle);
+                    command_line_cursor_range = command_line_response.cursor_range;
+                    command_line_text_edit_id = command_line_response.text_edit_id;
+
+                    if let Some(command_text) = command_line_response.command_to_dispatch {
                         OutputCommandDispatcher::dispatch(&self.app_context, command_text);
                     }
                 }
+
+                OutputContextMenuView::new(
+                    self.app_context.clone(),
+                    self.command_state.clone(),
+                    self.context_menu_state.clone(),
+                    &log_copy_text,
+                    command_line_cursor_range,
+                    command_line_text_edit_id,
+                )
+                .show(user_interface);
             })
             .response;
 

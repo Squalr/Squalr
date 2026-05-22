@@ -29,6 +29,10 @@ pub fn parse_command_line(input: &str) -> Result<TextCommand, TextCommandParseEr
     parse_command_line_with_program_name(input, "squalr")
 }
 
+pub fn parse_prompt_command_line(input: &str) -> Result<TextCommand, TextCommandParseError> {
+    parse_command_line_with_program_name(input, "")
+}
+
 pub fn parse_command_line_with_program_name(
     input: &str,
     program_name: &str,
@@ -42,6 +46,60 @@ pub fn parse_command_line_with_program_name(
     command_arguments.insert(0, program_name.to_string());
 
     parse_text_command(command_arguments).map_err(TextCommandParseError::Command)
+}
+
+pub fn format_prompt_command_error(error: &clap::Error) -> String {
+    let normalized_message = normalize_prompt_command_message(&error.message);
+
+    match error.kind {
+        clap::ErrorKind::HelpDisplayed | clap::ErrorKind::VersionDisplayed => normalized_message,
+        _ => summarize_prompt_command_error(&normalized_message),
+    }
+}
+
+fn normalize_prompt_command_message(message: &str) -> String {
+    message
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("For more information try"))
+        .map(strip_prompt_command_usage_padding)
+        .collect::<Vec<_>>()
+        .join("\n")
+        .trim()
+        .to_string()
+}
+
+fn strip_prompt_command_usage_padding(line: &str) -> &str {
+    if line.trim().is_empty() {
+        return "";
+    }
+
+    line.strip_prefix("    ").unwrap_or(line)
+}
+
+fn summarize_prompt_command_error(message: &str) -> String {
+    let mut summary_lines = Vec::new();
+
+    if let Some(first_error_line) = message.lines().find(|line| !line.trim().is_empty()) {
+        summary_lines.push(first_error_line.trim().to_string());
+    }
+
+    if let Some(usage_line) = prompt_command_usage_line(message) {
+        summary_lines.push(format!("Usage: {}", usage_line.trim()));
+    }
+
+    summary_lines.join("\n")
+}
+
+fn prompt_command_usage_line(message: &str) -> Option<&str> {
+    let mut lines = message.lines();
+
+    while let Some(line) = lines.next() {
+        if line.trim() == "USAGE:" {
+            return lines.find(|usage_line| !usage_line.trim().is_empty());
+        }
+    }
+
+    None
 }
 
 pub fn parse_text_command<I, T>(iterator: I) -> Result<TextCommand, clap::Error>
@@ -2061,6 +2119,34 @@ mod tests {
         let parse_error = parse_command_line_with_program_name("process open unexpected", "squalr-gui").expect_err("Expected parse failure.");
 
         assert!(parse_error.to_string().contains("squalr-gui process open"));
+    }
+
+    #[test]
+    fn prompt_command_line_omits_program_name_from_usage() {
+        let parse_error = parse_prompt_command_line("process open unexpected").expect_err("Expected parse failure.");
+        let prompt_error_message = match parse_error {
+            TextCommandParseError::Command(error) => format_prompt_command_error(&error),
+            error => error.to_string(),
+        };
+
+        assert!(prompt_error_message.contains("process open"));
+        assert!(!prompt_error_message.contains("squalr process open"));
+        assert!(!prompt_error_message.contains("For more information try"));
+    }
+
+    #[test]
+    fn prompt_command_error_summary_keeps_usage_without_full_help_footer() {
+        let parse_error = parse_prompt_command_line("process open unexpected").expect_err("Expected parse failure.");
+        let TextCommandParseError::Command(parse_error) = parse_error else {
+            panic!("Expected clap parse error.");
+        };
+
+        let prompt_error_message = format_prompt_command_error(&parse_error);
+
+        assert!(prompt_error_message.starts_with("error:"));
+        assert!(prompt_error_message.contains("Usage: process open"));
+        assert!(!prompt_error_message.contains("USAGE:"));
+        assert!(!prompt_error_message.contains("For more information try"));
     }
 
     #[test]

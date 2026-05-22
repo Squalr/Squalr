@@ -1,6 +1,6 @@
 use crate::app_context::AppContext;
 use squalr_engine_api::commands::text::clap::ErrorKind;
-use squalr_engine_api::commands::text::{TextCommand, TextCommandParseError, parse_command_line};
+use squalr_engine_api::commands::text::{TextCommand, TextCommandParseError, format_prompt_command_error, parse_prompt_command_line};
 use std::sync::Arc;
 
 pub struct OutputCommandDispatcher;
@@ -10,7 +10,7 @@ impl OutputCommandDispatcher {
         app_context: &Arc<AppContext>,
         command_text: String,
     ) {
-        match parse_command_line(&command_text) {
+        match parse_prompt_command_line(&command_text) {
             Ok(TextCommand::Privileged(command)) => {
                 let engine_unprivileged_state = app_context.engine_unprivileged_state.clone();
                 let egui_context = app_context.context.clone();
@@ -28,10 +28,13 @@ impl OutputCommandDispatcher {
                 });
             }
             Err(TextCommandParseError::Command(error)) if matches!(error.kind, ErrorKind::HelpDisplayed | ErrorKind::VersionDisplayed) => {
-                log::info!("{}", error);
+                log::info!("{}", format_prompt_command_error(&error));
+            }
+            Err(TextCommandParseError::Command(error)) => {
+                log::error!("{}", format_prompt_command_error(&error));
             }
             Err(error) => {
-                log::error!("Error parsing output command: {}", error);
+                log::error!("{}", error);
             }
         }
 
