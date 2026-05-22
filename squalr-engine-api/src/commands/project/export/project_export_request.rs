@@ -4,17 +4,11 @@ use crate::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use crate::commands::{project::export::project_export_response::ProjectExportResponse, unprivileged_command::UnprivilegedCommand};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use structopt::StructOpt;
 
-#[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ProjectExportRequest {
-    #[structopt(short = "p", long)]
     pub project_directory_path: Option<PathBuf>,
-
-    #[structopt(short = "n", long)]
     pub project_name: Option<String>,
-
-    #[structopt(short = "o", long)]
     pub open_export_folder: bool,
 }
 

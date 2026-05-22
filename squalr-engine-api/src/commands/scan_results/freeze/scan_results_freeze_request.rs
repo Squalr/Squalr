@@ -5,13 +5,10 @@ use crate::commands::scan_results::scan_results_command::ScanResultsCommand;
 use crate::commands::scan_results::scan_results_response::ScanResultsResponse;
 use crate::structures::scan_results::scan_result_ref::ScanResultRef;
 use serde::{Deserialize, Serialize};
-use structopt::StructOpt;
 
-#[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ScanResultsFreezeRequest {
-    #[structopt(short = "s", long)]
     pub scan_result_refs: Vec<ScanResultRef>,
-    #[structopt(short = "f", long)]
     pub is_frozen: bool,
 }
 

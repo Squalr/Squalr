@@ -8,9 +8,9 @@ use squalr_engine_api::commands::trackable_tasks::list::trackable_tasks_list_req
 use squalr_engine_api::commands::trackable_tasks::list::trackable_tasks_list_response::TrackableTasksListResponse;
 use squalr_engine_api::commands::trackable_tasks::trackable_tasks_command::TrackableTasksCommand;
 use squalr_engine_api::commands::unprivileged_command_response::TypedUnprivilegedCommandResponse;
+use squalr_engine_console::parse_privileged_command;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use structopt::StructOpt;
 
 use squalr_tests::mocks::mock_engine_bindings::MockEngineBindings;
 
@@ -146,7 +146,7 @@ fn trackable_tasks_cancel_request_does_not_invoke_callback_when_response_variant
 
 #[test]
 fn privileged_command_parser_accepts_trackable_tasks_subcommand() {
-    let parse_result = std::panic::catch_unwind(|| PrivilegedCommand::from_iter_safe(["squalr-cli", "tasks", "list"]));
+    let parse_result = std::panic::catch_unwind(|| parse_privileged_command(["squalr-cli", "tasks", "list"]));
 
     assert!(parse_result.is_ok());
 
@@ -161,7 +161,7 @@ fn privileged_command_parser_accepts_trackable_tasks_subcommand() {
 
 #[test]
 fn privileged_command_parser_accepts_trackable_tasks_cancel_with_long_flags() {
-    let parse_result = std::panic::catch_unwind(|| PrivilegedCommand::from_iter_safe(["squalr-cli", "tasks", "cancel", "--task-id", "scan-123"]));
+    let parse_result = std::panic::catch_unwind(|| parse_privileged_command(["squalr-cli", "tasks", "cancel", "--task-id", "scan-123"]));
 
     assert!(parse_result.is_ok());
 
@@ -180,7 +180,7 @@ fn privileged_command_parser_accepts_trackable_tasks_cancel_with_long_flags() {
 
 #[test]
 fn privileged_command_parser_rejects_trackable_tasks_cancel_when_task_id_is_missing() {
-    let parse_result = std::panic::catch_unwind(|| PrivilegedCommand::from_iter_safe(["squalr-cli", "tasks", "cancel"]));
+    let parse_result = std::panic::catch_unwind(|| parse_privileged_command(["squalr-cli", "tasks", "cancel"]));
 
     assert!(parse_result.is_ok());
     assert!(parse_result.expect("parser should not panic").is_err());

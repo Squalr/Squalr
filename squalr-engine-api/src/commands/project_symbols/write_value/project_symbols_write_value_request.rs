@@ -5,26 +5,14 @@ use crate::commands::unprivileged_command::UnprivilegedCommand;
 use crate::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use crate::structures::data_values::{anonymous_value_string::AnonymousValueString, container_type::ContainerType};
 use serde::{Deserialize, Serialize};
-use structopt::StructOpt;
 
-#[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ProjectSymbolsWriteValueRequest {
-    #[structopt(long = "address")]
     pub address: u64,
-
-    #[structopt(long = "module", default_value = "")]
     pub module_name: String,
-
-    #[structopt(long = "type")]
     pub symbol_type_id: String,
-
-    #[structopt(long = "container", default_value = "")]
     pub container_type: ContainerType,
-
-    #[structopt(long = "field")]
     pub field_name: String,
-
-    #[structopt(short = "v", long)]
     pub anonymous_value_string: AnonymousValueString,
 }
 

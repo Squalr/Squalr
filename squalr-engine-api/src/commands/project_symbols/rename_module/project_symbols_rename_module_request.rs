@@ -4,14 +4,10 @@ use crate::commands::project_symbols::rename_module::project_symbols_rename_modu
 use crate::commands::unprivileged_command::UnprivilegedCommand;
 use crate::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use serde::{Deserialize, Serialize};
-use structopt::StructOpt;
 
-#[derive(Clone, Default, StructOpt, Debug, Serialize, Deserialize)]
+#[derive(Clone, Default, Debug, Serialize, Deserialize)]
 pub struct ProjectSymbolsRenameModuleRequest {
-    #[structopt(short = "m", long = "module")]
     pub module_name: String,
-
-    #[structopt(short = "n", long = "new-name")]
     pub new_module_name: String,
 }
 

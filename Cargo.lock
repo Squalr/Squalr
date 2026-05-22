@@ -5168,8 +5168,8 @@ dependencies = [
  "shlex",
  "squalr-engine",
  "squalr-engine-api",
+ "squalr-engine-console",
  "squalr-engine-session",
- "structopt",
 ]
 
 [[package]]
@@ -5194,7 +5194,6 @@ dependencies = [
  "squalr-engine-projects",
  "squalr-engine-scanning",
  "squalr-engine-session",
- "structopt",
  "tempfile",
  "thiserror 2.0.18",
  "ureq",
@@ -5222,10 +5221,17 @@ dependencies = [
  "serde_json",
  "slab",
  "smallvec",
- "structopt",
  "thiserror 2.0.18",
  "typetag",
  "uuid",
+]
+
+[[package]]
+name = "squalr-engine-console"
+version = "0.3.0"
+dependencies = [
+ "squalr-engine-api",
+ "structopt",
 ]
 
 [[package]]
@@ -5381,9 +5387,9 @@ dependencies = [
  "crossbeam-channel",
  "squalr-engine",
  "squalr-engine-api",
+ "squalr-engine-console",
  "squalr-engine-session",
  "squalr-engine-targets",
- "structopt",
 ]
 
 [[package]]
@@ -5403,7 +5409,6 @@ dependencies = [
  "squalr-engine-api",
  "squalr-engine-session",
  "squalr-plugin-instructions-x86",
- "structopt",
 ]
 
 [[package]]

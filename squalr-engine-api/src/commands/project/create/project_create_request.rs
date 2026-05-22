@@ -4,14 +4,10 @@ use crate::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use crate::commands::{project::create::project_create_response::ProjectCreateResponse, unprivileged_command::UnprivilegedCommand};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use structopt::StructOpt;
 
-#[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ProjectCreateRequest {
-    #[structopt(short = "p", long)]
     pub project_directory_path: Option<PathBuf>,
-
-    #[structopt(short = "n", long)]
     pub project_name: Option<String>,
 }
 

@@ -6,34 +6,25 @@ use crate::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use crate::structures::memory::pointer_chain_segment::PointerChainSegment;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use structopt::StructOpt;
 
-#[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ProjectItemsCreateRequest {
-    #[structopt(short = "p", long)]
     pub parent_directory_path: PathBuf,
-
-    #[structopt(short = "n", long)]
     pub project_item_name: String,
 
     #[serde(default)]
-    #[structopt(long)]
     pub is_directory: bool,
 
     #[serde(default)]
-    #[structopt(skip)]
     pub address: Option<u64>,
 
     #[serde(default)]
-    #[structopt(skip)]
     pub module_name: Option<String>,
 
     #[serde(default)]
-    #[structopt(skip)]
     pub data_type_id: Option<String>,
 
     #[serde(default)]
-    #[structopt(skip)]
     pub pointer_offsets: Option<Vec<PointerChainSegment>>,
 }
 

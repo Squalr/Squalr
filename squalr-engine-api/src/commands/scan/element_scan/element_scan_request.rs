@@ -5,13 +5,10 @@ use crate::commands::scan::scan_response::ScanResponse;
 use crate::structures::scanning::constraints::anonymous_scan_constraint::AnonymousScanConstraint;
 use crate::{commands::privileged_command::PrivilegedCommand, structures::data_types::data_type_ref::DataTypeRef};
 use serde::{Deserialize, Serialize};
-use structopt::StructOpt;
 
-#[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ElementScanRequest {
-    #[structopt(short = "c", long)]
     pub scan_constraints: Vec<AnonymousScanConstraint>,
-    #[structopt(short = "d", long)]
     pub data_type_refs: Vec<DataTypeRef>,
 }
 

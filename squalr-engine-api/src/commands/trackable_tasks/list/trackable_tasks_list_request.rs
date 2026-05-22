@@ -3,9 +3,8 @@ use crate::commands::trackable_tasks::trackable_tasks_command::TrackableTasksCom
 use crate::commands::trackable_tasks::trackable_tasks_response::TrackableTasksResponse;
 use crate::commands::{privileged_command::PrivilegedCommand, privileged_command_request::PrivilegedCommandRequest};
 use serde::{Deserialize, Serialize};
-use structopt::StructOpt;
 
-#[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TrackableTasksListRequest {}
 
 impl PrivilegedCommandRequest for TrackableTasksListRequest {

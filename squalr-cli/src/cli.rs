@@ -2,12 +2,12 @@ use crate::response_handlers::{handle_privileged_engine_response, handle_unprivi
 use anyhow::{Result, anyhow};
 use squalr_engine_api::commands::privileged_command::PrivilegedCommand;
 use squalr_engine_api::commands::unprivileged_command::UnprivilegedCommand;
+use squalr_engine_console::clap::ErrorKind;
+use squalr_engine_console::{parse_privileged_command, parse_unprivileged_command};
 use squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState;
 use std::io;
 use std::io::Write;
 use std::sync::{Arc, mpsc};
-use structopt::StructOpt;
-use structopt::clap::ErrorKind;
 
 pub struct Cli {}
 
@@ -135,7 +135,7 @@ impl Cli {
         // Inject a synthetic binary name so command text can be parsed as a CLI argv list.
         cli_command.insert(0, String::from("squalr-cli"));
 
-        match PrivilegedCommand::from_iter_safe(&cli_command) {
+        match parse_privileged_command(&cli_command) {
             Ok(engine_command) => return Ok(ParsedInput::PrivilegedCommand(engine_command)),
             Err(error) if matches!(error.kind, ErrorKind::HelpDisplayed | ErrorKind::VersionDisplayed) => {
                 print!("{}", error);
@@ -144,7 +144,7 @@ impl Cli {
             Err(_error) => {}
         }
 
-        match UnprivilegedCommand::from_iter_safe(&cli_command) {
+        match parse_unprivileged_command(&cli_command) {
             Ok(engine_command) => Ok(ParsedInput::UnprivilegedCommand(engine_command)),
             Err(error) => {
                 if matches!(error.kind, ErrorKind::HelpDisplayed | ErrorKind::VersionDisplayed) {

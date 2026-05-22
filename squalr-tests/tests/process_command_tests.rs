@@ -13,9 +13,9 @@ use squalr_engine_api::commands::project::list::project_list_response::ProjectLi
 use squalr_engine_api::commands::unprivileged_command_response::TypedUnprivilegedCommandResponse;
 use squalr_engine_api::structures::memory::bitness::Bitness;
 use squalr_engine_api::structures::processes::process_info::ProcessInfo;
+use squalr_engine_console::parse_privileged_command;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use structopt::StructOpt;
 
 use squalr_tests::mocks::mock_engine_bindings::MockEngineBindings;
 
@@ -291,7 +291,7 @@ fn process_close_request_does_not_invoke_callback_when_response_variant_is_wrong
 #[test]
 fn privileged_command_parser_accepts_process_list_with_long_flags() {
     let parse_result = std::panic::catch_unwind(|| {
-        PrivilegedCommand::from_iter_safe([
+        parse_privileged_command([
             "squalr-cli",
             "process",
             "list",
@@ -325,7 +325,7 @@ fn privileged_command_parser_accepts_process_list_with_long_flags() {
 #[test]
 fn privileged_command_parser_accepts_process_open_with_long_flags() {
     let parse_result = std::panic::catch_unwind(|| {
-        PrivilegedCommand::from_iter_safe([
+        parse_privileged_command([
             "squalr-cli",
             "process",
             "open",
@@ -354,7 +354,7 @@ fn privileged_command_parser_accepts_process_open_with_long_flags() {
 
 #[test]
 fn privileged_command_parser_accepts_process_close_subcommand() {
-    let parse_result = std::panic::catch_unwind(|| PrivilegedCommand::from_iter_safe(["squalr-cli", "process", "close"]));
+    let parse_result = std::panic::catch_unwind(|| parse_privileged_command(["squalr-cli", "process", "close"]));
 
     assert!(parse_result.is_ok());
 
@@ -369,7 +369,7 @@ fn privileged_command_parser_accepts_process_close_subcommand() {
 
 #[test]
 fn privileged_command_parser_rejects_process_open_with_invalid_process_id() {
-    let parse_result = std::panic::catch_unwind(|| PrivilegedCommand::from_iter_safe(["squalr-cli", "process", "open", "--process-id", "not-a-number"]));
+    let parse_result = std::panic::catch_unwind(|| parse_privileged_command(["squalr-cli", "process", "open", "--process-id", "not-a-number"]));
 
     assert!(parse_result.is_ok());
     assert!(parse_result.expect("parser should not panic").is_err());

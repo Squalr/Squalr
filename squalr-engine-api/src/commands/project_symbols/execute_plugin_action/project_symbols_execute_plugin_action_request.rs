@@ -5,17 +5,11 @@ use crate::commands::unprivileged_command::UnprivilegedCommand;
 use crate::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use crate::plugins::symbol_tree::symbol_tree_action::SymbolTreeActionContext;
 use serde::{Deserialize, Serialize};
-use structopt::StructOpt;
 
-#[derive(Clone, Debug, Serialize, Deserialize, StructOpt)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ProjectSymbolsExecutePluginActionRequest {
-    #[structopt(long = "plugin-id")]
     pub plugin_id: String,
-
-    #[structopt(long = "action-id")]
     pub action_id: String,
-
-    #[structopt(skip)]
     pub context: SymbolTreeActionContext,
 }
 

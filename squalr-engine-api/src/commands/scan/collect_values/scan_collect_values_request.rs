@@ -5,11 +5,9 @@ use crate::commands::scan::scan_command::ScanCommand;
 use crate::commands::scan::scan_response::ScanResponse;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use serde::{Deserialize, Serialize};
-use structopt::StructOpt;
 
-#[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ScanCollectValuesRequest {
-    #[structopt(short = "d", long)]
     pub data_type_refs: Vec<DataTypeRef>,
 }
 

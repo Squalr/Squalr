@@ -4,11 +4,9 @@ use crate::commands::unprivileged_command::UnprivilegedCommand;
 use crate::commands::{project_items::list::project_items_list_response::ProjectItemsListResponse, unprivileged_command_request::UnprivilegedCommandRequest};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use structopt::StructOpt;
 
-#[derive(Clone, Default, StructOpt, Debug, Serialize, Deserialize)]
+#[derive(Clone, Default, Debug, Serialize, Deserialize)]
 pub struct ProjectItemsListRequest {
-    #[structopt(skip)]
     pub preview_project_item_paths: Option<Vec<PathBuf>>,
 }
 

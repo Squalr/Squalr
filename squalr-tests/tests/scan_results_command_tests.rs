@@ -24,10 +24,10 @@ use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::structures::data_values::anonymous_value_string::AnonymousValueString;
 use squalr_engine_api::structures::scan_results::scan_result_ref::ScanResultRef;
 use squalr_engine_api::{commands::unprivileged_command::UnprivilegedCommand, commands::unprivileged_command_response::UnprivilegedCommandResponse};
+use squalr_engine_console::parse_privileged_command;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
-use structopt::StructOpt;
 
 use squalr_tests::mocks::mock_engine_bindings::MockEngineBindings;
 
@@ -593,7 +593,7 @@ fn scan_results_set_property_request_does_not_invoke_callback_when_response_vari
 
 #[test]
 fn privileged_command_parser_accepts_scan_results_list_with_long_flags() {
-    let parse_result = std::panic::catch_unwind(|| PrivilegedCommand::from_iter_safe(["squalr-cli", "results", "list", "--page-index", "2"]));
+    let parse_result = std::panic::catch_unwind(|| parse_privileged_command(["squalr-cli", "results", "list", "--page-index", "2"]));
 
     assert!(parse_result.is_ok());
 
@@ -610,7 +610,7 @@ fn privileged_command_parser_accepts_scan_results_list_with_long_flags() {
 
 #[test]
 fn privileged_command_parser_accepts_scan_results_query_with_long_flags() {
-    let parse_result = std::panic::catch_unwind(|| PrivilegedCommand::from_iter_safe(["squalr-cli", "results", "query", "--page-index", "5"]));
+    let parse_result = std::panic::catch_unwind(|| parse_privileged_command(["squalr-cli", "results", "query", "--page-index", "5"]));
 
     assert!(parse_result.is_ok());
 
@@ -628,7 +628,7 @@ fn privileged_command_parser_accepts_scan_results_query_with_long_flags() {
 #[test]
 fn privileged_command_parser_accepts_scan_results_refresh_with_long_flags() {
     let parse_result = std::panic::catch_unwind(|| {
-        PrivilegedCommand::from_iter_safe([
+        parse_privileged_command([
             "squalr-cli",
             "results",
             "refresh",
@@ -657,7 +657,7 @@ fn privileged_command_parser_accepts_scan_results_refresh_with_long_flags() {
 #[test]
 fn privileged_command_parser_accepts_scan_results_set_property_with_long_flags() {
     let parse_result = std::panic::catch_unwind(|| {
-        PrivilegedCommand::from_iter_safe([
+        parse_privileged_command([
             "squalr-cli",
             "results",
             "set-property",
@@ -697,7 +697,7 @@ fn privileged_command_parser_accepts_scan_results_set_property_with_long_flags()
 #[test]
 fn privileged_command_parser_accepts_scan_results_delete_with_long_flags() {
     let parse_result = std::panic::catch_unwind(|| {
-        PrivilegedCommand::from_iter_safe([
+        parse_privileged_command([
             "squalr-cli",
             "results",
             "delete",
@@ -726,7 +726,7 @@ fn privileged_command_parser_accepts_scan_results_delete_with_long_flags() {
 #[test]
 fn privileged_command_parser_accepts_scan_results_freeze_with_long_flags() {
     let parse_result = std::panic::catch_unwind(|| {
-        PrivilegedCommand::from_iter_safe([
+        parse_privileged_command([
             "squalr-cli",
             "results",
             "freeze",
@@ -757,7 +757,7 @@ fn privileged_command_parser_accepts_scan_results_freeze_with_long_flags() {
 #[test]
 fn privileged_command_parser_rejects_scan_results_set_property_with_invalid_anonymous_value_string() {
     let parse_result = std::panic::catch_unwind(|| {
-        PrivilegedCommand::from_iter_safe([
+        parse_privileged_command([
             "squalr-cli",
             "results",
             "set-property",

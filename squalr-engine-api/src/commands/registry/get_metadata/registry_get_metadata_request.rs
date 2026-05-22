@@ -3,9 +3,8 @@ use crate::commands::registry::registry_command::RegistryCommand;
 use crate::commands::registry::registry_response::RegistryResponse;
 use crate::commands::{privileged_command::PrivilegedCommand, privileged_command_request::PrivilegedCommandRequest};
 use serde::{Deserialize, Serialize};
-use structopt::StructOpt;
 
-#[derive(Clone, Default, StructOpt, Debug, Serialize, Deserialize)]
+#[derive(Clone, Default, Debug, Serialize, Deserialize)]
 pub struct RegistryGetMetadataRequest {}
 
 impl PrivilegedCommandRequest for RegistryGetMetadataRequest {

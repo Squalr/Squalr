@@ -4,7 +4,6 @@ use crate::commands::project_symbols::project_symbols_response::ProjectSymbolsRe
 use crate::commands::unprivileged_command::UnprivilegedCommand;
 use crate::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use serde::{Deserialize, Serialize};
-use structopt::StructOpt;
 
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ProjectSymbolsDeleteModuleRangeMode {
@@ -22,16 +21,12 @@ pub struct ProjectSymbolsDeleteModuleRange {
     pub mode: ProjectSymbolsDeleteModuleRangeMode,
 }
 
-#[derive(Clone, Default, StructOpt, Debug, Serialize, Deserialize)]
+#[derive(Clone, Default, Debug, Serialize, Deserialize)]
 pub struct ProjectSymbolsDeleteRequest {
-    #[structopt(short = "k", long = "key")]
     pub symbol_locator_keys: Vec<String>,
-
-    #[structopt(short = "m", long = "module")]
     pub module_names: Vec<String>,
 
     #[serde(default)]
-    #[structopt(skip)]
     pub module_ranges: Vec<ProjectSymbolsDeleteModuleRange>,
 }
 

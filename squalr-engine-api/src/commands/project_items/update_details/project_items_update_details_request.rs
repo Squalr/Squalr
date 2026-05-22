@@ -7,31 +7,24 @@ use crate::structures::data_values::anonymous_value_string::AnonymousValueString
 use crate::structures::details::{DetailsFieldSource, DetailsValue};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use structopt::StructOpt;
 
-#[derive(Clone, Default, StructOpt, Debug, Serialize, Deserialize)]
+#[derive(Clone, Default, Debug, Serialize, Deserialize)]
 pub struct ProjectItemsUpdateDetailsRequest {
-    #[structopt(short = "p", long = "project-item-path", parse(from_os_str))]
     pub project_item_paths: Vec<PathBuf>,
 
     #[serde(default)]
-    #[structopt(long = "property")]
     pub property_name: Option<String>,
 
     #[serde(default)]
-    #[structopt(long = "address-target-property")]
     pub address_target_property_name: Option<String>,
 
     #[serde(default)]
-    #[structopt(short = "v", long = "value")]
     pub anonymous_value_string: Option<AnonymousValueString>,
 
     #[serde(default)]
-    #[structopt(skip)]
     pub details_field_source: DetailsFieldSource,
 
     #[serde(default)]
-    #[structopt(skip)]
     pub details_value: DetailsValue,
 }
 

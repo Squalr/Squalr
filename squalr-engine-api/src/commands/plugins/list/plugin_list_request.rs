@@ -3,9 +3,8 @@ use crate::commands::plugins::plugins_command::PluginsCommand;
 use crate::commands::plugins::plugins_response::PluginsResponse;
 use crate::commands::{privileged_command::PrivilegedCommand, privileged_command_request::PrivilegedCommandRequest};
 use serde::{Deserialize, Serialize};
-use structopt::StructOpt;
 
-#[derive(Clone, StructOpt, Debug, Serialize, Deserialize, Default)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct PluginListRequest {}
 
 impl PrivilegedCommandRequest for PluginListRequest {

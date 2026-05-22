@@ -4,11 +4,9 @@ use crate::commands::scan_results::scan_results_command::ScanResultsCommand;
 use crate::commands::scan_results::scan_results_response::ScanResultsResponse;
 use crate::{commands::privileged_command::PrivilegedCommand, structures::scan_results::scan_result_ref::ScanResultRef};
 use serde::{Deserialize, Serialize};
-use structopt::StructOpt;
 
-#[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ScanResultsDeleteRequest {
-    #[structopt(short = "s", long)]
     pub scan_result_refs: Vec<ScanResultRef>,
 }
 

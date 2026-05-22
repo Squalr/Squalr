@@ -7,6 +7,6 @@ edition = "2024"
 crossbeam-channel = "0.5.15"
 squalr-engine = { path = "../squalr-engine" }
 squalr-engine-api = { path = "../squalr-engine-api" }
+squalr-engine-console = { path = "../squalr-engine-console" }
 squalr-engine-session = { path = "../squalr-engine-session" }
 squalr-engine-targets = { path = "../squalr-engine-targets" }
-structopt = "0.3.26"

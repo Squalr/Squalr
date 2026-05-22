@@ -9,9 +9,9 @@ use squalr_engine_api::commands::privileged_command_response::TypedPrivilegedCom
 use squalr_engine_api::commands::project::list::project_list_response::ProjectListResponse;
 use squalr_engine_api::commands::unprivileged_command_response::TypedUnprivilegedCommandResponse;
 use squalr_engine_api::structures::structs::symbolic_struct_definition::SymbolicStructDefinition;
+use squalr_engine_console::parse_privileged_command;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use structopt::StructOpt;
 
 use squalr_tests::mocks::mock_engine_bindings::MockEngineBindings;
 
@@ -199,7 +199,7 @@ fn memory_read_request_does_not_invoke_callback_when_response_variant_is_wrong()
 #[test]
 fn privileged_command_parser_accepts_memory_read_with_short_flags() {
     let parse_result = std::panic::catch_unwind(|| {
-        PrivilegedCommand::from_iter_safe([
+        parse_privileged_command([
             "squalr-cli",
             "memory",
             "read",
@@ -235,7 +235,7 @@ fn privileged_command_parser_accepts_memory_read_with_short_flags() {
 #[test]
 fn privileged_command_parser_accepts_memory_write_with_short_flags() {
     let parse_result = std::panic::catch_unwind(|| {
-        PrivilegedCommand::from_iter_safe([
+        parse_privileged_command([
             "squalr-cli",
             "memory",
             "write",
@@ -268,7 +268,7 @@ fn privileged_command_parser_accepts_memory_write_with_short_flags() {
 #[test]
 fn privileged_command_parser_rejects_memory_write_when_required_value_is_missing() {
     let parse_result = std::panic::catch_unwind(|| {
-        PrivilegedCommand::from_iter_safe([
+        parse_privileged_command([
             "squalr-cli",
             "memory",
             "write",

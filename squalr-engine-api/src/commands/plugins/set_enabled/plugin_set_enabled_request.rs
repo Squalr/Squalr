@@ -3,13 +3,10 @@ use crate::commands::plugins::plugins_response::PluginsResponse;
 use crate::commands::plugins::set_enabled::plugin_set_enabled_response::PluginSetEnabledResponse;
 use crate::commands::{privileged_command::PrivilegedCommand, privileged_command_request::PrivilegedCommandRequest};
 use serde::{Deserialize, Serialize};
-use structopt::StructOpt;
 
-#[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PluginSetEnabledRequest {
-    #[structopt(long = "plugin-id")]
     pub plugin_id: String,
-    #[structopt(long = "enabled")]
     pub is_enabled: bool,
 }
 

@@ -10,27 +10,20 @@ use crate::structures::structs::{
 };
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
-use structopt::StructOpt;
 
-#[derive(Clone, Default, StructOpt, Debug, Serialize, Deserialize)]
+#[derive(Clone, Default, Debug, Serialize, Deserialize)]
 pub struct ProjectSymbolsUpsertLayoutRequest {
     #[serde(default)]
-    #[structopt(long = "original-id")]
     pub original_struct_layout_id: Option<String>,
-
-    #[structopt(short = "i", long = "id")]
     pub struct_layout_id: String,
 
     #[serde(default = "default_layout_kind")]
-    #[structopt(short = "k", long = "kind", default_value = "struct")]
     pub layout_kind: String,
 
     #[serde(default)]
-    #[structopt(short = "s", long = "size")]
     pub size_in_bytes: Option<u64>,
 
     #[serde(default)]
-    #[structopt(short = "f", long = "field")]
     pub field_definitions: Vec<String>,
 }
 

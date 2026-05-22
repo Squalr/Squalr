@@ -3,9 +3,8 @@ use crate::commands::scan::reset::scan_reset_response::ScanResetResponse;
 use crate::commands::scan::scan_response::ScanResponse;
 use crate::commands::{privileged_command::PrivilegedCommand, scan::scan_command::ScanCommand};
 use serde::{Deserialize, Serialize};
-use structopt::StructOpt;
 
-#[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ScanResetRequest {}
 
 impl PrivilegedCommandRequest for ScanResetRequest {

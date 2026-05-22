@@ -9,6 +9,7 @@ members = [
     "plugins/squalr-plugin-binary-symbols",
     "squalr-tests",
     "squalr-engine-api",
+    "squalr-engine-console",
     "squalr-engine-targets",
     "squalr-engine-session",
     "squalr-engine-targets-native",
