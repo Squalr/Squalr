@@ -31,6 +31,7 @@ impl PluginsView {
             plugin_list_view_data,
         };
 
+        PluginListViewData::observe_command_responses(instance.plugin_list_view_data.clone(), instance.app_context.clone());
         PluginListViewData::refresh(instance.plugin_list_view_data.clone(), instance.app_context.clone());
         instance.listen_for_process_change();
         instance.listen_for_plugins_changed();

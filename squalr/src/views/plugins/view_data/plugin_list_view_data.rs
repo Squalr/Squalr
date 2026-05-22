@@ -1,8 +1,11 @@
 use crate::app_context::AppContext;
 use squalr_engine_api::{
     commands::{
+        command_invocation::{CommandInvocationOutcome, EngineCommandResponse},
+        plugins::plugins_response::PluginsResponse,
         plugins::{list::plugin_list_request::PluginListRequest, set_enabled::plugin_set_enabled_request::PluginSetEnabledRequest},
         privileged_command_request::PrivilegedCommandRequest,
+        privileged_command_response::PrivilegedCommandResponse,
         project::save::project_save_request::ProjectSaveRequest,
         unprivileged_command_request::UnprivilegedCommandRequest,
     },
@@ -73,6 +76,43 @@ impl PluginListViewData {
 
         if !did_dispatch {
             Self::set_loading(plugin_list_view_data, false);
+        }
+    }
+
+    pub fn observe_command_responses(
+        plugin_list_view_data: Dependency<PluginListViewData>,
+        app_context: Arc<AppContext>,
+    ) {
+        let engine_unprivileged_state = app_context.engine_unprivileged_state.clone();
+
+        engine_unprivileged_state.listen_for_command_response(move |command_invocation_outcome| {
+            Self::apply_observed_command_response(plugin_list_view_data.clone(), command_invocation_outcome);
+        });
+    }
+
+    fn apply_observed_command_response(
+        plugin_list_view_data: Dependency<PluginListViewData>,
+        command_invocation_outcome: &CommandInvocationOutcome,
+    ) {
+        let EngineCommandResponse::Privileged(PrivilegedCommandResponse::Plugins(plugins_response)) = command_invocation_outcome.get_response() else {
+            return;
+        };
+
+        match plugins_response {
+            PluginsResponse::List { plugin_list_response } => {
+                Self::apply_snapshot(
+                    plugin_list_view_data,
+                    plugin_list_response.plugins.clone(),
+                    plugin_list_response.opened_process_info.clone(),
+                );
+            }
+            PluginsResponse::SetEnabled { plugin_set_enabled_response } => {
+                Self::apply_snapshot(
+                    plugin_list_view_data,
+                    plugin_set_enabled_response.plugins.clone(),
+                    plugin_set_enabled_response.opened_process_info.clone(),
+                );
+            }
         }
     }
 

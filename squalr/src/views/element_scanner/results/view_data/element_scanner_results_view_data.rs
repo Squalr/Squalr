@@ -214,7 +214,7 @@ impl ElementScannerResultsViewData {
                 );
             }
             squalr_engine_api::commands::privileged_command_response::PrivilegedCommandResponse::Results(scan_results_response) => {
-                Self::apply_observed_scan_results_response(element_scanner_results_view_data, scan_results_response);
+                Self::apply_observed_scan_results_response(element_scanner_results_view_data, engine_unprivileged_state, scan_results_response);
             }
             _ => {}
         }
@@ -277,11 +277,41 @@ impl ElementScannerResultsViewData {
 
     fn apply_observed_scan_results_response(
         element_scanner_results_view_data: Dependency<Self>,
+        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
         scan_results_response: &ScanResultsResponse,
     ) {
-        if let ScanResultsResponse::Query { scan_results_query_response } = scan_results_response {
-            if let Some(mut element_scanner_results_view_data) = element_scanner_results_view_data.write("Observed scan results query response") {
-                Self::apply_scan_results_query_response(&mut element_scanner_results_view_data, scan_results_query_response.clone());
+        match scan_results_response {
+            ScanResultsResponse::Query { scan_results_query_response } => {
+                if let Some(mut element_scanner_results_view_data) = element_scanner_results_view_data.write("Observed scan results query response") {
+                    Self::apply_scan_results_query_response(&mut element_scanner_results_view_data, scan_results_query_response.clone());
+                }
+            }
+            ScanResultsResponse::Refresh { scan_results_refresh_response } => {
+                if let Some(mut element_scanner_results_view_data) = element_scanner_results_view_data.write("Observed scan results refresh response") {
+                    element_scanner_results_view_data.is_refreshing_scan_results = false;
+                    element_scanner_results_view_data.refresh_scan_results_request_started_at = None;
+                    element_scanner_results_view_data.current_scan_results = scan_results_refresh_response.scan_results.clone();
+                }
+            }
+            ScanResultsResponse::Freeze { .. } => {
+                if let Some(mut element_scanner_results_view_data) = element_scanner_results_view_data.write("Observed scan results freeze response") {
+                    element_scanner_results_view_data.is_freezing_entries = false;
+                }
+
+                Self::query_scan_results(element_scanner_results_view_data, engine_unprivileged_state, false);
+            }
+            ScanResultsResponse::SetProperty { .. } => {
+                if let Some(mut element_scanner_results_view_data) = element_scanner_results_view_data.write("Observed scan results set property response") {
+                    element_scanner_results_view_data.is_setting_properties = false;
+                }
+
+                Self::query_scan_results(element_scanner_results_view_data, engine_unprivileged_state, false);
+            }
+            ScanResultsResponse::Delete { .. } => {
+                Self::query_scan_results(element_scanner_results_view_data, engine_unprivileged_state, false);
+            }
+            ScanResultsResponse::List { .. } => {
+                Self::query_scan_results(element_scanner_results_view_data, engine_unprivileged_state, false);
             }
         }
     }

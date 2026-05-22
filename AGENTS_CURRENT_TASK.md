@@ -16,6 +16,13 @@ Our current task, from `README.md`, is:
 - [x] Mark Output prompt commands with `CommandInvocationSource::Prompt`.
 - [x] Have element scanner results observe scan and scan-results command responses so text commands can update GUI scan/result state instead of dropping responses.
 - [x] Add coverage for command outcome publication and invocation rejection middleware.
+- [x] Audit currently exposed command families against GUI state observers.
+- [x] Add GUI response observers for current high-value gaps:
+  - process `list`/`open`/`close` responses update the process selector,
+  - plugin `list`/`set-enabled` responses update the plugin window,
+  - general/memory/scan settings `list`/`set` responses update settings tabs,
+  - pointer-scan `summary`/`start`/`validate`/`expand`/`reset` responses update the pointer scanner,
+  - scan-results `refresh`/`freeze`/`set-property`/`delete`/`list` responses reconcile the element scanner results view.
 
 ## Important Information
 
@@ -24,4 +31,8 @@ Our current task, from `README.md`, is:
   - `cargo test -p squalr-engine-api command_line --locked`.
   - `cargo test -p squalr-tests --test scan_command_tests --locked`.
   - `cargo test -p squalr-tests --test scan_results_command_tests --locked`.
-- Needs human verification in GUI: run text commands from the Output prompt for `scan new`, `scan element-scan ...`, and `scan_results query ...` against an opened process and confirm scanner/result panes reconcile as expected.
+- Current audit notes:
+  - Already covered by engine events: process open/close process-change handling, plugin enablement change events, project catalog/item/close refresh events, and scan-result update events.
+  - Response-only before this pass: `process list`, `plugins list`, settings `list`/`set`, pointer-scan commands, and several scan-results mutations.
+  - Still intentionally output/side-effect oriented unless a concrete GUI owner exists: raw `memory read/query/write/freeze`, `registry get/set-project-symbols`, `struct_scan`, and `trackable_tasks`.
+- Needs human verification in GUI: run text commands from the Output prompt for `process list`, `plugins list`, `settings scan set ...`, `pointer_scan summary/start/expand`, `scan new`, `scan element-scan ...`, and `scan_results query/freeze/set-property/delete ...` against an opened process and confirm panes reconcile as expected.

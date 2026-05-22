@@ -1,13 +1,16 @@
 use crate::ui::geometry::safe_clamp_ord;
 use crate::ui::list_navigation::{ListNavigationDirection, resolve_next_index};
 use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
+use squalr_engine_api::commands::command_invocation::{CommandInvocationOutcome, EngineCommandResponse};
 use squalr_engine_api::commands::pointer_scan::expand::pointer_scan_expand_request::PointerScanExpandRequest;
 use squalr_engine_api::commands::pointer_scan::expand::pointer_scan_expand_response::PointerScanExpandResponse;
+use squalr_engine_api::commands::pointer_scan::pointer_scan_response::PointerScanResponse;
 use squalr_engine_api::commands::pointer_scan::reset::pointer_scan_reset_request::PointerScanResetRequest;
 use squalr_engine_api::commands::pointer_scan::start::pointer_scan_start_request::PointerScanStartRequest;
 use squalr_engine_api::commands::pointer_scan::summary::pointer_scan_summary_request::PointerScanSummaryRequest;
 use squalr_engine_api::commands::pointer_scan::validate::pointer_scan_validate_request::PointerScanValidateRequest;
 use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRequest;
+use squalr_engine_api::commands::privileged_command_response::PrivilegedCommandResponse;
 use squalr_engine_api::commands::project_items::create::project_items_create_request::ProjectItemsCreateRequest;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::structures::data_types::{built_in_types::i32::data_type_i32::DataTypeI32, data_type_ref::DataTypeRef};
@@ -166,7 +169,100 @@ impl PointerScannerViewData {
         pointer_scanner_view_data: Dependency<Self>,
         engine_unprivileged_state: Arc<EngineUnprivilegedState>,
     ) {
+        Self::observe_command_responses(pointer_scanner_view_data.clone(), engine_unprivileged_state.clone());
         Self::request_summary(pointer_scanner_view_data, engine_unprivileged_state, None);
+    }
+
+    fn observe_command_responses(
+        pointer_scanner_view_data: Dependency<Self>,
+        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
+    ) {
+        engine_unprivileged_state.listen_for_command_response(move |command_invocation_outcome| {
+            Self::apply_observed_command_response(pointer_scanner_view_data.clone(), command_invocation_outcome);
+        });
+    }
+
+    fn apply_observed_command_response(
+        pointer_scanner_view_data: Dependency<Self>,
+        command_invocation_outcome: &CommandInvocationOutcome,
+    ) {
+        let EngineCommandResponse::Privileged(PrivilegedCommandResponse::PointerScan(pointer_scan_response)) = command_invocation_outcome.get_response() else {
+            return;
+        };
+
+        let Some(mut pointer_scanner_view_data_guard) = pointer_scanner_view_data.write("Observed pointer scan response") else {
+            return;
+        };
+
+        match pointer_scan_response {
+            PointerScanResponse::Reset { pointer_scan_reset_response } => {
+                pointer_scanner_view_data_guard.is_resetting_scan = false;
+                pointer_scanner_view_data_guard.is_querying_summary = false;
+
+                if pointer_scan_reset_response.success {
+                    pointer_scanner_view_data_guard.clear_session_state_preserving_inputs();
+                } else {
+                    pointer_scanner_view_data_guard.status_message = String::from("Pointer scan reset failed. See logs.");
+                }
+            }
+            PointerScanResponse::Start { pointer_scan_start_response } => {
+                pointer_scanner_view_data_guard.is_starting_scan = false;
+
+                if pointer_scan_start_response.success {
+                    pointer_scanner_view_data_guard.apply_summary(pointer_scan_start_response.pointer_scan_summary.clone());
+                    if let Some(pointer_scan_summary) = pointer_scan_start_response.pointer_scan_summary.as_ref() {
+                        pointer_scanner_view_data_guard.queue_expand_request(PointerScannerPageRequest {
+                            parent_node_id: None,
+                            page_index: 0,
+                        });
+                        pointer_scanner_view_data_guard.status_message = Self::format_start_completed_status(pointer_scan_summary);
+                    }
+                } else {
+                    pointer_scanner_view_data_guard.status_message = String::from("Cannot start pointer scan without an opened process.");
+                }
+            }
+            PointerScanResponse::Summary { pointer_scan_summary_response } => {
+                pointer_scanner_view_data_guard.is_querying_summary = false;
+                pointer_scanner_view_data_guard.apply_summary(pointer_scan_summary_response.pointer_scan_summary.clone());
+                if pointer_scan_summary_response.pointer_scan_summary.is_some() {
+                    pointer_scanner_view_data_guard.queue_expand_request(PointerScannerPageRequest {
+                        parent_node_id: None,
+                        page_index: 0,
+                    });
+                }
+            }
+            PointerScanResponse::Expand { pointer_scan_expand_response } => {
+                pointer_scanner_view_data_guard.apply_observed_expand_response(pointer_scan_expand_response.clone());
+            }
+            PointerScanResponse::Validate {
+                pointer_scan_validate_response,
+            } => {
+                pointer_scanner_view_data_guard.is_validating_scan = false;
+                pointer_scanner_view_data_guard.apply_summary(pointer_scan_validate_response.pointer_scan_summary.clone());
+                if pointer_scan_validate_response.pointer_scan_summary.is_some() {
+                    pointer_scanner_view_data_guard.queue_expand_request(PointerScannerPageRequest {
+                        parent_node_id: None,
+                        page_index: 0,
+                    });
+                }
+
+                if !pointer_scan_validate_response.status_message.trim().is_empty() {
+                    let summary_status = pointer_scanner_view_data_guard
+                        .pointer_scan_summary
+                        .as_ref()
+                        .map(Self::format_summary_status)
+                        .unwrap_or_default();
+
+                    pointer_scanner_view_data_guard.status_message = if summary_status.is_empty() {
+                        pointer_scan_validate_response.status_message.clone()
+                    } else {
+                        format!("{} {}", pointer_scan_validate_response.status_message, summary_status)
+                    };
+                }
+            }
+        }
+
+        pointer_scanner_view_data_guard.request_repaint();
     }
 
     pub fn request_summary(
@@ -1417,6 +1513,13 @@ impl PointerScannerViewData {
             return;
         }
 
+        self.apply_observed_expand_response(pointer_scan_expand_response);
+    }
+
+    fn apply_observed_expand_response(
+        &mut self,
+        pointer_scan_expand_response: PointerScanExpandResponse,
+    ) {
         let page_request = PointerScannerPageRequest {
             parent_node_id: pointer_scan_expand_response.parent_node_id,
             page_index: pointer_scan_expand_response.page_index,
