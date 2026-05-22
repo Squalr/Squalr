@@ -1,6 +1,7 @@
 use squalr_engine_api::commands::plugins::list::plugin_list_response::PluginListResponse;
 use squalr_engine_api::commands::plugins::plugins_response::PluginsResponse;
 use squalr_engine_api::commands::plugins::set_enabled::plugin_set_enabled_response::PluginSetEnabledResponse;
+use squalr_engine_api::commands::plugins::set_order::plugin_set_order_response::PluginSetOrderResponse;
 use squalr_engine_api::plugins::{PluginActivationState, PluginCapability, PluginState};
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 
@@ -8,7 +9,22 @@ pub fn handle_plugins_response(response: PluginsResponse) {
     match response {
         PluginsResponse::List { plugin_list_response } => handle_plugin_list_response(plugin_list_response),
         PluginsResponse::SetEnabled { plugin_set_enabled_response } => handle_plugin_set_enabled_response(plugin_set_enabled_response),
+        PluginsResponse::SetOrder { plugin_set_order_response } => handle_plugin_set_order_response(plugin_set_order_response),
     }
+}
+
+fn handle_plugin_set_order_response(plugin_set_order_response: PluginSetOrderResponse) {
+    if plugin_set_order_response.did_update {
+        log::info!("Plugin priority order updated.");
+    } else {
+        log::info!("Plugin priority order was unchanged.");
+    }
+
+    log_plugin_inventory(
+        "Plugins",
+        &plugin_set_order_response.plugins,
+        plugin_set_order_response.opened_process_info.as_ref(),
+    );
 }
 
 fn handle_plugin_list_response(plugin_list_response: PluginListResponse) {

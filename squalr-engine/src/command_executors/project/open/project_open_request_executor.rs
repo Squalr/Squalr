@@ -62,10 +62,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectOpenRequest {
 
         match Project::load_from_path(&project_directory_path) {
             Ok(project) => {
-                let project_plugin_configuration = project
-                    .get_project_info()
-                    .get_plugin_enablement_overrides()
-                    .cloned();
+                let project_plugin_configuration = project.get_project_info().get_plugin_configuration().cloned();
                 let project_symbol_catalog = project.get_project_info().get_project_symbol_catalog().clone();
                 let opened_project_directory_path = project.get_project_info().get_project_directory();
                 *opened_project = Some(project);

@@ -5,7 +5,7 @@ use squalr_engine_api::commands::plugins::set_enabled::plugin_set_enabled_reques
 use squalr_engine_api::commands::project::save::project_save_request::ProjectSaveRequest;
 use squalr_engine_api::commands::{privileged_command_request::PrivilegedCommandRequest, unprivileged_command_request::UnprivilegedCommandRequest};
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
-use squalr_engine_api::plugins::PluginEnablementOverrides;
+use squalr_engine_api::plugins::PluginConfiguration;
 use std::sync::{Arc, mpsc};
 use std::time::Duration;
 
@@ -98,13 +98,14 @@ impl AppShell {
         match response_receiver.recv_timeout(Duration::from_secs(3)) {
             Ok(plugin_set_enabled_response) => {
                 let persisted_plugin_states = plugin_set_enabled_response.plugins.clone();
+                let persisted_default_plugin_ids = plugin_set_enabled_response.default_plugin_ids.clone();
                 self.apply_engine_opened_process_state(plugin_set_enabled_response.opened_process_info.clone());
                 self.app_state
                     .plugins_pane_state
                     .apply_plugin_states(plugin_set_enabled_response.plugins);
                 self.app_state.plugins_pane_state.status_message = if plugin_set_enabled_response.did_update {
                     let save_status_message = self
-                        .persist_opened_project_plugin_configuration(engine_unprivileged_state, persisted_plugin_states)
+                        .persist_opened_project_plugin_configuration(engine_unprivileged_state, persisted_plugin_states, persisted_default_plugin_ids)
                         .unwrap_or_default();
 
                     let base_status_message = format!(
@@ -138,8 +139,9 @@ impl AppShell {
         &mut self,
         engine_unprivileged_state: &Arc<squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState>,
         plugin_states: Vec<squalr_engine_api::plugins::PluginState>,
+        default_plugin_ids: Vec<String>,
     ) -> Option<String> {
-        let plugin_enablement_overrides = PluginEnablementOverrides::from_plugin_states(&plugin_states);
+        let plugin_configuration = PluginConfiguration::from_plugin_states(&plugin_states, &default_plugin_ids);
 
         let has_opened_project = match engine_unprivileged_state
             .get_project_manager()
@@ -149,7 +151,7 @@ impl AppShell {
             Ok(mut opened_project) => {
                 if let Some(opened_project) = opened_project.as_mut() {
                     let project_info = opened_project.get_project_info_mut();
-                    project_info.set_plugin_enablement_overrides(plugin_enablement_overrides);
+                    project_info.set_plugin_configuration(plugin_configuration);
                     project_info.set_has_unsaved_changes(true);
                     true
                 } else {

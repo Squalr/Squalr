@@ -33,10 +33,12 @@ impl PrivilegedCommandRequestExecutor for PluginSetEnabledRequest {
             .get_process_manager()
             .get_opened_process();
         let plugins = engine_privileged_state.get_plugin_states();
+        let default_plugin_ids = plugin_registry.get_default_plugin_ids();
 
         PluginSetEnabledResponse {
             plugins,
             opened_process_info,
+            default_plugin_ids,
             did_update,
         }
     }

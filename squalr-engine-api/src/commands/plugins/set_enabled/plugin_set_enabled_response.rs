@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 pub struct PluginSetEnabledResponse {
     pub plugins: Vec<PluginState>,
     pub opened_process_info: Option<OpenedProcessInfo>,
+    pub default_plugin_ids: Vec<String>,
     pub did_update: bool,
 }
 

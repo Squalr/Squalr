@@ -5,7 +5,7 @@ use crate::{
         widgets::controls::{checkbox::Checkbox, state_layer::StateLayer},
     },
 };
-use eframe::egui::{Label, RichText, Sense, Ui, UiBuilder, Widget, pos2, vec2};
+use eframe::egui::{Label, Pos2, RichText, Sense, Ui, UiBuilder, Widget, pos2, vec2};
 use epaint::CornerRadius;
 use squalr_engine_api::plugins::{PluginActivationState, PluginState};
 use std::sync::Arc;
@@ -19,6 +19,7 @@ pub struct PluginEntryView<'lifetime> {
 pub struct PluginEntryViewResponse {
     pub should_select: bool,
     pub toggle_enabled: Option<bool>,
+    pub show_context_menu_at: Option<Pos2>,
 }
 
 impl<'lifetime> PluginEntryView<'lifetime> {
@@ -135,6 +136,13 @@ impl<'lifetime> PluginEntryView<'lifetime> {
         PluginEntryViewResponse {
             should_select: row_response.clicked() && !did_toggle_enabled,
             toggle_enabled,
+            show_context_menu_at: if row_response.secondary_clicked() {
+                row_response
+                    .interact_pointer_pos()
+                    .or_else(|| user_interface.ctx().pointer_latest_pos())
+            } else {
+                None
+            },
         }
     }
 
