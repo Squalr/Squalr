@@ -1,5 +1,4 @@
 use crate::app_context::AppContext;
-use crate::ui::{draw::icon_draw::IconDraw, widgets::controls::button::Button};
 use crate::views::output::output_command_dispatcher::OutputCommandDispatcher;
 use crate::views::output::output_command_state::OutputCommandState;
 use eframe::egui::{Align, Key, Layout, Response, RichText, ScrollArea, Sense, TextEdit, Ui, UiBuilder, Widget};
@@ -30,24 +29,10 @@ impl OutputView {
     ) -> Option<String> {
         let theme = &self.app_context.theme;
         let mut command_to_dispatch = None;
-        let prompt_width = 20.0;
-        let button_size = vec2(30.0, 26.0);
         let row_padding = vec2(8.0, 4.0);
-        let spacing = 6.0;
-        let prompt_rectangle = Rect::from_min_size(
-            command_line_rectangle.min + row_padding,
-            vec2(prompt_width, command_line_rectangle.height() - row_padding.y * 2.0),
-        );
-        let send_button_rectangle = Rect::from_min_size(
-            pos2(
-                command_line_rectangle.max.x - row_padding.x - button_size.x,
-                command_line_rectangle.center().y - button_size.y * 0.5,
-            ),
-            button_size,
-        );
         let input_rectangle = Rect::from_min_max(
-            pos2(prompt_rectangle.max.x + spacing, command_line_rectangle.min.y + row_padding.y),
-            pos2(send_button_rectangle.min.x - spacing, command_line_rectangle.max.y - row_padding.y),
+            pos2(command_line_rectangle.min.x + row_padding.x, command_line_rectangle.min.y + row_padding.y),
+            pos2(command_line_rectangle.max.x - row_padding.x, command_line_rectangle.max.y - row_padding.y),
         );
 
         user_interface
@@ -60,38 +45,11 @@ impl OutputView {
             ],
             Stroke::new(1.0, theme.submenu_border),
         );
-        user_interface.painter().text(
-            prompt_rectangle.center(),
-            eframe::egui::Align2::CENTER_CENTER,
-            ">",
-            theme.font_library.font_noto_sans.font_normal.clone(),
-            theme.foreground,
-        );
 
         let mut command_line_user_interface = user_interface.new_child(
             UiBuilder::new()
                 .max_rect(command_line_rectangle)
                 .sense(Sense::click()),
-        );
-
-        let is_send_enabled = match self.command_state.read() {
-            Ok(command_state) => command_state.has_pending_command(),
-            Err(error) => {
-                log::error!("Failed to acquire output command state read lock: {}", error);
-                false
-            }
-        };
-        let send_button = command_line_user_interface.put(
-            send_button_rectangle,
-            Button::new_from_theme(theme)
-                .background_color(epaint::Color32::TRANSPARENT)
-                .disabled(!is_send_enabled)
-                .with_tooltip_text("Run command."),
-        );
-        IconDraw::draw(
-            &command_line_user_interface,
-            send_button.rect,
-            &theme.icon_library.icon_handle_navigation_right_arrow,
         );
 
         match self.command_state.write() {
@@ -121,8 +79,8 @@ impl OutputView {
                     command_state.navigate_next();
                 }
 
-                if send_button.clicked()
-                    || (text_edit_response.has_focus() && command_line_user_interface.input(|input_state| input_state.key_pressed(Key::Enter)))
+                if command_line_user_interface.input(|input_state| input_state.key_pressed(Key::Enter))
+                    && (text_edit_response.has_focus() || text_edit_response.lost_focus())
                 {
                     command_to_dispatch = command_state.submit_command();
                     text_edit_response.request_focus();

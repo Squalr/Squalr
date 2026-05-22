@@ -26,13 +26,20 @@ pub enum TextCommandParseError {
 }
 
 pub fn parse_command_line(input: &str) -> Result<TextCommand, TextCommandParseError> {
+    parse_command_line_with_program_name(input, "squalr")
+}
+
+pub fn parse_command_line_with_program_name(
+    input: &str,
+    program_name: &str,
+) -> Result<TextCommand, TextCommandParseError> {
     let mut command_arguments = shlex::split(input).ok_or(TextCommandParseError::InvalidShellWords)?;
 
     if command_arguments.is_empty() {
         return Err(TextCommandParseError::EmptyCommand);
     }
 
-    command_arguments.insert(0, String::from("squalr-cli"));
+    command_arguments.insert(0, program_name.to_string());
 
     parse_text_command(command_arguments).map_err(TextCommandParseError::Command)
 }
@@ -2047,6 +2054,13 @@ mod tests {
             parsed_command,
             TextCommand::Unprivileged(api::commands::unprivileged_command::UnprivilegedCommand::Project(ProjectCommand::Create { .. }))
         ));
+    }
+
+    #[test]
+    fn parse_command_line_with_program_name_uses_caller_program_name_in_help() {
+        let parse_error = parse_command_line_with_program_name("process open unexpected", "squalr-gui").expect_err("Expected parse failure.");
+
+        assert!(parse_error.to_string().contains("squalr-gui process open"));
     }
 
     #[test]

@@ -10,15 +10,12 @@ impl OutputCommandDispatcher {
         app_context: &Arc<AppContext>,
         command_text: String,
     ) {
-        log::info!("> {}", command_text);
-
         match parse_command_line(&command_text) {
             Ok(TextCommand::Privileged(command)) => {
                 let engine_unprivileged_state = app_context.engine_unprivileged_state.clone();
                 let egui_context = app_context.context.clone();
 
-                engine_unprivileged_state.dispatch_command(command, move |response| {
-                    log::info!("Command response: {:#?}", response);
+                engine_unprivileged_state.dispatch_command(command, move |_response| {
                     egui_context.request_repaint();
                 });
             }
@@ -26,8 +23,7 @@ impl OutputCommandDispatcher {
                 let engine_unprivileged_state = app_context.engine_unprivileged_state.clone();
                 let egui_context = app_context.context.clone();
 
-                engine_unprivileged_state.dispatch_unprivileged_command(command, move |response| {
-                    log::info!("Command response: {:#?}", response);
+                engine_unprivileged_state.dispatch_unprivileged_command(command, move |_response| {
                     egui_context.request_repaint();
                 });
             }

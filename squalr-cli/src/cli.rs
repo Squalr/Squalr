@@ -2,7 +2,7 @@ use crate::response_handlers::{handle_privileged_engine_response, handle_unprivi
 use anyhow::{Result, anyhow};
 use squalr_engine_api::commands::privileged_command::PrivilegedCommand;
 use squalr_engine_api::commands::text::clap::ErrorKind;
-use squalr_engine_api::commands::text::{TextCommand, TextCommandParseError, parse_command_line};
+use squalr_engine_api::commands::text::{TextCommand, TextCommandParseError, parse_command_line_with_program_name};
 use squalr_engine_api::commands::unprivileged_command::UnprivilegedCommand;
 use squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState;
 use std::io;
@@ -126,7 +126,7 @@ impl Cli {
     }
 
     fn parse_input(input: &str) -> Result<ParsedInput> {
-        match parse_command_line(input) {
+        match parse_command_line_with_program_name(input, "squalr-cli") {
             Ok(TextCommand::Privileged(engine_command)) => Ok(ParsedInput::PrivilegedCommand(engine_command)),
             Ok(TextCommand::Unprivileged(engine_command)) => Ok(ParsedInput::UnprivilegedCommand(engine_command)),
             Err(TextCommandParseError::Command(error)) if matches!(error.kind, ErrorKind::HelpDisplayed | ErrorKind::VersionDisplayed) => {
