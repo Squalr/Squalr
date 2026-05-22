@@ -1,6 +1,6 @@
 use crate::app_context::AppContext;
-use squalr_engine_api::commands::text::clap::ErrorKind;
-use squalr_engine_api::commands::text::{TextCommand, TextCommandParseError, format_prompt_command_error, parse_prompt_command_line};
+use squalr_engine_api::commands::command_line::clap::ErrorKind;
+use squalr_engine_api::commands::command_line::{CommandLineCommand, CommandLineParseError, format_prompt_command_error, parse_prompt_command_line};
 use std::sync::Arc;
 
 pub struct OutputCommandDispatcher;
@@ -13,7 +13,7 @@ impl OutputCommandDispatcher {
         log::info!("{}", Self::format_command_echo(&command_text));
 
         match parse_prompt_command_line(&command_text) {
-            Ok(TextCommand::Privileged(command)) => {
+            Ok(CommandLineCommand::Privileged(command)) => {
                 let engine_unprivileged_state = app_context.engine_unprivileged_state.clone();
                 let egui_context = app_context.context.clone();
 
@@ -21,7 +21,7 @@ impl OutputCommandDispatcher {
                     egui_context.request_repaint();
                 });
             }
-            Ok(TextCommand::Unprivileged(command)) => {
+            Ok(CommandLineCommand::Unprivileged(command)) => {
                 let engine_unprivileged_state = app_context.engine_unprivileged_state.clone();
                 let egui_context = app_context.context.clone();
 
@@ -29,10 +29,10 @@ impl OutputCommandDispatcher {
                     egui_context.request_repaint();
                 });
             }
-            Err(TextCommandParseError::Command(error)) if matches!(error.kind, ErrorKind::HelpDisplayed | ErrorKind::VersionDisplayed) => {
+            Err(CommandLineParseError::Command(error)) if matches!(error.kind, ErrorKind::HelpDisplayed | ErrorKind::VersionDisplayed) => {
                 log::info!("{}", format_prompt_command_error(&error));
             }
-            Err(TextCommandParseError::Command(error)) => {
+            Err(CommandLineParseError::Command(error)) => {
                 log::error!("{}", format_prompt_command_error(&error));
             }
             Err(error) => {

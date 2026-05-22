@@ -1,4 +1,5 @@
 use crossbeam_channel::{Receiver, unbounded};
+use squalr_engine_api::commands::command_line::parse_privileged_command;
 use squalr_engine_api::commands::privileged_command::PrivilegedCommand;
 use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRequest;
 use squalr_engine_api::commands::privileged_command_response::TypedPrivilegedCommandResponse;
@@ -16,7 +17,6 @@ use squalr_engine_api::commands::scan_results::refresh::scan_results_refresh_res
 use squalr_engine_api::commands::scan_results::scan_results_command::ScanResultsCommand;
 use squalr_engine_api::commands::scan_results::set_property::scan_results_set_property_request::ScanResultsSetPropertyRequest;
 use squalr_engine_api::commands::scan_results::set_property::scan_results_set_property_response::ScanResultsSetPropertyResponse;
-use squalr_engine_api::commands::text::parse_privileged_command;
 use squalr_engine_api::commands::unprivileged_command_response::TypedUnprivilegedCommandResponse;
 use squalr_engine_api::engine::engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings;
 use squalr_engine_api::engine::engine_binding_error::EngineBindingError;

@@ -1,3 +1,4 @@
+use squalr_engine_api::commands::command_line::parse_privileged_command;
 use squalr_engine_api::commands::privileged_command::PrivilegedCommand;
 use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRequest;
 use squalr_engine_api::commands::privileged_command_response::TypedPrivilegedCommandResponse;
@@ -19,7 +20,6 @@ use squalr_engine_api::commands::settings::scan::set::scan_settings_set_request:
 use squalr_engine_api::commands::settings::scan::set::scan_settings_set_response::ScanSettingsSetResponse;
 use squalr_engine_api::commands::settings::settings_command::SettingsCommand;
 use squalr_engine_api::commands::settings::settings_error::SettingsError;
-use squalr_engine_api::commands::text::parse_privileged_command;
 use squalr_engine_api::commands::unprivileged_command_response::TypedUnprivilegedCommandResponse;
 use squalr_engine_api::plugins::memory_view::PageRetrievalMode;
 use squalr_engine_api::structures::data_types::floating_point_tolerance::FloatingPointTolerance;

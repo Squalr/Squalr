@@ -1,3 +1,4 @@
+use squalr_engine_api::commands::command_line::parse_privileged_command;
 use squalr_engine_api::commands::pointer_scan::expand::pointer_scan_expand_request::PointerScanExpandRequest;
 use squalr_engine_api::commands::pointer_scan::expand::pointer_scan_expand_response::PointerScanExpandResponse;
 use squalr_engine_api::commands::pointer_scan::pointer_scan_command::PointerScanCommand;
@@ -23,7 +24,6 @@ use squalr_engine_api::commands::scan::scan_command::ScanCommand;
 use squalr_engine_api::commands::struct_scan::struct_scan_command::StructScanCommand;
 use squalr_engine_api::commands::struct_scan::struct_scan_request::StructScanRequest;
 use squalr_engine_api::commands::struct_scan::struct_scan_response::StructScanResponse;
-use squalr_engine_api::commands::text::parse_privileged_command;
 use squalr_engine_api::commands::unprivileged_command_response::TypedUnprivilegedCommandResponse;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_address_space::PointerScanAddressSpace;

@@ -1,3 +1,4 @@
+use squalr_engine_api::commands::command_line::parse_unprivileged_command;
 use squalr_engine_api::commands::memory::write::memory_write_response::MemoryWriteResponse;
 use squalr_engine_api::commands::privileged_command_response::TypedPrivilegedCommandResponse;
 use squalr_engine_api::commands::project::list::project_list_response::ProjectListResponse;
@@ -15,7 +16,6 @@ use squalr_engine_api::commands::project_items::project_items_command::ProjectIt
 use squalr_engine_api::commands::project_items::rename::project_items_rename_response::ProjectItemsRenameResponse;
 use squalr_engine_api::commands::project_items::reorder::project_items_reorder_request::ProjectItemsReorderRequest;
 use squalr_engine_api::commands::project_items::reorder::project_items_reorder_response::ProjectItemsReorderResponse;
-use squalr_engine_api::commands::text::parse_unprivileged_command;
 use squalr_engine_api::commands::unprivileged_command::UnprivilegedCommand;
 use squalr_engine_api::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use squalr_engine_api::commands::unprivileged_command_response::TypedUnprivilegedCommandResponse;

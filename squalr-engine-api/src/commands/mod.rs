@@ -1,3 +1,4 @@
+pub mod command_line;
 pub mod memory;
 pub mod plugins;
 pub mod pointer_scan;
@@ -14,7 +15,6 @@ pub mod scan;
 pub mod scan_results;
 pub mod settings;
 pub mod struct_scan;
-pub mod text;
 pub mod trackable_tasks;
 pub mod unprivileged_command;
 pub mod unprivileged_command_request;
