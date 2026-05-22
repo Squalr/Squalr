@@ -23,6 +23,7 @@ use squalr_engine_api::commands::scan::scan_command::ScanCommand;
 use squalr_engine_api::commands::struct_scan::struct_scan_command::StructScanCommand;
 use squalr_engine_api::commands::struct_scan::struct_scan_request::StructScanRequest;
 use squalr_engine_api::commands::struct_scan::struct_scan_response::StructScanResponse;
+use squalr_engine_api::commands::text::parse_privileged_command;
 use squalr_engine_api::commands::unprivileged_command_response::TypedUnprivilegedCommandResponse;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_address_space::PointerScanAddressSpace;
@@ -32,7 +33,6 @@ use squalr_engine_api::structures::scanning::comparisons::scan_compare_type::Sca
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type_immediate::ScanCompareTypeImmediate;
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type_relative::ScanCompareTypeRelative;
 use squalr_engine_api::structures::scanning::constraints::anonymous_scan_constraint::AnonymousScanConstraint;
-use squalr_engine_console::parse_privileged_command;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};

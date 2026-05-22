@@ -10,10 +10,10 @@ use squalr_engine_api::commands::process::open::process_open_request::ProcessOpe
 use squalr_engine_api::commands::process::open::process_open_response::ProcessOpenResponse;
 use squalr_engine_api::commands::process::process_command::ProcessCommand;
 use squalr_engine_api::commands::project::list::project_list_response::ProjectListResponse;
+use squalr_engine_api::commands::text::parse_privileged_command;
 use squalr_engine_api::commands::unprivileged_command_response::TypedUnprivilegedCommandResponse;
 use squalr_engine_api::structures::memory::bitness::Bitness;
 use squalr_engine_api::structures::processes::process_info::ProcessInfo;
-use squalr_engine_console::parse_privileged_command;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 

@@ -1,9 +1,9 @@
 use crate::response_handlers::{handle_privileged_engine_response, handle_unprivileged_engine_response};
 use anyhow::{Result, anyhow};
 use squalr_engine_api::commands::privileged_command::PrivilegedCommand;
+use squalr_engine_api::commands::text::clap::ErrorKind;
+use squalr_engine_api::commands::text::{parse_privileged_command, parse_unprivileged_command};
 use squalr_engine_api::commands::unprivileged_command::UnprivilegedCommand;
-use squalr_engine_console::clap::ErrorKind;
-use squalr_engine_console::{parse_privileged_command, parse_unprivileged_command};
 use squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState;
 use std::io;
 use std::io::Write;

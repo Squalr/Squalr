@@ -8,7 +8,6 @@ edition = "2024"
 [dependencies]
 squalr-engine = { path = "../squalr-engine" }
 squalr-engine-api = { path = "../squalr-engine-api" }
-squalr-engine-console = { path = "../squalr-engine-console" }
 squalr-engine-session = { path = "../squalr-engine-session" }
 anyhow = "1.0.101"
 crossbeam-channel = "0.5.15"

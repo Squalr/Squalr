@@ -1,9 +1,0 @@
-[package]
-name = "squalr-engine-console"
-version = "0.3.0"
-authors = ["Zachary Canann"]
-edition = "2024"
-
-[dependencies]
-structopt = "0.3.26"
-squalr-engine-api = { path = "../squalr-engine-api" }

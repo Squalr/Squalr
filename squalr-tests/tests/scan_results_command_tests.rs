@@ -16,6 +16,7 @@ use squalr_engine_api::commands::scan_results::refresh::scan_results_refresh_res
 use squalr_engine_api::commands::scan_results::scan_results_command::ScanResultsCommand;
 use squalr_engine_api::commands::scan_results::set_property::scan_results_set_property_request::ScanResultsSetPropertyRequest;
 use squalr_engine_api::commands::scan_results::set_property::scan_results_set_property_response::ScanResultsSetPropertyResponse;
+use squalr_engine_api::commands::text::parse_privileged_command;
 use squalr_engine_api::commands::unprivileged_command_response::TypedUnprivilegedCommandResponse;
 use squalr_engine_api::engine::engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings;
 use squalr_engine_api::engine::engine_binding_error::EngineBindingError;
@@ -24,7 +25,6 @@ use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::structures::data_values::anonymous_value_string::AnonymousValueString;
 use squalr_engine_api::structures::scan_results::scan_result_ref::ScanResultRef;
 use squalr_engine_api::{commands::unprivileged_command::UnprivilegedCommand, commands::unprivileged_command_response::UnprivilegedCommandResponse};
-use squalr_engine_console::parse_privileged_command;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};

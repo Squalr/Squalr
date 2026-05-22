@@ -17,10 +17,10 @@ use squalr_engine_api::commands::project::rename::project_rename_request::Projec
 use squalr_engine_api::commands::project::rename::project_rename_response::ProjectRenameResponse;
 use squalr_engine_api::commands::project::save::project_save_request::ProjectSaveRequest;
 use squalr_engine_api::commands::project::save::project_save_response::ProjectSaveResponse;
+use squalr_engine_api::commands::text::parse_unprivileged_command;
 use squalr_engine_api::commands::unprivileged_command::UnprivilegedCommand;
 use squalr_engine_api::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use squalr_engine_api::commands::unprivileged_command_response::TypedUnprivilegedCommandResponse;
-use squalr_engine_console::parse_unprivileged_command;
 use squalr_tests::shared_execution_context;
 use std::path::PathBuf;
 use std::sync::Arc;

@@ -19,12 +19,12 @@ use squalr_engine_api::commands::settings::scan::set::scan_settings_set_request:
 use squalr_engine_api::commands::settings::scan::set::scan_settings_set_response::ScanSettingsSetResponse;
 use squalr_engine_api::commands::settings::settings_command::SettingsCommand;
 use squalr_engine_api::commands::settings::settings_error::SettingsError;
+use squalr_engine_api::commands::text::parse_privileged_command;
 use squalr_engine_api::commands::unprivileged_command_response::TypedUnprivilegedCommandResponse;
 use squalr_engine_api::plugins::memory_view::PageRetrievalMode;
 use squalr_engine_api::structures::data_types::floating_point_tolerance::FloatingPointTolerance;
 use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
 use squalr_engine_api::structures::scanning::memory_read_mode::MemoryReadMode;
-use squalr_engine_console::parse_privileged_command;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 

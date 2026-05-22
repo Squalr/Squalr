@@ -49,7 +49,7 @@ Use the crates directly when you want to embed pieces of Squalr instead of runni
 | Custom target integrator | Your own target implementation, such as an emulator, debugger, remote agent, trace recorder, or sandbox. | Stable target traits for memory maps, reads, writes, modules, and target handles. | `squalr-engine-api`, `squalr-engine-targets`, `squalr-engine-scanning` |
 | Native process scanner | A local process you want Squalr to enumerate, open, read, write, and scan. | Native Windows/macOS/Linux/Android target access plus the scanner crates. | `squalr-engine-api`, `squalr-engine-targets`, `squalr-engine-targets-native`, `squalr-engine-scanning` |
 | Squalr frontend or automation shell | A GUI, CLI, TUI, bot, or command runner that wants the normal Squalr workflow. | Session state, command dispatch, app-level orchestration, target I/O coordination, scans, projects, and responses. | `squalr-engine-session`, `squalr-engine` |
-| Text command shell | A CLI, REPL, remote shell, or script bridge that wants Squalr command text lowered into engine commands. | Console grammar, aliases, help/version handling, and conversion into shared command models. | `squalr-engine-console`, `squalr-engine-api` |
+| Text command shell | A CLI, REPL, remote shell, or script bridge that wants Squalr command text lowered into engine commands. | Console grammar, aliases, help/version handling, and conversion into shared command models. | `squalr-engine-api` |
 | Project and symbol tooling | Tools that need to read, write, inspect, or transform Squalr projects. | Project files, symbol catalogs, layouts, locators, and shared data models. | `squalr-engine-api`, `squalr-engine-projects` |
 
 `squalr-engine-api` is the shared model crate. It contains the public data types that the other layers speak: scan plans, values, snapshots, results, commands, symbols, and project-facing structures.
@@ -195,7 +195,7 @@ This process can be reversed at any time to undo the security changes with `csru
 ## Architectural Overview
 
 ### Command Response System
-Squalr has two components, a privileged interface, and an unprivileged core. This naturally gives rise to a command/response architecture, which makes for clear separation of concerns. Shared command models live in `squalr-engine-api`; text command parsing is a separate console layer in `squalr-engine-console` that lowers CLI/REPL-style input into those shared commands.
+Squalr has two components, a privileged interface, and an unprivileged core. This naturally gives rise to a command/response architecture, which makes for clear separation of concerns. Shared command models live in `squalr-engine-api`; text command parsing is an API adapter under `squalr-engine-api::commands::text` that lowers CLI/REPL-style input into those shared commands.
 
 This allows us to create several different modes, such as a unified GUI/CLI/TUI build, and a potential remote host to control a remote shell.
 

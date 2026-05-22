@@ -5168,7 +5168,6 @@ dependencies = [
  "shlex",
  "squalr-engine",
  "squalr-engine-api",
- "squalr-engine-console",
  "squalr-engine-session",
 ]
 
@@ -5221,17 +5220,10 @@ dependencies = [
  "serde_json",
  "slab",
  "smallvec",
+ "structopt",
  "thiserror 2.0.18",
  "typetag",
  "uuid",
-]
-
-[[package]]
-name = "squalr-engine-console"
-version = "0.3.0"
-dependencies = [
- "squalr-engine-api",
- "structopt",
 ]
 
 [[package]]
@@ -5387,7 +5379,6 @@ dependencies = [
  "crossbeam-channel",
  "squalr-engine",
  "squalr-engine-api",
- "squalr-engine-console",
  "squalr-engine-session",
  "squalr-engine-targets",
 ]

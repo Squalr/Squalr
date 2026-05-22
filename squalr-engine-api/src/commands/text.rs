@@ -1,4 +1,4 @@
-use squalr_engine_api as api;
+use crate as api;
 use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::path::PathBuf;

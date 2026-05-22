@@ -15,12 +15,12 @@ use squalr_engine_api::commands::project_items::project_items_command::ProjectIt
 use squalr_engine_api::commands::project_items::rename::project_items_rename_response::ProjectItemsRenameResponse;
 use squalr_engine_api::commands::project_items::reorder::project_items_reorder_request::ProjectItemsReorderRequest;
 use squalr_engine_api::commands::project_items::reorder::project_items_reorder_response::ProjectItemsReorderResponse;
+use squalr_engine_api::commands::text::parse_unprivileged_command;
 use squalr_engine_api::commands::unprivileged_command::UnprivilegedCommand;
 use squalr_engine_api::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use squalr_engine_api::commands::unprivileged_command_response::TypedUnprivilegedCommandResponse;
 use squalr_engine_api::structures::projects::project::Project;
 use squalr_engine_api::structures::scan_results::scan_result_ref::ScanResultRef;
-use squalr_engine_console::parse_unprivileged_command;
 use squalr_tests::shared_execution_context;
 use std::path::PathBuf;
 use std::sync::Arc;

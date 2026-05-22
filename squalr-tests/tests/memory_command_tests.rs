@@ -7,9 +7,9 @@ use squalr_engine_api::commands::privileged_command::PrivilegedCommand;
 use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRequest;
 use squalr_engine_api::commands::privileged_command_response::TypedPrivilegedCommandResponse;
 use squalr_engine_api::commands::project::list::project_list_response::ProjectListResponse;
+use squalr_engine_api::commands::text::parse_privileged_command;
 use squalr_engine_api::commands::unprivileged_command_response::TypedUnprivilegedCommandResponse;
 use squalr_engine_api::structures::structs::symbolic_struct_definition::SymbolicStructDefinition;
-use squalr_engine_console::parse_privileged_command;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
