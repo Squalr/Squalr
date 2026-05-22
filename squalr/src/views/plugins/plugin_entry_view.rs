@@ -97,9 +97,7 @@ impl<'lifetime> PluginEntryView<'lifetime> {
             let button_rect = Rect::from_min_size(pos2(priority_button_min_x, row_rect.min.y), vec2(Self::PRIORITY_BUTTON_WIDTH, row_height));
             priority_button_min_x += Self::PRIORITY_BUTTON_WIDTH;
 
-            user_interface
-                .put(button_rect, IconButtonView::new(theme, icon_handle, "").disabled(is_disabled))
-                .on_hover_text(tooltip_text)
+            user_interface.put(button_rect, IconButtonView::new(theme, icon_handle, tooltip_text).disabled(is_disabled))
         };
         let increase_priority_response = render_priority_button(
             &theme.icon_library.icon_handle_navigation_up_arrow_small,

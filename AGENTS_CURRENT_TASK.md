@@ -47,4 +47,4 @@ Our current task, from `README.md`, is:
   - Still intentionally output/side-effect oriented unless a concrete GUI owner exists: raw `memory read/query/write/freeze`, `registry get/set-project-symbols`, `struct_scan`, and `trackable_tasks`.
 - Needs human verification in GUI: run text commands from the Output prompt for `process list`, `plugins list`, `settings scan set ...`, `pointer_scan summary/start/expand`, `scan new`, `scan element-scan ...`, and `scan_results query/freeze/set-property/delete ...` against an opened process and confirm panes reconcile as expected.
 - Needs human verification in GUI: use the inline plugin row up/down buttons and right-click `Increase priority` / `Decrease priority`, reopen/save projects, and confirm priority order affects plugin selection/action order as expected.
-- Needs human verification in GUI: hover inline plugin priority buttons and confirm their tooltips use the normal delayed tooltip behavior.
+- Needs human verification in GUI: hover inline plugin priority buttons and confirm their tooltips use the Squalr tooltip style with normal delayed tooltip behavior.
