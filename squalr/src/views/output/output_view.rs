@@ -1,9 +1,11 @@
 use crate::app_context::AppContext;
 use crate::views::output::output_command_dispatcher::OutputCommandDispatcher;
 use crate::views::output::output_command_state::OutputCommandState;
-use eframe::egui::{Align, Key, Layout, Response, RichText, ScrollArea, Sense, TextEdit, Ui, UiBuilder, Widget};
-use epaint::{CornerRadius, Rect, Stroke, StrokeKind, Vec2, pos2, vec2};
+use eframe::egui::{Align, Button, Key, Layout, Response, RichText, ScrollArea, Sense, TextEdit, Ui, UiBuilder, ViewportCommand, Widget};
+use epaint::{CornerRadius, Rect, Stroke, Vec2, pos2};
 use log::Level;
+use squalr_engine_api::structures::logging::log_event::LogEvent;
+use std::collections::VecDeque;
 use std::sync::{Arc, RwLock};
 
 #[derive(Clone)]
@@ -22,6 +24,54 @@ impl OutputView {
         }
     }
 
+    fn build_log_history_copy_text(log_history: &VecDeque<LogEvent>) -> String {
+        log_history
+            .iter()
+            .map(|log_message| log_message.message.as_str())
+            .collect::<Vec<&str>>()
+            .join("\n")
+    }
+
+    fn render_output_context_menu(
+        response: &Response,
+        copy_text: String,
+    ) {
+        response.context_menu(|menu_user_interface| {
+            if menu_user_interface
+                .add_enabled(!copy_text.is_empty(), Button::new("Copy"))
+                .clicked()
+            {
+                menu_user_interface.ctx().copy_text(copy_text);
+                menu_user_interface.close();
+            }
+        });
+    }
+
+    fn render_command_input_context_menu(response: &Response) {
+        response.context_menu(|menu_user_interface| {
+            if menu_user_interface.button("Cut").clicked() {
+                menu_user_interface
+                    .ctx()
+                    .send_viewport_cmd(ViewportCommand::RequestCut);
+                menu_user_interface.close();
+            }
+
+            if menu_user_interface.button("Copy").clicked() {
+                menu_user_interface
+                    .ctx()
+                    .send_viewport_cmd(ViewportCommand::RequestCopy);
+                menu_user_interface.close();
+            }
+
+            if menu_user_interface.button("Paste").clicked() {
+                menu_user_interface
+                    .ctx()
+                    .send_viewport_cmd(ViewportCommand::RequestPaste);
+                menu_user_interface.close();
+            }
+        });
+    }
+
     fn draw_command_line(
         &self,
         user_interface: &mut Ui,
@@ -29,11 +79,6 @@ impl OutputView {
     ) -> Option<String> {
         let theme = &self.app_context.theme;
         let mut command_to_dispatch = None;
-        let row_padding = vec2(8.0, 4.0);
-        let input_rectangle = Rect::from_min_max(
-            pos2(command_line_rectangle.min.x + row_padding.x, command_line_rectangle.min.y + row_padding.y),
-            pos2(command_line_rectangle.max.x - row_padding.x, command_line_rectangle.max.y - row_padding.y),
-        );
 
         user_interface
             .painter()
@@ -55,21 +100,16 @@ impl OutputView {
         match self.command_state.write() {
             Ok(mut command_state) => {
                 let text_edit_response = command_line_user_interface.put(
-                    input_rectangle,
+                    command_line_rectangle,
                     TextEdit::singleline(command_state.command_text_mut())
                         .vertical_align(Align::Center)
                         .font(theme.font_library.font_noto_sans.font_normal.clone())
                         .background_color(theme.background_primary)
                         .text_color(theme.foreground)
-                        .frame(true),
+                        .frame(false),
                 );
 
-                command_line_user_interface.painter().rect_stroke(
-                    input_rectangle,
-                    CornerRadius::ZERO,
-                    Stroke::new(1.0, theme.submenu_border),
-                    StrokeKind::Inside,
-                );
+                Self::render_command_input_context_menu(&text_edit_response);
 
                 if text_edit_response.has_focus() && command_line_user_interface.input(|input_state| input_state.key_pressed(Key::ArrowUp)) {
                     command_state.navigate_previous();
@@ -114,18 +154,19 @@ impl Widget for OutputView {
                 let inset_amount = Vec2::new(8.0, 4.0);
                 let inner_rectangle = outer_rectangle.shrink2(inset_amount);
                 let command_line_height = 36.0;
-                let log_rectangle = Rect::from_min_max(
-                    inner_rectangle.min,
-                    pos2(inner_rectangle.max.x, (inner_rectangle.max.y - command_line_height).max(inner_rectangle.min.y)),
-                );
-                let command_line_rectangle = Rect::from_min_max(pos2(inner_rectangle.min.x, log_rectangle.max.y), inner_rectangle.max);
+                let command_line_top = (outer_rectangle.max.y - command_line_height).max(outer_rectangle.min.y);
+                let log_rectangle = Rect::from_min_max(inner_rectangle.min, pos2(inner_rectangle.max.x, command_line_top.max(inner_rectangle.min.y)));
+                let command_line_rectangle = Rect::from_min_max(pos2(outer_rectangle.min.x, command_line_top), outer_rectangle.max);
                 let log_builder = UiBuilder::new()
                     .max_rect(log_rectangle)
                     .layout(Layout::top_down(Align::Min));
                 let mut log_user_interface = user_interface.new_child(log_builder);
+                let mut log_copy_text = String::new();
 
                 match log_history.read() {
                     Ok(log_history) => {
+                        log_copy_text = Self::build_log_history_copy_text(&log_history);
+
                         ScrollArea::vertical()
                             .id_salt("output")
                             .auto_shrink([false, false])
@@ -153,6 +194,9 @@ impl Widget for OutputView {
                     }
                 }
 
+                let log_context_menu_response = user_interface.interact(log_rectangle, user_interface.id().with("output_log_context_menu"), Sense::click());
+                Self::render_output_context_menu(&log_context_menu_response, log_copy_text);
+
                 if command_line_rectangle.height() > 0.0 {
                     if let Some(command_text) = self.draw_command_line(user_interface, command_line_rectangle) {
                         OutputCommandDispatcher::dispatch(&self.app_context, command_text);
@@ -162,5 +206,25 @@ impl Widget for OutputView {
             .response;
 
         response
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn log_history_copy_text_joins_messages_with_newlines() {
+        let mut log_history = VecDeque::new();
+        log_history.push_back(LogEvent {
+            message: "first".to_string(),
+            level: Level::Info,
+        });
+        log_history.push_back(LogEvent {
+            message: "second".to_string(),
+            level: Level::Warn,
+        });
+
+        assert_eq!(OutputView::build_log_history_copy_text(&log_history), "first\nsecond");
     }
 }
