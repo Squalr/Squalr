@@ -52,7 +52,8 @@ pub fn format_prompt_command_error(error: &clap::Error) -> String {
     let normalized_message = normalize_prompt_command_message(&error.message);
 
     match error.kind {
-        clap::ErrorKind::HelpDisplayed | clap::ErrorKind::VersionDisplayed => normalized_message,
+        clap::ErrorKind::HelpDisplayed => format_prompt_command_help(&normalized_message),
+        clap::ErrorKind::VersionDisplayed => format_prompt_command_version(&normalized_message),
         _ => summarize_prompt_command_error(&normalized_message),
     }
 }
@@ -100,6 +101,158 @@ fn prompt_command_usage_line(message: &str) -> Option<&str> {
     }
 
     None
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PromptCommandHelpSection {
+    Usage,
+    Args,
+    Options,
+    Flags,
+    Subcommands,
+}
+
+fn format_prompt_command_help(message: &str) -> String {
+    let mut usage_line = None;
+    let mut arg_items = Vec::new();
+    let mut option_items = Vec::new();
+    let mut flag_items = Vec::new();
+    let mut subcommand_items = Vec::new();
+    let mut current_section = None;
+
+    for line in message.lines() {
+        let trimmed_line = line.trim();
+
+        if trimmed_line.is_empty() {
+            continue;
+        }
+
+        if let Some(section) = prompt_command_help_section(trimmed_line) {
+            current_section = Some(section);
+            continue;
+        }
+
+        match current_section {
+            Some(PromptCommandHelpSection::Usage) if usage_line.is_none() => usage_line = Some(trimmed_line.to_string()),
+            Some(PromptCommandHelpSection::Args) => {
+                if let Some(arg_item) = compact_prompt_help_item(trimmed_line) {
+                    arg_items.push(arg_item);
+                }
+            }
+            Some(PromptCommandHelpSection::Options) => {
+                if let Some(option_item) = compact_prompt_help_item(trimmed_line) {
+                    option_items.push(option_item);
+                }
+            }
+            Some(PromptCommandHelpSection::Flags) => {
+                if let Some(flag_item) = compact_prompt_help_item(trimmed_line) {
+                    flag_items.push(flag_item);
+                }
+            }
+            Some(PromptCommandHelpSection::Subcommands) => {
+                if let Some(subcommand_item) = compact_prompt_help_item(trimmed_line) {
+                    subcommand_items.push(subcommand_item);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let mut output_lines = Vec::new();
+
+    if let Some(usage_line) = usage_line {
+        output_lines.push(format!("Usage: {}", usage_line));
+    }
+
+    push_prompt_help_section(&mut output_lines, "Commands", &subcommand_items);
+    push_prompt_help_section(&mut output_lines, "Args", &arg_items);
+    push_prompt_help_section(&mut output_lines, "Options", &option_items);
+    push_prompt_help_section(&mut output_lines, "Flags", &flag_items);
+
+    if output_lines.is_empty() {
+        return message.to_string();
+    }
+
+    output_lines.join("\n")
+}
+
+fn format_prompt_command_version(message: &str) -> String {
+    message
+        .lines()
+        .find(|line| !line.trim().is_empty())
+        .map(str::trim)
+        .unwrap_or("Version unavailable")
+        .to_string()
+}
+
+fn prompt_command_help_section(line: &str) -> Option<PromptCommandHelpSection> {
+    match line {
+        "USAGE:" => Some(PromptCommandHelpSection::Usage),
+        "ARGS:" => Some(PromptCommandHelpSection::Args),
+        "OPTIONS:" => Some(PromptCommandHelpSection::Options),
+        "FLAGS:" => Some(PromptCommandHelpSection::Flags),
+        "SUBCOMMANDS:" => Some(PromptCommandHelpSection::Subcommands),
+        _ => None,
+    }
+}
+
+fn compact_prompt_help_item(line: &str) -> Option<String> {
+    let trimmed_line = line.trim();
+
+    if trimmed_line.is_empty() || is_prompt_help_noise_item(trimmed_line) {
+        return None;
+    }
+
+    let Some(description_split_offset) = find_help_item_description_split(trimmed_line) else {
+        return Some(trimmed_line.to_string());
+    };
+
+    let item_name = trimmed_line[..description_split_offset].trim();
+    let item_description = trimmed_line[description_split_offset..].trim();
+
+    if item_description.is_empty() {
+        Some(item_name.to_string())
+    } else {
+        Some(format!("{} - {}", item_name, item_description))
+    }
+}
+
+fn is_prompt_help_noise_item(line: &str) -> bool {
+    line.starts_with('-') && (line.contains("--help") || line.contains("--version"))
+}
+
+fn find_help_item_description_split(line: &str) -> Option<usize> {
+    let mut whitespace_start_offset = None;
+    let mut whitespace_count = 0;
+
+    for (byte_offset, character) in line.char_indices() {
+        if character.is_whitespace() {
+            if whitespace_count == 0 {
+                whitespace_start_offset = Some(byte_offset);
+            }
+
+            whitespace_count += 1;
+
+            if whitespace_count >= 2 {
+                return whitespace_start_offset;
+            }
+        } else {
+            whitespace_start_offset = None;
+            whitespace_count = 0;
+        }
+    }
+
+    None
+}
+
+fn push_prompt_help_section(
+    output_lines: &mut Vec<String>,
+    section_label: &str,
+    section_items: &[String],
+) {
+    if !section_items.is_empty() {
+        output_lines.push(format!("{}: {}", section_label, section_items.join("; ")));
+    }
 }
 
 pub fn parse_text_command<I, T>(iterator: I) -> Result<TextCommand, clap::Error>
@@ -2147,6 +2300,21 @@ mod tests {
         assert!(prompt_error_message.contains("Usage: process open"));
         assert!(!prompt_error_message.contains("USAGE:"));
         assert!(!prompt_error_message.contains("For more information try"));
+    }
+
+    #[test]
+    fn prompt_command_help_is_compact_for_terminal_output() {
+        let parse_error = parse_prompt_command_line("scan new --help").expect_err("Expected help response.");
+        let TextCommandParseError::Command(parse_error) = parse_error else {
+            panic!("Expected clap help response.");
+        };
+
+        let prompt_help_message = format_prompt_command_error(&parse_error);
+
+        assert_eq!(prompt_help_message, "Usage: scan new");
+        assert!(!prompt_help_message.contains("scan-new"));
+        assert!(!prompt_help_message.contains("--help"));
+        assert!(!prompt_help_message.contains("--version"));
     }
 
     #[test]
