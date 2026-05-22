@@ -94,7 +94,10 @@ impl<'lifetime> PluginEntryView<'lifetime> {
         let priority_button_area_left = (row_rect.max.x - priority_button_area_width).max(row_rect.min.x);
         let mut priority_button_min_x = priority_button_area_left;
         let mut render_priority_button = |icon_handle: &epaint::TextureHandle, tooltip_text: &str, is_disabled: bool| {
-            let button_rect = Rect::from_min_size(pos2(priority_button_min_x, row_rect.min.y), vec2(Self::PRIORITY_BUTTON_WIDTH, row_height));
+            let button_rect = Rect::from_min_size(
+                pos2(priority_button_min_x, row_rect.center().y - Self::PRIORITY_BUTTON_HEIGHT * 0.5),
+                vec2(Self::PRIORITY_BUTTON_WIDTH, Self::PRIORITY_BUTTON_HEIGHT),
+            );
             priority_button_min_x += Self::PRIORITY_BUTTON_WIDTH;
 
             user_interface.put(button_rect, IconButtonView::new(theme, icon_handle, tooltip_text).disabled(is_disabled))
@@ -229,6 +232,7 @@ impl<'lifetime> PluginEntryView<'lifetime> {
 }
 
 impl PluginEntryView<'_> {
+    const PRIORITY_BUTTON_HEIGHT: f32 = 28.0;
     const PRIORITY_BUTTON_WIDTH: f32 = 32.0;
     const ROW_HEIGHT: f32 = 88.0;
 }
