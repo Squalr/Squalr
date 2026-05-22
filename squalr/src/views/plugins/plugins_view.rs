@@ -123,6 +123,7 @@ impl Widget for PluginsView {
         let mut selected_plugin_id_new = None;
         let mut toggle_request = None;
         let mut context_menu_request = None;
+        let mut priority_shift_request = None;
         let response = user_interface
             .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
                 let toolbar_height = 28.0;
@@ -184,12 +185,16 @@ impl Widget for PluginsView {
                     .auto_shrink([false, false])
                     .max_height(content_height)
                     .show(&mut content_user_interface, |user_interface| {
-                        for plugin_state in &plugin_states {
+                        for (plugin_position, plugin_state) in plugin_states.iter().enumerate() {
                             let plugin_id = plugin_state.get_metadata().get_plugin_id().to_string();
+                            let can_increase_priority = plugin_position > 0;
+                            let can_decrease_priority = plugin_position + 1 < plugin_states.len();
                             let entry_response = PluginEntryView::new(
                                 self.app_context.clone(),
                                 plugin_state,
                                 selected_plugin_id.as_deref() == Some(plugin_id.as_str()),
+                                can_increase_priority,
+                                can_decrease_priority,
                             )
                             .show(user_interface);
 
@@ -203,6 +208,12 @@ impl Widget for PluginsView {
 
                             if let Some(context_menu_position) = entry_response.show_context_menu_at {
                                 context_menu_request = Some((plugin_id.clone(), context_menu_position));
+                            }
+
+                            if entry_response.should_increase_priority {
+                                priority_shift_request = Some((plugin_id.clone(), PluginPriorityShiftDirection::Increase));
+                            } else if entry_response.should_decrease_priority {
+                                priority_shift_request = Some((plugin_id.clone(), PluginPriorityShiftDirection::Decrease));
                             }
                         }
                     });
@@ -345,6 +356,10 @@ impl Widget for PluginsView {
 
         if let Some((plugin_id, is_enabled)) = toggle_request {
             PluginListViewData::set_plugin_enabled(self.plugin_list_view_data.clone(), self.app_context.clone(), plugin_id, is_enabled);
+        }
+
+        if let Some((plugin_id, shift_direction)) = priority_shift_request {
+            PluginListViewData::shift_plugin_priority(self.plugin_list_view_data.clone(), self.app_context.clone(), plugin_id, shift_direction);
         }
 
         response

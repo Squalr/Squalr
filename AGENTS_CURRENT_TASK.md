@@ -25,7 +25,7 @@ Our current task, from `README.md`, is:
   - scan-results `refresh`/`freeze`/`set-property`/`delete`/`list` responses reconcile the element scanner results view.
 - [x] Add plugin priority ordering:
   - registry iteration now follows project/session plugin priority order,
-  - plugin priority can be changed through a right-click context menu in the plugin window,
+  - plugin priority can be changed through inline row up/down buttons and a right-click context menu in the plugin window,
   - `plugins set-order` command and responses propagate ordering through GUI/CLI/TUI paths,
   - project plugin configuration now persists enablement plus priority order under the existing `plugins` project field.
 
@@ -46,4 +46,4 @@ Our current task, from `README.md`, is:
   - Response-only before this pass: `process list`, `plugins list`, settings `list`/`set`, pointer-scan commands, and several scan-results mutations.
   - Still intentionally output/side-effect oriented unless a concrete GUI owner exists: raw `memory read/query/write/freeze`, `registry get/set-project-symbols`, `struct_scan`, and `trackable_tasks`.
 - Needs human verification in GUI: run text commands from the Output prompt for `process list`, `plugins list`, `settings scan set ...`, `pointer_scan summary/start/expand`, `scan new`, `scan element-scan ...`, and `scan_results query/freeze/set-property/delete ...` against an opened process and confirm panes reconcile as expected.
-- Needs human verification in GUI: right-click plugins in the plugin window, use `Increase priority` / `Decrease priority`, reopen/save projects, and confirm priority order affects plugin selection/action order as expected.
+- Needs human verification in GUI: use the inline plugin row up/down buttons and right-click `Increase priority` / `Decrease priority`, reopen/save projects, and confirm priority order affects plugin selection/action order as expected.
