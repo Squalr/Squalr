@@ -4,15 +4,11 @@ use crate::commands::process::open::process_open_response::ProcessOpenResponse;
 use crate::commands::process::process_command::ProcessCommand;
 use crate::commands::process::process_response::ProcessResponse;
 use serde::{Deserialize, Serialize};
-use structopt::StructOpt;
 
-#[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ProcessOpenRequest {
-    #[structopt(short = "p", long)]
     pub process_id: Option<u32>,
-    #[structopt(short = "n", long)]
     pub search_name: Option<String>,
-    #[structopt(short = "m", long)]
     pub match_case: bool,
 }
 

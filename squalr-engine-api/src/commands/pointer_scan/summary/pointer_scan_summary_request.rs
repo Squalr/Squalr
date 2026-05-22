@@ -3,11 +3,9 @@ use crate::commands::pointer_scan::summary::pointer_scan_summary_response::Point
 use crate::commands::privileged_command::PrivilegedCommand;
 use crate::commands::privileged_command_request::PrivilegedCommandRequest;
 use serde::{Deserialize, Serialize};
-use structopt::StructOpt;
 
-#[derive(Clone, StructOpt, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct PointerScanSummaryRequest {
-    #[structopt(short = "i", long)]
     pub session_id: Option<u64>,
 }
 

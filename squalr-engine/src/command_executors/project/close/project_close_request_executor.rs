@@ -22,6 +22,8 @@ impl UnprivilegedCommandRequestExecutor for ProjectCloseRequest {
 
         if let Ok(mut opened_project) = opened_project.write() {
             *opened_project = None;
+            project_manager.watch_opened_project(None);
+            project_manager.notify_project_closed();
 
             ProjectCloseResponse { success: true }
         } else {

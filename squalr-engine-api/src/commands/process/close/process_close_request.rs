@@ -4,9 +4,8 @@ use crate::commands::process::close::process_close_response::ProcessCloseRespons
 use crate::commands::process::process_command::ProcessCommand;
 use crate::commands::process::process_response::ProcessResponse;
 use serde::{Deserialize, Serialize};
-use structopt::StructOpt;
 
-#[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ProcessCloseRequest {}
 
 impl PrivilegedCommandRequest for ProcessCloseRequest {

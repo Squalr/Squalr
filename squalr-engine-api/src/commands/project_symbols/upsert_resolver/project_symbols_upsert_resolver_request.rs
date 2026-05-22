@@ -6,18 +6,12 @@ use crate::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use crate::registries::symbols::symbolic_resolver_descriptor::SymbolicResolverDescriptor;
 use crate::structures::structs::symbolic_resolver_definition::SymbolicResolverDefinition;
 use serde::{Deserialize, Serialize};
-use structopt::StructOpt;
 
-#[derive(Clone, Default, StructOpt, Debug, Serialize, Deserialize)]
+#[derive(Clone, Default, Debug, Serialize, Deserialize)]
 pub struct ProjectSymbolsUpsertResolverRequest {
     #[serde(default)]
-    #[structopt(long = "original-id")]
     pub original_resolver_id: Option<String>,
-
-    #[structopt(short = "i", long = "id")]
     pub resolver_id: String,
-
-    #[structopt(short = "d", long = "definition-json")]
     pub resolver_definition_json: String,
 }
 

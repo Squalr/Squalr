@@ -1,15 +1,11 @@
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::anonymous_value_string::AnonymousValueString;
 use serde::{Deserialize, Serialize};
-use structopt::StructOpt;
 
-#[derive(Clone, Debug, Default, StructOpt, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 pub struct PointerScanTargetRequest {
-    #[structopt(long = "target-address")]
     pub target_address: Option<AnonymousValueString>,
-    #[structopt(long = "target-value")]
     pub target_value: Option<AnonymousValueString>,
-    #[structopt(long = "target-data-type")]
     pub target_data_type_ref: Option<DataTypeRef>,
 }
 

@@ -6,18 +6,11 @@ use crate::commands::settings::settings_command::SettingsCommand;
 use crate::commands::settings::settings_response::SettingsResponse;
 use crate::commands::{privileged_command_request::PrivilegedCommandRequest, settings::memory::list::memory_settings_list_request::MemorySettingsListRequest};
 use serde::{Deserialize, Serialize};
-use structopt::StructOpt;
 
-#[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum MemorySettingsCommand {
-    List {
-        #[structopt(flatten)]
-        memory_settings_list_request: MemorySettingsListRequest,
-    },
-    Set {
-        #[structopt(flatten)]
-        memory_settings_set_request: MemorySettingsSetRequest,
-    },
+    List { memory_settings_list_request: MemorySettingsListRequest },
+    Set { memory_settings_set_request: MemorySettingsSetRequest },
 }
 
 impl PrivilegedCommandRequest for MemorySettingsCommand {

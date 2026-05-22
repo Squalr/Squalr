@@ -3,6 +3,8 @@ use squalr_engine_api::commands::project::rename::project_rename_request::Projec
 use squalr_engine_api::commands::project::rename::project_rename_response::ProjectRenameResponse;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::structures::projects::project::Project;
+use squalr_engine_api::structures::projects::project_info::ProjectInfo;
+use squalr_engine_api::structures::projects::project_manifest::ProjectManifest;
 use squalr_engine_projects::project::serialization::serializable_project_file::SerializableProjectFile;
 use std::fs;
 use std::path::PathBuf;
@@ -48,6 +50,8 @@ impl UnprivilegedCommandRequestExecutor for ProjectRenameRequest {
             }
         };
         let new_project_path = all_projects_directory.join(&self.new_project_name);
+        let previous_project_info = ProjectInfo::load_from_path(&self.project_directory_path.join(Project::PROJECT_FILE))
+            .unwrap_or_else(|_| ProjectInfo::new(self.project_directory_path.join(Project::PROJECT_FILE), None, ProjectManifest::default()));
 
         if let Err(error) = fs::rename(&self.project_directory_path, &new_project_path) {
             log::error!("Failed to rename project: {}", error);
@@ -72,6 +76,16 @@ impl UnprivilegedCommandRequestExecutor for ProjectRenameRequest {
                     *opened_project = None;
                 }
             }
+        }
+
+        let new_project_info = ProjectInfo::load_from_path(&new_project_path.join(Project::PROJECT_FILE))
+            .unwrap_or_else(|_| ProjectInfo::new(new_project_path.join(Project::PROJECT_FILE), None, ProjectManifest::default()));
+        project_manager.notify_project_deleted(previous_project_info);
+        project_manager.notify_project_created(new_project_info.clone());
+
+        if is_renaming_opened_project {
+            project_manager.watch_opened_project(new_project_info.get_project_directory());
+            project_manager.notify_project_items_changed();
         }
 
         ProjectRenameResponse {

@@ -1,5 +1,5 @@
 use crate::structures::{
-    details::{DetailsEdit, DetailsEditOperation, DetailsEditPlan, DetailsFieldSource, DetailsValue},
+    details::{DetailsEdit, DetailsEditOperation, DetailsEditPlan, DetailsFieldSource},
     projects::project_items::{
         built_in_types::{
             project_item_type_address::ProjectItemTypeAddress, project_item_type_directory::ProjectItemTypeDirectory,
@@ -24,6 +24,22 @@ impl ProjectItemDetailsEditPlanner {
         let field_id = details_edit.get_field_id().get_field_id();
         let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
 
+        match details_edit.get_source() {
+            DetailsFieldSource::ProjectItemAddressTarget { property_name } => {
+                return Self::plan_address_target_update(details_edit, property_name);
+            }
+            DetailsFieldSource::ProjectItemRuntimeValue { .. } => {
+                return Self::plan_runtime_value_update(details_edit, details_edit.get_source().clone());
+            }
+            DetailsFieldSource::ProjectItemProperty { property_name } => {
+                return Self::plan_project_item_property_update(project_item_type_id, details_edit, property_name);
+            }
+            DetailsFieldSource::Unknown
+            | DetailsFieldSource::ProjectSymbolRuntimeValue { .. }
+            | DetailsFieldSource::SymbolLayoutMetadata { .. }
+            | DetailsFieldSource::SymbolResolverMetadata { .. } => {}
+        }
+
         if field_id == ProjectItemDetailsProjection::FIELD_ID_ADDRESS_TARGET_POINTER_SIZE {
             return Self::plan_address_target_update(details_edit, "pointer_size");
         }
@@ -36,53 +52,56 @@ impl ProjectItemDetailsEditPlanner {
             return DetailsEditPlan::reject(format!("Unknown project item details field id: {}.", field_id));
         };
 
+        Self::plan_project_item_property_update(project_item_type_id, details_edit, property_name)
+    }
+
+    fn plan_project_item_property_update(
+        project_item_type_id: &str,
+        details_edit: &DetailsEdit,
+        property_name: &str,
+    ) -> DetailsEditPlan {
         if Self::is_runtime_value_property(project_item_type_id, property_name) {
-            let runtime_value_source = match details_edit.get_source() {
-                DetailsFieldSource::ProjectItemRuntimeValue { .. } => details_edit.get_source().clone(),
-                _ => DetailsFieldSource::ProjectItemRuntimeValue {
+            return Self::plan_runtime_value_update(
+                details_edit,
+                DetailsFieldSource::ProjectItemRuntimeValue {
                     field_path: vec!["value".to_string()],
                 },
-            };
-
-            return DetailsEditPlan::new(vec![
-                DetailsEditOperation::WriteRuntimeValue {
-                    target: details_edit.get_target().clone(),
-                    field_id: details_edit.get_field_id().clone(),
-                    source: runtime_value_source,
-                    value: details_edit.get_value().clone(),
-                },
-                DetailsEditOperation::RefreshProjection {
-                    target: details_edit.get_target().clone(),
-                },
-            ]);
+            );
         }
 
         if property_name == ProjectItem::PROPERTY_NAME && project_item_type_id == ProjectItemTypeDirectory::PROJECT_ITEM_TYPE_ID {
             return DetailsEditPlan::noop(Some("Directory item names are owned by their directory path.".to_string()));
         }
 
-        let mut operations = vec![DetailsEditOperation::UpdateStoredField {
-            target: details_edit.get_target().clone(),
-            source: DetailsFieldSource::ProjectItemProperty {
-                property_name: property_name.to_string(),
+        DetailsEditPlan::new(vec![
+            DetailsEditOperation::UpdateStoredField {
+                target: details_edit.get_target().clone(),
+                source: DetailsFieldSource::ProjectItemProperty {
+                    property_name: property_name.to_string(),
+                },
+                value: details_edit.get_value().clone(),
             },
-            value: details_edit.get_value().clone(),
-        }];
+            DetailsEditOperation::RefreshProjection {
+                target: details_edit.get_target().clone(),
+            },
+        ])
+    }
 
-        if property_name == ProjectItem::PROPERTY_NAME {
-            if let Some(name) = Self::details_value_to_text(details_edit.get_value()) {
-                operations.push(DetailsEditOperation::RenameTarget {
-                    target: details_edit.get_target().clone(),
-                    name,
-                });
-            }
-        }
-
-        operations.push(DetailsEditOperation::RefreshProjection {
-            target: details_edit.get_target().clone(),
-        });
-
-        DetailsEditPlan::new(operations)
+    fn plan_runtime_value_update(
+        details_edit: &DetailsEdit,
+        runtime_value_source: DetailsFieldSource,
+    ) -> DetailsEditPlan {
+        DetailsEditPlan::new(vec![
+            DetailsEditOperation::WriteRuntimeValue {
+                target: details_edit.get_target().clone(),
+                field_id: details_edit.get_field_id().clone(),
+                source: runtime_value_source,
+                value: details_edit.get_value().clone(),
+            },
+            DetailsEditOperation::RefreshProjection {
+                target: details_edit.get_target().clone(),
+            },
+        ])
     }
 
     fn plan_address_target_update(
@@ -117,18 +136,6 @@ impl ProjectItemDetailsEditPlanner {
                 ProjectItemTypePointer::PROPERTY_FREEZE_DISPLAY_VALUE
             )
         )
-    }
-
-    fn details_value_to_text(details_value: &DetailsValue) -> Option<String> {
-        match details_value {
-            DetailsValue::Text(text) => Some(text.clone()),
-            DetailsValue::DataValue(data_value) => String::from_utf8(data_value.get_value_bytes().clone()).ok(),
-            DetailsValue::AnonymousValue(anonymous_value_string) => Some(anonymous_value_string.get_anonymous_value_string().to_string()),
-            DetailsValue::Boolean(value) => Some(value.to_string()),
-            DetailsValue::UnsignedInteger(value) => Some(value.to_string()),
-            DetailsValue::SignedInteger(value) => Some(value.to_string()),
-            DetailsValue::Empty => Some(String::new()),
-        }
     }
 }
 
@@ -216,7 +223,55 @@ mod tests {
     }
 
     #[test]
-    fn plan_edit_includes_rename_for_file_item_name() {
+    fn plan_edit_routes_address_target_by_source_without_field_id_namespace() {
+        let project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU64::get_value_from_primitive(0));
+        let details_edit = DetailsEdit::new_with_source(
+            DetailsTarget::new(ProjectItemDetailsProjection::TARGET_KIND_PROJECT_ITEM, "/Health"),
+            DetailsFieldId::new("view_field_0"),
+            DetailsFieldSource::ProjectItemAddressTarget {
+                property_name: "pointer_size".to_string(),
+            },
+            DetailsValue::Text("u32".to_string()),
+        );
+        let edit_plan = ProjectItemDetailsEditPlanner::plan_edit(&project_item, &details_edit);
+
+        assert_eq!(
+            edit_plan.get_operations().first(),
+            Some(&DetailsEditOperation::UpdateStoredField {
+                target: details_edit.get_target().clone(),
+                source: DetailsFieldSource::ProjectItemAddressTarget {
+                    property_name: "pointer_size".to_string()
+                },
+                value: DetailsValue::Text("u32".to_string())
+            })
+        );
+    }
+
+    #[test]
+    fn plan_edit_routes_property_by_source_without_property_prefix() {
+        let mut project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU64::get_value_from_primitive(0));
+        project_item.set_field_icon_id(DataTypeU8::DATA_TYPE_ID);
+        let details_edit = DetailsEdit::new_with_source(
+            DetailsTarget::new(ProjectItemDetailsProjection::TARGET_KIND_PROJECT_ITEM, "/Health"),
+            DetailsFieldId::new("view_field_1"),
+            DetailsFieldSource::ProjectItemProperty {
+                property_name: ProjectItem::PROPERTY_ICON_ID.to_string(),
+            },
+            DetailsValue::DataValue(DataTypeStringUtf8::get_value_from_primitive_string("u64")),
+        );
+        let edit_plan = ProjectItemDetailsEditPlanner::plan_edit(&project_item, &details_edit);
+
+        assert!(matches!(
+            edit_plan.get_operations().first(),
+            Some(DetailsEditOperation::UpdateStoredField {
+                source: DetailsFieldSource::ProjectItemProperty { property_name },
+                ..
+            }) if property_name == ProjectItem::PROPERTY_ICON_ID
+        ));
+    }
+
+    #[test]
+    fn plan_edit_updates_file_item_name_without_renaming_file() {
         let project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU64::get_value_from_primitive(0));
         let details_edit = DetailsEdit::new(
             DetailsTarget::new(ProjectItemDetailsProjection::TARGET_KIND_PROJECT_ITEM, "/Health"),
@@ -233,7 +288,16 @@ mod tests {
             edit_plan
                 .get_operations()
                 .iter()
-                .any(|operation| matches!(operation, DetailsEditOperation::RenameTarget { name, .. } if name == "New Health"))
+                .any(|operation| matches!(operation, DetailsEditOperation::UpdateStoredField {
+                    source: DetailsFieldSource::ProjectItemProperty { property_name },
+                    ..
+                } if property_name == ProjectItem::PROPERTY_NAME))
+        );
+        assert!(
+            !edit_plan
+                .get_operations()
+                .iter()
+                .any(|operation| matches!(operation, DetailsEditOperation::Reject { .. } | DetailsEditOperation::Noop { .. }))
         );
     }
 

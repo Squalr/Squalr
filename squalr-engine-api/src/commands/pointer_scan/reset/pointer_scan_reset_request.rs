@@ -3,9 +3,8 @@ use crate::commands::pointer_scan::reset::pointer_scan_reset_response::PointerSc
 use crate::commands::privileged_command::PrivilegedCommand;
 use crate::commands::privileged_command_request::PrivilegedCommandRequest;
 use serde::{Deserialize, Serialize};
-use structopt::StructOpt;
 
-#[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PointerScanResetRequest {}
 
 impl PrivilegedCommandRequest for PointerScanResetRequest {

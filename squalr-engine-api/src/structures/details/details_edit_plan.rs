@@ -15,10 +15,6 @@ pub enum DetailsEditOperation {
         source: DetailsFieldSource,
         value: DetailsValue,
     },
-    RenameTarget {
-        target: DetailsTarget,
-        name: String,
-    },
     WriteRuntimeValue {
         target: DetailsTarget,
         field_id: DetailsFieldId,

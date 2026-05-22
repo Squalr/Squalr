@@ -616,6 +616,20 @@ impl ProjectHierarchyViewData {
         project_hierarchy_view_data.menu_position = Some(position);
     }
 
+    pub fn show_empty_space_menu(
+        project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
+        target_project_item_path: PathBuf,
+        position: Pos2,
+    ) {
+        let mut project_hierarchy_view_data = match project_hierarchy_view_data.write("Project hierarchy show empty space menu") {
+            Some(project_hierarchy_view_data) => project_hierarchy_view_data,
+            None => return,
+        };
+
+        project_hierarchy_view_data.menu_target = Some(ProjectHierarchyMenuTarget::EmptySpace { target_project_item_path });
+        project_hierarchy_view_data.menu_position = Some(position);
+    }
+
     pub fn show_add_menu(
         project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
         target_project_item_path: PathBuf,
@@ -1091,6 +1105,17 @@ impl ProjectHierarchyViewData {
                             &project_hierarchy_view_data.project_items,
                         )
                     })
+            })
+    }
+
+    pub fn get_project_root_directory_path(project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>) -> Option<PathBuf> {
+        project_hierarchy_view_data
+            .read("Project hierarchy root directory path")
+            .and_then(|project_hierarchy_view_data| {
+                ProjectHierarchyTreeModel::resolve_project_root_path(
+                    project_hierarchy_view_data.opened_project_info.as_ref(),
+                    &project_hierarchy_view_data.project_items,
+                )
             })
     }
 

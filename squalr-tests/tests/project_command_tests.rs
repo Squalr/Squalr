@@ -1,3 +1,4 @@
+use squalr_engine_api::commands::command_line::parse_unprivileged_command;
 use squalr_engine_api::commands::memory::write::memory_write_response::MemoryWriteResponse;
 use squalr_engine_api::commands::privileged_command_response::TypedPrivilegedCommandResponse;
 use squalr_engine_api::commands::project::close::project_close_request::ProjectCloseRequest;
@@ -24,7 +25,6 @@ use squalr_tests::shared_execution_context;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use structopt::StructOpt;
 
 use squalr_tests::mocks::mock_engine_bindings::MockEngineBindings;
 
@@ -396,7 +396,7 @@ fn project_save_request_does_not_invoke_callback_when_response_variant_is_wrong(
 #[test]
 fn unprivileged_command_parser_accepts_project_create_with_long_flags() {
     let parse_result = std::panic::catch_unwind(|| {
-        UnprivilegedCommand::from_iter_safe([
+        parse_unprivileged_command([
             "squalr-cli",
             "project",
             "create",
@@ -429,7 +429,7 @@ fn unprivileged_command_parser_accepts_project_create_with_long_flags() {
 #[test]
 fn unprivileged_command_parser_accepts_project_rename_with_long_flags() {
     let parse_result = std::panic::catch_unwind(|| {
-        UnprivilegedCommand::from_iter_safe([
+        parse_unprivileged_command([
             "squalr-cli",
             "project",
             "rename",
@@ -463,7 +463,7 @@ fn unprivileged_command_parser_accepts_project_rename_with_long_flags() {
 #[test]
 fn unprivileged_command_parser_accepts_project_open_with_long_flags() {
     let parse_result = std::panic::catch_unwind(|| {
-        UnprivilegedCommand::from_iter_safe([
+        parse_unprivileged_command([
             "squalr-cli",
             "project",
             "open",
@@ -498,7 +498,7 @@ fn unprivileged_command_parser_accepts_project_open_with_long_flags() {
 #[test]
 fn unprivileged_command_parser_accepts_project_delete_with_long_flags() {
     let parse_result = std::panic::catch_unwind(|| {
-        UnprivilegedCommand::from_iter_safe([
+        parse_unprivileged_command([
             "squalr-cli",
             "project",
             "delete",
@@ -531,7 +531,7 @@ fn unprivileged_command_parser_accepts_project_delete_with_long_flags() {
 #[test]
 fn unprivileged_command_parser_accepts_project_export_with_long_flags() {
     let parse_result = std::panic::catch_unwind(|| {
-        UnprivilegedCommand::from_iter_safe([
+        parse_unprivileged_command([
             "squalr-cli",
             "project",
             "export",
@@ -565,7 +565,7 @@ fn unprivileged_command_parser_accepts_project_export_with_long_flags() {
 
 #[test]
 fn unprivileged_command_parser_accepts_project_list_subcommand() {
-    let parse_result = std::panic::catch_unwind(|| UnprivilegedCommand::from_iter_safe(["squalr-cli", "project", "list"]));
+    let parse_result = std::panic::catch_unwind(|| parse_unprivileged_command(["squalr-cli", "project", "list"]));
 
     assert!(parse_result.is_ok());
 
@@ -580,7 +580,7 @@ fn unprivileged_command_parser_accepts_project_list_subcommand() {
 
 #[test]
 fn unprivileged_command_parser_accepts_project_close_subcommand() {
-    let parse_result = std::panic::catch_unwind(|| UnprivilegedCommand::from_iter_safe(["squalr-cli", "project", "close"]));
+    let parse_result = std::panic::catch_unwind(|| parse_unprivileged_command(["squalr-cli", "project", "close"]));
 
     assert!(parse_result.is_ok());
 
@@ -595,7 +595,7 @@ fn unprivileged_command_parser_accepts_project_close_subcommand() {
 
 #[test]
 fn unprivileged_command_parser_accepts_project_save_subcommand() {
-    let parse_result = std::panic::catch_unwind(|| UnprivilegedCommand::from_iter_safe(["squalr-cli", "project", "save"]));
+    let parse_result = std::panic::catch_unwind(|| parse_unprivileged_command(["squalr-cli", "project", "save"]));
 
     assert!(parse_result.is_ok());
 
@@ -611,7 +611,7 @@ fn unprivileged_command_parser_accepts_project_save_subcommand() {
 #[test]
 fn unprivileged_command_parser_rejects_project_rename_when_new_name_is_missing() {
     let parse_result = std::panic::catch_unwind(|| {
-        UnprivilegedCommand::from_iter_safe([
+        parse_unprivileged_command([
             "squalr-cli",
             "project",
             "rename",

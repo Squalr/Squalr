@@ -1,3 +1,4 @@
+use squalr_engine_api::commands::command_line::parse_privileged_command;
 use squalr_engine_api::commands::privileged_command::PrivilegedCommand;
 use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRequest;
 use squalr_engine_api::commands::privileged_command_response::TypedPrivilegedCommandResponse;
@@ -26,7 +27,6 @@ use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
 use squalr_engine_api::structures::scanning::memory_read_mode::MemoryReadMode;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use structopt::StructOpt;
 
 use squalr_tests::mocks::mock_engine_bindings::MockEngineBindings;
 
@@ -238,6 +238,7 @@ fn scan_settings_set_request_dispatches_set_command_and_invokes_typed_callback()
         results_page_size: Some(256),
         results_read_interval_ms: None,
         project_read_interval_ms: None,
+        project_file_system_watch_enabled: Some(false),
         freeze_interval_ms: None,
         memory_alignment: Some(MemoryAlignment::Alignment4),
         memory_read_mode: Some(MemoryReadMode::ReadBeforeScan),
@@ -268,6 +269,7 @@ fn scan_settings_set_request_dispatches_set_command_and_invokes_typed_callback()
         }) => {
             assert_eq!(captured_scan_settings_set_request.page_retrieval_mode, Some(PageRetrievalMode::FromSettings));
             assert_eq!(captured_scan_settings_set_request.results_page_size, Some(256));
+            assert_eq!(captured_scan_settings_set_request.project_file_system_watch_enabled, Some(false));
             assert_eq!(captured_scan_settings_set_request.memory_alignment, Some(MemoryAlignment::Alignment4));
             assert_eq!(captured_scan_settings_set_request.memory_read_mode, Some(MemoryReadMode::ReadBeforeScan));
             assert_eq!(
@@ -317,7 +319,7 @@ fn scan_settings_list_request_dispatches_list_command_and_invokes_typed_callback
 #[test]
 fn privileged_command_parser_accepts_memory_settings_set_with_long_flags() {
     let parse_result = std::panic::catch_unwind(|| {
-        PrivilegedCommand::from_iter_safe([
+        parse_privileged_command([
             "squalr-cli",
             "settings",
             "memory",
@@ -351,7 +353,7 @@ fn privileged_command_parser_accepts_memory_settings_set_with_long_flags() {
 #[test]
 fn privileged_command_parser_accepts_scan_settings_set_with_long_flags() {
     let parse_result = std::panic::catch_unwind(|| {
-        PrivilegedCommand::from_iter_safe([
+        parse_privileged_command([
             "squalr-cli",
             "settings",
             "scan",
@@ -366,6 +368,8 @@ fn privileged_command_parser_accepts_scan_settings_set_with_long_flags() {
             "epsilon",
             "--is-single-threaded-scan",
             "true",
+            "--project-file-system-watch-enabled",
+            "false",
         ])
     });
 
@@ -386,6 +390,7 @@ fn privileged_command_parser_accepts_scan_settings_set_with_long_flags() {
                 Some(FloatingPointTolerance::ToleranceEpsilon)
             );
             assert_eq!(scan_settings_set_request.is_single_threaded_scan, Some(true));
+            assert_eq!(scan_settings_set_request.project_file_system_watch_enabled, Some(false));
         }
         parsed_command => panic!("unexpected parsed command: {parsed_command:?}"),
     }
@@ -394,7 +399,7 @@ fn privileged_command_parser_accepts_scan_settings_set_with_long_flags() {
 #[test]
 fn privileged_command_parser_accepts_general_settings_set_with_long_flags() {
     let parse_result = std::panic::catch_unwind(|| {
-        PrivilegedCommand::from_iter_safe([
+        parse_privileged_command([
             "squalr-cli",
             "settings",
             "general",
@@ -421,7 +426,7 @@ fn privileged_command_parser_accepts_general_settings_set_with_long_flags() {
 
 #[test]
 fn privileged_command_parser_accepts_general_settings_list_subcommand() {
-    let parse_result = std::panic::catch_unwind(|| PrivilegedCommand::from_iter_safe(["squalr-cli", "settings", "general", "list"]));
+    let parse_result = std::panic::catch_unwind(|| parse_privileged_command(["squalr-cli", "settings", "general", "list"]));
 
     assert!(parse_result.is_ok());
 
@@ -438,7 +443,7 @@ fn privileged_command_parser_accepts_general_settings_list_subcommand() {
 
 #[test]
 fn privileged_command_parser_accepts_memory_settings_list_subcommand() {
-    let parse_result = std::panic::catch_unwind(|| PrivilegedCommand::from_iter_safe(["squalr-cli", "settings", "memory", "list"]));
+    let parse_result = std::panic::catch_unwind(|| parse_privileged_command(["squalr-cli", "settings", "memory", "list"]));
 
     assert!(parse_result.is_ok());
 
@@ -455,7 +460,7 @@ fn privileged_command_parser_accepts_memory_settings_list_subcommand() {
 
 #[test]
 fn privileged_command_parser_accepts_scan_settings_list_subcommand() {
-    let parse_result = std::panic::catch_unwind(|| PrivilegedCommand::from_iter_safe(["squalr-cli", "settings", "scan", "list"]));
+    let parse_result = std::panic::catch_unwind(|| parse_privileged_command(["squalr-cli", "settings", "scan", "list"]));
 
     assert!(parse_result.is_ok());
 
@@ -473,7 +478,7 @@ fn privileged_command_parser_accepts_scan_settings_list_subcommand() {
 #[test]
 fn privileged_command_parser_rejects_scan_settings_set_with_invalid_memory_alignment() {
     let parse_result = std::panic::catch_unwind(|| {
-        PrivilegedCommand::from_iter_safe([
+        parse_privileged_command([
             "squalr-cli",
             "settings",
             "scan",

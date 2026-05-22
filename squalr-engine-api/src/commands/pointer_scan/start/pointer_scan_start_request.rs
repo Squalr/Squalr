@@ -6,19 +6,13 @@ use crate::structures::pointer_scans::pointer_scan_address_space::PointerScanAdd
 use crate::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 use crate::structures::pointer_scans::pointer_scan_target_request::PointerScanTargetRequest;
 use serde::{Deserialize, Serialize};
-use structopt::StructOpt;
 
-#[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PointerScanStartRequest {
-    #[structopt(flatten)]
     pub target: PointerScanTargetRequest,
-    #[structopt(short = "s", long)]
     pub pointer_size: PointerScanPointerSize,
-    #[structopt(short = "d", long)]
     pub max_depth: u64,
-    #[structopt(short = "o", long)]
     pub offset_radius: u64,
-    #[structopt(long = "address-space", default_value = "emulator")]
     pub address_space: PointerScanAddressSpace,
 }
 

@@ -14,6 +14,7 @@ use squalr_engine_api::{
         privileged_command_request::PrivilegedCommandRequest,
         settings::scan::{list::scan_settings_list_request::ScanSettingsListRequest, set::scan_settings_set_request::ScanSettingsSetRequest},
     },
+    engine::engine_execution_context::EngineExecutionContext,
     plugins::memory_view::PageRetrievalMode,
     structures::memory::memory_alignment::MemoryAlignment,
     structures::settings::scan_settings::ScanSettings,
@@ -216,6 +217,34 @@ impl Widget for SettingsTabScanView {
                             user_interface.add_space(8.0);
                             user_interface.label(
                                 RichText::new("Project read interval (ms)")
+                                    .font(theme.font_library.font_noto_sans.font_normal.clone())
+                                    .color(theme.foreground),
+                            );
+                        });
+                        user_interface.horizontal(|user_interface| {
+                            if user_interface
+                                .add(Checkbox::new_from_theme(theme).with_check_state_bool(cached_scan_settings.project_file_system_watch_enabled))
+                                .clicked()
+                            {
+                                if let Ok(mut cached_scan_settings) = self.cached_scan_settings.write() {
+                                    cached_scan_settings.project_file_system_watch_enabled = !cached_scan_settings.project_file_system_watch_enabled;
+
+                                    let scan_settings_set_request = ScanSettingsSetRequest {
+                                        project_file_system_watch_enabled: Some(cached_scan_settings.project_file_system_watch_enabled),
+                                        ..ScanSettingsSetRequest::default()
+                                    };
+
+                                    self.app_context
+                                        .engine_unprivileged_state
+                                        .get_project_manager()
+                                        .set_project_file_system_watch_enabled(cached_scan_settings.project_file_system_watch_enabled);
+                                    self.send_scan_settings_update(scan_settings_set_request);
+                                }
+                            }
+
+                            user_interface.add_space(8.0);
+                            user_interface.label(
+                                RichText::new("Watch project files for changes")
                                     .font(theme.font_library.font_noto_sans.font_normal.clone())
                                     .color(theme.foreground),
                             );

@@ -1,3 +1,4 @@
+use squalr_engine_api::commands::command_line::parse_privileged_command;
 use squalr_engine_api::commands::pointer_scan::expand::pointer_scan_expand_request::PointerScanExpandRequest;
 use squalr_engine_api::commands::pointer_scan::expand::pointer_scan_expand_response::PointerScanExpandResponse;
 use squalr_engine_api::commands::pointer_scan::pointer_scan_command::PointerScanCommand;
@@ -35,7 +36,6 @@ use squalr_engine_api::structures::scanning::constraints::anonymous_scan_constra
 use std::str::FromStr;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use structopt::StructOpt;
 
 use squalr_tests::mocks::mock_engine_bindings::MockEngineBindings;
 
@@ -654,7 +654,7 @@ fn struct_scan_request_does_not_invoke_callback_when_response_variant_is_wrong()
 #[test]
 fn privileged_command_parser_accepts_pointer_scan_with_long_flags() {
     let parse_result = std::panic::catch_unwind(|| {
-        PrivilegedCommand::from_iter_safe([
+        parse_privileged_command([
             "squalr-cli",
             "pointer-scan",
             "start",
@@ -695,7 +695,7 @@ fn privileged_command_parser_accepts_pointer_scan_with_long_flags() {
 
 #[test]
 fn privileged_command_parser_accepts_pointer_scan_summary_subcommand() {
-    let parse_result = std::panic::catch_unwind(|| PrivilegedCommand::from_iter_safe(["squalr-cli", "pointer-scan", "summary", "--session-id", "7"]));
+    let parse_result = std::panic::catch_unwind(|| parse_privileged_command(["squalr-cli", "pointer-scan", "summary", "--session-id", "7"]));
 
     assert!(parse_result.is_ok());
     assert!(parse_result.expect("parser should not panic").is_ok());
@@ -704,7 +704,7 @@ fn privileged_command_parser_accepts_pointer_scan_summary_subcommand() {
 #[test]
 fn privileged_command_parser_accepts_pointer_scan_expand_subcommand() {
     let parse_result = std::panic::catch_unwind(|| {
-        PrivilegedCommand::from_iter_safe([
+        parse_privileged_command([
             "squalr-cli",
             "pointer-scan",
             "expand",
@@ -722,7 +722,7 @@ fn privileged_command_parser_accepts_pointer_scan_expand_subcommand() {
 #[test]
 fn privileged_command_parser_accepts_pointer_scan_validate_subcommand() {
     let parse_result = std::panic::catch_unwind(|| {
-        PrivilegedCommand::from_iter_safe([
+        parse_privileged_command([
             "squalr-cli",
             "pointer-scan",
             "validate",
@@ -740,7 +740,7 @@ fn privileged_command_parser_accepts_pointer_scan_validate_subcommand() {
 #[test]
 fn privileged_command_parser_accepts_element_scan_with_long_flags() {
     let parse_result = std::panic::catch_unwind(|| {
-        PrivilegedCommand::from_iter_safe([
+        parse_privileged_command([
             "squalr-cli",
             "scan",
             "element-scan",
@@ -794,7 +794,7 @@ fn privileged_command_parser_accepts_element_scan_with_long_flags() {
 
 #[test]
 fn privileged_command_parser_accepts_scan_new_subcommand() {
-    let parse_result = std::panic::catch_unwind(|| PrivilegedCommand::from_iter_safe(["squalr-cli", "scan", "new"]));
+    let parse_result = std::panic::catch_unwind(|| parse_privileged_command(["squalr-cli", "scan", "new"]));
 
     assert!(parse_result.is_ok());
 
@@ -809,7 +809,7 @@ fn privileged_command_parser_accepts_scan_new_subcommand() {
 
 #[test]
 fn privileged_command_parser_accepts_scan_reset_subcommand() {
-    let parse_result = std::panic::catch_unwind(|| PrivilegedCommand::from_iter_safe(["squalr-cli", "scan", "reset"]));
+    let parse_result = std::panic::catch_unwind(|| parse_privileged_command(["squalr-cli", "scan", "reset"]));
 
     assert!(parse_result.is_ok());
 
@@ -824,7 +824,7 @@ fn privileged_command_parser_accepts_scan_reset_subcommand() {
 
 #[test]
 fn privileged_command_parser_accepts_scan_collect_values_subcommand() {
-    let parse_result = std::panic::catch_unwind(|| PrivilegedCommand::from_iter_safe(["squalr-cli", "scan", "collect-values"]));
+    let parse_result = std::panic::catch_unwind(|| parse_privileged_command(["squalr-cli", "scan", "collect-values"]));
 
     assert!(parse_result.is_ok());
 
@@ -840,7 +840,7 @@ fn privileged_command_parser_accepts_scan_collect_values_subcommand() {
 #[test]
 fn privileged_command_parser_accepts_scan_struct_scan_with_long_flags() {
     let parse_result = std::panic::catch_unwind(|| {
-        PrivilegedCommand::from_iter_safe([
+        parse_privileged_command([
             "squalr-cli",
             "struct-scan",
             "--scan-value",
@@ -878,7 +878,7 @@ fn privileged_command_parser_accepts_scan_struct_scan_with_long_flags() {
 #[test]
 fn privileged_command_parser_rejects_scan_struct_scan_with_invalid_compare_type() {
     let parse_result = std::panic::catch_unwind(|| {
-        PrivilegedCommand::from_iter_safe([
+        parse_privileged_command([
             "squalr-cli",
             "struct-scan",
             "--scan-value",
@@ -897,7 +897,7 @@ fn privileged_command_parser_rejects_scan_struct_scan_with_invalid_compare_type(
 #[test]
 fn privileged_command_parser_accepts_pointer_scan_alias_pscan() {
     let parse_result = std::panic::catch_unwind(|| {
-        PrivilegedCommand::from_iter_safe([
+        parse_privileged_command([
             "squalr-cli",
             "pscan",
             "start",
@@ -919,7 +919,7 @@ fn privileged_command_parser_accepts_pointer_scan_alias_pscan() {
 #[test]
 fn privileged_command_parser_accepts_struct_scan_alias_sscan() {
     let parse_result = std::panic::catch_unwind(|| {
-        PrivilegedCommand::from_iter_safe([
+        parse_privileged_command([
             "squalr-cli",
             "sscan",
             "--scan-value",
@@ -938,7 +938,7 @@ fn privileged_command_parser_accepts_struct_scan_alias_sscan() {
 #[test]
 fn privileged_command_parser_rejects_nested_scan_pointer_scan_subcommand() {
     let parse_result = std::panic::catch_unwind(|| {
-        PrivilegedCommand::from_iter_safe([
+        parse_privileged_command([
             "squalr-cli",
             "scan",
             "pointer-scan",
@@ -961,7 +961,7 @@ fn privileged_command_parser_rejects_nested_scan_pointer_scan_subcommand() {
 #[test]
 fn privileged_command_parser_rejects_nested_scan_struct_scan_subcommand() {
     let parse_result = std::panic::catch_unwind(|| {
-        PrivilegedCommand::from_iter_safe([
+        parse_privileged_command([
             "squalr-cli",
             "scan",
             "struct-scan",

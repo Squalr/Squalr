@@ -5,13 +5,10 @@ use crate::commands::{
     project_items::activate::project_items_activate_response::ProjectItemsActivateResponse, unprivileged_command_request::UnprivilegedCommandRequest,
 };
 use serde::{Deserialize, Serialize};
-use structopt::StructOpt;
 
-#[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ProjectItemsActivateRequest {
-    #[structopt(short = "p", long)]
     pub project_item_paths: Vec<String>,
-    #[structopt(short = "a", long)]
     pub is_activated: bool,
 }
 

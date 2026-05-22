@@ -1,15 +1,13 @@
-use crate::{
-    events::{
-        engine_event::{EngineEvent, EngineEventRequest},
-        project_items::project_items_event::ProjectItemsEvent,
-    },
-    structures::projects::project_items::project_item::ProjectItem,
+use crate::events::{
+    engine_event::{EngineEvent, EngineEventRequest},
+    project_items::project_items_event::ProjectItemsEvent,
 };
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ProjectItemsChangedEvent {
-    pub project_root: Option<ProjectItem>,
+    pub changed_project_paths: Vec<PathBuf>,
 }
 
 impl EngineEventRequest for ProjectItemsChangedEvent {

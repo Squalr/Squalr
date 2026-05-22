@@ -62,6 +62,15 @@ pub fn generate_unique_project_item_file_path(
     project_items: &HashMap<ProjectItemRef, ProjectItem>,
     project_item_file_stem: &str,
 ) -> PathBuf {
+    generate_unique_project_item_file_path_allowing(parent_directory_path, project_items, project_item_file_stem, None)
+}
+
+pub fn generate_unique_project_item_file_path_allowing(
+    parent_directory_path: &Path,
+    project_items: &HashMap<ProjectItemRef, ProjectItem>,
+    project_item_file_stem: &str,
+    allowed_existing_project_item_path: Option<&Path>,
+) -> PathBuf {
     let mut duplicate_sequence_number = 0_u64;
 
     loop {
@@ -77,8 +86,11 @@ pub fn generate_unique_project_item_file_path(
         };
         let project_item_absolute_path = parent_directory_path.join(project_item_file_name);
         let project_item_ref = ProjectItemRef::new(project_item_absolute_path.clone());
+        let is_allowed_existing_path = allowed_existing_project_item_path
+            .map(|allowed_existing_project_item_path| project_item_absolute_path == allowed_existing_project_item_path)
+            .unwrap_or(false);
 
-        if project_items.contains_key(&project_item_ref) {
+        if !is_allowed_existing_path && (project_items.contains_key(&project_item_ref) || project_item_absolute_path.exists()) {
             duplicate_sequence_number = duplicate_sequence_number.saturating_add(1);
             continue;
         }
@@ -152,11 +164,12 @@ fn is_directory_path(
 
 #[cfg(test)]
 mod tests {
-    use super::{generate_unique_project_item_file_path, sanitize_file_name_component};
+    use super::{generate_unique_project_item_file_path, generate_unique_project_item_file_path_allowing, sanitize_file_name_component};
     use squalr_engine_api::structures::projects::project_items::{
         built_in_types::project_item_type_directory::ProjectItemTypeDirectory, project_item_ref::ProjectItemRef,
     };
     use std::collections::HashMap;
+    use std::fs;
     use std::path::PathBuf;
 
     #[test]
@@ -176,5 +189,33 @@ mod tests {
         let generated_path = generate_unique_project_item_file_path(&parent_directory_path, &project_items, "health");
 
         assert_eq!(generated_path, parent_directory_path.join("health_1.json"));
+    }
+
+    #[test]
+    fn generate_unique_project_item_file_path_avoids_existing_disk_file() {
+        let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
+        let existing_project_item_path = temp_directory.path().join("health.json");
+
+        fs::write(&existing_project_item_path, "{}").expect("Expected existing project item file to be written.");
+
+        let generated_path = generate_unique_project_item_file_path(temp_directory.path(), &HashMap::new(), "health");
+
+        assert_eq!(generated_path, temp_directory.path().join("health_1.json"));
+    }
+
+    #[test]
+    fn generate_unique_project_item_file_path_allows_current_path_during_rename() {
+        let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
+        let existing_project_item_path = temp_directory.path().join("health.json");
+        let existing_project_item_ref = ProjectItemRef::new(existing_project_item_path.clone());
+        let existing_project_item = ProjectItemTypeDirectory::new_project_item(&existing_project_item_ref);
+        let project_items = HashMap::from([(existing_project_item_ref, existing_project_item)]);
+
+        fs::write(&existing_project_item_path, "{}").expect("Expected existing project item file to be written.");
+
+        let generated_path =
+            generate_unique_project_item_file_path_allowing(temp_directory.path(), &project_items, "health", Some(&existing_project_item_path));
+
+        assert_eq!(generated_path, existing_project_item_path);
     }
 }

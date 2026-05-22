@@ -4,11 +4,9 @@ use crate::commands::project_symbols::project_symbols_response::ProjectSymbolsRe
 use crate::commands::unprivileged_command::UnprivilegedCommand;
 use crate::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use serde::{Deserialize, Serialize};
-use structopt::StructOpt;
 
-#[derive(Clone, Default, StructOpt, Debug, Serialize, Deserialize)]
+#[derive(Clone, Default, Debug, Serialize, Deserialize)]
 pub struct ProjectSymbolsDeleteResolverRequest {
-    #[structopt(short = "i", long = "id")]
     pub resolver_id: String,
 }
 

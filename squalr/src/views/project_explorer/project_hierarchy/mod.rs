@@ -3,6 +3,7 @@ pub mod project_hierarchy_command_dispatcher;
 pub mod project_hierarchy_create_item_menu_view;
 pub mod project_hierarchy_details_focus;
 pub mod project_hierarchy_drop_operation_planner;
+pub mod project_hierarchy_empty_space_context_menu_view;
 pub mod project_hierarchy_list_view;
 pub mod project_hierarchy_module_address_resolver;
 pub mod project_hierarchy_project_item_context_menu_view;

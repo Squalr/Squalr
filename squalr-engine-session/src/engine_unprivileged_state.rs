@@ -151,7 +151,7 @@ impl EngineUnprivilegedState {
         let project_manager = Arc::new(ProjectManager::new());
         let plugin_registry = Arc::new(PluginRegistry::new());
 
-        Arc::new(EngineUnprivilegedState {
+        let engine_unprivileged_state = Arc::new(EngineUnprivilegedState {
             engine_api_unprivileged_bindings,
             event_listeners: Arc::new(RwLock::new(HashMap::new())),
             file_system_logger: Arc::new(LogDispatcher::new_with_options(LogDispatcherOptions {
@@ -161,7 +161,11 @@ impl EngineUnprivilegedState {
             plugin_registry,
             privileged_registry_cache: Arc::new(RwLock::new(PrivilegedRegistryCache::default())),
             virtual_snapshots: Arc::new(RwLock::new(HashMap::new())),
-        })
+        });
+
+        engine_unprivileged_state.install_project_event_emitter();
+
+        engine_unprivileged_state
     }
 
     pub fn initialize(self: &Arc<Self>) {
@@ -557,46 +561,65 @@ impl EngineUnprivilegedState {
 
         let engine_event = engine_event_envelope.into_engine_event();
 
+        Self::dispatch_engine_event_by_variant(&engine_unprivileged_state.event_listeners, engine_event);
+    }
+
+    fn install_project_event_emitter(self: &Arc<Self>) {
+        let event_listeners = self.event_listeners.clone();
+
+        self.project_manager
+            .set_event_emitter(Arc::new(move |engine_event| {
+                Self::dispatch_engine_event_by_variant(&event_listeners, engine_event)
+            }));
+    }
+
+    fn dispatch_engine_event_by_variant(
+        event_listeners: &Arc<RwLock<HashMap<TypeId, Vec<Box<dyn Fn(&dyn Any) + Send + Sync>>>>>,
+        engine_event: EngineEvent,
+    ) {
         match engine_event {
             EngineEvent::Plugins(plugins_event) => match plugins_event {
                 PluginsEvent::PluginsChanged { plugins_changed_event } => {
-                    Self::dispatch_engine_event(&engine_unprivileged_state.event_listeners, plugins_changed_event);
+                    Self::dispatch_engine_event(event_listeners, plugins_changed_event);
                 }
             },
             EngineEvent::Process(process_event) => match process_event {
                 ProcessEvent::ProcessChanged { process_changed_event } => {
-                    Self::dispatch_engine_event(&engine_unprivileged_state.event_listeners, process_changed_event);
+                    Self::dispatch_engine_event(event_listeners, process_changed_event);
                 }
             },
             EngineEvent::Project(project_event) => match project_event {
+                ProjectEvent::ProjectCatalogChanged { project_catalog_changed_event } => {
+                    Self::dispatch_engine_event(event_listeners, project_catalog_changed_event);
+                }
                 ProjectEvent::ProjectClosed { project_closed_event } => {
-                    Self::dispatch_engine_event(&engine_unprivileged_state.event_listeners, project_closed_event);
+                    Self::dispatch_engine_event(event_listeners, project_closed_event);
                 }
                 ProjectEvent::ProjectCreated { project_created_event } => {
-                    Self::dispatch_engine_event(&engine_unprivileged_state.event_listeners, project_created_event);
+                    Self::dispatch_engine_event(event_listeners, project_created_event);
                 }
                 ProjectEvent::ProjectDeleted { project_deleted_event } => {
-                    Self::dispatch_engine_event(&engine_unprivileged_state.event_listeners, project_deleted_event);
+                    Self::dispatch_engine_event(event_listeners, project_deleted_event);
                 }
             },
             EngineEvent::ProjectItems(project_items_event) => match project_items_event {
                 ProjectItemsEvent::ProjectItemsChanged { project_items_changed_event } => {
-                    Self::dispatch_engine_event(&engine_unprivileged_state.event_listeners, project_items_changed_event);
+                    Self::dispatch_engine_event(event_listeners, project_items_changed_event);
                 }
             },
             EngineEvent::Registry(registry_event) => match registry_event {
                 RegistryEvent::Changed { registry_changed_event } => {
-                    Self::dispatch_engine_event(&engine_unprivileged_state.event_listeners, registry_changed_event);
+                    Self::dispatch_engine_event(event_listeners, registry_changed_event);
                 }
             },
             EngineEvent::ScanResults(scan_results_event) => match scan_results_event {
                 ScanResultsEvent::ScanResultsUpdated { scan_results_updated_event } => {
-                    Self::dispatch_engine_event(&engine_unprivileged_state.event_listeners, scan_results_updated_event);
+                    Self::dispatch_engine_event(event_listeners, scan_results_updated_event);
                 }
             },
             EngineEvent::TrackableTask(trackable_task_event) => match trackable_task_event {
                 TrackableTaskEvent::ProgressChanged { progress_changed_event } => {
-                    Self::dispatch_engine_event(&engine_unprivileged_state.event_listeners, progress_changed_event);
+                    Self::dispatch_engine_event(event_listeners, progress_changed_event);
                 }
             },
         }

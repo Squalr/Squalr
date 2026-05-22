@@ -5,11 +5,9 @@ use crate::commands::privileged_command::PrivilegedCommand;
 use crate::commands::privileged_command_request::PrivilegedCommandRequest;
 use crate::plugins::memory_view::PageRetrievalMode;
 use serde::{Deserialize, Serialize};
-use structopt::StructOpt;
 
-#[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MemoryQueryRequest {
-    #[structopt(short = "p", long, default_value = "usermode")]
     pub page_retrieval_mode: PageRetrievalMode,
 }
 

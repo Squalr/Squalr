@@ -4,14 +4,10 @@ use crate::commands::project_symbols::rename::project_symbols_rename_response::P
 use crate::commands::unprivileged_command::UnprivilegedCommand;
 use crate::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use serde::{Deserialize, Serialize};
-use structopt::StructOpt;
 
-#[derive(Clone, Default, StructOpt, Debug, Serialize, Deserialize)]
+#[derive(Clone, Default, Debug, Serialize, Deserialize)]
 pub struct ProjectSymbolsRenameRequest {
-    #[structopt(short = "k", long = "key")]
     pub symbol_locator_key: String,
-
-    #[structopt(short = "n", long = "name")]
     pub display_name: String,
 }
 

@@ -1,3 +1,4 @@
+use squalr_engine_api::commands::command_line::parse_unprivileged_command;
 use squalr_engine_api::commands::memory::write::memory_write_response::MemoryWriteResponse;
 use squalr_engine_api::commands::privileged_command_response::TypedPrivilegedCommandResponse;
 use squalr_engine_api::commands::project::list::project_list_response::ProjectListResponse;
@@ -24,7 +25,6 @@ use squalr_tests::shared_execution_context;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use structopt::StructOpt;
 
 use squalr_tests::mocks::mock_engine_bindings::MockEngineBindings;
 
@@ -236,7 +236,7 @@ fn project_items_list_request_does_not_invoke_callback_when_response_variant_is_
 #[test]
 fn unprivileged_command_parser_accepts_project_items_activate_with_long_flags() {
     let parse_result = std::panic::catch_unwind(|| {
-        UnprivilegedCommand::from_iter_safe([
+        parse_unprivileged_command([
             "squalr-cli",
             "project-items",
             "activate",
@@ -269,7 +269,7 @@ fn unprivileged_command_parser_accepts_project_items_activate_with_long_flags() 
 #[test]
 fn unprivileged_command_parser_accepts_project_items_add_with_long_flags() {
     let parse_result = std::panic::catch_unwind(|| {
-        UnprivilegedCommand::from_iter_safe([
+        parse_unprivileged_command([
             "squalr-cli",
             "project-items",
             "add",
@@ -300,7 +300,7 @@ fn unprivileged_command_parser_accepts_project_items_add_with_long_flags() {
 fn unprivileged_command_parser_accepts_project_items_add_target_directory_path() {
     let target_directory_path = format!("{}/Addresses", Project::PROJECT_DIR);
     let parse_result = std::panic::catch_unwind(|| {
-        UnprivilegedCommand::from_iter_safe([
+        parse_unprivileged_command([
             "squalr-cli",
             "project-items",
             "add",
@@ -328,7 +328,7 @@ fn unprivileged_command_parser_accepts_project_items_add_target_directory_path()
 
 #[test]
 fn unprivileged_command_parser_accepts_project_items_list_subcommand() {
-    let parse_result = std::panic::catch_unwind(|| UnprivilegedCommand::from_iter_safe(["squalr-cli", "project-items", "list"]));
+    let parse_result = std::panic::catch_unwind(|| parse_unprivileged_command(["squalr-cli", "project-items", "list"]));
 
     assert!(parse_result.is_ok());
 
@@ -344,7 +344,7 @@ fn unprivileged_command_parser_accepts_project_items_list_subcommand() {
 #[test]
 fn unprivileged_command_parser_rejects_project_items_activate_when_path_value_is_missing() {
     let parse_result = std::panic::catch_unwind(|| {
-        UnprivilegedCommand::from_iter_safe([
+        parse_unprivileged_command([
             "squalr-cli",
             "project-items",
             "activate",
@@ -411,7 +411,7 @@ fn project_items_create_request_dispatches_unprivileged_command_and_invokes_type
 #[test]
 fn unprivileged_command_parser_accepts_project_items_create_with_long_flags() {
     let parse_result = std::panic::catch_unwind(|| {
-        UnprivilegedCommand::from_iter_safe([
+        parse_unprivileged_command([
             "squalr-cli",
             "project-items",
             "create",
@@ -442,7 +442,7 @@ fn unprivileged_command_parser_accepts_project_items_create_with_long_flags() {
 #[test]
 fn unprivileged_command_parser_accepts_project_items_delete_with_long_flags() {
     let parse_result = std::panic::catch_unwind(|| {
-        UnprivilegedCommand::from_iter_safe([
+        parse_unprivileged_command([
             "squalr-cli",
             "project-items",
             "delete",
@@ -476,7 +476,7 @@ fn unprivileged_command_parser_accepts_project_items_delete_with_long_flags() {
 #[test]
 fn unprivileged_command_parser_accepts_project_items_rename_with_long_flags() {
     let parse_result = std::panic::catch_unwind(|| {
-        UnprivilegedCommand::from_iter_safe([
+        parse_unprivileged_command([
             "squalr-cli",
             "project-items",
             "rename",
@@ -503,7 +503,7 @@ fn unprivileged_command_parser_accepts_project_items_rename_with_long_flags() {
 #[test]
 fn unprivileged_command_parser_accepts_project_items_move_with_long_flags() {
     let parse_result = std::panic::catch_unwind(|| {
-        UnprivilegedCommand::from_iter_safe([
+        parse_unprivileged_command([
             "squalr-cli",
             "project-items",
             "move",
@@ -533,7 +533,7 @@ fn unprivileged_command_parser_accepts_project_items_move_with_long_flags() {
 #[test]
 fn unprivileged_command_parser_accepts_project_items_reorder_with_long_flags() {
     let parse_result = std::panic::catch_unwind(|| {
-        UnprivilegedCommand::from_iter_safe([
+        parse_unprivileged_command([
             "squalr-cli",
             "project-items",
             "reorder",

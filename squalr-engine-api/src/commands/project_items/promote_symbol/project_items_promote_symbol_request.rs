@@ -5,15 +5,12 @@ use crate::commands::unprivileged_command::UnprivilegedCommand;
 use crate::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use structopt::StructOpt;
 
-#[derive(Clone, Default, StructOpt, Debug, Serialize, Deserialize)]
+#[derive(Clone, Default, Debug, Serialize, Deserialize)]
 pub struct ProjectItemsPromoteSymbolRequest {
-    #[structopt(short = "p", long = "project-item-path", parse(from_os_str))]
     pub project_item_paths: Vec<PathBuf>,
 
     #[serde(default)]
-    #[structopt(long = "overwrite-conflicting-symbols")]
     pub overwrite_conflicting_symbols: bool,
 }
 

@@ -67,12 +67,16 @@ impl UnprivilegedCommandRequestExecutor for ProjectOpenRequest {
                     .get_plugin_enablement_overrides()
                     .cloned();
                 let project_symbol_catalog = project.get_project_info().get_project_symbol_catalog().clone();
+                let opened_project_directory_path = project.get_project_info().get_project_directory();
                 *opened_project = Some(project);
                 drop(opened_project);
 
                 if apply_project_plugin_configuration(engine_unprivileged_state, project_plugin_configuration.as_ref())
                     && sync_project_symbol_catalog(engine_unprivileged_state, project_symbol_catalog)
                 {
+                    project_manager.watch_opened_project(opened_project_directory_path);
+                    project_manager.notify_project_items_changed();
+
                     ProjectOpenResponse { success: true }
                 } else {
                     if let Ok(mut opened_project) = project_manager.get_opened_project().write() {

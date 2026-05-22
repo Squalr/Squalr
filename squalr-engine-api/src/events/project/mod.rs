@@ -1,3 +1,4 @@
+pub mod catalog_changed;
 pub mod closed;
 pub mod created;
 pub mod deleted;

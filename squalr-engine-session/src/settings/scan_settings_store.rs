@@ -147,6 +147,22 @@ impl ScanSettingsStore {
         Self::save_config();
     }
 
+    pub fn get_project_file_system_watch_enabled() -> bool {
+        if let Ok(config) = Self::get_instance().config.read() {
+            config.project_file_system_watch_enabled
+        } else {
+            ScanSettings::default().project_file_system_watch_enabled
+        }
+    }
+
+    pub fn set_project_file_system_watch_enabled(value: bool) {
+        if let Ok(mut config) = Self::get_instance().config.write() {
+            config.project_file_system_watch_enabled = value;
+        }
+
+        Self::save_config();
+    }
+
     pub fn get_freeze_interval_ms() -> u64 {
         if let Ok(config) = Self::get_instance().config.read() {
             config.freeze_interval_ms

@@ -1,3 +1,4 @@
+pub mod command_line;
 pub mod memory;
 pub mod plugins;
 pub mod pointer_scan;

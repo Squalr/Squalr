@@ -4,11 +4,9 @@ use crate::commands::registry::set_project_symbols::registry_set_project_symbols
 use crate::commands::{privileged_command::PrivilegedCommand, privileged_command_request::PrivilegedCommandRequest};
 use crate::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
 use serde::{Deserialize, Serialize};
-use structopt::StructOpt;
 
-#[derive(Clone, Default, StructOpt, Debug, Serialize, Deserialize)]
+#[derive(Clone, Default, Debug, Serialize, Deserialize)]
 pub struct RegistrySetProjectSymbolsRequest {
-    #[structopt(skip)]
     pub project_symbol_catalog: ProjectSymbolCatalog,
 }
 

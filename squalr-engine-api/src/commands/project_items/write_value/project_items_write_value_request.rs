@@ -6,17 +6,11 @@ use crate::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use crate::structures::data_values::anonymous_value_string::AnonymousValueString;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use structopt::StructOpt;
 
-#[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ProjectItemsWriteValueRequest {
-    #[structopt(short = "p", long = "project-item-path", parse(from_os_str))]
     pub project_item_path: PathBuf,
-
-    #[structopt(long = "field", default_value = "value")]
     pub field_name: String,
-
-    #[structopt(short = "v", long)]
     pub anonymous_value_string: AnonymousValueString,
 }
 

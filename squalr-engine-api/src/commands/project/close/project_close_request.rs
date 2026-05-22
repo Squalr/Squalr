@@ -3,9 +3,8 @@ use crate::commands::project::project_response::ProjectResponse;
 use crate::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use crate::commands::{project::close::project_close_response::ProjectCloseResponse, unprivileged_command::UnprivilegedCommand};
 use serde::{Deserialize, Serialize};
-use structopt::StructOpt;
 
-#[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ProjectCloseRequest {}
 
 impl UnprivilegedCommandRequest for ProjectCloseRequest {

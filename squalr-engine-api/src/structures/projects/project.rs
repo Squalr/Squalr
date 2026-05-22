@@ -60,6 +60,13 @@ impl Project {
         &mut self.project_info
     }
 
+    pub fn set_project_info(
+        &mut self,
+        project_info: ProjectInfo,
+    ) {
+        self.project_info = project_info;
+    }
+
     pub fn set_project_icon(
         &mut self,
         project_icon: Option<ProcessIcon>,
@@ -73,6 +80,27 @@ impl Project {
 
     pub fn get_project_items_mut(&mut self) -> &mut HashMap<ProjectItemRef, ProjectItem> {
         &mut self.project_items
+    }
+
+    /// Returns true when the project metadata or any project item has unsaved changes.
+    pub fn get_has_unsaved_changes(&self) -> bool {
+        self.project_info.get_has_unsaved_changes()
+            || self
+                .project_items
+                .values()
+                .any(|project_item| project_item.get_has_unsaved_changes())
+    }
+
+    /// Applies the same unsaved-change state to the project metadata and all project items.
+    pub fn set_has_unsaved_changes(
+        &mut self,
+        has_unsaved_changes: bool,
+    ) {
+        self.project_info.set_has_unsaved_changes(has_unsaved_changes);
+
+        for project_item in self.project_items.values_mut() {
+            project_item.set_has_unsaved_changes(has_unsaved_changes);
+        }
     }
 
     pub fn get_project_root(&self) -> Option<&ProjectItem> {

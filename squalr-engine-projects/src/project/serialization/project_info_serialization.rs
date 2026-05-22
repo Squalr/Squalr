@@ -72,6 +72,7 @@ impl SerializableProjectFile for ProjectInfo {
             project_info_stub.project_symbol_catalog,
         );
         project_info.set_plugin_enablement_overrides(project_info_stub.plugin_configuration);
+        project_info.set_has_unsaved_changes(false);
 
         Ok(project_info)
     }

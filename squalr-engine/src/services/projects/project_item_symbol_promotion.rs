@@ -153,7 +153,9 @@ pub fn apply_project_item_symbol_promotion(
 
     for (project_item_ref, replacement_project_item) in &project_item_replacements {
         if let Some(project_item) = opened_project.get_project_items_mut().get_mut(project_item_ref) {
-            *project_item = replacement_project_item.clone();
+            let mut replacement_project_item = replacement_project_item.clone();
+            replacement_project_item.set_has_unsaved_changes(true);
+            *project_item = replacement_project_item;
         }
     }
 

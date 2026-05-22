@@ -28,6 +28,10 @@ impl PrivilegedCommandRequestExecutor for ScanSettingsSetRequest {
             ScanSettingsStore::set_project_read_interval_ms(project_read_interval_ms);
         }
 
+        if let Some(project_file_system_watch_enabled) = self.project_file_system_watch_enabled {
+            ScanSettingsStore::set_project_file_system_watch_enabled(project_file_system_watch_enabled);
+        }
+
         if let Some(freeze_interval_ms) = self.freeze_interval_ms {
             ScanSettingsStore::set_freeze_interval_ms(freeze_interval_ms);
         }

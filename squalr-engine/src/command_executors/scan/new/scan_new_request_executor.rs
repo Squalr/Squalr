@@ -66,6 +66,8 @@ impl PrivilegedCommandRequestExecutor for ScanNewRequest {
             engine_privileged_state.emit_event(ScanResultsUpdatedEvent { is_new_scan: true });
         }
 
+        log::info!("Started new scan.");
+
         ScanNewResponse { success: true }
     }
 }

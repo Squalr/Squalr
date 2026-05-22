@@ -20,7 +20,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectCreateRequest {
 
     fn execute(
         &self,
-        _engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
+        engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
     ) -> <Self as UnprivilegedCommandRequestExecutor>::ResponseType {
         // If a path is provided, use this directly. Otherwise, try to use the project settings relative name to construct the path.
         // If no path nor project name is provided, we will just make an empty project with a default name.
@@ -83,6 +83,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectCreateRequest {
         project_items.insert(project_root_ref.clone(), ProjectItemTypeDirectory::new_project_item(&project_root_ref));
 
         let mut new_project = Project::new(project_info, project_items, project_root_ref);
+        let new_project_info = new_project.get_project_info().clone();
 
         if let Err(error) = new_project.save_to_path(&project_directory_path, true) {
             log::error!("Failed to save initial new project directory: {}", error);
@@ -92,6 +93,10 @@ impl UnprivilegedCommandRequestExecutor for ProjectCreateRequest {
                 new_project_path: PathBuf::default(),
             };
         }
+
+        engine_unprivileged_state
+            .get_project_manager()
+            .notify_project_created(new_project_info);
 
         ProjectCreateResponse {
             success: true,
