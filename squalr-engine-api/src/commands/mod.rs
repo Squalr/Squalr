@@ -1,3 +1,4 @@
+pub mod command_invocation;
 pub mod command_line;
 pub mod memory;
 pub mod plugins;
