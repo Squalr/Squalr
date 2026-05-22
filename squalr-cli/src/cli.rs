@@ -2,7 +2,7 @@ use crate::response_handlers::{handle_privileged_engine_response, handle_unprivi
 use anyhow::{Result, anyhow};
 use squalr_engine_api::commands::privileged_command::PrivilegedCommand;
 use squalr_engine_api::commands::text::clap::ErrorKind;
-use squalr_engine_api::commands::text::{parse_privileged_command, parse_unprivileged_command};
+use squalr_engine_api::commands::text::{TextCommand, TextCommandParseError, parse_command_line};
 use squalr_engine_api::commands::unprivileged_command::UnprivilegedCommand;
 use squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState;
 use std::io;
@@ -126,34 +126,14 @@ impl Cli {
     }
 
     fn parse_input(input: &str) -> Result<ParsedInput> {
-        let mut cli_command = shlex::split(input).ok_or_else(|| anyhow!("Error parsing input"))?;
-
-        if cli_command.is_empty() {
-            return Err(anyhow!("No command provided"));
-        }
-
-        // Inject a synthetic binary name so command text can be parsed as a CLI argv list.
-        cli_command.insert(0, String::from("squalr-cli"));
-
-        match parse_privileged_command(&cli_command) {
-            Ok(engine_command) => return Ok(ParsedInput::PrivilegedCommand(engine_command)),
-            Err(error) if matches!(error.kind, ErrorKind::HelpDisplayed | ErrorKind::VersionDisplayed) => {
+        match parse_command_line(input) {
+            Ok(TextCommand::Privileged(engine_command)) => Ok(ParsedInput::PrivilegedCommand(engine_command)),
+            Ok(TextCommand::Unprivileged(engine_command)) => Ok(ParsedInput::UnprivilegedCommand(engine_command)),
+            Err(TextCommandParseError::Command(error)) if matches!(error.kind, ErrorKind::HelpDisplayed | ErrorKind::VersionDisplayed) => {
                 print!("{}", error);
-                return Ok(ParsedInput::DisplayedHelpOrVersion);
+                Ok(ParsedInput::DisplayedHelpOrVersion)
             }
-            Err(_error) => {}
-        }
-
-        match parse_unprivileged_command(&cli_command) {
-            Ok(engine_command) => Ok(ParsedInput::UnprivilegedCommand(engine_command)),
-            Err(error) => {
-                if matches!(error.kind, ErrorKind::HelpDisplayed | ErrorKind::VersionDisplayed) {
-                    print!("{}", error);
-                    Ok(ParsedInput::DisplayedHelpOrVersion)
-                } else {
-                    Err(anyhow!(error.to_string()))
-                }
-            }
+            Err(error) => Err(anyhow!(error.to_string())),
         }
     }
 }

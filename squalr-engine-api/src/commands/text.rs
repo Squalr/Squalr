@@ -1,29 +1,80 @@
 use crate as api;
+use crate::commands::privileged_command::PrivilegedCommand;
+use crate::commands::unprivileged_command::UnprivilegedCommand;
 use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::path::PathBuf;
 use structopt::StructOpt;
+use thiserror::Error;
 
 pub use structopt::clap;
 
-pub fn parse_privileged_command<I, T>(iterator: I) -> Result<api::commands::privileged_command::PrivilegedCommand, clap::Error>
-where
-    I: IntoIterator<Item = T>,
-    T: Into<OsString> + Clone,
-{
-    ConsolePrivilegedCommand::from_iter_safe(iterator).map(Into::into)
+#[derive(Clone, Debug)]
+pub enum TextCommand {
+    Privileged(PrivilegedCommand),
+    Unprivileged(UnprivilegedCommand),
 }
 
-pub fn parse_unprivileged_command<I, T>(iterator: I) -> Result<api::commands::unprivileged_command::UnprivilegedCommand, clap::Error>
+#[derive(Debug, Error)]
+pub enum TextCommandParseError {
+    #[error("Error parsing input")]
+    InvalidShellWords,
+    #[error("No command provided")]
+    EmptyCommand,
+    #[error("{0}")]
+    Command(#[from] clap::Error),
+}
+
+pub fn parse_command_line(input: &str) -> Result<TextCommand, TextCommandParseError> {
+    let mut command_arguments = shlex::split(input).ok_or(TextCommandParseError::InvalidShellWords)?;
+
+    if command_arguments.is_empty() {
+        return Err(TextCommandParseError::EmptyCommand);
+    }
+
+    command_arguments.insert(0, String::from("squalr-cli"));
+
+    parse_text_command(command_arguments).map_err(TextCommandParseError::Command)
+}
+
+pub fn parse_text_command<I, T>(iterator: I) -> Result<TextCommand, clap::Error>
 where
     I: IntoIterator<Item = T>,
     T: Into<OsString> + Clone,
 {
-    ConsoleUnprivilegedCommand::from_iter_safe(iterator).map(Into::into)
+    ConsoleCommand::from_iter_safe(iterator).map(Into::into)
+}
+
+pub fn parse_privileged_command<I, T>(iterator: I) -> Result<PrivilegedCommand, clap::Error>
+where
+    I: IntoIterator<Item = T>,
+    T: Into<OsString> + Clone,
+{
+    match parse_text_command(iterator)? {
+        TextCommand::Privileged(command) => Ok(command),
+        TextCommand::Unprivileged(_) => Err(clap::Error::with_description(
+            "Expected a privileged command.",
+            clap::ErrorKind::InvalidSubcommand,
+        )),
+    }
+}
+
+pub fn parse_unprivileged_command<I, T>(iterator: I) -> Result<UnprivilegedCommand, clap::Error>
+where
+    I: IntoIterator<Item = T>,
+    T: Into<OsString> + Clone,
+{
+    match parse_text_command(iterator)? {
+        TextCommand::Privileged(_) => Err(clap::Error::with_description(
+            "Expected an unprivileged command.",
+            clap::ErrorKind::InvalidSubcommand,
+        )),
+        TextCommand::Unprivileged(command) => Ok(command),
+    }
 }
 
 #[derive(Clone, StructOpt, Debug)]
-enum ConsolePrivilegedCommand {
+enum ConsoleCommand {
     #[structopt(alias = "mem", alias = "m")]
     Memory(ConsoleMemoryCommand),
     #[structopt(alias = "plug", alias = "plugins")]
@@ -44,10 +95,6 @@ enum ConsolePrivilegedCommand {
     Settings(ConsoleSettingsCommand),
     #[structopt(alias = "tasks", alias = "tt")]
     TrackableTasks(ConsoleTrackableTasksCommand),
-}
-
-#[derive(Clone, StructOpt, Debug)]
-enum ConsoleUnprivilegedCommand {
     #[structopt(alias = "proj", alias = "p")]
     Project(ConsoleProjectCommand),
     #[structopt(alias = "proj_items", alias = "project_items", alias = "pi")]
@@ -56,29 +103,22 @@ enum ConsoleUnprivilegedCommand {
     ProjectSymbols(ConsoleProjectSymbolsCommand),
 }
 
-impl From<ConsolePrivilegedCommand> for api::commands::privileged_command::PrivilegedCommand {
-    fn from(command: ConsolePrivilegedCommand) -> Self {
+impl From<ConsoleCommand> for TextCommand {
+    fn from(command: ConsoleCommand) -> Self {
         match command {
-            ConsolePrivilegedCommand::Memory(command) => Self::Memory(command.into()),
-            ConsolePrivilegedCommand::Plugins(command) => Self::Plugins(command.into()),
-            ConsolePrivilegedCommand::Process(command) => Self::Process(command.into()),
-            ConsolePrivilegedCommand::Registry(command) => Self::Registry(command.into()),
-            ConsolePrivilegedCommand::Results(command) => Self::Results(command.into()),
-            ConsolePrivilegedCommand::Scan(command) => Self::Scan(command.into()),
-            ConsolePrivilegedCommand::PointerScan(command) => Self::PointerScan(command.into()),
-            ConsolePrivilegedCommand::StructScan(command) => Self::StructScan(command.into()),
-            ConsolePrivilegedCommand::Settings(command) => Self::Settings(command.into()),
-            ConsolePrivilegedCommand::TrackableTasks(command) => Self::TrackableTasks(command.into()),
-        }
-    }
-}
-
-impl From<ConsoleUnprivilegedCommand> for api::commands::unprivileged_command::UnprivilegedCommand {
-    fn from(command: ConsoleUnprivilegedCommand) -> Self {
-        match command {
-            ConsoleUnprivilegedCommand::Project(command) => Self::Project(command.into()),
-            ConsoleUnprivilegedCommand::ProjectItems(command) => Self::ProjectItems(command.into()),
-            ConsoleUnprivilegedCommand::ProjectSymbols(command) => Self::ProjectSymbols(command.into()),
+            ConsoleCommand::Memory(command) => Self::Privileged(PrivilegedCommand::Memory(command.into())),
+            ConsoleCommand::Plugins(command) => Self::Privileged(PrivilegedCommand::Plugins(command.into())),
+            ConsoleCommand::Process(command) => Self::Privileged(PrivilegedCommand::Process(command.into())),
+            ConsoleCommand::Registry(command) => Self::Privileged(PrivilegedCommand::Registry(command.into())),
+            ConsoleCommand::Results(command) => Self::Privileged(PrivilegedCommand::Results(command.into())),
+            ConsoleCommand::Scan(command) => Self::Privileged(PrivilegedCommand::Scan(command.into())),
+            ConsoleCommand::PointerScan(command) => Self::Privileged(PrivilegedCommand::PointerScan(command.into())),
+            ConsoleCommand::StructScan(command) => Self::Privileged(PrivilegedCommand::StructScan(command.into())),
+            ConsoleCommand::Settings(command) => Self::Privileged(PrivilegedCommand::Settings(command.into())),
+            ConsoleCommand::TrackableTasks(command) => Self::Privileged(PrivilegedCommand::TrackableTasks(command.into())),
+            ConsoleCommand::Project(command) => Self::Unprivileged(UnprivilegedCommand::Project(command.into())),
+            ConsoleCommand::ProjectItems(command) => Self::Unprivileged(UnprivilegedCommand::ProjectItems(command.into())),
+            ConsoleCommand::ProjectSymbols(command) => Self::Unprivileged(UnprivilegedCommand::ProjectSymbols(command.into())),
         }
     }
 }
@@ -1970,5 +2010,56 @@ impl From<ConsoleProjectSymbolsWriteValueRequest>
             field_name: request.field_name,
             anonymous_value_string: request.anonymous_value_string,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use api::commands::process::process_command::ProcessCommand;
+    use api::commands::project::project_command::ProjectCommand;
+
+    #[test]
+    fn parse_text_command_routes_privileged_namespace_directly() {
+        let parsed_command = parse_text_command(["squalr-cli", "process", "list"]).expect("Expected process list to parse.");
+
+        assert!(matches!(
+            parsed_command,
+            TextCommand::Privileged(api::commands::privileged_command::PrivilegedCommand::Process(ProcessCommand::List { .. }))
+        ));
+    }
+
+    #[test]
+    fn parse_text_command_routes_unprivileged_namespace_directly() {
+        let parsed_command = parse_text_command(["squalr-cli", "project", "list"]).expect("Expected project list to parse.");
+
+        assert!(matches!(
+            parsed_command,
+            TextCommand::Unprivileged(api::commands::unprivileged_command::UnprivilegedCommand::Project(ProjectCommand::List { .. }))
+        ));
+    }
+
+    #[test]
+    fn parse_command_line_handles_shell_words_and_project_aliases() {
+        let parsed_command = parse_command_line("p create --project-name 'quoted name'").expect("Expected project create alias to parse.");
+
+        assert!(matches!(
+            parsed_command,
+            TextCommand::Unprivileged(api::commands::unprivileged_command::UnprivilegedCommand::Project(ProjectCommand::Create { .. }))
+        ));
+    }
+
+    #[test]
+    fn specific_privileged_parser_rejects_unprivileged_commands() {
+        let parse_error = parse_privileged_command(["squalr-cli", "project", "list"]).expect_err("Expected unprivileged command to be rejected.");
+
+        assert!(matches!(parse_error.kind, clap::ErrorKind::InvalidSubcommand));
+    }
+
+    #[test]
+    fn specific_unprivileged_parser_rejects_privileged_commands() {
+        let parse_error = parse_unprivileged_command(["squalr-cli", "process", "list"]).expect_err("Expected privileged command to be rejected.");
+
+        assert!(matches!(parse_error.kind, clap::ErrorKind::InvalidSubcommand));
     }
 }
