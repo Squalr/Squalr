@@ -3,6 +3,7 @@ use crate::{
     ui::{
         draw::icon_draw::IconDraw,
         geometry::safe_clamp_f32,
+        keyboard_shortcuts::{collect_paste_text, is_copy_shortcut_pressed},
         widgets::controls::{
             button::Button, context_menu::context_menu::ContextMenu, data_value_box::data_value_box_view::DataValueBoxView,
             toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView,
@@ -16,7 +17,7 @@ use crate::{
     views::project_explorer::project_hierarchy::view_data::project_hierarchy_view_data::ProjectHierarchyViewData,
 };
 use eframe::egui::{
-    Align, Align2, Color32, CursorIcon, Direction, Event, Key, Layout, Pos2, Rect, Response, ScrollArea, Sense, Spinner, Ui, UiBuilder, Widget, pos2, vec2,
+    Align, Align2, Color32, CursorIcon, Direction, Key, Layout, Pos2, Rect, Response, ScrollArea, Sense, Spinner, Ui, UiBuilder, Widget, pos2, vec2,
 };
 use epaint::{Color32 as EpaintColor32, CornerRadius, Stroke};
 use squalr_engine_api::{
@@ -128,6 +129,22 @@ impl MemoryViewerView {
         byte_value
             .map(|byte_value| format!("{:02X}", byte_value))
             .unwrap_or_else(|| String::from("??"))
+    }
+
+    fn build_selection_copy_text(&self) -> Option<String> {
+        let selection_summary = MemoryViewerViewData::get_selection_summary(self.memory_viewer_view_data.clone())?;
+        let selected_byte_text = selection_summary
+            .selected_bytes
+            .iter()
+            .map(|selected_byte| {
+                selected_byte
+                    .map(|selected_byte| format!("{selected_byte:02X}"))
+                    .unwrap_or_else(|| String::from("??"))
+            })
+            .collect::<Vec<_>>()
+            .join(" ");
+
+        (!selected_byte_text.is_empty()).then_some(selected_byte_text)
     }
 
     fn format_ascii_cell(byte_value: Option<u8>) -> char {
@@ -602,6 +619,12 @@ impl Widget for MemoryViewerView {
                         MemoryViewerViewData::select_all_bytes_on_current_page(self.memory_viewer_view_data.clone());
                     }
 
+                    if is_copy_shortcut_pressed(user_interface) {
+                        if let Some(copy_text) = self.build_selection_copy_text() {
+                            user_interface.ctx().copy_text(copy_text);
+                        }
+                    }
+
                     if user_interface.input(|input_state| input_state.key_pressed(Key::ArrowLeft)) {
                         MemoryViewerViewData::move_cursor_horizontal(self.memory_viewer_view_data.clone(), -1, is_shift_modifier_active);
                     }
@@ -620,18 +643,21 @@ impl Widget for MemoryViewerView {
                 }
 
                 if memory_viewer_has_keyboard_focus {
+                    let mut edit_texts = collect_paste_text(user_interface);
                     let typed_hex_characters = user_interface.input(|input_state| {
                         input_state
                             .events
                             .iter()
                             .filter_map(|event| match event {
-                                Event::Text(text) => Some(text.clone()),
+                                eframe::egui::Event::Text(text) => Some(text.clone()),
                                 _ => None,
                             })
                             .collect::<Vec<String>>()
                     });
 
-                    for typed_text in typed_hex_characters {
+                    edit_texts.extend(typed_hex_characters);
+
+                    for typed_text in edit_texts {
                         for (write_start_address, written_bytes) in MemoryViewerViewData::append_edit_text(self.memory_viewer_view_data.clone(), &typed_text) {
                             self.dispatch_memory_write(write_start_address, written_bytes);
                         }

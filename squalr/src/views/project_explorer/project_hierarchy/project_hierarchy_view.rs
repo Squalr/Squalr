@@ -1,6 +1,7 @@
 use crate::{
     app_context::AppContext,
     ui::{
+        keyboard_shortcuts::{is_copy_shortcut_pressed, is_cut_shortcut_pressed, is_paste_shortcut_pressed},
         list_navigation::ListNavigationDirection,
         widgets::controls::context_menu::context_menu::{ContextMenu, ContextMenuSizing},
     },
@@ -351,7 +352,7 @@ impl Widget for ProjectHierarchyView {
             && !is_rename_take_over_active
             && !is_value_edit_take_over_active
             && can_handle_window_shortcuts
-            && user_interface.input(|input_state| (input_state.modifiers.command || input_state.modifiers.ctrl) && input_state.key_pressed(Key::X))
+            && is_cut_shortcut_pressed(user_interface)
         {
             if let Some(project_item_paths) = self
                 .project_hierarchy_view_data
@@ -368,7 +369,7 @@ impl Widget for ProjectHierarchyView {
             && !is_rename_take_over_active
             && !is_value_edit_take_over_active
             && can_handle_window_shortcuts
-            && user_interface.input(|input_state| (input_state.modifiers.command || input_state.modifiers.ctrl) && input_state.key_pressed(Key::C))
+            && is_copy_shortcut_pressed(user_interface)
         {
             if let Some(project_item_paths) = self
                 .project_hierarchy_view_data
@@ -385,7 +386,7 @@ impl Widget for ProjectHierarchyView {
             && !is_rename_take_over_active
             && !is_value_edit_take_over_active
             && can_handle_window_shortcuts
-            && user_interface.input(|input_state| (input_state.modifiers.command || input_state.modifiers.ctrl) && input_state.key_pressed(Key::V))
+            && is_paste_shortcut_pressed(user_interface)
         {
             if let Some(target_project_item_path) = ProjectHierarchyViewData::get_selected_or_root_directory_path(self.project_hierarchy_view_data.clone()) {
                 project_hierarchy_frame_action = ProjectHierarchyFrameAction::PasteProjectItems { target_project_item_path };

@@ -3,6 +3,7 @@ pub mod draw;
 pub mod fonts;
 pub mod geometry;
 pub mod icon_library;
+pub mod keyboard_shortcuts;
 pub mod list_navigation;
 pub mod text;
 pub mod theme;

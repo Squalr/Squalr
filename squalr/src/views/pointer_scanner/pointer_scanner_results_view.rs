@@ -1,6 +1,7 @@
 use crate::app_context::AppContext;
 use crate::ui::draw::icon_draw::IconDraw;
 use crate::ui::geometry::safe_clamp_f32;
+use crate::ui::keyboard_shortcuts::is_copy_shortcut_pressed;
 use crate::ui::list_navigation::ListNavigationDirection;
 use crate::views::pointer_scanner::pointer_scanner_view::PointerScannerView;
 use crate::views::pointer_scanner::view_data::pointer_scanner_view_data::{PointerScannerTreeRow, PointerScannerViewData};
@@ -546,6 +547,12 @@ impl Widget for PointerScannerResultsView {
 
         if can_handle_window_shortcuts && user_interface.input(|input_state| input_state.key_pressed(Key::ArrowRight)) {
             PointerScannerViewData::navigate_into_selected_node_context(self.pointer_scanner_view_data.clone());
+        }
+
+        if can_handle_window_shortcuts && is_copy_shortcut_pressed(user_interface) {
+            if let Some(copy_text) = PointerScannerViewData::build_copy_text(self.pointer_scanner_view_data.clone()) {
+                user_interface.ctx().copy_text(copy_text);
+            }
         }
 
         if let Some(clicked_node_id) = clicked_node_id {
