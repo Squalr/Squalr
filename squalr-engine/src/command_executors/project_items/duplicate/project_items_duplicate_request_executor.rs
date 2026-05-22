@@ -5,9 +5,9 @@ use squalr_engine_api::commands::project_items::duplicate::project_items_duplica
 use squalr_engine_api::commands::project_items::duplicate::project_items_duplicate_response::ProjectItemsDuplicateResponse;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::structures::projects::project::Project;
-use squalr_engine_api::utils::file_system::file_system_utils::FileSystemUtils;
 use squalr_engine_projects::project::serialization::serializable_project_file::SerializableProjectFile;
 use std::fs;
+use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -83,23 +83,8 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsDuplicateRequest {
                 continue;
             }
 
-            if source_project_item_path.is_dir() && target_directory_path.starts_with(&source_project_item_path) {
-                log::warn!(
-                    "Cannot duplicate project directory {:?} into descendant target {:?}.",
-                    source_project_item_path,
-                    target_directory_path
-                );
-                operation_success = false;
-                continue;
-            }
-
             let destination_project_item_path = generate_unique_duplicate_project_item_path(&target_directory_path, &source_project_item_path);
-
-            let duplicate_result = if source_project_item_path.is_dir() {
-                FileSystemUtils::copy_dir_all(&source_project_item_path, &destination_project_item_path)
-            } else {
-                fs::copy(&source_project_item_path, &destination_project_item_path).map(|_bytes_copied| ())
-            };
+            let duplicate_result = duplicate_project_item_from_snapshot(&source_project_item_path, &destination_project_item_path);
 
             match duplicate_result {
                 Ok(()) => duplicated_project_item_paths.push(destination_project_item_path),
@@ -161,6 +146,89 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsDuplicateRequest {
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
+enum ProjectItemDuplicateSnapshotEntry {
+    Directory { relative_path: PathBuf },
+    File { relative_path: PathBuf, contents: Vec<u8> },
+}
+
+fn duplicate_project_item_from_snapshot(
+    source_project_item_path: &Path,
+    destination_project_item_path: &Path,
+) -> io::Result<()> {
+    if source_project_item_path.is_dir() {
+        let snapshot_entries = collect_directory_snapshot(source_project_item_path)?;
+        write_directory_snapshot(destination_project_item_path, &snapshot_entries)
+    } else {
+        let contents = fs::read(source_project_item_path)?;
+        fs::write(destination_project_item_path, contents)
+    }
+}
+
+fn collect_directory_snapshot(source_directory_path: &Path) -> io::Result<Vec<ProjectItemDuplicateSnapshotEntry>> {
+    let mut snapshot_entries = Vec::new();
+    collect_directory_snapshot_entries(source_directory_path, source_directory_path, &mut snapshot_entries)?;
+
+    Ok(snapshot_entries)
+}
+
+fn collect_directory_snapshot_entries(
+    source_root_directory_path: &Path,
+    source_directory_path: &Path,
+    snapshot_entries: &mut Vec<ProjectItemDuplicateSnapshotEntry>,
+) -> io::Result<()> {
+    for directory_entry in fs::read_dir(source_directory_path)? {
+        let directory_entry = directory_entry?;
+        let entry_path = directory_entry.path();
+        let relative_path = entry_path
+            .strip_prefix(source_root_directory_path)
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|_| PathBuf::from(directory_entry.file_name()));
+        let file_type = directory_entry.file_type()?;
+
+        if file_type.is_dir() {
+            snapshot_entries.push(ProjectItemDuplicateSnapshotEntry::Directory {
+                relative_path: relative_path.clone(),
+            });
+            collect_directory_snapshot_entries(source_root_directory_path, &entry_path, snapshot_entries)?;
+        } else {
+            snapshot_entries.push(ProjectItemDuplicateSnapshotEntry::File {
+                relative_path,
+                contents: fs::read(&entry_path)?,
+            });
+        }
+    }
+
+    Ok(())
+}
+
+fn write_directory_snapshot(
+    destination_directory_path: &Path,
+    snapshot_entries: &[ProjectItemDuplicateSnapshotEntry],
+) -> io::Result<()> {
+    fs::create_dir_all(destination_directory_path)?;
+
+    for snapshot_entry in snapshot_entries {
+        match snapshot_entry {
+            ProjectItemDuplicateSnapshotEntry::Directory { relative_path } => {
+                fs::create_dir_all(destination_directory_path.join(relative_path))?;
+            }
+            ProjectItemDuplicateSnapshotEntry::File { relative_path, contents } => {
+                if let Some(parent_directory_path) = relative_path
+                    .parent()
+                    .filter(|parent_directory_path| !parent_directory_path.as_os_str().is_empty())
+                {
+                    fs::create_dir_all(destination_directory_path.join(parent_directory_path))?;
+                }
+
+                fs::write(destination_directory_path.join(relative_path), contents)?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
 fn reload_opened_project(
     opened_project_guard: &mut Option<Project>,
     project_directory_path: &Path,
@@ -218,5 +286,57 @@ fn generate_unique_duplicate_project_item_path(
         }
 
         duplicate_sequence_number = duplicate_sequence_number.saturating_add(1);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ProjectItemDuplicateSnapshotEntry, collect_directory_snapshot, duplicate_project_item_from_snapshot};
+    use std::fs;
+    use std::path::PathBuf;
+    use tempfile::tempdir;
+
+    #[test]
+    fn directory_snapshot_preserves_empty_directories() {
+        let temp_directory = tempdir().expect("Expected temp directory.");
+        let source_directory_path = temp_directory.path().join("source");
+        let empty_directory_path = source_directory_path.join("empty");
+
+        fs::create_dir_all(&empty_directory_path).expect("Expected empty directory to be created.");
+
+        let snapshot_entries = collect_directory_snapshot(&source_directory_path).expect("Expected directory snapshot.");
+
+        assert!(snapshot_entries.contains(&ProjectItemDuplicateSnapshotEntry::Directory {
+            relative_path: PathBuf::from("empty")
+        }));
+    }
+
+    #[test]
+    fn duplicate_directory_allows_destination_inside_source_directory() {
+        let temp_directory = tempdir().expect("Expected temp directory.");
+        let source_directory_path = temp_directory.path().join("source");
+        let nested_directory_path = source_directory_path.join("nested");
+        let source_file_path = nested_directory_path.join("item.json");
+        let destination_directory_path = source_directory_path.join("source");
+
+        fs::create_dir_all(&nested_directory_path).expect("Expected nested source directory to be created.");
+        fs::write(&source_file_path, br#"{"name":"item"}"#).expect("Expected source file to be written.");
+
+        duplicate_project_item_from_snapshot(&source_directory_path, &destination_directory_path).expect("Expected source directory to duplicate into itself.");
+
+        let duplicated_file_path = destination_directory_path.join("nested").join("item.json");
+        let recursively_duplicated_file_path = destination_directory_path
+            .join("source")
+            .join("nested")
+            .join("item.json");
+
+        assert_eq!(
+            fs::read(&duplicated_file_path).expect("Expected duplicated file to be readable."),
+            br#"{"name":"item"}"#
+        );
+        assert!(
+            !recursively_duplicated_file_path.exists(),
+            "Destination inside the source should not recursively copy itself."
+        );
     }
 }

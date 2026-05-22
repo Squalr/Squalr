@@ -99,17 +99,7 @@ impl ProjectHierarchyClipboardController {
             .iter()
             .filter(|project_item_path| !Self::is_protected_project_item_path(opened_project_info, project_items, project_item_path))
             .filter(|project_item_path| match clipboard_mode {
-                Some(ProjectHierarchyClipboardMode::Copy) => {
-                    !Self::is_directory_project_item_path(project_items, project_item_path)
-                        || (!paste_target
-                            .target_directory_path
-                            .starts_with(project_item_path.as_path())
-                            && !paste_target
-                                .insert_after_project_item_path
-                                .as_ref()
-                                .map(|insert_after_project_item_path| insert_after_project_item_path.starts_with(project_item_path))
-                                .unwrap_or(false))
-                }
+                Some(ProjectHierarchyClipboardMode::Copy) => true,
                 Some(ProjectHierarchyClipboardMode::Cut) => {
                     if paste_target
                         .target_directory_path
@@ -183,5 +173,50 @@ impl ProjectHierarchyClipboardController {
             .find(|(project_item_ref, _)| project_item_ref.get_project_item_path() == project_item_path)
             .map(|(_, project_item)| ProjectHierarchyTreeModel::is_directory_project_item(project_item))
             .unwrap_or(false)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ProjectHierarchyClipboardController, ProjectHierarchyPasteTarget};
+    use crate::views::project_explorer::project_hierarchy::view_data::project_hierarchy_clipboard::ProjectHierarchyClipboardMode;
+    use std::path::PathBuf;
+
+    #[test]
+    fn copy_paste_allows_target_inside_copied_path() {
+        let copied_project_item_path = PathBuf::from("project_items/folder");
+        let paste_target = ProjectHierarchyPasteTarget {
+            target_directory_path: copied_project_item_path.clone(),
+            insert_after_project_item_path: None,
+        };
+
+        let pasteable_project_item_paths = ProjectHierarchyClipboardController::filter_pasteable_paths(
+            None,
+            &[],
+            &[copied_project_item_path.clone()],
+            &paste_target,
+            Some(&ProjectHierarchyClipboardMode::Copy),
+        );
+
+        assert_eq!(pasteable_project_item_paths, vec![copied_project_item_path]);
+    }
+
+    #[test]
+    fn cut_paste_rejects_target_inside_cut_path() {
+        let cut_project_item_path = PathBuf::from("project_items/folder");
+        let paste_target = ProjectHierarchyPasteTarget {
+            target_directory_path: cut_project_item_path.join("child"),
+            insert_after_project_item_path: None,
+        };
+
+        let pasteable_project_item_paths = ProjectHierarchyClipboardController::filter_pasteable_paths(
+            None,
+            &[],
+            &[cut_project_item_path],
+            &paste_target,
+            Some(&ProjectHierarchyClipboardMode::Cut),
+        );
+
+        assert!(pasteable_project_item_paths.is_empty());
     }
 }
