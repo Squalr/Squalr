@@ -349,10 +349,3 @@ Seems like no real downsides from a comprehension point of view.
 Struct scans will be very challenging. Imagine scanning for {float} {float} {float}, ie XYZ coordinates as a struct. You can't just serialize to bytes and scan for them, due to floating point tolerance. Even worse, if you did X > 2000, Y < 500, Z > 0, this necessitates per-field handling.
 
 Our existing architecture is quite flexible, but this definitely requires a special scanner implementation, and it is highly unlikely to benefit from any of the rules engine optimizations.
-
-## Detailed Tasklist
-
-### Engine Event Hooks
-Branch: `pr/engine-event-hooks`
-
-When the engine emits events, it would be nice for listeners and plugins to hook into these.
