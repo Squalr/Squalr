@@ -98,7 +98,7 @@ impl OutputView {
                     .background_color(theme.background_primary)
                     .text_color(theme.foreground)
                     .frame(false)
-                    .margin(Margin::ZERO)
+                    .margin(Margin::symmetric(8, 0))
                     .desired_width(command_line_rectangle.width())
                     .min_size(command_line_rectangle.size())
                     .show(&mut command_line_user_interface);

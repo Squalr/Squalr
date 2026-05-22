@@ -10,6 +10,8 @@ impl OutputCommandDispatcher {
         app_context: &Arc<AppContext>,
         command_text: String,
     ) {
+        log::info!("{}", Self::format_command_echo(&command_text));
+
         match parse_prompt_command_line(&command_text) {
             Ok(TextCommand::Privileged(command)) => {
                 let engine_unprivileged_state = app_context.engine_unprivileged_state.clone();
@@ -39,5 +41,19 @@ impl OutputCommandDispatcher {
         }
 
         app_context.context.request_repaint();
+    }
+
+    fn format_command_echo(command_text: &str) -> String {
+        format!("> {}", command_text)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::OutputCommandDispatcher;
+
+    #[test]
+    fn command_echo_uses_prompt_prefix() {
+        assert_eq!(OutputCommandDispatcher::format_command_echo("scan new"), "> scan new");
     }
 }
