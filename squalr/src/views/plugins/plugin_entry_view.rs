@@ -154,7 +154,7 @@ impl<'lifetime> PluginEntryView<'lifetime> {
             );
             priority_button_min_x += Self::PRIORITY_BUTTON_WIDTH;
 
-            user_interface.put(button_rect, IconButtonView::new(theme, icon_handle, tooltip_text).disabled(is_disabled))
+            user_interface.place(button_rect, IconButtonView::new(theme, icon_handle, tooltip_text).disabled(is_disabled))
         };
         let increase_priority_response = render_priority_button(
             &theme.icon_library.icon_handle_navigation_up_arrow_small,
