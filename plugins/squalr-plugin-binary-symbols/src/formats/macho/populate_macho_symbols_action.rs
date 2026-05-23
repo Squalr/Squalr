@@ -1,9 +1,9 @@
 use squalr_engine_api::{
     plugins::{
+        PluginPermission,
         symbol_tree::symbol_tree_action::{
             DataTypeRegistryStore, ProcessMemoryStore, SymbolTreeAction, SymbolTreeActionContext, SymbolTreeActionSelection, SymbolTreeActionServices,
         },
-        PluginPermission,
     },
     registries::symbols::struct_layout_descriptor::StructLayoutDescriptor,
     structures::{
@@ -23,6 +23,7 @@ use squalr_engine_api::{
 };
 use std::collections::{BTreeMap, HashSet};
 
+const STRING_UTF8_NULL_TERMINATED_DATA_TYPE_ID: &str = "string_utf8{null_terminated}";
 const MACH_HEADER32_ID: &str = "mac.macho.mach_header";
 const MACH_HEADER64_ID: &str = "mac.macho.mach_header_64";
 const SECTION32_ID: &str = "mac.macho.section";
@@ -914,8 +915,8 @@ fn section32_descriptor() -> StructLayoutDescriptor {
     struct_layout_descriptor(
         SECTION32_ID,
         vec![
-            array_field_at("sectname", "u8", 16, 0),
-            array_field_at("segname", "u8", 16, 16),
+            array_field_at("sectname", STRING_UTF8_NULL_TERMINATED_DATA_TYPE_ID, 16, 0),
+            array_field_at("segname", STRING_UTF8_NULL_TERMINATED_DATA_TYPE_ID, 16, 16),
             field_at("addr", "u32", 32),
             field_at("size", "u32", 36),
             field_at("offset", "u32", 40),
@@ -934,8 +935,8 @@ fn section64_descriptor() -> StructLayoutDescriptor {
     struct_layout_descriptor(
         SECTION64_ID,
         vec![
-            array_field_at("sectname", "u8", 16, 0),
-            array_field_at("segname", "u8", 16, 16),
+            array_field_at("sectname", STRING_UTF8_NULL_TERMINATED_DATA_TYPE_ID, 16, 0),
+            array_field_at("segname", STRING_UTF8_NULL_TERMINATED_DATA_TYPE_ID, 16, 16),
             field_at("addr", "u64", 32),
             field_at("size", "u64", 40),
             field_at("offset", "u32", 48),
@@ -1011,7 +1012,7 @@ fn segment_command_descriptor(
     let mut fields = vec![
         field_at("cmd", u32_type, 0),
         field_at("cmdsize", u32_type, 4),
-        array_field_at("segname", "u8", 16, 8),
+        array_field_at("segname", STRING_UTF8_NULL_TERMINATED_DATA_TYPE_ID, 16, 8),
     ];
 
     if is_64 {
@@ -1152,7 +1153,12 @@ fn dylib_command_descriptor(
     ];
 
     if command_size_in_bytes > name_offset {
-        fields.push(array_field_at("PathBytes", "u8", command_size_in_bytes - name_offset, name_offset));
+        fields.push(array_field_at(
+            "Path",
+            STRING_UTF8_NULL_TERMINATED_DATA_TYPE_ID,
+            command_size_in_bytes - name_offset,
+            name_offset,
+        ));
     }
 
     Ok(struct_layout_descriptor(layout_id, fields, Some(command_size_in_bytes)))
@@ -1173,7 +1179,12 @@ fn rpath_command_descriptor(
     ];
 
     if command_size_in_bytes > path_offset {
-        fields.push(array_field_at("PathBytes", "u8", command_size_in_bytes - path_offset, path_offset));
+        fields.push(array_field_at(
+            "Path",
+            STRING_UTF8_NULL_TERMINATED_DATA_TYPE_ID,
+            command_size_in_bytes - path_offset,
+            path_offset,
+        ));
     }
 
     Ok(struct_layout_descriptor(layout_id, fields, Some(command_size_in_bytes)))
@@ -1664,8 +1675,8 @@ impl MachOHeaderKind {
 #[cfg(test)]
 mod tests {
     use super::{
-        analyze_macho_header_layout, build_version_command_descriptor, load_commands_descriptor, populate_macho_symbols, sanitize_identifier, MachOByteOrder,
-        MachOHeaderKind, PopulateMachOSymbolsAction, MACH_HEADER64_ID,
+        MACH_HEADER64_ID, MachOByteOrder, MachOHeaderKind, PopulateMachOSymbolsAction, analyze_macho_header_layout, build_version_command_descriptor,
+        load_commands_descriptor, populate_macho_symbols, sanitize_identifier,
     };
     use squalr_engine_api::{
         plugins::symbol_tree::symbol_tree_action::{
@@ -1832,16 +1843,18 @@ mod tests {
 
         assert_eq!(macho_header_layout.header_kind, MachOHeaderKind::Mach64(MachOByteOrder::LittleEndian));
         assert_eq!(macho_header_layout.command_layout_descriptors.len(), 2);
-        assert!(macho_header_layout
-            .command_layout_descriptors
-            .iter()
-            .any(|struct_layout_descriptor| {
-                struct_layout_descriptor
-                    .get_struct_layout_definition()
-                    .get_fields()
-                    .iter()
-                    .any(|field_definition| field_definition.get_field_name() == "Sections")
-            }));
+        assert!(
+            macho_header_layout
+                .command_layout_descriptors
+                .iter()
+                .any(|struct_layout_descriptor| {
+                    struct_layout_descriptor
+                        .get_struct_layout_definition()
+                        .get_fields()
+                        .iter()
+                        .any(|field_definition| field_definition.get_field_name() == "Sections")
+                })
+        );
     }
 
     #[test]
@@ -1944,10 +1957,12 @@ mod tests {
             .expect("Expected Finder root layout.")
             .get_struct_layout_definition();
 
-        assert!(module_root_layout_definition
-            .get_fields()
-            .iter()
-            .any(|field_definition| field_definition.get_field_name() == "Mach-O Headers"));
+        assert!(
+            module_root_layout_definition
+                .get_fields()
+                .iter()
+                .any(|field_definition| field_definition.get_field_name() == "Mach-O Headers")
+        );
     }
 
     #[test]
@@ -1959,11 +1974,13 @@ mod tests {
     fn build_version_descriptor_materializes_tool_array() {
         let build_version_layout_descriptor = build_version_command_descriptor(MachOByteOrder::LittleEndian, 2).expect("Expected build version layout.");
 
-        assert!(build_version_layout_descriptor
-            .get_struct_layout_definition()
-            .get_fields()
-            .iter()
-            .any(|field_definition| field_definition.get_field_name() == "Tools"));
+        assert!(
+            build_version_layout_descriptor
+                .get_struct_layout_definition()
+                .get_fields()
+                .iter()
+                .any(|field_definition| field_definition.get_field_name() == "Tools")
+        );
     }
 
     #[test]
@@ -1971,14 +1988,16 @@ mod tests {
         let macho_header_layout = analyze_macho_header_layout(&TestProcessMemoryStore::new(), "Finder").expect("Expected Mach-O layout.");
         let load_commands_layout_descriptor = load_commands_descriptor(&macho_header_layout).expect("Expected load commands layout.");
 
-        assert!(load_commands_layout_descriptor
-            .get_struct_layout_definition()
-            .get_fields()
-            .iter()
-            .all(|field_definition| matches!(
-                field_definition.get_offset_resolution(),
-                squalr_engine_api::structures::structs::symbolic_field_definition::SymbolicFieldOffsetResolution::Static(_)
-            )));
+        assert!(
+            load_commands_layout_descriptor
+                .get_struct_layout_definition()
+                .get_fields()
+                .iter()
+                .all(|field_definition| matches!(
+                    field_definition.get_offset_resolution(),
+                    squalr_engine_api::structures::structs::symbolic_field_definition::SymbolicFieldOffsetResolution::Static(_)
+                ))
+        );
     }
 
     fn default_data_type_size_by_id() -> BTreeMap<String, u64> {

@@ -16,5 +16,7 @@ Our current task, from `README.md`, is:
 ## Important Information
 
 - `builtin.symbols.binary.populate-binary-symbols` stays format-generic and now populates Mach-O modules with typed header content, including concrete load-command layouts and typed segment section arrays instead of a raw `LoadCommands:u8[]` blob.
+- Parameterized data type ids now support string semantics flags such as `string_utf8{null_terminated}`. The symbol registry resolves these through the registered base data type while preserving the parameterized id for display, parsing, and writes.
+- Mach-O fixed C string fields such as `segname`, `sectname`, and inline dylib or rpath paths now use `string_utf8{null_terminated}` instead of raw `u8[]` buffers.
 - Generic plugin execution coverage now includes both PE and Mach-O header population paths.
 - `squalr-cli` now handles `ProcessResponse::Icon` instead of failing to compile when icon responses are enabled.

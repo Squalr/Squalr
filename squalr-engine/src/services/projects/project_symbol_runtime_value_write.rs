@@ -1,5 +1,6 @@
 use squalr_engine_api::commands::memory::write::memory_write_request::MemoryWriteRequest;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
+use squalr_engine_api::structures::data_types::built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::{anonymous_value_string::AnonymousValueString, container_type::ContainerType};
 use squalr_engine_api::structures::projects::{
@@ -54,6 +55,12 @@ pub fn build_project_symbol_runtime_value_write_request(
             ),
         )
         .map_err(|error| format!("Failed to parse edited symbol value: {}.", error))?;
+    let value_bytes = normalize_runtime_write_value_bytes(
+        &data_value,
+        field_write_target
+            .symbolic_field_definition
+            .get_container_type(),
+    );
     let address = write_plan_request
         .address
         .checked_add(field_write_target.offset)
@@ -62,7 +69,7 @@ pub fn build_project_symbol_runtime_value_write_request(
     Ok(MemoryWriteRequest {
         address,
         module_name: write_plan_request.module_name.clone(),
-        value: data_value.get_value_bytes().clone(),
+        value: value_bytes,
     })
 }
 
@@ -79,6 +86,43 @@ fn normalize_anonymous_value_container_type(
         anonymous_value_string.get_anonymous_value_string_format(),
         field_container_type,
     )
+}
+
+fn normalize_runtime_write_value_bytes(
+    data_value: &squalr_engine_api::structures::data_values::data_value::DataValue,
+    field_container_type: ContainerType,
+) -> Vec<u8> {
+    if data_value.get_data_type_ref().get_base_data_type_id() != DataTypeStringUtf8::DATA_TYPE_ID {
+        return data_value.get_value_bytes().clone();
+    }
+
+    if !data_value
+        .get_data_type_ref()
+        .has_flag(DataTypeStringUtf8::FLAG_NULL_TERMINATED)
+    {
+        return data_value.get_value_bytes().clone();
+    }
+
+    let ContainerType::ArrayFixed(buffer_size_in_bytes) = field_container_type else {
+        return data_value.get_value_bytes().clone();
+    };
+
+    let Ok(buffer_size_in_bytes) = usize::try_from(buffer_size_in_bytes) else {
+        return data_value.get_value_bytes().clone();
+    };
+
+    if buffer_size_in_bytes == 0 {
+        return Vec::new();
+    }
+
+    let maximum_string_byte_count = buffer_size_in_bytes.saturating_sub(1);
+    let mut normalized_value_bytes = data_value.get_value_bytes().clone();
+
+    normalized_value_bytes.truncate(maximum_string_byte_count);
+    normalized_value_bytes.push(0);
+    normalized_value_bytes.resize(buffer_size_in_bytes, 0);
+
+    normalized_value_bytes
 }
 
 fn build_named_symbolic_struct_definition_for_value_edit(
@@ -203,4 +247,31 @@ fn resolve_symbolic_field_size_in_bytes(
         |struct_layout_id| engine_execution_context.resolve_struct_layout_definition(struct_layout_id),
         visited_type_ids,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::normalize_runtime_write_value_bytes;
+    use squalr_engine_api::structures::{
+        data_types::data_type_ref::DataTypeRef,
+        data_values::{container_type::ContainerType, data_value::DataValue},
+    };
+
+    #[test]
+    fn null_terminated_fixed_string_write_bytes_are_zero_padded() {
+        let data_value = DataValue::new(DataTypeRef::new("string_utf8{null_terminated}"), b"__TEXT".to_vec());
+        let write_bytes = normalize_runtime_write_value_bytes(&data_value, ContainerType::ArrayFixed(16));
+
+        assert_eq!(write_bytes.len(), 16);
+        assert_eq!(&write_bytes[..7], b"__TEXT\0");
+        assert!(write_bytes[7..].iter().all(|string_byte| *string_byte == 0));
+    }
+
+    #[test]
+    fn null_terminated_fixed_string_write_bytes_are_truncated_with_terminator() {
+        let data_value = DataValue::new(DataTypeRef::new("string_utf8{null_terminated}"), b"FinderRuntime".to_vec());
+        let write_bytes = normalize_runtime_write_value_bytes(&data_value, ContainerType::ArrayFixed(4));
+
+        assert_eq!(write_bytes, b"Fin\0");
+    }
 }

@@ -27,11 +27,27 @@ pub trait DataType: Debug + Send + Sync + ScalarComparable + VectorComparable {
         anonymous_value_string: &AnonymousValueString,
     ) -> bool;
 
+    fn validate_value_string_with_data_type_ref(
+        &self,
+        _data_type_ref: &DataTypeRef,
+        anonymous_value_string: &AnonymousValueString,
+    ) -> bool {
+        self.validate_value_string(anonymous_value_string)
+    }
+
     /// Attempts to interpret an anonymous value as this data type, returning a `DataValue` on success.
     fn deanonymize_value_string(
         &self,
         anonymous_value_string: &AnonymousValueString,
     ) -> Result<DataValue, DataTypeError>;
+
+    fn deanonymize_value_string_with_data_type_ref(
+        &self,
+        _data_type_ref: &DataTypeRef,
+        anonymous_value_string: &AnonymousValueString,
+    ) -> Result<DataValue, DataTypeError> {
+        self.deanonymize_value_string(anonymous_value_string)
+    }
 
     /// Attempts to interpret raw bytes as this data type in the specified format, returning an `AnonymousValueString` on success.
     /// In other words, this converts bytes in this data type to a plaintext string representation.
@@ -40,6 +56,15 @@ pub trait DataType: Debug + Send + Sync + ScalarComparable + VectorComparable {
         value_bytes: &[u8],
         anonymous_value_string_format: AnonymousValueStringFormat,
     ) -> Result<AnonymousValueString, DataTypeError>;
+
+    fn anonymize_value_bytes_with_data_type_ref(
+        &self,
+        _data_type_ref: &DataTypeRef,
+        value_bytes: &[u8],
+        anonymous_value_string_format: AnonymousValueStringFormat,
+    ) -> Result<AnonymousValueString, DataTypeError> {
+        self.anonymize_value_bytes(value_bytes, anonymous_value_string_format)
+    }
 
     /// Gets all supported display formats that this data type can be shown as.
     fn get_supported_anonymous_value_string_formats(&self) -> Vec<AnonymousValueStringFormat>;

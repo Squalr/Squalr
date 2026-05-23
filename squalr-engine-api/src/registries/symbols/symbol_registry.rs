@@ -128,8 +128,19 @@ impl SymbolRegistry {
         &self,
         data_type_id: &str,
     ) -> Option<Arc<dyn DataType>> {
+        let data_type_ref = DataTypeRef::new(data_type_id);
+        let trimmed_data_type_id = data_type_id.trim();
+        let base_data_type_id = data_type_ref.get_base_data_type_id();
+
         match self.data_type_registry.read() {
-            Ok(data_type_registry) => data_type_registry.get(data_type_id.trim()).cloned(),
+            Ok(data_type_registry) => data_type_registry
+                .get(trimmed_data_type_id)
+                .cloned()
+                .or_else(|| {
+                    (base_data_type_id != trimmed_data_type_id)
+                        .then(|| data_type_registry.get(base_data_type_id).cloned())
+                        .flatten()
+                }),
             Err(error) => {
                 log::error!("Failed to acquire data type registry read lock: {}", error);
                 None
@@ -553,8 +564,27 @@ impl SymbolRegistry {
         &self,
         data_type_id: &str,
     ) -> Option<Arc<DataTypeDescriptor>> {
+        let data_type_ref = DataTypeRef::new(data_type_id);
+        let trimmed_data_type_id = data_type_id.trim();
+        let base_data_type_id = data_type_ref.get_base_data_type_id();
+
         match self.data_type_descriptor_registry.read() {
-            Ok(data_type_descriptor_registry) => data_type_descriptor_registry.get(data_type_id.trim()).cloned(),
+            Ok(data_type_descriptor_registry) => data_type_descriptor_registry
+                .get(trimmed_data_type_id)
+                .cloned()
+                .or_else(|| {
+                    (base_data_type_id != trimmed_data_type_id)
+                        .then(|| data_type_descriptor_registry.get(base_data_type_id).cloned())
+                        .flatten()
+                        .map(|data_type_descriptor| {
+                            Arc::new(
+                                data_type_descriptor
+                                    .as_ref()
+                                    .clone()
+                                    .with_data_type_id(trimmed_data_type_id.to_string()),
+                            )
+                        })
+                }),
             Err(error) => {
                 log::error!("Failed to acquire data type descriptor registry read lock: {}", error);
                 None
@@ -606,7 +636,7 @@ impl SymbolRegistry {
     ) -> bool {
         match self.get_data_type(data_type_ref.get_data_type_id()) {
             Some(data_type) => {
-                if !data_type.validate_value_string(anonymous_value_string) {
+                if !data_type.validate_value_string_with_data_type_ref(data_type_ref, anonymous_value_string) {
                     return false;
                 }
             }
@@ -653,7 +683,7 @@ impl SymbolRegistry {
     ) -> Result<DataValue, SymbolRegistryError> {
         match self.get_data_type(data_type_ref.get_data_type_id()) {
             Some(data_type) => data_type
-                .deanonymize_value_string(anonymous_value_string)
+                .deanonymize_value_string_with_data_type_ref(data_type_ref, anonymous_value_string)
                 .map_err(|error| SymbolRegistryError::data_type_operation_failed("deanonymize value string", error)),
             None => Err(SymbolRegistryError::data_type_not_registered(
                 "deanonymize value string",
@@ -669,7 +699,7 @@ impl SymbolRegistry {
     ) -> Result<AnonymousValueString, SymbolRegistryError> {
         match self.get_data_type(data_value.get_data_type_id()) {
             Some(data_type) => data_type
-                .anonymize_value_bytes(data_value.get_value_bytes(), anonymous_value_string_format)
+                .anonymize_value_bytes_with_data_type_ref(data_value.get_data_type_ref(), data_value.get_value_bytes(), anonymous_value_string_format)
                 .map_err(|error| SymbolRegistryError::data_type_operation_failed("anonymize value", error)),
             None => Err(SymbolRegistryError::data_type_not_registered("anonymize value", data_value.get_data_type_id())),
         }
@@ -685,7 +715,7 @@ impl SymbolRegistry {
 
                 for anonymous_value_string_format in data_type.get_supported_anonymous_value_string_formats() {
                     let anonymous_value_string = data_type
-                        .anonymize_value_bytes(data_value.get_value_bytes(), anonymous_value_string_format)
+                        .anonymize_value_bytes_with_data_type_ref(data_value.get_data_type_ref(), data_value.get_value_bytes(), anonymous_value_string_format)
                         .map_err(|error| SymbolRegistryError::data_type_operation_failed("anonymize value", error))?;
 
                     anonymized_values.push(anonymous_value_string);
@@ -995,7 +1025,10 @@ mod tests {
             data_type_error::DataTypeError,
             data_type_ref::DataTypeRef,
         },
-        data_values::{anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
+        data_values::{
+            anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType,
+            data_value::DataValue,
+        },
         memory::endian::Endian,
         structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition},
     };
@@ -1629,6 +1662,45 @@ mod tests {
         ));
         assert!(symbol_registry.unregister_symbolic_struct("remote.test.struct"));
         assert!(symbol_registry.get("remote.test.struct").is_none());
+    }
+
+    #[test]
+    fn parameterized_data_type_ref_uses_registered_base_data_type() {
+        let symbol_registry = SymbolRegistry::new();
+        let data_type_ref = DataTypeRef::new("string_utf8{null_terminated}");
+
+        assert!(symbol_registry.is_valid(&data_type_ref));
+        assert_eq!(
+            symbol_registry
+                .get_data_type_descriptor(data_type_ref.get_data_type_id())
+                .expect("Expected descriptor for parameterized string type.")
+                .get_data_type_id(),
+            "string_utf8{null_terminated}"
+        );
+    }
+
+    #[test]
+    fn parameterized_string_type_uses_null_terminated_display_semantics() {
+        let symbol_registry = SymbolRegistry::new();
+        let data_value = DataValue::new(DataTypeRef::new("string_utf8{null_terminated}"), b"Finder\0Trailing".to_vec());
+        let anonymous_value_string = symbol_registry
+            .anonymize_value(&data_value, AnonymousValueStringFormat::String)
+            .expect("Expected null-terminated string value to format.");
+
+        assert_eq!(anonymous_value_string.get_anonymous_value_string(), "Finder");
+    }
+
+    #[test]
+    fn parameterized_string_type_preserves_parameterized_data_type_ref_on_parse() {
+        let symbol_registry = SymbolRegistry::new();
+        let data_type_ref = DataTypeRef::new("string_utf8{null_terminated}");
+        let anonymous_value_string = AnonymousValueString::new(String::from("MachO"), AnonymousValueStringFormat::String, ContainerType::None);
+        let data_value = symbol_registry
+            .deanonymize_value_string(&data_type_ref, &anonymous_value_string)
+            .expect("Expected string value to parse.");
+
+        assert_eq!(data_value.get_data_type_ref(), &data_type_ref);
+        assert_eq!(data_value.get_value_bytes(), b"MachO");
     }
 
     #[test]
