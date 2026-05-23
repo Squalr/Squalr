@@ -62,6 +62,34 @@ def command_exists(command_name):
     return shutil.which(command_name) is not None
 
 
+def get_active_rust_toolchain(workspace_directory):
+    active_toolchain_command = ["rustup", "show", "active-toolchain"]
+    exit_code, output_text = run_command(active_toolchain_command, workspace_directory)
+    if exit_code != 0:
+        return None
+
+    active_toolchain_line = output_text.strip().splitlines()
+    if not active_toolchain_line:
+        return None
+
+    active_toolchain_name = active_toolchain_line[0].strip().split()[0]
+    return active_toolchain_name or None
+
+
+def get_installed_rust_targets(workspace_directory):
+    active_toolchain_name = get_active_rust_toolchain(workspace_directory)
+    rust_target_list_command = ["rustup", "target", "list", "--installed"]
+
+    if active_toolchain_name:
+        rust_target_list_command.extend(["--toolchain", active_toolchain_name])
+
+    exit_code, output_text = run_command(rust_target_list_command, workspace_directory)
+    if exit_code != 0:
+        fail("Failed to query installed Rust targets.")
+
+    return output_text.split()
+
+
 def ensure_host_preflight(workspace_directory, require_adb):
     required_commands = ["cargo", "rustup"]
     if require_adb:
@@ -71,11 +99,8 @@ def ensure_host_preflight(workspace_directory, require_adb):
     if missing_commands:
         fail(f"Missing required command(s): {', '.join(missing_commands)}")
 
-    rust_target_list_command = ["rustup", "target", "list", "--installed"]
-    exit_code, output_text = run_command(rust_target_list_command, workspace_directory)
-    if exit_code != 0:
-        fail("Failed to query installed Rust targets.")
-    if TARGET_TRIPLE not in output_text.split():
+    installed_rust_targets = get_installed_rust_targets(workspace_directory)
+    if TARGET_TRIPLE not in installed_rust_targets:
         fail(f"Rust target '{TARGET_TRIPLE}' is not installed. Run: rustup target add {TARGET_TRIPLE}")
 
     android_home = os.environ.get("ANDROID_HOME")

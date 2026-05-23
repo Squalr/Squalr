@@ -12,7 +12,9 @@ Our current task, from `README.md`, is:
 
 - Investigate macOS usermode memory filtering without relying on brittle heuristics.
 - Keep binary symbol population generic by detecting the module header format instead of assuming host OS.
+- Keep CI target preflight aligned with the active Rust toolchain so Android compile-checks do not fail spuriously.
 ## Important Information
 
 - `builtin.symbols.binary.populate-binary-symbols` now detects Mach-O and populates a `Mach-O Headers` root with parsed fixed header layouts plus raw load-command bytes.
 - Generic plugin execution coverage now includes both PE and Mach-O header population paths.
+- `squalr-cli` now handles `ProcessResponse::Icon` instead of failing to compile when icon responses are enabled.
