@@ -101,6 +101,8 @@ def get_rust_target_query_toolchains(workspace_directory):
 
 
 def get_installed_rust_targets(workspace_directory):
+    discovered_rust_targets = set()
+
     for candidate_toolchain_name in get_rust_target_query_toolchains(workspace_directory):
         if candidate_toolchain_name:
             rust_target_list_command = ["rustup", f"+{candidate_toolchain_name}", "target", "list", "--installed"]
@@ -117,8 +119,10 @@ def get_installed_rust_targets(workspace_directory):
             if output_line.strip() and not output_line.startswith("info:")
         }
 
-        if installed_rust_targets:
-            return installed_rust_targets
+        discovered_rust_targets.update(installed_rust_targets)
+
+    if discovered_rust_targets:
+        return discovered_rust_targets
 
     fail("Failed to query installed Rust targets.")
 

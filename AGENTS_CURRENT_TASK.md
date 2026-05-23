@@ -24,5 +24,5 @@ Our current task, from `README.md`, is:
 - Generic plugin execution coverage now includes both PE and Mach-O header population paths.
 - `squalr-cli` now handles `ProcessResponse::Icon` instead of failing to compile when icon responses are enabled.
 - `squalr-tui` preview formatting now uses the same three-argument `DataValuePreviewFormatOptions::new(array_elements, array_chars, string_chars)` call shape as the engine and GUI, so TUI builds stay compatible with the string preview formatter changes.
-- Android compile preflight now probes installed Rust targets through `rustup +toolchain target list --installed` candidate toolchains instead of assuming a single active-toolchain identity, which keeps the nightly CI target check aligned with pinned or override-based installs.
+- Android compile preflight now probes installed Rust targets through `rustup +toolchain target list --installed` candidate toolchains and unions successful results instead of stopping at the first host-only toolchain response, which keeps the nightly CI target check aligned with pinned or override-based installs.
 - `os_behavior_command_tests` now distinguishes process open from explicit icon fetches: process open asserts the current non-icon-fetching query behavior, and icon fetch coverage lives in a dedicated `ProcessIconRequest` executor test.
