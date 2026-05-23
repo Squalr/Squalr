@@ -46,7 +46,7 @@ impl ThemedTooltip {
         tooltip_style: &ThemedTooltipStyle,
         tooltip_text: &str,
     ) {
-        if tooltip_text.is_empty() || !response.hovered() {
+        if tooltip_text.is_empty() || !Self::should_show(response) {
             return;
         }
 
@@ -74,5 +74,28 @@ impl ThemedTooltip {
                         );
                     });
             });
+    }
+
+    fn should_show(response: &Response) -> bool {
+        if !response.hovered() || !response.ctx.input(|input| input.pointer.has_pointer()) {
+            return false;
+        }
+
+        let tooltip_delay = response.ctx.style().interaction.tooltip_delay;
+        let time_since_last_interaction = response.ctx.input(|input| {
+            input
+                .time_since_last_scroll()
+                .min(input.pointer.time_since_last_click())
+                .min(input.pointer.time_since_last_movement())
+        });
+
+        if time_since_last_interaction < tooltip_delay {
+            response
+                .ctx
+                .request_repaint_after_secs(tooltip_delay - time_since_last_interaction);
+            return false;
+        }
+
+        true
     }
 }

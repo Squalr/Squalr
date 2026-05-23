@@ -1,4 +1,5 @@
 use crate::app_context::AppContext;
+use squalr_engine_api::commands::command_invocation::CommandInvocationSource;
 use squalr_engine_api::commands::command_line::clap::ErrorKind;
 use squalr_engine_api::commands::command_line::{CommandLineCommand, CommandLineParseError, format_prompt_command_error, parse_prompt_command_line};
 use std::sync::Arc;
@@ -17,7 +18,7 @@ impl OutputCommandDispatcher {
                 let engine_unprivileged_state = app_context.engine_unprivileged_state.clone();
                 let egui_context = app_context.context.clone();
 
-                engine_unprivileged_state.dispatch_command(command, move |_response| {
+                engine_unprivileged_state.dispatch_privileged_command_from_source(CommandInvocationSource::Prompt, command, move |_response| {
                     egui_context.request_repaint();
                 });
             }
@@ -25,7 +26,7 @@ impl OutputCommandDispatcher {
                 let engine_unprivileged_state = app_context.engine_unprivileged_state.clone();
                 let egui_context = app_context.context.clone();
 
-                engine_unprivileged_state.dispatch_unprivileged_command(command, move |_response| {
+                engine_unprivileged_state.dispatch_unprivileged_command_from_source(CommandInvocationSource::Prompt, command, move |_response| {
                     egui_context.request_repaint();
                 });
             }

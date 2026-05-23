@@ -23,6 +23,7 @@ impl ProcessSelectorView {
         let process_selector_view_data = app_context
             .dependency_container
             .get_dependency::<ProcessSelectorViewData>();
+        ProcessSelectorViewData::observe_command_responses(process_selector_view_data.clone(), app_context.clone());
         ProcessSelectorViewData::refresh_active_process_list(process_selector_view_data.clone(), app_context.clone());
         let process_selector_toolbar_view = ProcessSelectorToolbarView::new(app_context.clone());
 

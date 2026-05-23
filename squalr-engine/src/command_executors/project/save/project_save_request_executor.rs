@@ -1,9 +1,9 @@
-use crate::command_executors::project::project_plugin_sync::get_plugin_states;
+use crate::command_executors::project::project_plugin_sync::get_plugin_snapshot;
 use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
 use squalr_engine_api::commands::project::save::project_save_request::ProjectSaveRequest;
 use squalr_engine_api::commands::project::save::project_save_response::ProjectSaveResponse;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
-use squalr_engine_api::plugins::PluginEnablementOverrides;
+use squalr_engine_api::plugins::PluginConfiguration;
 use squalr_engine_projects::project::serialization::serializable_project_file::SerializableProjectFile;
 use std::sync::Arc;
 
@@ -31,16 +31,16 @@ impl UnprivilegedCommandRequestExecutor for ProjectSaveRequest {
             }
         };
 
-        if let Some(plugin_states) = get_plugin_states(engine_unprivileged_state) {
-            let current_plugin_enablement_overrides = PluginEnablementOverrides::from_plugin_states(&plugin_states);
-            let stored_plugin_enablement_overrides = opened_project
+        if let Some(plugin_snapshot) = get_plugin_snapshot(engine_unprivileged_state) {
+            let current_plugin_configuration = PluginConfiguration::from_plugin_states(&plugin_snapshot.plugin_states, &plugin_snapshot.default_plugin_ids);
+            let stored_plugin_configuration = opened_project
                 .get_project_info()
-                .get_plugin_enablement_overrides()
+                .get_plugin_configuration()
                 .cloned();
 
-            if stored_plugin_enablement_overrides != current_plugin_enablement_overrides {
+            if stored_plugin_configuration != current_plugin_configuration {
                 let project_info = opened_project.get_project_info_mut();
-                project_info.set_plugin_enablement_overrides(current_plugin_enablement_overrides);
+                project_info.set_plugin_configuration(current_plugin_configuration);
                 project_info.set_has_unsaved_changes(true);
             }
         }

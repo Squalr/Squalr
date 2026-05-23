@@ -6,8 +6,18 @@ use eframe::egui::{Align, Layout, Response, RichText, Ui, Widget};
 use epaint::vec2;
 use squalr_engine_api::{
     commands::{
+        command_invocation::{CommandInvocationOutcome, EngineCommand, EngineCommandResponse},
+        privileged_command::PrivilegedCommand,
         privileged_command_request::PrivilegedCommandRequest,
-        settings::general::{list::general_settings_list_request::GeneralSettingsListRequest, set::general_settings_set_request::GeneralSettingsSetRequest},
+        privileged_command_response::PrivilegedCommandResponse,
+        settings::{
+            general::{
+                general_settings_command::GeneralSettingsCommand, general_settings_response::GeneralSettingsResponse,
+                list::general_settings_list_request::GeneralSettingsListRequest, set::general_settings_set_request::GeneralSettingsSetRequest,
+            },
+            settings_command::SettingsCommand,
+            settings_response::SettingsResponse,
+        },
     },
     structures::settings::general_settings::GeneralSettings,
 };
@@ -26,6 +36,7 @@ impl SettingsTabGeneralView {
             cached_general_settings: Arc::new(RwLock::new(GeneralSettings::default())),
         };
 
+        settings_view.observe_command_responses();
         settings_view.sync_ui_with_general_settings();
 
         settings_view
@@ -42,6 +53,59 @@ impl SettingsTabGeneralView {
                 }
             }
         });
+    }
+
+    fn observe_command_responses(&self) {
+        let cached_general_settings = self.cached_general_settings.clone();
+
+        self.app_context
+            .engine_unprivileged_state
+            .listen_for_command_response(move |command_invocation_outcome| {
+                Self::apply_observed_command_response(cached_general_settings.clone(), command_invocation_outcome);
+            });
+    }
+
+    fn apply_observed_command_response(
+        cached_general_settings: Arc<RwLock<GeneralSettings>>,
+        command_invocation_outcome: &CommandInvocationOutcome,
+    ) {
+        let EngineCommandResponse::Privileged(PrivilegedCommandResponse::Settings(SettingsResponse::General { general_settings_response })) =
+            command_invocation_outcome.get_response()
+        else {
+            return;
+        };
+
+        match general_settings_response {
+            GeneralSettingsResponse::List {
+                general_settings_list_response,
+            } => {
+                if let Ok(general_settings) = general_settings_list_response.general_settings.clone() {
+                    if let Ok(mut cached_general_settings) = cached_general_settings.write() {
+                        *cached_general_settings = general_settings;
+                    }
+                }
+            }
+            GeneralSettingsResponse::Set { .. } => {
+                let Some(general_settings_set_request) = Self::get_observed_general_settings_set_request(command_invocation_outcome) else {
+                    return;
+                };
+
+                if let Ok(mut cached_general_settings) = cached_general_settings.write() {
+                    if let Some(engine_request_delay) = general_settings_set_request.engine_request_delay {
+                        cached_general_settings.debug_engine_request_delay_ms = engine_request_delay;
+                    }
+                }
+            }
+        }
+    }
+
+    fn get_observed_general_settings_set_request(command_invocation_outcome: &CommandInvocationOutcome) -> Option<&GeneralSettingsSetRequest> {
+        match command_invocation_outcome.get_invocation().get_command() {
+            EngineCommand::Privileged(PrivilegedCommand::Settings(SettingsCommand::General {
+                general_settings_command: GeneralSettingsCommand::Set { general_settings_set_request },
+            })) => Some(general_settings_set_request),
+            _ => None,
+        }
     }
 }
 

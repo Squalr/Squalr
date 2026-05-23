@@ -1,4 +1,4 @@
-use crate::plugins::PluginEnablementOverrides;
+use crate::plugins::PluginConfiguration;
 use crate::structures::processes::process_icon::ProcessIcon;
 use crate::structures::projects::project_manifest::ProjectManifest;
 use crate::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
@@ -24,9 +24,9 @@ pub struct ProjectInfo {
     #[serde(default)]
     project_symbol_catalog: ProjectSymbolCatalog,
 
-    /// Plugin enablement overrides persisted with this project. Absent preserves plugin defaults.
+    /// Plugin configuration persisted with this project. Absent preserves plugin defaults.
     #[serde(default)]
-    plugin_enablement_overrides: Option<PluginEnablementOverrides>,
+    plugin_configuration: Option<PluginConfiguration>,
 
     #[serde(skip)]
     has_unsaved_changes: bool,
@@ -60,7 +60,7 @@ impl ProjectInfo {
             project_icon_rgba,
             project_manifest,
             project_symbol_catalog,
-            plugin_enablement_overrides: None,
+            plugin_configuration: None,
             has_unsaved_changes: true,
         }
     }
@@ -106,15 +106,15 @@ impl ProjectInfo {
         &mut self.project_symbol_catalog
     }
 
-    pub fn get_plugin_enablement_overrides(&self) -> Option<&PluginEnablementOverrides> {
-        self.plugin_enablement_overrides.as_ref()
+    pub fn get_plugin_configuration(&self) -> Option<&PluginConfiguration> {
+        self.plugin_configuration.as_ref()
     }
 
-    pub fn set_plugin_enablement_overrides(
+    pub fn set_plugin_configuration(
         &mut self,
-        plugin_enablement_overrides: Option<PluginEnablementOverrides>,
+        plugin_configuration: Option<PluginConfiguration>,
     ) {
-        self.plugin_enablement_overrides = plugin_enablement_overrides.filter(|plugin_enablement_overrides| !plugin_enablement_overrides.is_empty());
+        self.plugin_configuration = plugin_configuration.filter(|plugin_configuration| !plugin_configuration.is_empty());
     }
 
     pub fn get_has_unsaved_changes(&self) -> bool {

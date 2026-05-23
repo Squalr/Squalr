@@ -19,6 +19,9 @@ impl PrivilegedCommandExecutor for PluginsCommand {
             PluginsCommand::SetEnabled { plugin_set_enabled_request } => plugin_set_enabled_request
                 .execute(engine_privileged_state)
                 .to_engine_response(),
+            PluginsCommand::SetOrder { plugin_set_order_request } => plugin_set_order_request
+                .execute(engine_privileged_state)
+                .to_engine_response(),
         }
     }
 }

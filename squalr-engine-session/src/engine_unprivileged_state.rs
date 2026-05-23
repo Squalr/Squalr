@@ -6,6 +6,10 @@ use crate::virtual_snapshots::{
     virtual_snapshot::VirtualSnapshot, virtual_snapshot_query::VirtualSnapshotQuery, virtual_snapshot_resolver::materialize_virtual_snapshot_queries,
 };
 use crossbeam_channel::bounded;
+use squalr_engine_api::commands::command_invocation::{
+    CommandInvocation, CommandInvocationDecision, CommandInvocationOutcome, CommandInvocationSource, CommandResponseDecision, EngineCommand,
+    EngineCommandResponse,
+};
 use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRequest;
 use squalr_engine_api::commands::registry::get_metadata::registry_get_metadata_request::RegistryGetMetadataRequest;
 use squalr_engine_api::commands::unprivileged_command::UnprivilegedCommand;
@@ -34,16 +38,38 @@ use squalr_engine_api::structures::scanning::comparisons::scan_compare_type::Sca
 use std::{
     any::{Any, TypeId},
     collections::HashMap,
-    sync::{Arc, RwLock},
+    sync::{
+        Arc, RwLock,
+        atomic::{AtomicU64, Ordering},
+    },
     time::{Duration, Instant},
 };
+
+type EngineEventListenerMap = HashMap<TypeId, Vec<Box<dyn Fn(&dyn Any) + Send + Sync>>>;
+type CommandInvocationMiddleware = Box<dyn Fn(&CommandInvocation) -> CommandInvocationDecision + Send + Sync>;
+type CommandResponseMiddleware = Box<dyn Fn(&CommandInvocationOutcome) -> CommandResponseDecision + Send + Sync>;
+type CommandResponseListener = Box<dyn Fn(&CommandInvocationOutcome) + Send + Sync>;
+
+enum CommandDispatchPlan {
+    Dispatch(CommandInvocation),
+    Respond(CommandInvocation, EngineCommandResponse),
+    Reject(CommandInvocation, String),
+}
 
 /// Exposes the ability to send commands to the engine and handle events from the engine.
 pub struct EngineUnprivilegedState {
     /// The bindings that allow sending commands to the engine.
     engine_api_unprivileged_bindings: Arc<RwLock<dyn EngineApiUnprivilegedBindings>>,
+    /// Monotonically increasing identifier for command invocations issued through this session.
+    next_command_invocation_id: AtomicU64,
+    /// Middleware that can inspect, replace, reject, or answer command invocations before dispatch.
+    command_invocation_middleware: Arc<RwLock<Vec<CommandInvocationMiddleware>>>,
+    /// Middleware that can inspect, replace, or suppress command responses before observers and callbacks see them.
+    command_response_middleware: Arc<RwLock<Vec<CommandResponseMiddleware>>>,
+    /// Listeners that observe all command invocation outcomes after middleware has accepted them.
+    command_response_listeners: Arc<RwLock<Vec<CommandResponseListener>>>,
     /// All event listeners that are listening for particular engine events.
-    event_listeners: Arc<RwLock<HashMap<TypeId, Vec<Box<dyn Fn(&dyn Any) + Send + Sync>>>>>,
+    event_listeners: Arc<RwLock<EngineEventListenerMap>>,
     /// Routes logs to the file system as well as optional subscribers to log events.
     file_system_logger: Arc<LogDispatcher>,
     /// Project manager for organizing and manipulating projects.
@@ -70,6 +96,23 @@ impl Default for EngineUnprivilegedStateOptions {
 impl EngineExecutionContext for EngineUnprivilegedState {
     fn get_bindings(&self) -> &Arc<RwLock<dyn EngineApiUnprivilegedBindings>> {
         &self.engine_api_unprivileged_bindings
+    }
+
+    fn dispatch_privileged_command(
+        &self,
+        privileged_command: PrivilegedCommand,
+        callback: Box<dyn FnOnce(PrivilegedCommandResponse) + Send + Sync + 'static>,
+    ) -> bool {
+        self.dispatch_privileged_command_invocation(CommandInvocationSource::ApiRequest, privileged_command, callback)
+    }
+
+    fn dispatch_unprivileged_command(
+        &self,
+        unprivileged_command: UnprivilegedCommand,
+        execution_context: &Arc<dyn EngineExecutionContext>,
+        callback: Box<dyn FnOnce(UnprivilegedCommandResponse) + Send + Sync + 'static>,
+    ) -> bool {
+        self.dispatch_unprivileged_command_invocation(CommandInvocationSource::ApiRequest, unprivileged_command, execution_context, callback)
     }
 
     fn get_project_manager(&self) -> Arc<dyn ProjectContext> {
@@ -153,6 +196,10 @@ impl EngineUnprivilegedState {
 
         let engine_unprivileged_state = Arc::new(EngineUnprivilegedState {
             engine_api_unprivileged_bindings,
+            next_command_invocation_id: AtomicU64::new(0),
+            command_invocation_middleware: Arc::new(RwLock::new(Vec::new())),
+            command_response_middleware: Arc::new(RwLock::new(Vec::new())),
+            command_response_listeners: Arc::new(RwLock::new(Vec::new())),
             event_listeners: Arc::new(RwLock::new(HashMap::new())),
             file_system_logger: Arc::new(LogDispatcher::new_with_options(LogDispatcherOptions {
                 enable_console_output: options.enable_console_logging,
@@ -475,6 +522,36 @@ impl EngineUnprivilegedState {
         }
     }
 
+    pub fn register_command_invocation_middleware(
+        &self,
+        middleware: impl Fn(&CommandInvocation) -> CommandInvocationDecision + Send + Sync + 'static,
+    ) {
+        match self.command_invocation_middleware.write() {
+            Ok(mut command_invocation_middleware) => command_invocation_middleware.push(Box::new(middleware)),
+            Err(error) => log::error!("Error registering command invocation middleware: {}", error),
+        }
+    }
+
+    pub fn register_command_response_middleware(
+        &self,
+        middleware: impl Fn(&CommandInvocationOutcome) -> CommandResponseDecision + Send + Sync + 'static,
+    ) {
+        match self.command_response_middleware.write() {
+            Ok(mut command_response_middleware) => command_response_middleware.push(Box::new(middleware)),
+            Err(error) => log::error!("Error registering command response middleware: {}", error),
+        }
+    }
+
+    pub fn listen_for_command_response(
+        &self,
+        callback: impl Fn(&CommandInvocationOutcome) + Send + Sync + 'static,
+    ) {
+        match self.command_response_listeners.write() {
+            Ok(mut command_response_listeners) => command_response_listeners.push(Box::new(callback)),
+            Err(error) => log::error!("Error listening for command responses: {}", error),
+        }
+    }
+
     /// Dispatches a command to the engine.
     pub fn dispatch_command<F>(
         self: &Arc<Self>,
@@ -483,16 +560,20 @@ impl EngineUnprivilegedState {
     ) where
         F: FnOnce(PrivilegedCommandResponse) + Send + Sync + 'static,
     {
-        match self.engine_api_unprivileged_bindings.read() {
-            Ok(engine_bindings) => {
-                if let Err(error) = engine_bindings.dispatch_privileged_command(privileged_command, Box::new(callback)) {
-                    log::error!("Error dispatching engine command: {}", error);
-                }
-            }
-            Err(error) => {
-                log::error!("Failed to acquire unprivileged engine bindings read lock for commands: {}", error);
-            }
-        }
+        self.dispatch_privileged_command_from_source(CommandInvocationSource::Internal, privileged_command, callback);
+    }
+
+    /// Dispatches a command to the engine from a named source.
+    pub fn dispatch_privileged_command_from_source<F>(
+        self: &Arc<Self>,
+        source: CommandInvocationSource,
+        privileged_command: PrivilegedCommand,
+        callback: F,
+    ) -> bool
+    where
+        F: FnOnce(PrivilegedCommandResponse) + Send + Sync + 'static,
+    {
+        self.dispatch_privileged_command_invocation(source, privileged_command, Box::new(callback))
     }
 
     /// Dispatches an unprivileged command to the local execution layer.
@@ -503,18 +584,272 @@ impl EngineUnprivilegedState {
     ) where
         F: FnOnce(UnprivilegedCommandResponse) + Send + Sync + 'static,
     {
+        self.dispatch_unprivileged_command_from_source(CommandInvocationSource::Internal, unprivileged_command, callback);
+    }
+
+    /// Dispatches an unprivileged command to the local execution layer from a named source.
+    pub fn dispatch_unprivileged_command_from_source<F>(
+        self: &Arc<Self>,
+        source: CommandInvocationSource,
+        unprivileged_command: UnprivilegedCommand,
+        callback: F,
+    ) -> bool
+    where
+        F: FnOnce(UnprivilegedCommandResponse) + Send + Sync + 'static,
+    {
         let engine_execution_context: Arc<dyn EngineExecutionContext> = self.clone();
+
+        self.dispatch_unprivileged_command_invocation(source, unprivileged_command, &engine_execution_context, Box::new(callback))
+    }
+
+    fn create_command_invocation(
+        &self,
+        source: CommandInvocationSource,
+        command: EngineCommand,
+    ) -> CommandInvocation {
+        let invocation_id = self.next_command_invocation_id.fetch_add(1, Ordering::SeqCst) + 1;
+
+        CommandInvocation::new(invocation_id, source, command)
+    }
+
+    fn dispatch_privileged_command_invocation(
+        &self,
+        source: CommandInvocationSource,
+        privileged_command: PrivilegedCommand,
+        callback: Box<dyn FnOnce(PrivilegedCommandResponse) + Send + Sync + 'static>,
+    ) -> bool {
+        let command_invocation = self.create_command_invocation(source, EngineCommand::Privileged(privileged_command));
+        let dispatch_invocation = match self.prepare_command_invocation(command_invocation) {
+            CommandDispatchPlan::Dispatch(command_invocation) => command_invocation,
+            CommandDispatchPlan::Respond(command_invocation, EngineCommandResponse::Privileged(response)) => {
+                if let Some(EngineCommandResponse::Privileged(response)) =
+                    self.publish_command_response(command_invocation, EngineCommandResponse::Privileged(response))
+                {
+                    callback(response);
+                }
+
+                return true;
+            }
+            CommandDispatchPlan::Respond(command_invocation, response) => {
+                log::error!(
+                    "Command invocation {} produced a mismatched synthetic response: {:?}.",
+                    command_invocation.get_invocation_id(),
+                    response
+                );
+                return false;
+            }
+            CommandDispatchPlan::Reject(command_invocation, reason) => {
+                log::warn!(
+                    "Command invocation {} rejected before dispatch: {}",
+                    command_invocation.get_invocation_id(),
+                    reason
+                );
+                return false;
+            }
+        };
+        let EngineCommand::Privileged(privileged_command) = dispatch_invocation.get_command().clone() else {
+            log::error!(
+                "Command invocation {} was transformed into a non-privileged command before privileged dispatch.",
+                dispatch_invocation.get_invocation_id()
+            );
+            return false;
+        };
 
         match self.engine_api_unprivileged_bindings.read() {
             Ok(engine_bindings) => {
-                if let Err(error) = engine_bindings.dispatch_unprivileged_command(unprivileged_command, &engine_execution_context, Box::new(callback)) {
-                    log::error!("Error dispatching unprivileged engine command: {}", error);
+                let command_response_publisher = self.command_response_publisher();
+                let invocation_for_callback = dispatch_invocation.clone();
+                match engine_bindings.dispatch_privileged_command(
+                    privileged_command,
+                    Box::new(move |response| {
+                        if let Some(EngineCommandResponse::Privileged(response)) =
+                            command_response_publisher(invocation_for_callback, EngineCommandResponse::Privileged(response))
+                        {
+                            callback(response);
+                        }
+                    }),
+                ) {
+                    Ok(()) => true,
+                    Err(error) => {
+                        log::error!("Error dispatching engine command: {}", error);
+                        false
+                    }
+                }
+            }
+            Err(error) => {
+                log::error!("Failed to acquire unprivileged engine bindings read lock for commands: {}", error);
+                false
+            }
+        }
+    }
+
+    fn dispatch_unprivileged_command_invocation(
+        &self,
+        source: CommandInvocationSource,
+        unprivileged_command: UnprivilegedCommand,
+        execution_context: &Arc<dyn EngineExecutionContext>,
+        callback: Box<dyn FnOnce(UnprivilegedCommandResponse) + Send + Sync + 'static>,
+    ) -> bool {
+        let command_invocation = self.create_command_invocation(source, EngineCommand::Unprivileged(unprivileged_command));
+        let dispatch_invocation = match self.prepare_command_invocation(command_invocation) {
+            CommandDispatchPlan::Dispatch(command_invocation) => command_invocation,
+            CommandDispatchPlan::Respond(command_invocation, EngineCommandResponse::Unprivileged(response)) => {
+                if let Some(EngineCommandResponse::Unprivileged(response)) =
+                    self.publish_command_response(command_invocation, EngineCommandResponse::Unprivileged(response))
+                {
+                    callback(response);
+                }
+
+                return true;
+            }
+            CommandDispatchPlan::Respond(command_invocation, response) => {
+                log::error!(
+                    "Command invocation {} produced a mismatched synthetic response: {:?}.",
+                    command_invocation.get_invocation_id(),
+                    response
+                );
+                return false;
+            }
+            CommandDispatchPlan::Reject(command_invocation, reason) => {
+                log::warn!(
+                    "Command invocation {} rejected before dispatch: {}",
+                    command_invocation.get_invocation_id(),
+                    reason
+                );
+                return false;
+            }
+        };
+        let EngineCommand::Unprivileged(unprivileged_command) = dispatch_invocation.get_command().clone() else {
+            log::error!(
+                "Command invocation {} was transformed into a non-unprivileged command before unprivileged dispatch.",
+                dispatch_invocation.get_invocation_id()
+            );
+            return false;
+        };
+
+        match self.engine_api_unprivileged_bindings.read() {
+            Ok(engine_bindings) => {
+                let command_response_publisher = self.command_response_publisher();
+                let invocation_for_callback = dispatch_invocation.clone();
+                match engine_bindings.dispatch_unprivileged_command(
+                    unprivileged_command,
+                    execution_context,
+                    Box::new(move |response| {
+                        if let Some(EngineCommandResponse::Unprivileged(response)) =
+                            command_response_publisher(invocation_for_callback, EngineCommandResponse::Unprivileged(response))
+                        {
+                            callback(response);
+                        }
+                    }),
+                ) {
+                    Ok(()) => true,
+                    Err(error) => {
+                        log::error!("Error dispatching unprivileged engine command: {}", error);
+                        false
+                    }
                 }
             }
             Err(error) => {
                 log::error!("Failed to acquire unprivileged engine bindings read lock for unprivileged commands: {}", error);
+                false
             }
         }
+    }
+
+    fn prepare_command_invocation(
+        &self,
+        mut command_invocation: CommandInvocation,
+    ) -> CommandDispatchPlan {
+        let command_invocation_middleware = match self.command_invocation_middleware.read() {
+            Ok(command_invocation_middleware) => command_invocation_middleware,
+            Err(error) => {
+                log::error!("Failed to acquire command invocation middleware read lock: {}", error);
+                return CommandDispatchPlan::Dispatch(command_invocation);
+            }
+        };
+
+        for middleware in command_invocation_middleware.iter() {
+            match middleware(&command_invocation) {
+                CommandInvocationDecision::Continue => {}
+                CommandInvocationDecision::ReplaceCommand { command } => {
+                    command_invocation = command_invocation.replace_command(command);
+                }
+                CommandInvocationDecision::Reject { reason } => {
+                    return CommandDispatchPlan::Reject(command_invocation, reason);
+                }
+                CommandInvocationDecision::Respond { response } => {
+                    return CommandDispatchPlan::Respond(command_invocation, response);
+                }
+            }
+        }
+
+        CommandDispatchPlan::Dispatch(command_invocation)
+    }
+
+    fn command_response_publisher(&self) -> impl Fn(CommandInvocation, EngineCommandResponse) -> Option<EngineCommandResponse> + Send + Sync + 'static {
+        let command_response_middleware = self.command_response_middleware.clone();
+        let command_response_listeners = self.command_response_listeners.clone();
+
+        move |command_invocation, response| {
+            Self::publish_command_response_to_targets(&command_response_middleware, &command_response_listeners, command_invocation, response)
+        }
+    }
+
+    fn publish_command_response(
+        &self,
+        command_invocation: CommandInvocation,
+        response: EngineCommandResponse,
+    ) -> Option<EngineCommandResponse> {
+        Self::publish_command_response_to_targets(
+            &self.command_response_middleware,
+            &self.command_response_listeners,
+            command_invocation,
+            response,
+        )
+    }
+
+    fn publish_command_response_to_targets(
+        command_response_middleware: &Arc<RwLock<Vec<CommandResponseMiddleware>>>,
+        command_response_listeners: &Arc<RwLock<Vec<CommandResponseListener>>>,
+        command_invocation: CommandInvocation,
+        mut response: EngineCommandResponse,
+    ) -> Option<EngineCommandResponse> {
+        match command_response_middleware.read() {
+            Ok(command_response_middleware) => {
+                for middleware in command_response_middleware.iter() {
+                    let outcome = CommandInvocationOutcome::new(command_invocation.clone(), response.clone());
+
+                    match middleware(&outcome) {
+                        CommandResponseDecision::Continue => {}
+                        CommandResponseDecision::ReplaceResponse {
+                            response: replacement_response,
+                        } => response = replacement_response,
+                        CommandResponseDecision::Suppress { reason } => {
+                            log::warn!("Command invocation {} response suppressed: {}", command_invocation.get_invocation_id(), reason);
+                            return None;
+                        }
+                    }
+                }
+            }
+            Err(error) => {
+                log::error!("Failed to acquire command response middleware read lock: {}", error);
+            }
+        }
+
+        let outcome = CommandInvocationOutcome::new(command_invocation, response.clone());
+
+        match command_response_listeners.read() {
+            Ok(command_response_listeners) => {
+                for listener in command_response_listeners.iter() {
+                    listener(&outcome);
+                }
+            }
+            Err(error) => {
+                log::error!("Failed to acquire command response listeners read lock: {}", error);
+            }
+        }
+
+        Some(response)
     }
 
     /// Starts listening for all engine events and routes specific events to listeners for that event type.

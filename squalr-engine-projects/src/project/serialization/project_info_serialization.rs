@@ -26,9 +26,9 @@ struct ProjectInfoStub {
     #[serde(rename = "symbols", default)]
     project_symbol_catalog: ProjectSymbolCatalog,
 
-    /// Plugin enablement overrides stored with this project.
+    /// Plugin configuration stored with this project.
     #[serde(rename = "plugins", default, skip_serializing_if = "Option::is_none")]
-    plugin_configuration: Option<squalr_engine_api::plugins::PluginEnablementOverrides>,
+    plugin_configuration: Option<squalr_engine_api::plugins::PluginConfiguration>,
 }
 
 impl SerializableProjectFile for ProjectInfo {
@@ -50,7 +50,7 @@ impl SerializableProjectFile for ProjectInfo {
                 project_icon_rgba: self.get_project_icon_rgba().clone(),
                 project_manifest: self.get_project_manifest().clone(),
                 project_symbol_catalog: self.get_project_symbol_catalog().clone(),
-                plugin_configuration: self.get_plugin_enablement_overrides().cloned(),
+                plugin_configuration: self.get_plugin_configuration().cloned(),
             };
 
             serde_json::to_writer(file, &project_info_stub)?;
@@ -71,7 +71,7 @@ impl SerializableProjectFile for ProjectInfo {
             project_info_stub.project_manifest,
             project_info_stub.project_symbol_catalog,
         );
-        project_info.set_plugin_enablement_overrides(project_info_stub.plugin_configuration);
+        project_info.set_plugin_configuration(project_info_stub.plugin_configuration);
         project_info.set_has_unsaved_changes(false);
 
         Ok(project_info)
@@ -81,7 +81,7 @@ impl SerializableProjectFile for ProjectInfo {
 #[cfg(test)]
 mod tests {
     use super::SerializableProjectFile;
-    use squalr_engine_api::plugins::PluginEnablementOverrides;
+    use squalr_engine_api::plugins::PluginConfiguration;
     use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
     use squalr_engine_api::structures::{
         data_types::data_type_ref::DataTypeRef,
@@ -197,14 +197,18 @@ mod tests {
     }
 
     #[test]
-    fn project_info_round_trip_preserves_plugin_enablement_overrides() {
+    fn project_info_round_trip_preserves_plugin_configuration() {
         let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
         let project_file_path = temp_directory.path().join(Project::PROJECT_FILE);
         let mut project_info = ProjectInfo::new_with_symbol_catalog(project_file_path, None, ProjectManifest::default(), ProjectSymbolCatalog::default());
 
-        project_info.set_plugin_enablement_overrides(Some(PluginEnablementOverrides::new(
+        project_info.set_plugin_configuration(Some(PluginConfiguration::new(
             vec![String::from("builtin.data-type.24bit-integers")],
             vec![String::from("builtin.memory-view.dolphin")],
+            vec![
+                String::from("builtin.memory-view.dolphin"),
+                String::from("builtin.data-type.24bit-integers"),
+            ],
         )));
 
         project_info
@@ -214,10 +218,14 @@ mod tests {
         let loaded_project_info = ProjectInfo::load_from_path(&temp_directory.path().join(Project::PROJECT_FILE)).expect("Expected project info to load.");
 
         assert_eq!(
-            loaded_project_info.get_plugin_enablement_overrides(),
-            Some(&PluginEnablementOverrides::new(
+            loaded_project_info.get_plugin_configuration(),
+            Some(&PluginConfiguration::new(
                 vec![String::from("builtin.data-type.24bit-integers")],
                 vec![String::from("builtin.memory-view.dolphin")],
+                vec![
+                    String::from("builtin.memory-view.dolphin"),
+                    String::from("builtin.data-type.24bit-integers")
+                ],
             ))
         );
     }

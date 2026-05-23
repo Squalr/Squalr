@@ -1,4 +1,8 @@
 use crate::{
+    commands::{
+        privileged_command::PrivilegedCommand, privileged_command_response::PrivilegedCommandResponse, unprivileged_command::UnprivilegedCommand,
+        unprivileged_command_response::UnprivilegedCommandResponse,
+    },
     engine::engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings,
     registries::symbols::{data_type_descriptor::DataTypeDescriptor, symbol_registry_error::SymbolRegistryError},
     structures::{
@@ -14,6 +18,49 @@ use std::sync::{Arc, RwLock};
 pub trait EngineExecutionContext: Send + Sync {
     /// Gets the engine bindings used to dispatch privileged and unprivileged commands.
     fn get_bindings(&self) -> &Arc<RwLock<dyn EngineApiUnprivilegedBindings>>;
+
+    /// Dispatches a privileged command through the session command invocation path.
+    fn dispatch_privileged_command(
+        &self,
+        privileged_command: PrivilegedCommand,
+        callback: Box<dyn FnOnce(PrivilegedCommandResponse) + Send + Sync + 'static>,
+    ) -> bool {
+        match self.get_bindings().read() {
+            Ok(engine_bindings) => match engine_bindings.dispatch_privileged_command(privileged_command, callback) {
+                Ok(()) => true,
+                Err(error) => {
+                    log::error!("Error dispatching privileged command: {}", error);
+                    false
+                }
+            },
+            Err(error) => {
+                log::error!("Failed to acquire engine bindings for privileged command dispatch: {}", error);
+                false
+            }
+        }
+    }
+
+    /// Dispatches an unprivileged command through the session command invocation path.
+    fn dispatch_unprivileged_command(
+        &self,
+        unprivileged_command: UnprivilegedCommand,
+        execution_context: &Arc<dyn EngineExecutionContext>,
+        callback: Box<dyn FnOnce(UnprivilegedCommandResponse) + Send + Sync + 'static>,
+    ) -> bool {
+        match self.get_bindings().read() {
+            Ok(engine_bindings) => match engine_bindings.dispatch_unprivileged_command(unprivileged_command, execution_context, callback) {
+                Ok(()) => true,
+                Err(error) => {
+                    log::error!("Error dispatching unprivileged command: {}", error);
+                    false
+                }
+            },
+            Err(error) => {
+                log::error!("Failed to acquire engine bindings for unprivileged command dispatch: {}", error);
+                false
+            }
+        }
+    }
 
     /// Gets the project context owned by the interactive unprivileged session.
     fn get_project_manager(&self) -> Arc<dyn ProjectContext>;

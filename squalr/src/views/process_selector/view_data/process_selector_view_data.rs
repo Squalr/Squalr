@@ -3,8 +3,14 @@ use eframe::egui::TextureOptions;
 use epaint::{ColorImage, TextureHandle};
 use squalr_engine_api::{
     commands::{
+        command_invocation::{CommandInvocationOutcome, EngineCommand, EngineCommandResponse},
+        privileged_command::PrivilegedCommand,
         privileged_command_request::PrivilegedCommandRequest,
-        process::{list::process_list_request::ProcessListRequest, open::process_open_request::ProcessOpenRequest},
+        privileged_command_response::PrivilegedCommandResponse,
+        process::{
+            list::process_list_request::ProcessListRequest, open::process_open_request::ProcessOpenRequest, process_command::ProcessCommand,
+            process_response::ProcessResponse,
+        },
     },
     dependency_injection::{dependency::Dependency, write_guard::WriteGuard},
     structures::processes::{opened_process_info::OpenedProcessInfo, process_icon::ProcessIcon, process_info::ProcessInfo},
@@ -63,6 +69,59 @@ impl ProcessSelectorViewData {
     pub fn clear_stale_request_state(process_selector_view_data_dependency: Dependency<ProcessSelectorViewData>) {
         if let Some(mut process_selector_view_data) = process_selector_view_data_dependency.write("Process selector view data clear stale request state") {
             process_selector_view_data.clear_stale_request_state_for_now(Instant::now());
+        }
+    }
+
+    pub fn observe_command_responses(
+        process_selector_view_data: Dependency<ProcessSelectorViewData>,
+        app_context: Arc<AppContext>,
+    ) {
+        let engine_unprivileged_state = app_context.engine_unprivileged_state.clone();
+
+        engine_unprivileged_state.listen_for_command_response(move |command_invocation_outcome| {
+            Self::apply_observed_command_response(process_selector_view_data.clone(), app_context.clone(), command_invocation_outcome);
+        });
+    }
+
+    fn apply_observed_command_response(
+        process_selector_view_data: Dependency<ProcessSelectorViewData>,
+        app_context: Arc<AppContext>,
+        command_invocation_outcome: &CommandInvocationOutcome,
+    ) {
+        let EngineCommandResponse::Privileged(PrivilegedCommandResponse::Process(process_response)) = command_invocation_outcome.get_response() else {
+            return;
+        };
+
+        match process_response {
+            ProcessResponse::List { process_list_response } => {
+                let require_windowed = Self::observed_process_list_requires_windowed(command_invocation_outcome);
+                let Some(mut process_selector_view_data_guard) = process_selector_view_data.write("Observed process list response") else {
+                    return;
+                };
+
+                if require_windowed {
+                    process_selector_view_data_guard.is_awaiting_windowed_process_list = false;
+                    process_selector_view_data_guard.windowed_process_list_request_started_at = None;
+                    Self::set_windowed_process_list(&mut process_selector_view_data_guard, &app_context, process_list_response.processes.clone());
+                } else {
+                    process_selector_view_data_guard.is_awaiting_full_process_list = false;
+                    process_selector_view_data_guard.full_process_list_request_started_at = None;
+                    Self::set_full_process_list(&mut process_selector_view_data_guard, &app_context, process_list_response.processes.clone());
+                }
+            }
+            ProcessResponse::Open { process_open_response } => {
+                Self::set_opened_process_info(process_selector_view_data, &app_context, process_open_response.opened_process_info.clone());
+            }
+            ProcessResponse::Close { process_close_response } => {
+                Self::set_opened_process_info(process_selector_view_data, &app_context, process_close_response.process_info.clone());
+            }
+        }
+    }
+
+    fn observed_process_list_requires_windowed(command_invocation_outcome: &CommandInvocationOutcome) -> bool {
+        match command_invocation_outcome.get_invocation().get_command() {
+            EngineCommand::Privileged(PrivilegedCommand::Process(ProcessCommand::List { process_list_request })) => process_list_request.require_windowed,
+            _ => false,
         }
     }
 

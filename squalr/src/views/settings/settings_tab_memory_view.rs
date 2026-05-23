@@ -5,8 +5,18 @@ use crate::{
 use eframe::egui::{Align, Layout, Response, RichText, ScrollArea, Ui, Widget};
 use squalr_engine_api::{
     commands::{
+        command_invocation::{CommandInvocationOutcome, EngineCommand, EngineCommandResponse},
+        privileged_command::PrivilegedCommand,
         privileged_command_request::PrivilegedCommandRequest,
-        settings::memory::{list::memory_settings_list_request::MemorySettingsListRequest, set::memory_settings_set_request::MemorySettingsSetRequest},
+        privileged_command_response::PrivilegedCommandResponse,
+        settings::{
+            memory::{
+                list::memory_settings_list_request::MemorySettingsListRequest, memory_settings_command::MemorySettingsCommand,
+                memory_settings_response::MemorySettingsResponse, set::memory_settings_set_request::MemorySettingsSetRequest,
+            },
+            settings_command::SettingsCommand,
+            settings_response::SettingsResponse,
+        },
     },
     structures::settings::memory_settings::MemorySettings,
 };
@@ -25,6 +35,7 @@ impl SettingsTabMemoryView {
             cached_memory_settings: Arc::new(RwLock::new(MemorySettings::default())),
         };
 
+        settings_view.observe_command_responses();
         settings_view.sync_ui_with_memory_settings();
 
         settings_view
@@ -41,6 +52,100 @@ impl SettingsTabMemoryView {
                 }
             }
         });
+    }
+
+    fn observe_command_responses(&self) {
+        let cached_memory_settings = self.cached_memory_settings.clone();
+
+        self.app_context
+            .engine_unprivileged_state
+            .listen_for_command_response(move |command_invocation_outcome| {
+                Self::apply_observed_command_response(cached_memory_settings.clone(), command_invocation_outcome);
+            });
+    }
+
+    fn apply_observed_command_response(
+        cached_memory_settings: Arc<RwLock<MemorySettings>>,
+        command_invocation_outcome: &CommandInvocationOutcome,
+    ) {
+        let EngineCommandResponse::Privileged(PrivilegedCommandResponse::Settings(SettingsResponse::Memory { memory_settings_response })) =
+            command_invocation_outcome.get_response()
+        else {
+            return;
+        };
+
+        match memory_settings_response {
+            MemorySettingsResponse::List { memory_settings_list_response } => {
+                if let Ok(memory_settings) = memory_settings_list_response.memory_settings.clone() {
+                    if let Ok(mut cached_memory_settings) = cached_memory_settings.write() {
+                        *cached_memory_settings = memory_settings;
+                    }
+                }
+            }
+            MemorySettingsResponse::Set { .. } => {
+                let Some(memory_settings_set_request) = Self::get_observed_memory_settings_set_request(command_invocation_outcome) else {
+                    return;
+                };
+
+                if let Ok(mut cached_memory_settings) = cached_memory_settings.write() {
+                    Self::apply_memory_settings_set_request(&mut cached_memory_settings, memory_settings_set_request);
+                }
+            }
+        }
+    }
+
+    fn get_observed_memory_settings_set_request(command_invocation_outcome: &CommandInvocationOutcome) -> Option<&MemorySettingsSetRequest> {
+        match command_invocation_outcome.get_invocation().get_command() {
+            EngineCommand::Privileged(PrivilegedCommand::Settings(SettingsCommand::Memory {
+                memory_settings_command: MemorySettingsCommand::Set { memory_settings_set_request },
+            })) => Some(memory_settings_set_request),
+            _ => None,
+        }
+    }
+
+    fn apply_memory_settings_set_request(
+        cached_memory_settings: &mut MemorySettings,
+        memory_settings_set_request: &MemorySettingsSetRequest,
+    ) {
+        if let Some(memory_type_none) = memory_settings_set_request.memory_type_none {
+            cached_memory_settings.memory_type_none = memory_type_none;
+        }
+        if let Some(memory_type_private) = memory_settings_set_request.memory_type_private {
+            cached_memory_settings.memory_type_private = memory_type_private;
+        }
+        if let Some(memory_type_image) = memory_settings_set_request.memory_type_image {
+            cached_memory_settings.memory_type_image = memory_type_image;
+        }
+        if let Some(memory_type_mapped) = memory_settings_set_request.memory_type_mapped {
+            cached_memory_settings.memory_type_mapped = memory_type_mapped;
+        }
+        if let Some(required_write) = memory_settings_set_request.required_write {
+            cached_memory_settings.required_write = required_write;
+        }
+        if let Some(required_execute) = memory_settings_set_request.required_execute {
+            cached_memory_settings.required_execute = required_execute;
+        }
+        if let Some(required_copy_on_write) = memory_settings_set_request.required_copy_on_write {
+            cached_memory_settings.required_copy_on_write = required_copy_on_write;
+        }
+        if let Some(excluded_write) = memory_settings_set_request.excluded_write {
+            cached_memory_settings.excluded_write = excluded_write;
+        }
+        if let Some(excluded_execute) = memory_settings_set_request.excluded_execute {
+            cached_memory_settings.excluded_execute = excluded_execute;
+        }
+        if let Some(excluded_copy_on_write) = memory_settings_set_request.excluded_copy_on_write {
+            cached_memory_settings.excluded_copy_on_write = excluded_copy_on_write;
+        }
+        if let Some(start_address) = memory_settings_set_request.start_address {
+            cached_memory_settings.start_address = start_address;
+        }
+        if let Some(end_address) = memory_settings_set_request.end_address {
+            cached_memory_settings.end_address = end_address;
+        }
+        if let Some(only_query_usermode) = memory_settings_set_request.only_query_usermode {
+            cached_memory_settings.only_query_usermode = only_query_usermode;
+        }
     }
 }
 
