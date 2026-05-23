@@ -35,20 +35,16 @@ impl EngineApiUnprivilegedBindings for StandaloneEngineApiUnprivilegedBindings {
         callback: Box<dyn FnOnce(PrivilegedCommandResponse) + Send + Sync + 'static>,
     ) -> Result<(), EngineBindingError> {
         let engine_request_delay = GeneralSettingsConfig::get_debug_engine_request_delay_ms();
+        let engine_privileged_state = self.engine_privileged_state.clone();
 
-        // Execute the request either immediately, or on an artificial delay if a debug request delay is set.
-        if engine_request_delay <= 0 {
-            let privileged_command_result = Self::create_privileged_command_result(&self.engine_privileged_state, privileged_command);
-            callback(privileged_command_result.into_privileged_command_response());
-        } else {
-            let engine_privileged_state = self.engine_privileged_state.clone();
-
-            std::thread::spawn(move || {
+        std::thread::spawn(move || {
+            if engine_request_delay > 0 {
                 std::thread::sleep(std::time::Duration::from_millis(engine_request_delay as u64));
-                let privileged_command_result = Self::create_privileged_command_result(&engine_privileged_state, privileged_command);
-                callback(privileged_command_result.into_privileged_command_response());
-            });
-        }
+            }
+
+            let privileged_command_result = Self::create_privileged_command_result(&engine_privileged_state, privileged_command);
+            callback(privileged_command_result.into_privileged_command_response());
+        });
 
         Ok(())
     }
