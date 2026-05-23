@@ -73,7 +73,7 @@ impl Widget for MainShortcutBarView {
 
         let mut refresh_windowed_processes = false;
         let mut process_to_open = None;
-
+        let mut missing_icon_process_ids = Vec::new();
         let name_display = match &process_selector_view_data.opened_process {
             Some(opened_proces) => opened_proces.get_name(),
             None => {
@@ -117,10 +117,11 @@ impl Widget for MainShortcutBarView {
 
                     let mut render_process_rows = |inner_user_interface: &mut Ui| {
                         for shortcut_dropdown_process in shortcut_dropdown_processes {
-                            let icon = match shortcut_dropdown_process.get_icon() {
-                                Some(icon) => process_selector_view_data.get_icon(&self.app_context, shortcut_dropdown_process.get_process_id_raw(), icon),
-                                None => None,
-                            };
+                            let process_id = shortcut_dropdown_process.get_process_id_raw();
+                            let icon = process_selector_view_data.get_cached_icon(process_id);
+                            if icon.is_none() {
+                                missing_icon_process_ids.push(process_id);
+                            }
 
                             if inner_user_interface
                                 .add(ComboBoxItemView::new(
@@ -174,17 +175,22 @@ impl Widget for MainShortcutBarView {
             // Drop the read lock to free up the data for write lock access.
             drop(process_selector_view_data);
 
-            // Refresh the process list on first click.
-            // JIRA: Set an atomic flag maybe on the process view data such that we can show a loading indicator?
-            // Could throw in an artificial delay to simulate how this would behave over a network (GUI -> network -> shell).
+            // The shortcut dropdown only needs the windowed quick-select list.
             ProcessSelectorViewData::refresh_windowed_process_list(self.process_selector_view_data.clone(), self.app_context.clone());
-            ProcessSelectorViewData::refresh_full_process_list(self.process_selector_view_data.clone(), self.app_context.clone());
         } else if let Some(process_id) = process_to_open {
             // Drop the read lock to free up the data for write lock access.
             drop(process_selector_view_data);
 
             ProcessSelectorViewData::select_process(self.process_selector_view_data.clone(), self.app_context.clone(), process_id);
+        } else {
+            drop(process_selector_view_data);
         }
+
+        ProcessSelectorViewData::request_process_icons_if_needed(
+            self.process_selector_view_data.clone(),
+            self.app_context.clone(),
+            missing_icon_process_ids,
+        );
 
         response
     }

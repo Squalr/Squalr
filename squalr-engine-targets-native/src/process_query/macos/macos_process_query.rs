@@ -13,14 +13,13 @@ use squalr_engine_api::structures::memory::bitness::Bitness;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::processes::process_icon::ProcessIcon;
 use squalr_engine_api::structures::processes::process_info::ProcessInfo;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::io::Cursor;
 use std::os::raw::c_int;
-use std::sync::{LazyLock, RwLock};
+use std::path::{Path, PathBuf};
 use sysinfo::{Pid, ProcessRefreshKind, RefreshKind, System};
 
 pub struct MacOsProcessQuery {}
-static PROCESS_ICON_CACHE: LazyLock<RwLock<HashMap<String, Option<ProcessIcon>>>> = LazyLock::new(|| RwLock::new(HashMap::new()));
 
 type CFArrayRef = *const c_void;
 type CFDictionaryRef = *const c_void;
@@ -28,6 +27,7 @@ type CFNumberRef = *const c_void;
 type CFStringRef = *const c_void;
 type CFTypeRef = *const c_void;
 type CFIndex = isize;
+type DispatchQueue = *const c_void;
 
 const CG_WINDOW_LIST_OPTION_ON_SCREEN_ONLY: u32 = 1 << 0;
 const CG_NULL_WINDOW_ID: u32 = 0;
@@ -61,6 +61,26 @@ unsafe extern "C" {
         value_ptr: *mut c_void,
     ) -> u8;
     fn CFRelease(cf: CFTypeRef);
+}
+
+#[link(name = "System")]
+unsafe extern "C" {
+    static _dispatch_main_q: c_void;
+    fn dispatch_sync_f(
+        queue: DispatchQueue,
+        context: *mut c_void,
+        work: extern "C" fn(*mut c_void),
+    );
+}
+
+enum MainThreadIconLookupKind {
+    RunningApplication { process_id: i32 },
+    FilePath { path: String },
+}
+
+struct MainThreadIconLookupRequest {
+    kind: MainThreadIconLookupKind,
+    result: Option<ProcessIcon>,
 }
 
 impl MacOsProcessQuery {
@@ -158,50 +178,31 @@ impl MacOsProcessQuery {
         if path_string.is_empty() { None } else { Some(path_string) }
     }
 
-    fn get_icon(process_id: &Pid) -> Option<ProcessIcon> {
-        let process_id_raw = process_id.as_u32();
-        let process_icon_cache_key = format!("pid:{process_id_raw}");
+    fn resolve_icon_lookup_path(executable_path: &str) -> Option<PathBuf> {
+        let executable_path = Path::new(executable_path);
 
-        if let Ok(icon_cache) = PROCESS_ICON_CACHE.read() {
-            if let Some(cached_process_icon) = icon_cache.get(&process_icon_cache_key) {
-                return cached_process_icon.clone();
+        for ancestor_path in executable_path.ancestors() {
+            if ancestor_path
+                .extension()
+                .is_some_and(|extension| extension.eq_ignore_ascii_case("app"))
+            {
+                return Some(ancestor_path.to_path_buf());
             }
         }
 
-        let process_icon = Self::get_running_application_icon(process_id)
-            .or_else(|| Self::get_process_executable_path(process_id).and_then(|executable_path| Self::get_icon_for_executable_path(&executable_path)));
+        executable_path.exists().then(|| executable_path.to_path_buf())
+    }
 
-        if let Ok(mut icon_cache) = PROCESS_ICON_CACHE.write() {
-            icon_cache.insert(process_icon_cache_key, process_icon.clone());
-        }
-
-        process_icon
+    fn get_icon(process_id: &Pid) -> Option<ProcessIcon> {
+        Self::get_running_application_icon(process_id).or_else(|| {
+            Self::get_process_executable_path(process_id).and_then(|executable_path| Self::get_icon_for_executable_path(&executable_path))
+        })
     }
 
     fn get_running_application_icon(process_id: &Pid) -> Option<ProcessIcon> {
-        let process_id_value = process_id.as_u32() as i32;
-        let autorelease_pool: *mut Object = unsafe { msg_send![class!(NSAutoreleasePool), new] };
-        if autorelease_pool.is_null() {
-            return None;
-        }
-
-        let process_icon = (|| {
-            let running_application: *mut Object = unsafe {
-                msg_send![
-                    class!(NSRunningApplication),
-                    runningApplicationWithProcessIdentifier: process_id_value
-                ]
-            };
-            if running_application.is_null() {
-                return None;
-            }
-
-            let icon_image: *mut Object = unsafe { msg_send![running_application, icon] };
-            Self::decode_ns_image_to_process_icon(icon_image)
-        })();
-
-        let _: () = unsafe { msg_send![autorelease_pool, drain] };
-        process_icon
+        Self::run_icon_lookup_on_main_thread(MainThreadIconLookupKind::RunningApplication {
+            process_id: process_id.as_u32() as i32,
+        })
     }
 
     fn decode_ns_image_to_process_icon(icon_image: *mut Object) -> Option<ProcessIcon> {
@@ -233,8 +234,79 @@ impl MacOsProcessQuery {
     }
 
     fn get_icon_for_executable_path(executable_path: &str) -> Option<ProcessIcon> {
-        let executable_path_bytes = executable_path.as_bytes();
+        let icon_lookup_path = Self::resolve_icon_lookup_path(executable_path)?;
+        Self::run_icon_lookup_on_main_thread(MainThreadIconLookupKind::FilePath {
+            path: icon_lookup_path.to_string_lossy().to_string(),
+        })
+    }
 
+    fn run_icon_lookup_on_main_thread(icon_lookup_kind: MainThreadIconLookupKind) -> Option<ProcessIcon> {
+        let mut icon_lookup_request = MainThreadIconLookupRequest {
+            kind: icon_lookup_kind,
+            result: None,
+        };
+        let is_main_thread: bool = unsafe { msg_send![class!(NSThread), isMainThread] };
+
+        if is_main_thread {
+            Self::execute_main_thread_icon_lookup(&mut icon_lookup_request);
+        } else {
+            unsafe {
+                dispatch_sync_f(
+                    &_dispatch_main_q,
+                    &mut icon_lookup_request as *mut MainThreadIconLookupRequest as *mut c_void,
+                    Self::dispatch_main_thread_icon_lookup,
+                );
+            }
+        }
+
+        icon_lookup_request.result
+    }
+
+    extern "C" fn dispatch_main_thread_icon_lookup(context: *mut c_void) {
+        if context.is_null() {
+            return;
+        }
+
+        let icon_lookup_request = unsafe { &mut *(context as *mut MainThreadIconLookupRequest) };
+        Self::execute_main_thread_icon_lookup(icon_lookup_request);
+    }
+
+    fn execute_main_thread_icon_lookup(icon_lookup_request: &mut MainThreadIconLookupRequest) {
+        icon_lookup_request.result = match &icon_lookup_request.kind {
+            MainThreadIconLookupKind::RunningApplication { process_id } => {
+                Self::get_running_application_icon_on_main_thread(*process_id)
+            }
+            MainThreadIconLookupKind::FilePath { path } => Self::get_icon_for_lookup_path_on_main_thread(path),
+        };
+    }
+
+    fn get_running_application_icon_on_main_thread(process_id: i32) -> Option<ProcessIcon> {
+        let autorelease_pool: *mut Object = unsafe { msg_send![class!(NSAutoreleasePool), new] };
+        if autorelease_pool.is_null() {
+            return None;
+        }
+
+        let process_icon = (|| {
+            let running_application: *mut Object = unsafe {
+                msg_send![
+                    class!(NSRunningApplication),
+                    runningApplicationWithProcessIdentifier: process_id
+                ]
+            };
+            if running_application.is_null() {
+                return None;
+            }
+
+            let icon_image: *mut Object = unsafe { msg_send![running_application, icon] };
+            Self::decode_ns_image_to_process_icon(icon_image)
+        })();
+
+        let _: () = unsafe { msg_send![autorelease_pool, drain] };
+        process_icon
+    }
+
+    fn get_icon_for_lookup_path_on_main_thread(icon_lookup_path: &str) -> Option<ProcessIcon> {
+        let icon_lookup_path_bytes = icon_lookup_path.as_bytes();
         let autorelease_pool: *mut Object = unsafe { msg_send![class!(NSAutoreleasePool), new] };
         if autorelease_pool.is_null() {
             return None;
@@ -249,8 +321,8 @@ impl MacOsProcessQuery {
             let ns_executable_path: *mut Object = unsafe {
                 msg_send![
                     class!(NSString),
-                    stringWithBytes: executable_path_bytes.as_ptr()
-                    length: executable_path_bytes.len()
+                    stringWithBytes: icon_lookup_path_bytes.as_ptr()
+                    length: icon_lookup_path_bytes.len()
                     encoding: NS_UTF8_STRING_ENCODING
                 ]
             };

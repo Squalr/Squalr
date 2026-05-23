@@ -5,12 +5,16 @@ use squalr_engine_api::{
     },
     structures::processes::opened_process_info::OpenedProcessInfo,
 };
+#[cfg(target_family = "unix")]
+use libc::{ESRCH, kill};
 use std::{
     sync::{Arc, RwLock},
     thread,
     time::Duration,
 };
-use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System};
+#[cfg(not(target_family = "unix"))]
+use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate};
+use sysinfo::System;
 
 const OPEN_PROCESS_DEATH_POLL_INTERVAL: Duration = Duration::from_millis(250);
 
@@ -115,6 +119,22 @@ impl ProcessManager {
         system: &mut System,
         process_id: u32,
     ) -> bool {
+        #[cfg(target_family = "unix")]
+        {
+            let _ = system;
+            let kill_result = unsafe { kill(process_id as i32, 0) };
+
+            if kill_result == 0 {
+                return true;
+            }
+
+            let error_kind = std::io::Error::last_os_error().raw_os_error();
+
+            return error_kind != Some(ESRCH);
+        }
+
+        #[cfg(not(target_family = "unix"))]
+        {
         let pid = Pid::from_u32(process_id);
         let monitored_processes = [pid];
         let refresh_kind = ProcessRefreshKind::nothing().without_tasks();
@@ -122,6 +142,7 @@ impl ProcessManager {
         system.refresh_processes_specifics(ProcessesToUpdate::Some(&monitored_processes), true, refresh_kind);
 
         system.process(pid).is_some()
+        }
     }
 }
 
