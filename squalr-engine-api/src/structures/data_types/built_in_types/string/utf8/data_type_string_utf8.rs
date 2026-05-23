@@ -160,7 +160,7 @@ impl DataType for DataTypeStringUtf8 {
         &self,
         data_type_ref: DataTypeRef,
     ) -> DataValue {
-        DataValue::new(data_type_ref.clone(), vec![])
+        DataValue::new(data_type_ref.clone(), vec![0])
     }
 }
 
@@ -191,6 +191,14 @@ mod tests {
             .unwrap_or_else(|error| panic!("Expected null-terminated UTF-8 anonymization to succeed: {}", error));
 
         assert_eq!(anonymous_value_string.get_anonymous_value_string(), "Finder");
+    }
+
+    #[test]
+    fn default_value_has_single_zero_byte() {
+        let data_type = DataTypeStringUtf8 {};
+        let data_value = data_type.get_default_value(crate::structures::data_types::data_type_ref::DataTypeRef::new(DataTypeStringUtf8::DATA_TYPE_ID));
+
+        assert_eq!(data_value.get_value_bytes(), &[0]);
     }
 
     #[test]
