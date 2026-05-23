@@ -21,8 +21,8 @@ use squalr_engine_api::{
     },
 };
 use squalr_engine_session::plugins::plugin_registry::PluginRegistry;
-use std::sync::Arc;
 use std::sync::mpsc;
+use std::sync::Arc;
 use std::time::Duration;
 
 impl UnprivilegedCommandRequestExecutor for ProjectSymbolsExecutePluginActionRequest {
@@ -182,7 +182,7 @@ impl SymbolTreeWindowStore for EngineSymbolTreeWindowStore {
 mod tests {
     use super::ProjectSymbolsExecutePluginActionRequest;
     use crate::command_executors::project_symbols::test_support::{
-        MockProjectSymbolsBindings, create_engine_unprivileged_state, create_project_with_symbol_catalog,
+        create_engine_unprivileged_state, create_project_with_symbol_catalog, MockProjectSymbolsBindings,
     };
     use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
     use squalr_engine_api::{
@@ -286,9 +286,20 @@ mod tests {
         let macho_headers_descriptor = project_symbol_catalog
             .get_struct_layout_descriptors()
             .iter()
-            .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == "mac.macho.MACHO_HEADERS64")
+            .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == "mac.macho.finder.headers")
             .expect("Expected Mach-O headers layout descriptor.");
+        let load_commands_descriptor = project_symbol_catalog
+            .get_struct_layout_descriptors()
+            .iter()
+            .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == "mac.macho.finder.load_commands")
+            .expect("Expected Mach-O load commands layout descriptor.");
         let macho_header_field_names = macho_headers_descriptor
+            .get_struct_layout_definition()
+            .get_fields()
+            .iter()
+            .map(|field_definition| field_definition.get_field_name())
+            .collect::<Vec<_>>();
+        let load_command_field_names = load_commands_descriptor
             .get_struct_layout_definition()
             .get_fields()
             .iter()
@@ -297,8 +308,9 @@ mod tests {
 
         assert_eq!(symbol_module.get_fields().len(), 1);
         assert_eq!(symbol_module.get_fields()[0].get_display_name(), "Mach-O Headers");
-        assert_eq!(symbol_module.get_fields()[0].get_struct_layout_id(), "mac.macho.MACHO_HEADERS64");
+        assert_eq!(symbol_module.get_fields()[0].get_struct_layout_id(), "mac.macho.finder.headers");
         assert_eq!(macho_header_field_names, vec!["Header", "LoadCommands"]);
+        assert_eq!(load_command_field_names, vec!["SegmentCommand00", "SymtabCommand01"]);
     }
 
     fn create_test_pe_memory_read_response(memory_read_request: &MemoryReadRequest) -> MemoryReadResponse {
@@ -351,7 +363,22 @@ mod tests {
         let mut header_bytes = vec![0_u8; 0x1000];
         header_bytes[0..4].copy_from_slice(&[0xCF, 0xFA, 0xED, 0xFE]);
         header_bytes[16..20].copy_from_slice(&2_u32.to_le_bytes());
-        header_bytes[20..24].copy_from_slice(&0x48_u32.to_le_bytes());
+        header_bytes[20..24].copy_from_slice(&0x60_u32.to_le_bytes());
+
+        let first_command_offset = 32_usize;
+        header_bytes[first_command_offset..first_command_offset + 4].copy_from_slice(&0x19_u32.to_le_bytes());
+        header_bytes[first_command_offset + 4..first_command_offset + 8].copy_from_slice(&0x48_u32.to_le_bytes());
+        header_bytes[first_command_offset + 64..first_command_offset + 68].copy_from_slice(&0x1_u32.to_le_bytes());
+        header_bytes[first_command_offset + 72..first_command_offset + 88].copy_from_slice(b"__text\0\0\0\0\0\0\0\0\0\0");
+        header_bytes[first_command_offset + 88..first_command_offset + 104].copy_from_slice(b"__TEXT\0\0\0\0\0\0\0\0\0\0");
+
+        let second_command_offset = first_command_offset + 0x48;
+        header_bytes[second_command_offset..second_command_offset + 4].copy_from_slice(&0x2_u32.to_le_bytes());
+        header_bytes[second_command_offset + 4..second_command_offset + 8].copy_from_slice(&0x18_u32.to_le_bytes());
+        header_bytes[second_command_offset + 8..second_command_offset + 12].copy_from_slice(&0x1000_u32.to_le_bytes());
+        header_bytes[second_command_offset + 12..second_command_offset + 16].copy_from_slice(&0x10_u32.to_le_bytes());
+        header_bytes[second_command_offset + 16..second_command_offset + 20].copy_from_slice(&0x2000_u32.to_le_bytes());
+        header_bytes[second_command_offset + 20..second_command_offset + 24].copy_from_slice(&0x80_u32.to_le_bytes());
 
         header_bytes
     }

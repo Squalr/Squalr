@@ -15,6 +15,6 @@ Our current task, from `README.md`, is:
 - Keep CI target preflight aligned with the active Rust toolchain so Android compile-checks do not fail spuriously.
 ## Important Information
 
-- `builtin.symbols.binary.populate-binary-symbols` now detects Mach-O and populates a `Mach-O Headers` root with parsed fixed header layouts plus raw load-command bytes.
+- `builtin.symbols.binary.populate-binary-symbols` stays format-generic and now populates Mach-O modules with typed header content, including concrete load-command layouts and typed segment section arrays instead of a raw `LoadCommands:u8[]` blob.
 - Generic plugin execution coverage now includes both PE and Mach-O header population paths.
 - `squalr-cli` now handles `ProcessResponse::Icon` instead of failing to compile when icon responses are enabled.
