@@ -5150,7 +5150,6 @@ dependencies = [
  "squalr-engine",
  "squalr-engine-api",
  "squalr-engine-session",
- "squalr-plugin-binary-symbols",
  "squalr-plugin-instructions-x86",
  "wasm-bindgen",
  "winresource",

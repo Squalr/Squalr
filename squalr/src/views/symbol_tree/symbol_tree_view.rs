@@ -23,7 +23,7 @@ use squalr_engine_api::structures::projects::{
     symbol_tree::operations::delete_symbol::build_module_child_range_target,
     symbol_tree::symbol_tree_node::{SymbolTreeNode, SymbolTreeNodeKind},
 };
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct SymbolTreeView {
@@ -294,17 +294,9 @@ impl Widget for SymbolTreeView {
             .read("Symbol tree expanded tree nodes")
             .map(|symbol_tree_view_data| symbol_tree_view_data.get_expanded_tree_node_keys().clone())
             .unwrap_or_default();
-        let symbol_tree_runtime_data_controller = SymbolTreeRuntimeDataController::new(self.app_context.clone());
-        let runtime_data = symbol_tree_runtime_data_controller.build_runtime_data(&project_symbol_catalog, &expanded_tree_node_keys);
+        let runtime_data = SymbolTreeRuntimeDataController::new(self.app_context.clone()).build_runtime_data(&project_symbol_catalog, &expanded_tree_node_keys);
         let symbol_tree_entries = runtime_data.symbol_tree_entries;
         let preview_values_by_node_key = runtime_data.preview_values_by_node_key;
-
-        if symbol_tree_runtime_data_controller.has_in_flight_virtual_snapshot_refresh() {
-            user_interface
-                .ctx()
-                .request_repaint_after(Duration::from_millis(50));
-        }
-
         SymbolTreeViewData::synchronize_selection_to_tree_entries(self.symbol_tree_view_data.clone(), &symbol_tree_entries);
         let (selected_entry, take_over_state, inline_rename_tree_node_key, context_menu_target, current_module_root_create_draft, current_define_field_draft) =
             self.symbol_tree_view_data

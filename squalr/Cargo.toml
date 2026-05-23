@@ -48,6 +48,3 @@ android-activity = "0.6.0"
 
 [build-dependencies]
 winresource = "0.1.30"
-
-[dev-dependencies]
-squalr-plugin-binary-symbols = { path = "../plugins/squalr-plugin-binary-symbols" }
