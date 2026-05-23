@@ -9,11 +9,7 @@ pub fn handle_process_icon_response(process_response: ProcessResponse) {
                 .map(|process_icon| format!("{}x{}", process_icon.get_width(), process_icon.get_height()))
                 .unwrap_or_else(|| String::from("none"));
 
-            log::info!(
-                "process_id: {}, icon_dimensions: {}",
-                process_icon_entry.process_id,
-                icon_summary
-            );
+            log::info!("process_id: {}, icon_dimensions: {}", process_icon_entry.process_id, icon_summary);
         }
     }
 }

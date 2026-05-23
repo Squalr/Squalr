@@ -21,8 +21,8 @@ use squalr_engine_api::{
     },
 };
 use squalr_engine_session::plugins::plugin_registry::PluginRegistry;
-use std::sync::mpsc;
 use std::sync::Arc;
+use std::sync::mpsc;
 use std::time::Duration;
 
 impl UnprivilegedCommandRequestExecutor for ProjectSymbolsExecutePluginActionRequest {
@@ -182,7 +182,7 @@ impl SymbolTreeWindowStore for EngineSymbolTreeWindowStore {
 mod tests {
     use super::ProjectSymbolsExecutePluginActionRequest;
     use crate::command_executors::project_symbols::test_support::{
-        create_engine_unprivileged_state, create_project_with_symbol_catalog, MockProjectSymbolsBindings,
+        MockProjectSymbolsBindings, create_engine_unprivileged_state, create_project_with_symbol_catalog,
     };
     use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
     use squalr_engine_api::{
