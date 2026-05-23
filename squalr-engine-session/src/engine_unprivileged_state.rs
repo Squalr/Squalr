@@ -896,7 +896,24 @@ impl EngineUnprivilegedState {
 
         let engine_event = engine_event_envelope.into_engine_event();
 
+        if matches!(engine_event, EngineEvent::Process(ProcessEvent::ProcessChanged { .. })) {
+            engine_unprivileged_state.invalidate_virtual_snapshots();
+        }
+
         Self::dispatch_engine_event_by_variant(&engine_unprivileged_state.event_listeners, engine_event);
+    }
+
+    fn invalidate_virtual_snapshots(&self) {
+        match self.virtual_snapshots.write() {
+            Ok(mut virtual_snapshots) => {
+                for virtual_snapshot in virtual_snapshots.values_mut() {
+                    virtual_snapshot.invalidate();
+                }
+            }
+            Err(error) => {
+                log::error!("Failed to acquire virtual snapshots write lock while invalidating snapshots: {}", error);
+            }
+        }
     }
 
     fn install_project_event_emitter(self: &Arc<Self>) {
