@@ -8,10 +8,8 @@ use squalr_engine_api::{
         privileged_command_request::PrivilegedCommandRequest,
         privileged_command_response::PrivilegedCommandResponse,
         process::{
-            icon::process_icon_request::ProcessIconRequest,
-            icon::process_icon_response::ProcessIconEntry,
-            list::process_list_request::ProcessListRequest, open::process_open_request::ProcessOpenRequest, process_command::ProcessCommand,
-            process_response::ProcessResponse,
+            icon::process_icon_request::ProcessIconRequest, icon::process_icon_response::ProcessIconEntry, list::process_list_request::ProcessListRequest,
+            open::process_open_request::ProcessOpenRequest, process_command::ProcessCommand, process_response::ProcessResponse,
         },
     },
     dependency_injection::{dependency::Dependency, write_guard::WriteGuard},
@@ -103,26 +101,12 @@ impl ProcessSelectorViewData {
         match process_response {
             ProcessResponse::List { process_list_response } => {
                 let require_windowed = Self::observed_process_list_requires_windowed(command_invocation_outcome);
-                let process_ids_for_icon_request = process_list_response
-                    .processes
-                    .iter()
-                    .map(|process_info| process_info.get_process_id_raw())
-                    .collect::<Vec<_>>();
                 let Some(mut process_selector_view_data_guard) = process_selector_view_data.write("Observed process list response") else {
                     return;
                 };
-                Self::apply_process_list_response(
-                    &mut process_selector_view_data_guard,
-                    require_windowed,
-                    process_list_response.processes.clone(),
-                );
+                Self::apply_process_list_response(&mut process_selector_view_data_guard, require_windowed, process_list_response.processes.clone());
 
                 drop(process_selector_view_data_guard);
-                Self::request_process_icons_if_needed(
-                    process_selector_view_data,
-                    app_context.clone(),
-                    process_ids_for_icon_request,
-                );
                 Self::request_repaint(&app_context);
             }
             ProcessResponse::Open { process_open_response } => {
@@ -175,7 +159,6 @@ impl ProcessSelectorViewData {
                 process_selector_view_data.windowed_process_list_refresh_nonce = process_selector_view_data
                     .windowed_process_list_refresh_nonce
                     .saturating_add(1);
-                log::info!("Dispatching windowed process-list refresh request.");
             }
             None => return,
         };
@@ -191,15 +174,11 @@ impl ProcessSelectorViewData {
                     .iter()
                     .map(|process_info| process_info.get_process_id_raw())
                     .collect::<Vec<_>>();
-                let mut process_selector_view_data = match process_selector_view_data.write("Process selector view data refresh windowed process list response") {
+                let mut process_selector_view_data = match process_selector_view_data.write("Process selector view data refresh windowed process list response")
+                {
                     Some(process_selector_view_data) => process_selector_view_data,
                     None => return,
                 };
-
-                log::info!(
-                    "Received windowed process-list response with {} entries.",
-                    process_list_response.processes.len()
-                );
 
                 Self::apply_process_list_response(&mut process_selector_view_data, true, process_list_response.processes);
                 drop(process_selector_view_data);
@@ -279,7 +258,6 @@ impl ProcessSelectorViewData {
 
                 process_selector_view_data.is_awaiting_full_process_list = true;
                 process_selector_view_data.full_process_list_request_started_at = Some(Instant::now());
-                log::info!("Dispatching full process-list refresh request.");
             }
             None => return,
         };
@@ -288,26 +266,14 @@ impl ProcessSelectorViewData {
         let list_windowed_processes_request_for_dispatch = list_windowed_processes_request.clone();
         let app_context_for_response = app_context.clone();
         thread::spawn(move || {
-            let process_selector_view_data_for_callback = process_selector_view_data_for_response.clone();
             let did_dispatch = list_windowed_processes_request_for_dispatch.send(&engine_unprivileged_state, move |process_list_response| {
-                let process_ids_for_icon_request = process_list_response
-                    .processes
-                    .iter()
-                    .map(|process_info| process_info.get_process_id_raw())
-                    .collect::<Vec<_>>();
                 let mut process_selector_view_data = match process_selector_view_data.write("Process selector view data refresh full process list response") {
                     Some(process_selector_view_data) => process_selector_view_data,
                     None => return,
                 };
-                log::info!("Received full process-list response with {} entries.", process_list_response.processes.len());
 
                 Self::apply_process_list_response(&mut process_selector_view_data, false, process_list_response.processes);
                 drop(process_selector_view_data);
-                Self::request_process_icons_if_needed(
-                    process_selector_view_data_for_callback.clone(),
-                    app_context_for_response.clone(),
-                    process_ids_for_icon_request,
-                );
                 Self::request_repaint(&app_context_for_response);
             });
 
@@ -353,11 +319,7 @@ impl ProcessSelectorViewData {
             let process_selector_view_data_for_response = process_selector_view_data.clone();
             let app_context_for_response = app_context.clone();
             let did_dispatch = process_open_request.send(&engine_unprivileged_state, move |process_open_response| {
-                Self::set_opened_process_info(
-                    process_selector_view_data,
-                    &app_context_for_response,
-                    process_open_response.opened_process_info,
-                )
+                Self::set_opened_process_info(process_selector_view_data, &app_context_for_response, process_open_response.opened_process_info)
             });
 
             if !did_dispatch {
@@ -391,7 +353,12 @@ impl ProcessSelectorViewData {
         process_selector_view_data.cached_icon = process_selector_view_data
             .opened_process
             .as_ref()
-            .and_then(|opened_process| process_selector_view_data.icon_cache.get(&opened_process.get_process_id_raw()).cloned());
+            .and_then(|opened_process| {
+                process_selector_view_data
+                    .icon_cache
+                    .get(&opened_process.get_process_id_raw())
+                    .cloned()
+            });
 
         drop(process_selector_view_data);
 
@@ -458,20 +425,24 @@ impl ProcessSelectorViewData {
                         let can_retry_missing_icon = process_selector_view_data
                             .missing_icon_process_ids
                             .get(process_id)
-                            .map(|last_failed_icon_request_at| {
-                                last_failed_icon_request_at.elapsed() >= Self::PROCESS_ICON_RETRY_COOLDOWN
-                            })
+                            .map(|last_failed_icon_request_at| last_failed_icon_request_at.elapsed() >= Self::PROCESS_ICON_RETRY_COOLDOWN)
                             .unwrap_or(true);
 
                         !process_selector_view_data.icon_cache.contains_key(process_id)
-                            && !process_selector_view_data.loading_icon_process_ids.contains(process_id)
+                            && !process_selector_view_data
+                                .loading_icon_process_ids
+                                .contains(process_id)
                             && can_retry_missing_icon
                     })
                     .collect::<Vec<_>>();
 
                 for process_id in &process_ids_to_request {
-                    process_selector_view_data.loading_icon_process_ids.insert(*process_id);
-                    process_selector_view_data.missing_icon_process_ids.remove(process_id);
+                    process_selector_view_data
+                        .loading_icon_process_ids
+                        .insert(*process_id);
+                    process_selector_view_data
+                        .missing_icon_process_ids
+                        .remove(process_id);
                 }
 
                 process_ids_to_request
@@ -506,7 +477,9 @@ impl ProcessSelectorViewData {
                         process_selector_view_data_for_response.write("Process selector view data request process icons dispatch failure")
                     {
                         for process_id in &process_id_chunk {
-                            process_selector_view_data.loading_icon_process_ids.remove(process_id);
+                            process_selector_view_data
+                                .loading_icon_process_ids
+                                .remove(process_id);
                         }
                     }
 
@@ -528,11 +501,15 @@ impl ProcessSelectorViewData {
 
         for process_icon_entry in process_icons {
             let process_id = process_icon_entry.process_id;
-            process_selector_view_data.loading_icon_process_ids.remove(&process_id);
+            process_selector_view_data
+                .loading_icon_process_ids
+                .remove(&process_id);
 
             if let Some(process_icon) = process_icon_entry.process_icon {
                 let texture_handle = Self::create_and_cache_icon(&mut process_selector_view_data, app_context, process_id, &process_icon);
-                process_selector_view_data.missing_icon_process_ids.remove(&process_id);
+                process_selector_view_data
+                    .missing_icon_process_ids
+                    .remove(&process_id);
 
                 if process_selector_view_data
                     .opened_process
@@ -565,16 +542,12 @@ impl ProcessSelectorViewData {
         new_list: Vec<ProcessInfo>,
     ) {
         let next_windowed_process_list = Self::sort_processes_case_insensitive_then_process_id(new_list);
+        Self::clear_missing_icon_retry_state_for_processes(process_selector_view_data, &next_windowed_process_list);
 
         let removed = Self::diff_pids(&process_selector_view_data.windowed_process_list, &next_windowed_process_list);
 
         process_selector_view_data.windowed_process_list = next_windowed_process_list;
         process_selector_view_data.refresh_shortcut_dropdown_process_list();
-        log::info!(
-            "Stored windowed process-list with {} entries and shortcut dropdown with {} entries.",
-            process_selector_view_data.windowed_process_list.len(),
-            process_selector_view_data.shortcut_dropdown_process_list.len()
-        );
 
         // Remove icons for processes no longer present.
         Self::remove_from_cache(process_selector_view_data, &removed);
@@ -591,6 +564,7 @@ impl ProcessSelectorViewData {
         process_selector_view_data: &mut WriteGuard<'_, ProcessSelectorViewData>,
         new_list: Vec<ProcessInfo>,
     ) {
+        Self::clear_missing_icon_retry_state_for_processes(process_selector_view_data, &new_list);
         let removed_full = Self::diff_pids(&process_selector_view_data.full_process_list, &new_list);
         let next_windowed_process_list = Self::collect_windowed_processes_from_full_list(&new_list);
         let removed_windowed = Self::diff_pids(&process_selector_view_data.windowed_process_list, &next_windowed_process_list);
@@ -695,6 +669,17 @@ impl ProcessSelectorViewData {
         process_selector_view_data
             .missing_icon_process_ids
             .retain(|process_id, _| !removed.contains(process_id));
+    }
+
+    fn clear_missing_icon_retry_state_for_processes(
+        process_selector_view_data: &mut WriteGuard<'_, ProcessSelectorViewData>,
+        processes: &[ProcessInfo],
+    ) {
+        for process_info in processes {
+            process_selector_view_data
+                .missing_icon_process_ids
+                .remove(&process_info.get_process_id_raw());
+        }
     }
 
     fn refresh_shortcut_dropdown_process_list(&mut self) {

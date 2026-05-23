@@ -328,12 +328,7 @@ impl MemoryQueryerTrait for MacOsMemoryQueryer {
         process_info: &OpenedProcessInfo,
         address: u64,
     ) -> bool {
-        let regions_at_address = Self::query_regions(
-            process_info,
-            address,
-            address.saturating_add(1),
-            FilePathQueryStrategy::None,
-        );
+        let regions_at_address = Self::query_regions(process_info, address, address.saturating_add(1), FilePathQueryStrategy::None);
 
         regions_at_address.iter().any(|region_info| {
             let region_end_address = region_info.base_address.saturating_add(region_info.region_size);
@@ -371,12 +366,7 @@ impl MemoryQueryerTrait for MacOsMemoryQueryer {
         process_info: &OpenedProcessInfo,
     ) -> Vec<NormalizedModule> {
         let mut module_ranges: HashMap<String, (u64, u64)> = HashMap::new();
-        let queried_regions = Self::query_regions(
-            process_info,
-            0,
-            self.get_maximum_address(process_info),
-            FilePathQueryStrategy::ExecutableOnly,
-        );
+        let queried_regions = Self::query_regions(process_info, 0, self.get_maximum_address(process_info), FilePathQueryStrategy::ExecutableOnly);
 
         for region_info in queried_regions {
             if (region_info.protection_flags & VM_PROT_EXECUTE as u32) == 0 {

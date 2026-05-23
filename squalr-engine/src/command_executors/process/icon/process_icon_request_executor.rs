@@ -14,11 +14,7 @@ impl PrivilegedCommandRequestExecutor for ProcessIconRequest {
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
-        let unique_process_ids = self
-            .process_ids
-            .iter()
-            .copied()
-            .collect::<HashSet<_>>();
+        let unique_process_ids = self.process_ids.iter().copied().collect::<HashSet<_>>();
         let process_query = &engine_privileged_state.get_os_providers().process_query;
         let process_icons = unique_process_ids
             .into_iter()
@@ -38,10 +34,7 @@ impl PrivilegedCommandRequestExecutor for ProcessIconRequest {
                     .next()
                     .and_then(|process_info| process_info.get_icon().clone());
 
-                ProcessIconEntry {
-                    process_id,
-                    process_icon,
-                }
+                ProcessIconEntry { process_id, process_icon }
             })
             .collect();
 

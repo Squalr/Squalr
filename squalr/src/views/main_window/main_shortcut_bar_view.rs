@@ -186,11 +186,7 @@ impl Widget for MainShortcutBarView {
             drop(process_selector_view_data);
         }
 
-        ProcessSelectorViewData::request_process_icons_if_needed(
-            self.process_selector_view_data.clone(),
-            self.app_context.clone(),
-            missing_icon_process_ids,
-        );
+        ProcessSelectorViewData::request_process_icons_if_needed(self.process_selector_view_data.clone(), self.app_context.clone(), missing_icon_process_ids);
 
         response
     }
