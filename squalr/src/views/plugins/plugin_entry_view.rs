@@ -90,8 +90,15 @@ impl<'lifetime> PluginEntryView<'lifetime> {
         let mut should_decrease_priority = false;
         let status_text = Self::build_status_text(self.plugin_state);
         let status_color = Self::resolve_status_color(theme, self.plugin_state);
+        let priority_button_area_width = Self::PRIORITY_BUTTON_WIDTH * 2.0;
+        let priority_button_area_right = row_rect.max.x - Self::PRIORITY_BUTTON_RIGHT_PADDING;
+        let priority_button_area_left = (priority_button_area_right - priority_button_area_width).max(row_rect.min.x);
+        let content_right = (priority_button_area_left - Self::PRIORITY_BUTTON_LEFT_GAP).max(row_rect.min.x);
+        let content_rect = Rect::from_min_max(row_rect.min, pos2(content_right, row_rect.max.y));
+        let content_clip_rect = row_clip_rect.intersect(content_rect);
 
-        row_user_interface.scope_builder(UiBuilder::new().max_rect(row_rect), |user_interface| {
+        row_user_interface.scope_builder(UiBuilder::new().max_rect(content_rect), |user_interface| {
+            user_interface.set_clip_rect(content_clip_rect);
             user_interface.horizontal(|user_interface| {
                 user_interface.add_space(8.0);
 
@@ -143,9 +150,6 @@ impl<'lifetime> PluginEntryView<'lifetime> {
             });
         });
 
-        let priority_button_area_width = Self::PRIORITY_BUTTON_WIDTH * 2.0;
-        let priority_button_area_right = row_rect.max.x - Self::PRIORITY_BUTTON_RIGHT_PADDING;
-        let priority_button_area_left = (priority_button_area_right - priority_button_area_width).max(row_rect.min.x);
         let mut priority_button_min_x = priority_button_area_left;
         let mut render_priority_button = |icon_handle: &epaint::TextureHandle, tooltip_text: &str, is_disabled: bool| {
             let button_rect = Rect::from_min_size(
@@ -234,6 +238,7 @@ impl<'lifetime> PluginEntryView<'lifetime> {
 
 impl PluginEntryView<'_> {
     const PRIORITY_BUTTON_HEIGHT: f32 = 28.0;
+    const PRIORITY_BUTTON_LEFT_GAP: f32 = 8.0;
     const PRIORITY_BUTTON_RIGHT_PADDING: f32 = 8.0;
     const PRIORITY_BUTTON_WIDTH: f32 = 32.0;
     const ROW_HEIGHT: f32 = 88.0;
