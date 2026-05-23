@@ -14,4 +14,4 @@ Our current task, from `README.md`, is:
 
 ## Important Information
 
-- Added a repo-level `rust-toolchain.toml` pinned to `nightly` so local builds stop depending on per-directory rustup overrides. Needs human verification against the exact Windows nightly date/hash before tightening to `nightly-YYYY-MM-DD`.
+- 
