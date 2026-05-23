@@ -41,10 +41,13 @@ Our current task, from `README.md`, is:
   - `cargo test -p squalr-engine-projects project_info_round_trip_preserves_plugin_configuration --locked`.
   - `cargo test -p squalr-tests --test scan_command_tests --locked`.
   - `cargo test -p squalr-tests --test scan_results_command_tests --locked`.
+  - `cargo check -p squalr --locked` after adding element scan phase logs.
+  - `cargo test -p squalr-tests --test scan_command_tests --locked` after adding element scan phase logs.
 - Current audit notes:
   - Already covered by engine events: process open/close process-change handling, plugin enablement change events, project catalog/item/close refresh events, and scan-result update events.
   - Response-only before this pass: `process list`, `plugins list`, settings `list`/`set`, pointer-scan commands, and several scan-results mutations.
   - Still intentionally output/side-effect oriented unless a concrete GUI owner exists: raw `memory read/query/write/freeze`, `registry get/set-project-symbols`, `struct_scan`, and `trackable_tasks`.
 - Needs human verification in GUI: run text commands from the Output prompt for `process list`, `plugins list`, `settings scan set ...`, `pointer_scan summary/start/expand`, `scan new`, `scan element-scan ...`, and `scan_results query/freeze/set-property/delete ...` against an opened process and confirm panes reconcile as expected.
+- Needs human verification in GUI: run an element scan from the scanner view or Output prompt and confirm Output shows both value collection and element scan phase logs, including final scanned bytes and result count.
 - Needs human verification in GUI: use the inline plugin row up/down buttons and right-click `Increase priority` / `Decrease priority`, reopen/save projects, and confirm priority order affects plugin selection/action order as expected.
 - Needs human verification in GUI: hover inline plugin priority buttons and confirm their tooltips use the Squalr tooltip style, clear when moving between buttons, row height does not overlap, plugin text does not bleed into the priority buttons, and the compact/centered row-local buttons have scrollbar clearance.
