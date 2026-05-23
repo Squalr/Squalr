@@ -139,16 +139,6 @@ impl VirtualSnapshot {
         self.is_refresh_in_progress = false;
         self.refresh_in_progress_query_version = None;
     }
-
-    pub fn invalidate(&mut self) {
-        self.query_version = self.query_version.saturating_add(1);
-        self.query_results.clear();
-        self.last_applied_query_version = None;
-        self.last_refresh_started_at = None;
-        self.last_refresh_completed_at = None;
-        self.is_refresh_in_progress = false;
-        self.refresh_in_progress_query_version = None;
-    }
 }
 
 #[cfg(test)]
@@ -189,23 +179,5 @@ mod tests {
         virtual_snapshot.set_queries(queries);
 
         assert!(!virtual_snapshot.should_refresh(now + Duration::from_millis(100)));
-    }
-
-    #[test]
-    fn invalidate_marks_snapshot_dirty_and_clears_results() {
-        let mut virtual_snapshot = VirtualSnapshot::new(Duration::from_millis(500));
-        let now = Instant::now();
-
-        virtual_snapshot.set_queries(vec![create_pointer_query("ammo")]);
-        let refresh_query_version = virtual_snapshot.mark_refresh_started(now);
-        virtual_snapshot.apply_refresh_results(refresh_query_version, HashMap::new(), now);
-
-        assert!(!virtual_snapshot.should_refresh(now + Duration::from_millis(100)));
-
-        virtual_snapshot.invalidate();
-
-        assert!(virtual_snapshot.get_query_results().is_empty());
-        assert!(virtual_snapshot.should_refresh(now + Duration::from_millis(100)));
-        assert!(!virtual_snapshot.get_is_refresh_in_progress());
     }
 }

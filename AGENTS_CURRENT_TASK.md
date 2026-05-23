@@ -13,7 +13,7 @@ Our current task, from `README.md`, is:
 - Investigate macOS usermode memory filtering without relying on brittle heuristics.
 - Keep binary symbol population generic by detecting the module header format instead of assuming host OS.
 - Keep CI target preflight aligned with the active Rust toolchain so Android compile-checks do not fail spuriously.
-- Keep symbol-tree previews invalidating and repainting correctly across process changes, including self-attach Mach-O trees.
+- Keep symbol-tree previews repainting while self-attach Mach-O virtual snapshot refreshes are still in flight.
 ## Important Information
 
 - `builtin.symbols.binary.populate-binary-symbols` stays format-generic and now populates Mach-O modules with typed header content, including concrete load-command layouts and typed segment section arrays instead of a raw `LoadCommands:u8[]` blob.
@@ -24,4 +24,4 @@ Our current task, from `README.md`, is:
 - Preview formatting now treats string-format values separately from numeric arrays, so fixed string buffers such as Mach-O segment names and paths render as plain text with a wider truncation budget instead of bracketed array previews.
 - Generic plugin execution coverage now includes both PE and Mach-O header population paths.
 - `squalr-cli` now handles `ProcessResponse::Icon` instead of failing to compile when icon responses are enabled.
-- Self-attach preview reads for populated Mach-O leaf fields do succeed. The remaining preview failure mode was that process changes did not invalidate existing virtual snapshots, so a symbol tree built before attach could keep stale failed preview generations alive until the next forced refresh cycle.
+- Self-attach preview reads for populated Mach-O leaf fields do succeed, but the GUI must keep requesting repaint while symbol-tree virtual snapshots are refreshing or the first async preview pass can finish with no follow-up frame to display it.
