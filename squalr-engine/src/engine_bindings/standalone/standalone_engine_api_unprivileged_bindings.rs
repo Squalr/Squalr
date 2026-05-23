@@ -101,13 +101,26 @@ mod tests {
         },
         engine::engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings,
         registries::symbols::data_type_descriptor::DataTypeDescriptor,
-        structures::processes::{opened_process_info::OpenedProcessInfo, process_info::ProcessInfo},
+        structures::{
+            data_values::scalar_integer_value::ScalarIntegerValue,
+            memory::{endian::Endian, normalized_module::NormalizedModule},
+            processes::{opened_process_info::OpenedProcessInfo, process_info::ProcessInfo},
+            structs::symbolic_struct_definition::SymbolicStructDefinition,
+        },
     };
-    use squalr_engine_session::os::{
-        ProcessQueryError, ProcessQueryOptions,
-        engine_os_provider::{EngineOsProviders, ProcessQueryProvider},
+    use squalr_engine_session::{
+        engine_unprivileged_state::{EngineUnprivilegedState, EngineUnprivilegedStateOptions},
+        os::{
+            ProcessQueryError, ProcessQueryOptions,
+            engine_os_provider::{EngineOsProviders, ProcessQueryProvider},
+        },
+        virtual_snapshots::{virtual_snapshot_query::VirtualSnapshotQuery, virtual_snapshot_resolver::materialize_virtual_snapshot_queries},
     };
-    use std::sync::Arc;
+    use std::{
+        path::Path,
+        str::FromStr,
+        sync::{Arc, RwLock},
+    };
 
     struct NoOpProcessQueryProvider;
 
@@ -206,6 +219,97 @@ mod tests {
                 .recv()
                 .expect("Callback should report registry state."),
             true
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    fn create_self_attached_engine_unprivileged_state() -> Result<(Arc<EngineUnprivilegedState>, NormalizedModule), ProcessQueryError> {
+        let engine_privileged_state = crate::engine_privileged_state::create_engine_privileged_state(EngineMode::Standalone)
+            .map_err(|error| ProcessQueryError::internal("create_engine_privileged_state", error.to_string()))?;
+        let current_process_name = std::env::current_exe()
+            .ok()
+            .and_then(|current_executable_path| {
+                current_executable_path
+                    .file_name()
+                    .map(|file_name| file_name.to_string_lossy().to_string())
+            })
+            .unwrap_or_else(|| String::from("cargo"));
+        let current_process_info = ProcessInfo::new(std::process::id(), current_process_name.clone(), true, None);
+        let opened_process_info = engine_privileged_state
+            .get_os_providers()
+            .process_query
+            .open_process(&current_process_info)?;
+
+        engine_privileged_state
+            .get_process_manager()
+            .set_opened_process(opened_process_info.clone());
+
+        let module_file_name = Path::new(&current_process_name)
+            .file_name()
+            .map(|file_name| file_name.to_string_lossy().to_string())
+            .unwrap_or(current_process_name);
+        let modules = engine_privileged_state
+            .get_os_providers()
+            .memory_query
+            .get_modules(&opened_process_info);
+        let current_module = modules
+            .into_iter()
+            .find(|module| module.get_module_name() == module_file_name)
+            .ok_or_else(|| {
+                ProcessQueryError::internal(
+                    "find_current_module",
+                    format!("Failed to locate current executable module '{}'.", module_file_name),
+                )
+            })?;
+        let engine_bindings: Arc<RwLock<dyn EngineApiUnprivilegedBindings>> =
+            Arc::new(RwLock::new(StandaloneEngineApiUnprivilegedBindings::new(&engine_privileged_state)));
+        let engine_unprivileged_state =
+            EngineUnprivilegedState::new_with_options(engine_bindings, EngineUnprivilegedStateOptions { enable_console_logging: false });
+
+        Ok((engine_unprivileged_state, current_module))
+    }
+
+    #[cfg(target_os = "macos")]
+    fn read_first_field_as_u32(
+        query_results: &std::collections::HashMap<String, squalr_engine_session::virtual_snapshots::virtual_snapshot_query_result::VirtualSnapshotQueryResult>,
+        query_id: &str,
+    ) -> Option<u32> {
+        let query_result = query_results.get(query_id)?;
+        let memory_read_response = query_result.memory_read_response.as_ref()?;
+
+        if !memory_read_response.success {
+            return None;
+        }
+
+        let data_value = memory_read_response
+            .valued_struct
+            .get_fields()
+            .first()
+            .and_then(|valued_struct_field| valued_struct_field.get_data_value())?;
+        let scalar_value = ScalarIntegerValue::read_unsigned(data_value.get_value_bytes(), Endian::Little).ok()?;
+
+        u32::try_from(scalar_value).ok()
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn materialize_virtual_snapshot_queries_reads_self_module_relative_macho_header() {
+        let (engine_unprivileged_state, current_module) =
+            create_self_attached_engine_unprivileged_state().expect("Expected self-attach setup to succeed for virtual snapshot resolver test.");
+        let engine_execution_context: Arc<dyn squalr_engine_api::engine::engine_execution_context::EngineExecutionContext> = engine_unprivileged_state;
+        let module_relative_queries = vec![VirtualSnapshotQuery::Address {
+            query_id: String::from("macho_magic"),
+            address: 0,
+            module_name: current_module.get_module_name().to_string(),
+            symbolic_struct_definition: SymbolicStructDefinition::from_str("magic:u32").expect("Expected simple u32 symbolic struct definition to parse."),
+        }];
+        let query_results = materialize_virtual_snapshot_queries(&engine_execution_context, &module_relative_queries);
+        let magic =
+            read_first_field_as_u32(&query_results, "macho_magic").expect("Expected self-attach module-relative virtual snapshot query to read Mach-O magic.");
+
+        assert!(
+            matches!(magic, 0xFEEDFACE | 0xCEFAEDFE | 0xFEEDFACF | 0xCFFAEDFE),
+            "Expected Mach-O magic for self-attached module-relative read, got 0x{magic:08X}."
         );
     }
 }
