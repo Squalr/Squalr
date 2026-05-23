@@ -4,6 +4,7 @@ use crate::command_executors::scan::snapshot_value_collector::SnapshotValueColle
 use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::scan::element_scan::element_scan_request::ElementScanRequest;
 use squalr_engine_api::commands::scan::element_scan::element_scan_response::ElementScanResponse;
+use squalr_engine_api::conversions::storage_size_conversions::StorageSizeConversions;
 use squalr_engine_api::events::scan_results::updated::scan_results_updated_event::ScanResultsUpdatedEvent;
 use squalr_engine_api::registries::scan_rules::element_scan_rule_registry::ElementScanRuleRegistry;
 use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
@@ -92,17 +93,49 @@ impl PrivilegedCommandRequestExecutor for ElementScanRequest {
                 SnapshotValueCollector::collect_values(process_info, snapshot.clone(), memory_read_provider, true);
             }
 
-            engine_privileged_state.read_symbol_registry(|symbol_registry| {
+            let scan_control = ScanControl::new(
+                None,
+                Some(Arc::new(|progress| {
+                    log::debug!("Element scan progress: {:.1}%.", progress);
+                })),
+            );
+            let scan_report = engine_privileged_state.read_symbol_registry(|symbol_registry| {
+                let scan_constraint_count = self.scan_constraints.len();
+                let data_type_count = self.data_type_refs.len();
+
+                log::info!(
+                    "Scanning snapshot with {} constraint(s) across {} data type(s)...",
+                    scan_constraint_count,
+                    data_type_count
+                );
+
                 let mut snapshot_guard = match snapshot.write() {
                     Ok(snapshot_guard) => snapshot_guard,
                     Err(error) => {
                         log::error!("Failed to acquire write lock on snapshot before element scan: {}", error);
-                        return;
+                        return None;
                     }
                 };
 
-                ElementScanner::scan_snapshot(&mut snapshot_guard, symbol_registry, &element_scan_plan, &ScanControl::default());
+                Some(ElementScanner::scan_snapshot(
+                    &mut snapshot_guard,
+                    symbol_registry,
+                    &element_scan_plan,
+                    &scan_control,
+                ))
             });
+
+            let Some(scan_report) = scan_report else {
+                return ElementScanResponse::default();
+            };
+
+            log::info!("Scan complete in: {:?}", scan_report.get_scan_duration());
+            log::info!(
+                "{} bytes scanned ({})",
+                scan_report.get_scanned_byte_count(),
+                StorageSizeConversions::value_to_metric_size(scan_report.get_scanned_byte_count() as u128)
+            );
+            log::info!("{} scan result(s) found.", scan_report.get_result_count());
 
             engine_privileged_state.emit_event(ScanResultsUpdatedEvent { is_new_scan: false });
 

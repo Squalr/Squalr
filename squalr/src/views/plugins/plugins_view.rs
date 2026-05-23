@@ -1,9 +1,19 @@
 use crate::{
     app_context::AppContext,
-    ui::{draw::icon_draw::IconDraw, widgets::controls::button::Button},
-    views::plugins::{plugin_entry_view::PluginEntryView, view_data::plugin_list_view_data::PluginListViewData},
+    ui::{
+        draw::icon_draw::IconDraw,
+        widgets::controls::{
+            button::Button,
+            context_menu::context_menu::{ContextMenu, ContextMenuSizing},
+            toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView,
+        },
+    },
+    views::plugins::{
+        plugin_entry_view::PluginEntryView,
+        view_data::plugin_list_view_data::{PluginListViewData, PluginPriorityShiftDirection},
+    },
 };
-use eframe::egui::{Align, Label, Layout, Response, RichText, ScrollArea, Sense, Ui, UiBuilder, Widget, vec2};
+use eframe::egui::{Align, Label, Layout, Pos2, Response, RichText, ScrollArea, Sense, Ui, UiBuilder, Widget, vec2};
 use epaint::{Color32, CornerRadius, Rect, Stroke, pos2};
 use squalr_engine_api::{
     dependency_injection::dependency::Dependency,
@@ -31,6 +41,7 @@ impl PluginsView {
             plugin_list_view_data,
         };
 
+        PluginListViewData::observe_command_responses(instance.plugin_list_view_data.clone(), instance.app_context.clone());
         PluginListViewData::refresh(instance.plugin_list_view_data.clone(), instance.app_context.clone());
         instance.listen_for_process_change();
         instance.listen_for_plugins_changed();
@@ -97,6 +108,9 @@ impl Widget for PluginsView {
         let selected_plugin_id = plugin_list_view_data
             .get_selected_plugin_id()
             .map(str::to_string);
+        let context_menu_state = plugin_list_view_data
+            .get_context_menu_state()
+            .map(|(plugin_id, position)| (plugin_id.to_string(), position));
         let is_loading = plugin_list_view_data.get_is_loading();
         drop(plugin_list_view_data);
         let has_opened_project = PluginListViewData::has_opened_project(self.app_context.clone());
@@ -108,6 +122,8 @@ impl Widget for PluginsView {
 
         let mut selected_plugin_id_new = None;
         let mut toggle_request = None;
+        let mut context_menu_request = None;
+        let mut priority_shift_request = None;
         let response = user_interface
             .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
                 let toolbar_height = 28.0;
@@ -169,12 +185,16 @@ impl Widget for PluginsView {
                     .auto_shrink([false, false])
                     .max_height(content_height)
                     .show(&mut content_user_interface, |user_interface| {
-                        for plugin_state in &plugin_states {
+                        for (plugin_position, plugin_state) in plugin_states.iter().enumerate() {
                             let plugin_id = plugin_state.get_metadata().get_plugin_id().to_string();
+                            let can_increase_priority = plugin_position > 0;
+                            let can_decrease_priority = plugin_position + 1 < plugin_states.len();
                             let entry_response = PluginEntryView::new(
                                 self.app_context.clone(),
                                 plugin_state,
                                 selected_plugin_id.as_deref() == Some(plugin_id.as_str()),
+                                can_increase_priority,
+                                can_decrease_priority,
                             )
                             .show(user_interface);
 
@@ -184,6 +204,16 @@ impl Widget for PluginsView {
 
                             if let Some(is_enabled) = entry_response.toggle_enabled {
                                 toggle_request = Some((plugin_id.clone(), is_enabled));
+                            }
+
+                            if let Some(context_menu_position) = entry_response.show_context_menu_at {
+                                context_menu_request = Some((plugin_id.clone(), context_menu_position));
+                            }
+
+                            if entry_response.should_increase_priority {
+                                priority_shift_request = Some((plugin_id.clone(), PluginPriorityShiftDirection::Increase));
+                            } else if entry_response.should_decrease_priority {
+                                priority_shift_request = Some((plugin_id.clone(), PluginPriorityShiftDirection::Decrease));
                             }
                         }
                     });
@@ -308,6 +338,18 @@ impl Widget for PluginsView {
             })
             .response;
 
+        let active_context_menu_state = if let Some((plugin_id, context_menu_position)) = context_menu_request {
+            PluginListViewData::select_plugin(self.plugin_list_view_data.clone(), Some(plugin_id.clone()));
+            PluginListViewData::show_context_menu(self.plugin_list_view_data.clone(), plugin_id.clone(), context_menu_position);
+            Some((plugin_id, context_menu_position))
+        } else {
+            context_menu_state
+        };
+
+        if let Some((context_menu_plugin_id, context_menu_position)) = active_context_menu_state {
+            self.show_plugin_context_menu(user_interface, &plugin_states, &context_menu_plugin_id, context_menu_position);
+        }
+
         if let Some(selected_plugin_id_new) = selected_plugin_id_new {
             PluginListViewData::select_plugin(self.plugin_list_view_data.clone(), Some(selected_plugin_id_new));
         }
@@ -316,6 +358,84 @@ impl Widget for PluginsView {
             PluginListViewData::set_plugin_enabled(self.plugin_list_view_data.clone(), self.app_context.clone(), plugin_id, is_enabled);
         }
 
+        if let Some((plugin_id, shift_direction)) = priority_shift_request {
+            PluginListViewData::shift_plugin_priority(self.plugin_list_view_data.clone(), self.app_context.clone(), plugin_id, shift_direction);
+        }
+
         response
+    }
+}
+
+impl PluginsView {
+    fn show_plugin_context_menu(
+        &self,
+        user_interface: &mut Ui,
+        plugin_states: &[squalr_engine_api::plugins::PluginState],
+        plugin_id: &str,
+        context_menu_position: Pos2,
+    ) {
+        let Some(plugin_position) = plugin_states
+            .iter()
+            .position(|plugin_state| plugin_state.get_metadata().get_plugin_id() == plugin_id)
+        else {
+            PluginListViewData::hide_context_menu(self.plugin_list_view_data.clone());
+            return;
+        };
+        let can_increase_priority = plugin_position > 0;
+        let can_decrease_priority = plugin_position + 1 < plugin_states.len();
+        let menu_width = ContextMenuSizing::width_for_labels(&self.app_context, user_interface, ["Increase priority", "Decrease priority"]);
+        let mut is_menu_open = true;
+
+        ContextMenu::new(
+            self.app_context.clone(),
+            "plugin_priority_context_menu",
+            context_menu_position,
+            |user_interface, should_close| {
+                let theme = &self.app_context.theme;
+                let no_check_state = None;
+                let increase_priority_response = user_interface.add(
+                    ToolbarMenuItemView::new(self.app_context.clone(), "Increase priority", "increase_priority", &no_check_state, menu_width)
+                        .icon(theme.icon_library.icon_handle_navigation_up_arrow_small.clone())
+                        .disabled(!can_increase_priority),
+                );
+
+                if increase_priority_response.clicked() {
+                    PluginListViewData::shift_plugin_priority(
+                        self.plugin_list_view_data.clone(),
+                        self.app_context.clone(),
+                        plugin_id.to_string(),
+                        PluginPriorityShiftDirection::Increase,
+                    );
+                    *should_close = true;
+                }
+
+                let decrease_priority_response = user_interface.add(
+                    ToolbarMenuItemView::new(self.app_context.clone(), "Decrease priority", "decrease_priority", &no_check_state, menu_width)
+                        .icon(
+                            theme
+                                .icon_library
+                                .icon_handle_navigation_down_arrow_small
+                                .clone(),
+                        )
+                        .disabled(!can_decrease_priority),
+                );
+
+                if decrease_priority_response.clicked() {
+                    PluginListViewData::shift_plugin_priority(
+                        self.plugin_list_view_data.clone(),
+                        self.app_context.clone(),
+                        plugin_id.to_string(),
+                        PluginPriorityShiftDirection::Decrease,
+                    );
+                    *should_close = true;
+                }
+            },
+        )
+        .width(menu_width)
+        .show(user_interface, &mut is_menu_open);
+
+        if !is_menu_open {
+            PluginListViewData::hide_context_menu(self.plugin_list_view_data.clone());
+        }
     }
 }

@@ -11,7 +11,8 @@ use squalr_plugin_builtins::get_builtin_plugin_packages;
 
 pub struct PluginRegistry {
     plugin_packages: Vec<Arc<dyn PluginPackage>>,
-    data_type_plugin_ids_by_data_type_id: HashMap<String, String>,
+    data_type_plugin_ids_by_data_type_id: RwLock<HashMap<String, String>>,
+    plugin_order: RwLock<Vec<String>>,
     enabled_plugin_ids: RwLock<HashSet<String>>,
 }
 
@@ -27,13 +28,22 @@ impl PluginRegistry {
             .filter(|plugin_metadata| plugin_metadata.get_is_enabled_by_default())
             .map(|plugin_metadata| plugin_metadata.get_plugin_id().to_string())
             .collect();
+        let plugin_order = Self::default_plugin_ids_from_packages(&plugin_packages);
         let data_type_plugin_ids_by_data_type_id = Self::build_data_type_plugin_ids_by_data_type_id(&plugin_packages);
 
         Self {
             plugin_packages,
-            data_type_plugin_ids_by_data_type_id,
+            data_type_plugin_ids_by_data_type_id: RwLock::new(data_type_plugin_ids_by_data_type_id),
+            plugin_order: RwLock::new(plugin_order),
             enabled_plugin_ids: RwLock::new(enabled_plugin_ids),
         }
+    }
+
+    fn default_plugin_ids_from_packages(plugin_packages: &[Arc<dyn PluginPackage>]) -> Vec<String> {
+        plugin_packages
+            .iter()
+            .map(|plugin_package| plugin_package.metadata().get_plugin_id().to_string())
+            .collect()
     }
 
     fn build_data_type_plugin_ids_by_data_type_id(plugin_packages: &[Arc<dyn PluginPackage>]) -> HashMap<String, String> {
@@ -65,6 +75,115 @@ impl PluginRegistry {
         &self.plugin_packages
     }
 
+    pub fn get_default_plugin_ids(&self) -> Vec<String> {
+        Self::default_plugin_ids_from_packages(&self.plugin_packages)
+    }
+
+    pub fn get_plugin_order(&self) -> Vec<String> {
+        self.plugin_order
+            .read()
+            .map(|plugin_order| plugin_order.clone())
+            .unwrap_or_else(|error| {
+                log::error!("Failed to acquire plugin priority order snapshot: {}", error);
+                self.get_default_plugin_ids()
+            })
+    }
+
+    pub fn set_plugin_order(
+        &self,
+        plugin_ids: Vec<String>,
+    ) -> bool {
+        let normalized_plugin_order = self.normalize_plugin_order(plugin_ids);
+
+        match self.plugin_order.write() {
+            Ok(mut plugin_order) => {
+                if *plugin_order == normalized_plugin_order {
+                    return false;
+                }
+
+                *plugin_order = normalized_plugin_order;
+            }
+            Err(error) => {
+                log::error!("Failed to update plugin priority order: {}", error);
+                return false;
+            }
+        }
+
+        let ordered_plugin_packages = self.get_ordered_plugin_packages();
+        match self.data_type_plugin_ids_by_data_type_id.write() {
+            Ok(mut data_type_plugin_ids_by_data_type_id) => {
+                *data_type_plugin_ids_by_data_type_id = Self::build_data_type_plugin_ids_by_data_type_id(&ordered_plugin_packages);
+            }
+            Err(error) => {
+                log::error!("Failed to update plugin data type ownership after priority order changed: {}", error);
+            }
+        }
+
+        true
+    }
+
+    fn normalize_plugin_order(
+        &self,
+        plugin_ids: Vec<String>,
+    ) -> Vec<String> {
+        let known_plugin_ids = self
+            .plugin_packages
+            .iter()
+            .map(|plugin_package| plugin_package.metadata().get_plugin_id().to_string())
+            .collect::<HashSet<_>>();
+        let mut seen_plugin_ids = HashSet::new();
+        let mut normalized_plugin_order = Vec::new();
+
+        for plugin_id in plugin_ids {
+            if !known_plugin_ids.contains(&plugin_id) || !seen_plugin_ids.insert(plugin_id.clone()) {
+                continue;
+            }
+
+            normalized_plugin_order.push(plugin_id);
+        }
+
+        for plugin_package in &self.plugin_packages {
+            let plugin_id = plugin_package.metadata().get_plugin_id().to_string();
+
+            if seen_plugin_ids.insert(plugin_id.clone()) {
+                normalized_plugin_order.push(plugin_id);
+            }
+        }
+
+        normalized_plugin_order
+    }
+
+    fn get_ordered_plugin_packages(&self) -> Vec<Arc<dyn PluginPackage>> {
+        let plugin_order = self.get_plugin_order();
+        let plugin_packages_by_plugin_id = self
+            .plugin_packages
+            .iter()
+            .map(|plugin_package| (plugin_package.metadata().get_plugin_id().to_string(), plugin_package.clone()))
+            .collect::<HashMap<_, _>>();
+        let mut ordered_plugin_packages = Vec::new();
+        let mut seen_plugin_ids = HashSet::new();
+
+        for plugin_id in plugin_order {
+            let Some(plugin_package) = plugin_packages_by_plugin_id.get(&plugin_id) else {
+                continue;
+            };
+
+            if seen_plugin_ids.insert(plugin_id) {
+                ordered_plugin_packages.push(plugin_package.clone());
+            }
+        }
+
+        for plugin_package in &self.plugin_packages {
+            let plugin_id = plugin_package.metadata().get_plugin_id().to_string();
+
+            if seen_plugin_ids.insert(plugin_id) {
+                ordered_plugin_packages.push(plugin_package.clone());
+            }
+        }
+
+        ordered_plugin_packages
+    }
+
     pub fn get_plugin_states(
         &self,
         opened_process_info: Option<&OpenedProcessInfo>,
@@ -76,7 +195,7 @@ impl PluginRegistry {
                 log::error!("Failed to acquire plugin enablement snapshot: {}", error);
 
                 return self
-                    .plugin_packages
+                    .get_ordered_plugin_packages()
                     .iter()
                     .map(|plugin_package| self.build_plugin_state(plugin_package.as_ref(), false, opened_process_info, active_plugin_id, None))
                     .collect();
@@ -87,7 +206,7 @@ impl PluginRegistry {
             .and_then(|opened_process_info| self.find_memory_view_plugin_package_with_enabled_ids(opened_process_info, &enabled_plugin_ids))
             .map(|plugin_package| plugin_package.metadata().get_plugin_id().to_string());
 
-        self.plugin_packages
+        self.get_ordered_plugin_packages()
             .iter()
             .map(|plugin_package| {
                 let is_enabled = enabled_plugin_ids.contains(plugin_package.metadata().get_plugin_id());
@@ -241,7 +360,7 @@ impl PluginRegistry {
     }
 
     pub fn get_enabled_symbol_tree_actions(&self) -> Vec<(String, std::sync::Arc<dyn SymbolTreeAction>)> {
-        self.plugin_packages
+        self.get_ordered_plugin_packages()
             .iter()
             .filter(|plugin_package| self.is_plugin_enabled(plugin_package.metadata().get_plugin_id()))
             .filter_map(|plugin_package| {
@@ -273,11 +392,18 @@ impl PluginRegistry {
         &self,
         data_type_id: &str,
     ) -> bool {
-        let Some(plugin_id) = self.data_type_plugin_ids_by_data_type_id.get(data_type_id) else {
-            return true;
+        let plugin_id = match self.data_type_plugin_ids_by_data_type_id.read() {
+            Ok(data_type_plugin_ids_by_data_type_id) => match data_type_plugin_ids_by_data_type_id.get(data_type_id) {
+                Some(plugin_id) => plugin_id.clone(),
+                None => return true,
+            },
+            Err(error) => {
+                log::error!("Failed to read plugin data type ownership: {}", error);
+                return true;
+            }
         };
 
-        self.is_plugin_enabled(plugin_id)
+        self.is_plugin_enabled(&plugin_id)
     }
 
     pub fn find_memory_view_plugin_package(
@@ -300,7 +426,7 @@ impl PluginRegistry {
         process_info: &OpenedProcessInfo,
         enabled_plugin_ids: &HashSet<String>,
     ) -> Option<Arc<dyn PluginPackage>> {
-        self.plugin_packages
+        self.get_ordered_plugin_packages()
             .iter()
             .find(|plugin_package| {
                 enabled_plugin_ids.contains(plugin_package.metadata().get_plugin_id())
@@ -378,10 +504,17 @@ mod tests {
 
     impl TestSymbolTreePlugin {
         fn new() -> Self {
+            Self::new_with_plugin_id("test.symbol-tree", "Test Symbol Tree")
+        }
+
+        fn new_with_plugin_id(
+            plugin_id: &str,
+            display_name: &str,
+        ) -> Self {
             Self {
                 metadata: PluginMetadata::new_with_permissions(
-                    "test.symbol-tree",
-                    "Test Symbol Tree",
+                    plugin_id,
+                    display_name,
                     "Test plugin",
                     Vec::new(),
                     vec![
@@ -528,5 +661,27 @@ mod tests {
         assert_eq!(symbol_tree_actions[0].0, "test.symbol-tree");
         assert_eq!(symbol_tree_actions[0].1.action_id(), "test.symbol-tree-action");
         assert!(plugin_registry.plugin_action_has_required_permissions(&symbol_tree_actions[0].0, symbol_tree_actions[0].1.as_ref()));
+    }
+
+    #[test]
+    fn registry_priority_order_controls_plugin_state_and_symbol_action_order() {
+        let plugin_registry = PluginRegistry::from_plugin_packages(vec![
+            Arc::new(TestSymbolTreePlugin::new_with_plugin_id("test.first", "First")),
+            Arc::new(TestSymbolTreePlugin::new_with_plugin_id("test.second", "Second")),
+        ]);
+
+        assert!(plugin_registry.set_plugin_order(vec![String::from("test.second"), String::from("test.first")]));
+
+        let plugin_states = plugin_registry.get_plugin_states(None, None);
+        let symbol_tree_actions = plugin_registry.get_enabled_symbol_tree_actions();
+
+        assert_eq!(
+            plugin_registry.get_plugin_order(),
+            vec![String::from("test.second"), String::from("test.first")]
+        );
+        assert_eq!(plugin_states[0].get_metadata().get_plugin_id(), "test.second");
+        assert_eq!(plugin_states[1].get_metadata().get_plugin_id(), "test.first");
+        assert_eq!(symbol_tree_actions[0].0, "test.second");
+        assert_eq!(symbol_tree_actions[1].0, "test.first");
     }
 }

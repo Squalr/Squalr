@@ -2,10 +2,10 @@ use crate::{
     app_context::AppContext,
     ui::{
         theme::Theme,
-        widgets::controls::{checkbox::Checkbox, state_layer::StateLayer},
+        widgets::controls::{checkbox::Checkbox, icon_button::IconButtonView, state_layer::StateLayer},
     },
 };
-use eframe::egui::{Label, RichText, Sense, Ui, UiBuilder, Widget, pos2, vec2};
+use eframe::egui::{Label, Pos2, Rect, RichText, Sense, Ui, UiBuilder, Widget, pos2, vec2};
 use epaint::CornerRadius;
 use squalr_engine_api::plugins::{PluginActivationState, PluginState};
 use std::sync::Arc;
@@ -14,11 +14,16 @@ pub struct PluginEntryView<'lifetime> {
     app_context: Arc<AppContext>,
     plugin_state: &'lifetime PluginState,
     is_selected: bool,
+    can_increase_priority: bool,
+    can_decrease_priority: bool,
 }
 
 pub struct PluginEntryViewResponse {
     pub should_select: bool,
     pub toggle_enabled: Option<bool>,
+    pub should_increase_priority: bool,
+    pub should_decrease_priority: bool,
+    pub show_context_menu_at: Option<Pos2>,
 }
 
 impl<'lifetime> PluginEntryView<'lifetime> {
@@ -26,11 +31,15 @@ impl<'lifetime> PluginEntryView<'lifetime> {
         app_context: Arc<AppContext>,
         plugin_state: &'lifetime PluginState,
         is_selected: bool,
+        can_increase_priority: bool,
+        can_decrease_priority: bool,
     ) -> Self {
         Self {
             app_context,
             plugin_state,
             is_selected,
+            can_increase_priority,
+            can_decrease_priority,
         }
     }
 
@@ -39,7 +48,7 @@ impl<'lifetime> PluginEntryView<'lifetime> {
         user_interface: &mut Ui,
     ) -> PluginEntryViewResponse {
         let theme = &self.app_context.theme;
-        let row_height = 88.0;
+        let row_height = Self::ROW_HEIGHT;
         let (row_rect, row_response) = user_interface.allocate_exact_size(vec2(user_interface.available_width().max(1.0), row_height), Sense::click());
         let row_clip_rect = row_rect.intersect(user_interface.clip_rect());
         let mut row_user_interface = user_interface.new_child(UiBuilder::new().max_rect(row_rect));
@@ -77,10 +86,19 @@ impl<'lifetime> PluginEntryView<'lifetime> {
 
         let mut did_toggle_enabled = false;
         let mut toggle_enabled = None;
+        let mut should_increase_priority = false;
+        let mut should_decrease_priority = false;
         let status_text = Self::build_status_text(self.plugin_state);
         let status_color = Self::resolve_status_color(theme, self.plugin_state);
+        let priority_button_area_width = Self::PRIORITY_BUTTON_WIDTH * 2.0;
+        let priority_button_area_right = row_rect.max.x - Self::PRIORITY_BUTTON_RIGHT_PADDING;
+        let priority_button_area_left = (priority_button_area_right - priority_button_area_width).max(row_rect.min.x);
+        let content_right = (priority_button_area_left - Self::PRIORITY_BUTTON_LEFT_GAP).max(row_rect.min.x);
+        let content_rect = Rect::from_min_max(row_rect.min, pos2(content_right, row_rect.max.y));
+        let content_clip_rect = row_clip_rect.intersect(content_rect);
 
-        row_user_interface.scope_builder(UiBuilder::new().max_rect(row_rect), |user_interface| {
+        row_user_interface.scope_builder(UiBuilder::new().max_rect(content_rect), |user_interface| {
+            user_interface.set_clip_rect(content_clip_rect);
             user_interface.horizontal(|user_interface| {
                 user_interface.add_space(8.0);
 
@@ -132,9 +150,45 @@ impl<'lifetime> PluginEntryView<'lifetime> {
             });
         });
 
+        let mut priority_button_min_x = priority_button_area_left;
+        let mut render_priority_button = |icon_handle: &epaint::TextureHandle, tooltip_text: &str, is_disabled: bool| {
+            let button_rect = Rect::from_min_size(
+                pos2(priority_button_min_x, row_rect.center().y - Self::PRIORITY_BUTTON_HEIGHT * 0.5),
+                vec2(Self::PRIORITY_BUTTON_WIDTH, Self::PRIORITY_BUTTON_HEIGHT),
+            );
+            priority_button_min_x += Self::PRIORITY_BUTTON_WIDTH;
+
+            row_user_interface.place(button_rect, IconButtonView::new(theme, icon_handle, tooltip_text).disabled(is_disabled))
+        };
+        let increase_priority_response = render_priority_button(
+            &theme.icon_library.icon_handle_navigation_up_arrow_small,
+            "Increase priority.",
+            !self.can_increase_priority,
+        );
+        if increase_priority_response.clicked() {
+            should_increase_priority = true;
+        }
+        let decrease_priority_response = render_priority_button(
+            &theme.icon_library.icon_handle_navigation_down_arrow_small,
+            "Decrease priority.",
+            !self.can_decrease_priority,
+        );
+        if decrease_priority_response.clicked() {
+            should_decrease_priority = true;
+        }
+
         PluginEntryViewResponse {
-            should_select: row_response.clicked() && !did_toggle_enabled,
+            should_select: row_response.clicked() && !did_toggle_enabled && !should_increase_priority && !should_decrease_priority,
             toggle_enabled,
+            should_increase_priority,
+            should_decrease_priority,
+            show_context_menu_at: if row_response.secondary_clicked() {
+                row_response
+                    .interact_pointer_pos()
+                    .or_else(|| user_interface.ctx().pointer_latest_pos())
+            } else {
+                None
+            },
         }
     }
 
@@ -180,4 +234,12 @@ impl<'lifetime> PluginEntryView<'lifetime> {
             PluginActivationState::Idle => theme.foreground_preview,
         }
     }
+}
+
+impl PluginEntryView<'_> {
+    const PRIORITY_BUTTON_HEIGHT: f32 = 28.0;
+    const PRIORITY_BUTTON_LEFT_GAP: f32 = 8.0;
+    const PRIORITY_BUTTON_RIGHT_PADDING: f32 = 8.0;
+    const PRIORITY_BUTTON_WIDTH: f32 = 32.0;
+    const ROW_HEIGHT: f32 = 88.0;
 }

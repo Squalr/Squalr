@@ -11,6 +11,10 @@ pub(crate) enum CommandLinePluginsCommand {
         #[structopt(flatten)]
         plugin_set_enabled_request: CommandLinePluginSetEnabledRequest,
     },
+    SetOrder {
+        #[structopt(flatten)]
+        plugin_set_order_request: CommandLinePluginSetOrderRequest,
+    },
 }
 
 #[derive(Clone, StructOpt, Debug, Default)]
@@ -24,6 +28,12 @@ pub(crate) struct CommandLinePluginSetEnabledRequest {
     pub is_enabled: bool,
 }
 
+#[derive(Clone, StructOpt, Debug)]
+pub(crate) struct CommandLinePluginSetOrderRequest {
+    #[structopt(long = "plugin-id")]
+    pub plugin_ids: Vec<String>,
+}
+
 impl From<CommandLinePluginsCommand> for api::commands::plugins::plugins_command::PluginsCommand {
     fn from(command: CommandLinePluginsCommand) -> Self {
         match command {
@@ -32,6 +42,9 @@ impl From<CommandLinePluginsCommand> for api::commands::plugins::plugins_command
             },
             CommandLinePluginsCommand::SetEnabled { plugin_set_enabled_request } => Self::SetEnabled {
                 plugin_set_enabled_request: plugin_set_enabled_request.into(),
+            },
+            CommandLinePluginsCommand::SetOrder { plugin_set_order_request } => Self::SetOrder {
+                plugin_set_order_request: plugin_set_order_request.into(),
             },
         }
     }
@@ -48,6 +61,14 @@ impl From<CommandLinePluginSetEnabledRequest> for api::commands::plugins::set_en
         Self {
             plugin_id: request.plugin_id,
             is_enabled: request.is_enabled,
+        }
+    }
+}
+
+impl From<CommandLinePluginSetOrderRequest> for api::commands::plugins::set_order::plugin_set_order_request::PluginSetOrderRequest {
+    fn from(request: CommandLinePluginSetOrderRequest) -> Self {
+        Self {
+            plugin_ids: request.plugin_ids,
         }
     }
 }

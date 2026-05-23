@@ -11,8 +11,18 @@ use eframe::egui::{Align, Layout, Response, RichText, Ui, Widget};
 use epaint::vec2;
 use squalr_engine_api::{
     commands::{
+        command_invocation::{CommandInvocationOutcome, EngineCommand, EngineCommandResponse},
+        privileged_command::PrivilegedCommand,
         privileged_command_request::PrivilegedCommandRequest,
-        settings::scan::{list::scan_settings_list_request::ScanSettingsListRequest, set::scan_settings_set_request::ScanSettingsSetRequest},
+        privileged_command_response::PrivilegedCommandResponse,
+        settings::{
+            scan::{
+                list::scan_settings_list_request::ScanSettingsListRequest, scan_settings_command::ScanSettingsCommand,
+                scan_settings_response::ScanSettingsResponse, set::scan_settings_set_request::ScanSettingsSetRequest,
+            },
+            settings_command::SettingsCommand,
+            settings_response::SettingsResponse,
+        },
     },
     engine::engine_execution_context::EngineExecutionContext,
     plugins::memory_view::PageRetrievalMode,
@@ -34,6 +44,7 @@ impl SettingsTabScanView {
             cached_scan_settings: Arc::new(RwLock::new(ScanSettings::default())),
         };
 
+        settings_view.observe_command_responses();
         settings_view.sync_ui_with_scan_settings();
 
         settings_view
@@ -50,6 +61,108 @@ impl SettingsTabScanView {
                 }
             }
         });
+    }
+
+    fn observe_command_responses(&self) {
+        let cached_scan_settings = self.cached_scan_settings.clone();
+        let app_context = self.app_context.clone();
+
+        self.app_context
+            .engine_unprivileged_state
+            .listen_for_command_response(move |command_invocation_outcome| {
+                Self::apply_observed_command_response(cached_scan_settings.clone(), app_context.clone(), command_invocation_outcome);
+            });
+    }
+
+    fn apply_observed_command_response(
+        cached_scan_settings: Arc<RwLock<ScanSettings>>,
+        app_context: Arc<AppContext>,
+        command_invocation_outcome: &CommandInvocationOutcome,
+    ) {
+        let EngineCommandResponse::Privileged(PrivilegedCommandResponse::Settings(SettingsResponse::Scan { scan_settings_response })) =
+            command_invocation_outcome.get_response()
+        else {
+            return;
+        };
+
+        match scan_settings_response {
+            ScanSettingsResponse::List { scan_settings_list_response } => {
+                if let Ok(scan_settings) = scan_settings_list_response.scan_settings.clone() {
+                    app_context
+                        .engine_unprivileged_state
+                        .get_project_manager()
+                        .set_project_file_system_watch_enabled(scan_settings.project_file_system_watch_enabled);
+
+                    if let Ok(mut cached_scan_settings) = cached_scan_settings.write() {
+                        *cached_scan_settings = scan_settings;
+                    }
+                }
+            }
+            ScanSettingsResponse::Set { .. } => {
+                let Some(scan_settings_set_request) = Self::get_observed_scan_settings_set_request(command_invocation_outcome) else {
+                    return;
+                };
+
+                if let Some(project_file_system_watch_enabled) = scan_settings_set_request.project_file_system_watch_enabled {
+                    app_context
+                        .engine_unprivileged_state
+                        .get_project_manager()
+                        .set_project_file_system_watch_enabled(project_file_system_watch_enabled);
+                }
+
+                if let Ok(mut cached_scan_settings) = cached_scan_settings.write() {
+                    Self::apply_scan_settings_set_request(&mut cached_scan_settings, scan_settings_set_request);
+                }
+            }
+        }
+    }
+
+    fn get_observed_scan_settings_set_request(command_invocation_outcome: &CommandInvocationOutcome) -> Option<&ScanSettingsSetRequest> {
+        match command_invocation_outcome.get_invocation().get_command() {
+            EngineCommand::Privileged(PrivilegedCommand::Settings(SettingsCommand::Scan {
+                scan_settings_command: ScanSettingsCommand::Set { scan_settings_set_request },
+            })) => Some(scan_settings_set_request),
+            _ => None,
+        }
+    }
+
+    fn apply_scan_settings_set_request(
+        cached_scan_settings: &mut ScanSettings,
+        scan_settings_set_request: &ScanSettingsSetRequest,
+    ) {
+        if let Some(page_retrieval_mode) = scan_settings_set_request.page_retrieval_mode {
+            cached_scan_settings.page_retrieval_mode = page_retrieval_mode;
+        }
+        if let Some(results_page_size) = scan_settings_set_request.results_page_size {
+            cached_scan_settings.results_page_size = results_page_size;
+        }
+        if let Some(results_read_interval_ms) = scan_settings_set_request.results_read_interval_ms {
+            cached_scan_settings.results_read_interval_ms = results_read_interval_ms;
+        }
+        if let Some(project_read_interval_ms) = scan_settings_set_request.project_read_interval_ms {
+            cached_scan_settings.project_read_interval_ms = project_read_interval_ms;
+        }
+        if let Some(project_file_system_watch_enabled) = scan_settings_set_request.project_file_system_watch_enabled {
+            cached_scan_settings.project_file_system_watch_enabled = project_file_system_watch_enabled;
+        }
+        if let Some(freeze_interval_ms) = scan_settings_set_request.freeze_interval_ms {
+            cached_scan_settings.freeze_interval_ms = freeze_interval_ms;
+        }
+        if let Some(memory_alignment) = scan_settings_set_request.memory_alignment {
+            cached_scan_settings.memory_alignment = Some(memory_alignment);
+        }
+        if let Some(memory_read_mode) = scan_settings_set_request.memory_read_mode {
+            cached_scan_settings.memory_read_mode = memory_read_mode;
+        }
+        if let Some(floating_point_tolerance) = scan_settings_set_request.floating_point_tolerance {
+            cached_scan_settings.floating_point_tolerance = floating_point_tolerance;
+        }
+        if let Some(is_single_threaded_scan) = scan_settings_set_request.is_single_threaded_scan {
+            cached_scan_settings.is_single_threaded_scan = is_single_threaded_scan;
+        }
+        if let Some(debug_perform_validation_scan) = scan_settings_set_request.debug_perform_validation_scan {
+            cached_scan_settings.debug_perform_validation_scan = debug_perform_validation_scan;
+        }
     }
 
     fn send_scan_settings_update(

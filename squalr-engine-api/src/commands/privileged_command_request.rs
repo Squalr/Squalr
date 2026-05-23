@@ -20,13 +20,21 @@ pub trait PrivilegedCommandRequest: Clone + Serialize + DeserializeOwned {
         F: FnOnce(<Self as PrivilegedCommandRequest>::ResponseType) + Clone + Send + Sync + 'static,
         <Self as PrivilegedCommandRequest>::ResponseType: TypedPrivilegedCommandResponse,
     {
-        match engine_execution_context.get_bindings().read() {
-            Ok(engine_bindings) => self.send_unprivileged(&*engine_bindings, callback),
-            Err(error) => {
-                log::error!("Error getting engine execution context bindings: {}", error);
-                false
-            }
-        }
+        let command = self.to_engine_command();
+
+        engine_execution_context.dispatch_privileged_command(
+            command,
+            Box::new(
+                move |engine_response| match <Self as PrivilegedCommandRequest>::ResponseType::from_engine_response(engine_response) {
+                    Ok(response) => {
+                        callback(response);
+                    }
+                    Err(unexpected_response) => {
+                        log::error!("Received unexpected response variant: {:?}", unexpected_response);
+                    }
+                },
+            ),
+        )
     }
 
     fn send_unprivileged<F>(

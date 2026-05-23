@@ -1,4 +1,5 @@
 use crossbeam_channel::{Receiver, unbounded};
+use squalr_engine_api::commands::command_invocation::{CommandInvocationDecision, CommandInvocationSource, EngineCommandResponse};
 use squalr_engine_api::commands::command_line::parse_privileged_command;
 use squalr_engine_api::commands::privileged_command::PrivilegedCommand;
 use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRequest;
@@ -15,6 +16,7 @@ use squalr_engine_api::commands::scan_results::query::scan_results_query_respons
 use squalr_engine_api::commands::scan_results::refresh::scan_results_refresh_request::ScanResultsRefreshRequest;
 use squalr_engine_api::commands::scan_results::refresh::scan_results_refresh_response::ScanResultsRefreshResponse;
 use squalr_engine_api::commands::scan_results::scan_results_command::ScanResultsCommand;
+use squalr_engine_api::commands::scan_results::scan_results_response::ScanResultsResponse;
 use squalr_engine_api::commands::scan_results::set_property::scan_results_set_property_request::ScanResultsSetPropertyRequest;
 use squalr_engine_api::commands::scan_results::set_property::scan_results_set_property_response::ScanResultsSetPropertyResponse;
 use squalr_engine_api::commands::unprivileged_command_response::TypedUnprivilegedCommandResponse;
@@ -25,6 +27,7 @@ use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::structures::data_values::anonymous_value_string::AnonymousValueString;
 use squalr_engine_api::structures::scan_results::scan_result_ref::ScanResultRef;
 use squalr_engine_api::{commands::unprivileged_command::UnprivilegedCommand, commands::unprivileged_command_response::UnprivilegedCommandResponse};
+use squalr_engine_session::engine_unprivileged_state::{EngineUnprivilegedState, EngineUnprivilegedStateOptions};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
@@ -209,6 +212,101 @@ fn scan_results_query_request_dispatches_query_command_and_invokes_typed_callbac
         }
         dispatched_command => panic!("unexpected dispatched command: {dispatched_command:?}"),
     }
+}
+
+#[test]
+fn scan_results_query_request_publishes_command_invocation_outcome() {
+    let bindings = Arc::new(RwLock::new(MockEngineBindings::new(
+        ScanResultsQueryResponse {
+            scan_results: vec![],
+            data_type_result_counts: vec![],
+            page_index: 2,
+            last_page_index: 4,
+            page_size: 20,
+            result_count: 80,
+            total_size_in_bytes: 1024,
+        }
+        .to_engine_response(),
+        ProjectListResponse::default().to_engine_response(),
+    )));
+    let engine_unprivileged_state = EngineUnprivilegedState::new_with_options(bindings, EngineUnprivilegedStateOptions { enable_console_logging: false });
+    let observed_page_index = Arc::new(RwLock::new(None::<u64>));
+    let observed_page_index_clone = observed_page_index.clone();
+    let observed_source = Arc::new(RwLock::new(None::<CommandInvocationSource>));
+    let observed_source_clone = observed_source.clone();
+
+    engine_unprivileged_state.listen_for_command_response(move |command_invocation_outcome| {
+        if let Ok(mut observed_source) = observed_source_clone.write() {
+            *observed_source = Some(command_invocation_outcome.get_invocation().get_source().clone());
+        }
+
+        if let EngineCommandResponse::Privileged(squalr_engine_api::commands::privileged_command_response::PrivilegedCommandResponse::Results(
+            ScanResultsResponse::Query { scan_results_query_response },
+        )) = command_invocation_outcome.get_response()
+        {
+            if let Ok(mut observed_page_index) = observed_page_index_clone.write() {
+                *observed_page_index = Some(scan_results_query_response.page_index);
+            }
+        }
+    });
+
+    let did_dispatch = ScanResultsQueryRequest {
+        page_index: 2,
+        data_type_filters: None,
+    }
+    .send(&engine_unprivileged_state, |_scan_results_query_response| {});
+
+    assert!(did_dispatch);
+    assert_eq!(
+        *observed_page_index
+            .read()
+            .expect("observed response lock should be available"),
+        Some(2)
+    );
+    assert!(matches!(
+        observed_source
+            .read()
+            .expect("observed source lock should be available")
+            .as_ref(),
+        Some(CommandInvocationSource::ApiRequest)
+    ));
+}
+
+#[test]
+fn command_invocation_middleware_can_reject_scan_results_query_request() {
+    let mock_bindings = MockEngineBindings::new(
+        ScanResultsQueryResponse::default().to_engine_response(),
+        ProjectListResponse::default().to_engine_response(),
+    );
+    let dispatched_commands = mock_bindings.get_dispatched_commands();
+    let engine_unprivileged_state = EngineUnprivilegedState::new_with_options(
+        Arc::new(RwLock::new(mock_bindings)),
+        EngineUnprivilegedStateOptions { enable_console_logging: false },
+    );
+    let callback_invoked = Arc::new(AtomicBool::new(false));
+    let callback_invoked_clone = callback_invoked.clone();
+
+    engine_unprivileged_state.register_command_invocation_middleware(|_command_invocation| CommandInvocationDecision::Reject {
+        reason: "blocked by test middleware".to_string(),
+    });
+
+    let did_dispatch = ScanResultsQueryRequest {
+        page_index: 0,
+        data_type_filters: None,
+    }
+    .send(&engine_unprivileged_state, move |_scan_results_query_response| {
+        callback_invoked_clone.store(true, Ordering::SeqCst);
+    });
+
+    assert!(!did_dispatch);
+    assert!(!callback_invoked.load(Ordering::SeqCst));
+    assert_eq!(
+        dispatched_commands
+            .lock()
+            .expect("dispatched command lock should be available")
+            .len(),
+        0
+    );
 }
 
 #[test]

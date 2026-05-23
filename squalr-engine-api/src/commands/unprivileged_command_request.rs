@@ -15,16 +15,28 @@ pub trait UnprivilegedCommandRequest: Clone + Serialize + DeserializeOwned {
         &self,
         execution_context: &Arc<impl EngineExecutionContext + 'static>,
         callback: F,
-    ) where
+    ) -> bool
+    where
         F: FnOnce(<Self as UnprivilegedCommandRequest>::ResponseType) + Clone + Send + Sync + 'static,
         <Self as UnprivilegedCommandRequest>::ResponseType: TypedUnprivilegedCommandResponse,
     {
-        match execution_context.get_bindings().read() {
-            Ok(engine_bindings) => {
-                self.send_unprivileged(&*engine_bindings, execution_context, callback);
-            }
-            Err(error) => log::error!("Error getting engine execution context bindings: {}", error),
-        };
+        let command = self.to_engine_command();
+        let execution_context_dyn: Arc<dyn EngineExecutionContext> = execution_context.clone();
+
+        execution_context.dispatch_unprivileged_command(
+            command,
+            &execution_context_dyn,
+            Box::new(
+                move |engine_response| match <Self as UnprivilegedCommandRequest>::ResponseType::from_engine_response(engine_response) {
+                    Ok(response) => {
+                        callback(response);
+                    }
+                    Err(unexpected_response) => {
+                        log::error!("Received unexpected response variant: {:?}", unexpected_response);
+                    }
+                },
+            ),
+        )
     }
 
     fn send_unprivileged<F>(
