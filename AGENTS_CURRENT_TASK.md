@@ -25,4 +25,3 @@ Our current task, from `README.md`, is:
 - Generic plugin execution coverage now includes both PE and Mach-O header population paths.
 - `squalr-cli` now handles `ProcessResponse::Icon` instead of failing to compile when icon responses are enabled.
 - Self-attach preview reads for populated Mach-O leaf fields do succeed. The remaining preview failure mode was that process changes did not invalidate existing virtual snapshots, so a symbol tree built before attach could keep stale failed preview generations alive until the next forced refresh cycle.
-- `cargo run -p squalr --example self_attach_symbol_tree_preview_probe` now exercises the real attach -> populate Mach-O symbols -> detach -> rebuild blank tree -> reattach flow and currently shows preview recovery outside the GUI, which narrows the remaining regression to GUI integration instead of core self-attach memory reads.
