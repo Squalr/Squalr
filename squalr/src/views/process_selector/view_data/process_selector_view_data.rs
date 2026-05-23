@@ -33,7 +33,7 @@ pub struct ProcessSelectorViewData {
     pub full_process_list: Vec<ProcessInfo>,
     pub icon_cache: HashMap<u32, TextureHandle>,
     pub loading_icon_process_ids: HashSet<u32>,
-    pub missing_icon_process_ids: HashSet<u32>,
+    pub missing_icon_process_ids: HashMap<u32, Instant>,
     pub is_awaiting_windowed_process_list: bool,
     pub is_awaiting_full_process_list: bool,
     pub is_opening_process: bool,
@@ -47,6 +47,7 @@ pub struct ProcessSelectorViewData {
 
 impl ProcessSelectorViewData {
     const REQUEST_STALE_TIMEOUT: Duration = Duration::from_secs(3);
+    const PROCESS_ICON_RETRY_COOLDOWN: Duration = Duration::from_secs(5);
     const IS_ANDROID_TARGET: bool = cfg!(target_os = "android");
     const ENABLE_LAZY_PROCESS_ICONS: bool = true;
     const PROCESS_ICON_REQUEST_BATCH_SIZE: usize = 16;
@@ -60,7 +61,7 @@ impl ProcessSelectorViewData {
             full_process_list: Vec::new(),
             icon_cache: HashMap::new(),
             loading_icon_process_ids: HashSet::new(),
-            missing_icon_process_ids: HashSet::new(),
+            missing_icon_process_ids: HashMap::new(),
             is_awaiting_windowed_process_list: false,
             is_awaiting_full_process_list: false,
             is_opening_process: false,
@@ -454,14 +455,23 @@ impl ProcessSelectorViewData {
                 let process_ids_to_request = process_ids
                     .into_iter()
                     .filter(|process_id| {
+                        let can_retry_missing_icon = process_selector_view_data
+                            .missing_icon_process_ids
+                            .get(process_id)
+                            .map(|last_failed_icon_request_at| {
+                                last_failed_icon_request_at.elapsed() >= Self::PROCESS_ICON_RETRY_COOLDOWN
+                            })
+                            .unwrap_or(true);
+
                         !process_selector_view_data.icon_cache.contains_key(process_id)
                             && !process_selector_view_data.loading_icon_process_ids.contains(process_id)
-                            && !process_selector_view_data.missing_icon_process_ids.contains(process_id)
+                            && can_retry_missing_icon
                     })
                     .collect::<Vec<_>>();
 
                 for process_id in &process_ids_to_request {
                     process_selector_view_data.loading_icon_process_ids.insert(*process_id);
+                    process_selector_view_data.missing_icon_process_ids.remove(process_id);
                 }
 
                 process_ids_to_request
@@ -532,7 +542,9 @@ impl ProcessSelectorViewData {
                     process_selector_view_data.cached_icon = Some(texture_handle);
                 }
             } else {
-                process_selector_view_data.missing_icon_process_ids.insert(process_id);
+                process_selector_view_data
+                    .missing_icon_process_ids
+                    .insert(process_id, Instant::now());
 
                 if process_selector_view_data
                     .opened_process
@@ -682,7 +694,7 @@ impl ProcessSelectorViewData {
             .retain(|process_id| !removed.contains(process_id));
         process_selector_view_data
             .missing_icon_process_ids
-            .retain(|process_id| !removed.contains(process_id));
+            .retain(|process_id, _| !removed.contains(process_id));
     }
 
     fn refresh_shortcut_dropdown_process_list(&mut self) {

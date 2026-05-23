@@ -33,6 +33,10 @@ const CG_WINDOW_LIST_OPTION_ON_SCREEN_ONLY: u32 = 1 << 0;
 const CG_NULL_WINDOW_ID: u32 = 0;
 const CF_NUMBER_SINT32_TYPE: i32 = 3;
 const NS_UTF8_STRING_ENCODING: usize = 4;
+const NS_PNG_FILE_TYPE: usize = 4;
+
+#[link(name = "AppKit", kind = "framework")]
+unsafe extern "C" {}
 
 #[link(name = "CoreGraphics", kind = "framework")]
 unsafe extern "C" {
@@ -178,19 +182,29 @@ impl MacOsProcessQuery {
         if path_string.is_empty() { None } else { Some(path_string) }
     }
 
-    fn resolve_icon_lookup_path(executable_path: &str) -> Option<PathBuf> {
+    fn resolve_icon_lookup_paths(executable_path: &str) -> Vec<PathBuf> {
         let executable_path = Path::new(executable_path);
+        let mut icon_lookup_paths = executable_path
+            .ancestors()
+            .filter(|ancestor_path| {
+                ancestor_path
+                    .extension()
+                    .is_some_and(|extension| extension.eq_ignore_ascii_case("app"))
+            })
+            .map(Path::to_path_buf)
+            .collect::<Vec<_>>();
 
-        for ancestor_path in executable_path.ancestors() {
-            if ancestor_path
-                .extension()
-                .is_some_and(|extension| extension.eq_ignore_ascii_case("app"))
-            {
-                return Some(ancestor_path.to_path_buf());
-            }
+        icon_lookup_paths.reverse();
+
+        if executable_path.exists()
+            && !icon_lookup_paths
+                .iter()
+                .any(|icon_lookup_path| icon_lookup_path == executable_path)
+        {
+            icon_lookup_paths.push(executable_path.to_path_buf());
         }
 
-        executable_path.exists().then(|| executable_path.to_path_buf())
+        icon_lookup_paths
     }
 
     fn get_icon(process_id: &Pid) -> Option<ProcessIcon> {
@@ -215,8 +229,31 @@ impl MacOsProcessQuery {
             return None;
         }
 
-        let image_bytes_ptr: *const u8 = unsafe { msg_send![tiff_data, bytes] };
-        let image_bytes_len: usize = unsafe { msg_send![tiff_data, length] };
+        let bitmap_image_rep: *mut Object = unsafe { msg_send![class!(NSBitmapImageRep), imageRepWithData: tiff_data] };
+        if !bitmap_image_rep.is_null() {
+            let png_data: *mut Object = unsafe {
+                msg_send![
+                    bitmap_image_rep,
+                    representationUsingType: NS_PNG_FILE_TYPE
+                    properties: std::ptr::null_mut::<Object>()
+                ]
+            };
+
+            if let Some(process_icon) = Self::decode_ns_data_to_process_icon(png_data) {
+                return Some(process_icon);
+            }
+        }
+
+        Self::decode_ns_data_to_process_icon(tiff_data)
+    }
+
+    fn decode_ns_data_to_process_icon(ns_data: *mut Object) -> Option<ProcessIcon> {
+        if ns_data.is_null() {
+            return None;
+        }
+
+        let image_bytes_ptr: *const u8 = unsafe { msg_send![ns_data, bytes] };
+        let image_bytes_len: usize = unsafe { msg_send![ns_data, length] };
         if image_bytes_ptr.is_null() || image_bytes_len == 0 {
             return None;
         }
@@ -234,10 +271,13 @@ impl MacOsProcessQuery {
     }
 
     fn get_icon_for_executable_path(executable_path: &str) -> Option<ProcessIcon> {
-        let icon_lookup_path = Self::resolve_icon_lookup_path(executable_path)?;
-        Self::run_icon_lookup_on_main_thread(MainThreadIconLookupKind::FilePath {
-            path: icon_lookup_path.to_string_lossy().to_string(),
-        })
+        Self::resolve_icon_lookup_paths(executable_path)
+            .into_iter()
+            .find_map(|icon_lookup_path| {
+                Self::run_icon_lookup_on_main_thread(MainThreadIconLookupKind::FilePath {
+                    path: icon_lookup_path.to_string_lossy().to_string(),
+                })
+            })
     }
 
     fn run_icon_lookup_on_main_thread(icon_lookup_kind: MainThreadIconLookupKind) -> Option<ProcessIcon> {
