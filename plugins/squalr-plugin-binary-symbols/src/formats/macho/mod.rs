@@ -1,3 +1,7 @@
+mod populate_macho_symbols_action;
+
+pub(crate) use populate_macho_symbols_action::PopulateMachOSymbolsAction;
+
 pub(crate) const DISPLAY_NAME: &str = "Mach-O";
 
 pub(crate) fn matches_header(header_bytes: &[u8]) -> bool {
@@ -9,5 +13,7 @@ pub(crate) fn matches_header(header_bytes: &[u8]) -> bool {
             | Some([0xCF, 0xFA, 0xED, 0xFE])
             | Some([0xCA, 0xFE, 0xBA, 0xBE])
             | Some([0xBE, 0xBA, 0xFE, 0xCA])
+            | Some([0xCA, 0xFE, 0xBA, 0xBF])
+            | Some([0xBF, 0xBA, 0xFE, 0xCA])
     )
 }

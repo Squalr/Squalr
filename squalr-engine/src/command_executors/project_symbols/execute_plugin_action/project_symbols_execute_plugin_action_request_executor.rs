@@ -248,8 +248,73 @@ mod tests {
         assert_eq!(pe_header_field_names, vec!["DOSHeader", "DOSStub", "NTHeaders", "SectionHeaders"]);
     }
 
+    #[test]
+    fn execute_plugin_action_populates_macho_symbols() {
+        let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
+        let project_symbol_catalog =
+            ProjectSymbolCatalog::new_with_modules_and_symbol_claims(vec![ProjectSymbolModule::new(String::from("Finder"), 0x2000)], Vec::new(), Vec::new());
+        let project = create_project_with_symbol_catalog(temp_directory.path(), project_symbol_catalog);
+        let engine_unprivileged_state = create_engine_unprivileged_state(MockProjectSymbolsBindings::new_with_memory_read_response_factory(
+            create_test_macho_memory_read_response,
+        ));
+
+        *engine_unprivileged_state
+            .get_project_manager()
+            .get_opened_project()
+            .write()
+            .expect("Expected opened project write lock in test.") = Some(project);
+
+        let engine_execution_context: Arc<dyn EngineExecutionContext> = engine_unprivileged_state.clone();
+        let response = ProjectSymbolsExecutePluginActionRequest {
+            plugin_id: String::from("builtin.symbols.binary"),
+            action_id: String::from("builtin.symbols.binary.populate-binary-symbols"),
+            context: SymbolTreeActionContext::new(SymbolTreeActionSelection::ModuleRoot {
+                module_name: String::from("Finder"),
+            }),
+        }
+        .execute(&engine_execution_context);
+
+        assert!(response.success, "Expected plugin action to succeed: {:?}", response.error);
+
+        let loaded_project = Project::load_from_path(temp_directory.path()).expect("Expected plugin-updated project to load from disk.");
+        let symbol_module = loaded_project
+            .get_project_info()
+            .get_project_symbol_catalog()
+            .find_symbol_module("Finder")
+            .expect("Expected module to remain in catalog.");
+        let project_symbol_catalog = loaded_project.get_project_info().get_project_symbol_catalog();
+        let macho_headers_descriptor = project_symbol_catalog
+            .get_struct_layout_descriptors()
+            .iter()
+            .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == "mac.macho.MACHO_HEADERS64")
+            .expect("Expected Mach-O headers layout descriptor.");
+        let macho_header_field_names = macho_headers_descriptor
+            .get_struct_layout_definition()
+            .get_fields()
+            .iter()
+            .map(|field_definition| field_definition.get_field_name())
+            .collect::<Vec<_>>();
+
+        assert_eq!(symbol_module.get_fields().len(), 1);
+        assert_eq!(symbol_module.get_fields()[0].get_display_name(), "Mach-O Headers");
+        assert_eq!(symbol_module.get_fields()[0].get_struct_layout_id(), "mac.macho.MACHO_HEADERS64");
+        assert_eq!(macho_header_field_names, vec!["Header", "LoadCommands"]);
+    }
+
     fn create_test_pe_memory_read_response(memory_read_request: &MemoryReadRequest) -> MemoryReadResponse {
         let header_bytes = build_test_pe_header_bytes();
+        create_memory_read_response_from_bytes(memory_read_request, &header_bytes)
+    }
+
+    fn create_test_macho_memory_read_response(memory_read_request: &MemoryReadRequest) -> MemoryReadResponse {
+        let header_bytes = build_test_macho_header_bytes();
+        create_memory_read_response_from_bytes(memory_read_request, &header_bytes)
+    }
+
+    fn create_memory_read_response_from_bytes(
+        memory_read_request: &MemoryReadRequest,
+        header_bytes: &[u8],
+    ) -> MemoryReadResponse {
         let read_start = memory_read_request.address as usize;
         let read_end = read_start.saturating_add(
             memory_read_request
@@ -278,6 +343,15 @@ mod tests {
         header_bytes[0x86..0x88].copy_from_slice(&3_u16.to_le_bytes());
         header_bytes[0x94..0x96].copy_from_slice(&0xE0_u16.to_le_bytes());
         header_bytes[0x98..0x9A].copy_from_slice(&0x10B_u16.to_le_bytes());
+
+        header_bytes
+    }
+
+    fn build_test_macho_header_bytes() -> Vec<u8> {
+        let mut header_bytes = vec![0_u8; 0x1000];
+        header_bytes[0..4].copy_from_slice(&[0xCF, 0xFA, 0xED, 0xFE]);
+        header_bytes[16..20].copy_from_slice(&2_u32.to_le_bytes());
+        header_bytes[20..24].copy_from_slice(&0x48_u32.to_le_bytes());
 
         header_bytes
     }
