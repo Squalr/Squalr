@@ -20,5 +20,6 @@ Our current task, from `README.md`, is:
 - Mach-O fixed C string fields such as `segname`, `sectname`, and inline dylib or rpath paths now use `string_utf8{null_terminated}` instead of raw `u8[]` buffers.
 - UI data type rendering now normalizes parameterized ids back to their base data type label and icon, while symbol details expose string metadata such as fixed buffer size and null termination separately.
 - `string_utf8` default values now allocate a single zero byte so fixed-size UTF-8 buffers expand to the correct byte count during preview and default-value construction instead of collapsing to zero-length reads.
+- Preview formatting now treats string-format values separately from numeric arrays, so fixed string buffers such as Mach-O segment names and paths render as plain text with a wider truncation budget instead of bracketed array previews.
 - Generic plugin execution coverage now includes both PE and Mach-O header population paths.
 - `squalr-cli` now handles `ProcessResponse::Icon` instead of failing to compile when icon responses are enabled.
