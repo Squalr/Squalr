@@ -23,3 +23,4 @@ Our current task, from `README.md`, is:
 - Preview formatting now treats string-format values separately from numeric arrays, so fixed string buffers such as Mach-O segment names and paths render as plain text with a wider truncation budget instead of bracketed array previews.
 - Generic plugin execution coverage now includes both PE and Mach-O header population paths.
 - `squalr-cli` now handles `ProcessResponse::Icon` instead of failing to compile when icon responses are enabled.
+- `squalr-tui` preview formatting now uses the same three-argument `DataValuePreviewFormatOptions::new(array_elements, array_chars, string_chars)` call shape as the engine and GUI, so TUI builds stay compatible with the string preview formatter changes.

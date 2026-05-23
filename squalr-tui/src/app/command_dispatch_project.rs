@@ -45,7 +45,7 @@ use std::time::Duration;
 
 impl AppShell {
     const PROJECT_ITEM_PREVIEW_VIRTUAL_SNAPSHOT_ID: &'static str = "tui_project_item_previews";
-    const PROJECT_ITEM_PREVIEW_FORMAT_OPTIONS: DataValuePreviewFormatOptions = DataValuePreviewFormatOptions::new(4, 96);
+    const PROJECT_ITEM_PREVIEW_FORMAT_OPTIONS: DataValuePreviewFormatOptions = DataValuePreviewFormatOptions::new(4, 96, 96);
 
     pub(super) fn commit_project_selector_input(
         &mut self,
