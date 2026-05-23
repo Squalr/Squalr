@@ -76,18 +76,51 @@ def get_active_rust_toolchain(workspace_directory):
     return active_toolchain_name or None
 
 
-def get_installed_rust_targets(workspace_directory):
+def get_rust_target_query_toolchains(workspace_directory):
     active_toolchain_name = get_active_rust_toolchain(workspace_directory)
-    rust_target_list_command = ["rustup", "target", "list", "--installed"]
+    candidate_toolchain_names = []
 
     if active_toolchain_name:
-        rust_target_list_command.extend(["--toolchain", active_toolchain_name])
+        candidate_toolchain_names.append(active_toolchain_name)
 
-    exit_code, output_text = run_command(rust_target_list_command, workspace_directory)
-    if exit_code != 0:
-        fail("Failed to query installed Rust targets.")
+        if active_toolchain_name.startswith("nightly-") and "-x86_64-" in active_toolchain_name:
+            candidate_toolchain_names.append("nightly")
 
-    return output_text.split()
+    candidate_toolchain_names.append(None)
+
+    deduplicated_candidate_toolchain_names = []
+    seen_candidate_toolchain_names = set()
+    for candidate_toolchain_name in candidate_toolchain_names:
+        if candidate_toolchain_name in seen_candidate_toolchain_names:
+            continue
+
+        deduplicated_candidate_toolchain_names.append(candidate_toolchain_name)
+        seen_candidate_toolchain_names.add(candidate_toolchain_name)
+
+    return deduplicated_candidate_toolchain_names
+
+
+def get_installed_rust_targets(workspace_directory):
+    for candidate_toolchain_name in get_rust_target_query_toolchains(workspace_directory):
+        if candidate_toolchain_name:
+            rust_target_list_command = ["rustup", f"+{candidate_toolchain_name}", "target", "list", "--installed"]
+        else:
+            rust_target_list_command = ["rustup", "target", "list", "--installed"]
+
+        exit_code, output_text = run_command(rust_target_list_command, workspace_directory)
+        if exit_code != 0:
+            continue
+
+        installed_rust_targets = {
+            output_line.strip()
+            for output_line in output_text.splitlines()
+            if output_line.strip() and not output_line.startswith("info:")
+        }
+
+        if installed_rust_targets:
+            return installed_rust_targets
+
+    fail("Failed to query installed Rust targets.")
 
 
 def ensure_host_preflight(workspace_directory, require_adb):
