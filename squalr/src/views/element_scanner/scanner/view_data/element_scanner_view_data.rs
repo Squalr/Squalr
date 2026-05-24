@@ -211,16 +211,7 @@ impl ElementScannerViewData {
             return;
         }
 
-        let scan_constraints = element_scanner_view_data
-            .scan_values_and_constraints
-            .iter()
-            .map(|scan_value_and_constraint| {
-                let mut constraint_value = scan_value_and_constraint.current_scan_value.clone();
-                Self::apply_scan_mode_to_constraint_value(effective_scan_mode, element_scanner_view_data.active_display_format, &mut constraint_value);
-                AnonymousScanConstraint::new(scan_value_and_constraint.selected_scan_compare_type, Some(constraint_value))
-                    .with_hex_pattern_matching(effective_scan_mode == ElementScannerScanMode::Pattern)
-            })
-            .collect();
+        let scan_constraints = element_scanner_view_data.build_scan_constraints(effective_scan_mode);
         let element_scan_request = ElementScanRequest {
             scan_constraints,
             data_type_refs,
@@ -250,6 +241,29 @@ impl ElementScannerViewData {
                 None => {}
             }
         });
+    }
+
+    fn build_scan_constraints(
+        &self,
+        effective_scan_mode: ElementScannerScanMode,
+    ) -> Vec<AnonymousScanConstraint> {
+        self.scan_values_and_constraints
+            .iter()
+            .map(|scan_value_and_constraint| {
+                let constraint_value = match scan_value_and_constraint.selected_scan_compare_type {
+                    ScanCompareType::Relative(_) => None,
+                    ScanCompareType::Immediate(_) | ScanCompareType::Delta(_) => {
+                        let mut constraint_value = scan_value_and_constraint.current_scan_value.clone();
+                        Self::apply_scan_mode_to_constraint_value(effective_scan_mode, self.active_display_format, &mut constraint_value);
+
+                        Some(constraint_value)
+                    }
+                };
+
+                AnonymousScanConstraint::new(scan_value_and_constraint.selected_scan_compare_type, constraint_value)
+                    .with_hex_pattern_matching(effective_scan_mode == ElementScannerScanMode::Pattern)
+            })
+            .collect()
     }
 
     pub fn add_constraint(element_scanner_view_data: Dependency<Self>) {
@@ -394,5 +408,59 @@ impl ElementScannerViewData {
             .iter()
             .copied()
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ElementScannerScanMode, ElementScannerViewData};
+    use crate::views::element_scanner::scanner::view_data::element_scanner_value_view_data::ElementScannerValueViewData;
+    use squalr_engine_api::structures::scanning::comparisons::{
+        scan_compare_type::ScanCompareType, scan_compare_type_delta::ScanCompareTypeDelta, scan_compare_type_relative::ScanCompareTypeRelative,
+    };
+
+    #[test]
+    fn build_scan_constraints_omits_hidden_value_for_relative_scans() {
+        let mut element_scanner_view_data = ElementScannerViewData::new();
+        element_scanner_view_data.scan_values_and_constraints = vec![ElementScannerValueViewData {
+            selected_scan_compare_type: ScanCompareType::Relative(ScanCompareTypeRelative::Decreased),
+            ..ElementScannerValueViewData::new(String::from("test_menu"))
+        }];
+
+        let scan_constraints = element_scanner_view_data.build_scan_constraints(ElementScannerScanMode::Element);
+
+        assert_eq!(scan_constraints.len(), 1);
+        assert_eq!(
+            scan_constraints[0].get_scan_compare_type(),
+            ScanCompareType::Relative(ScanCompareTypeRelative::Decreased)
+        );
+        assert!(scan_constraints[0].get_anonymous_value_string().is_none());
+    }
+
+    #[test]
+    fn build_scan_constraints_keeps_value_for_delta_scans() {
+        let mut element_scanner_view_data = ElementScannerViewData::new();
+        element_scanner_view_data.scan_values_and_constraints = vec![ElementScannerValueViewData {
+            selected_scan_compare_type: ScanCompareType::Delta(ScanCompareTypeDelta::IncreasedByX),
+            ..ElementScannerValueViewData::new(String::from("test_menu"))
+        }];
+        element_scanner_view_data.scan_values_and_constraints[0]
+            .current_scan_value
+            .set_anonymous_value_string(String::from("4"));
+
+        let scan_constraints = element_scanner_view_data.build_scan_constraints(ElementScannerScanMode::Element);
+
+        assert_eq!(scan_constraints.len(), 1);
+        assert_eq!(
+            scan_constraints[0].get_scan_compare_type(),
+            ScanCompareType::Delta(ScanCompareTypeDelta::IncreasedByX)
+        );
+        assert_eq!(
+            scan_constraints[0]
+                .get_anonymous_value_string()
+                .as_ref()
+                .map(|anonymous_value_string| anonymous_value_string.get_anonymous_value_string()),
+            Some("4")
+        );
     }
 }
