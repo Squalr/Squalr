@@ -6,7 +6,7 @@ use squalr_engine_api::structures::memory::bitness::Bitness;
 use squalr_engine_api::structures::memory::normalized_module::NormalizedModule;
 use squalr_engine_api::structures::memory::normalized_region::NormalizedRegion;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
@@ -200,6 +200,52 @@ impl LinuxMemoryQueryer {
         region.permissions.chars().nth(2) == Some('x') && region.pathname.starts_with('/')
     }
 
+    fn collect_module_paths(parsed_regions: &[ProcMapsRegion]) -> HashSet<String> {
+        parsed_regions
+            .iter()
+            .filter(|parsed_region| Self::is_module_region(parsed_region))
+            .map(|parsed_region| Self::normalize_module_path(&parsed_region.pathname))
+            .collect()
+    }
+
+    fn build_modules_from_regions(parsed_regions: &[ProcMapsRegion]) -> Vec<NormalizedModule> {
+        let module_paths = Self::collect_module_paths(parsed_regions);
+        let mut module_ranges: HashMap<String, (u64, u64)> = HashMap::new();
+
+        for parsed_region in parsed_regions {
+            let module_path = Self::normalize_module_path(&parsed_region.pathname);
+
+            if !module_paths.contains(&module_path) {
+                continue;
+            }
+
+            let module_range_entry = module_ranges
+                .entry(module_path)
+                .or_insert((parsed_region.start_address, parsed_region.end_address));
+
+            module_range_entry.0 = module_range_entry.0.min(parsed_region.start_address);
+            module_range_entry.1 = module_range_entry.1.max(parsed_region.end_address);
+        }
+
+        let mut modules: Vec<NormalizedModule> = module_ranges
+            .iter()
+            .filter_map(|(module_path, (module_start_address, module_end_address))| {
+                let module_region_size = module_end_address.saturating_sub(*module_start_address);
+                if module_region_size == 0 {
+                    return None;
+                }
+
+                let module_name = Self::module_name_from_path(module_path);
+
+                Some(NormalizedModule::new(&module_name, *module_start_address, module_region_size))
+            })
+            .collect();
+
+        modules.sort_by_key(|module| module.get_base_address());
+
+        modules
+    }
+
     fn module_name_from_path(module_path: &str) -> String {
         Path::new(module_path)
             .file_name()
@@ -317,39 +363,7 @@ impl MemoryQueryerTrait for LinuxMemoryQueryer {
             Err(_) => return Vec::new(),
         };
 
-        let mut module_ranges: HashMap<String, (u64, u64)> = HashMap::new();
-
-        for parsed_region in parsed_regions {
-            if !Self::is_module_region(&parsed_region) {
-                continue;
-            }
-
-            let module_path = Self::normalize_module_path(&parsed_region.pathname);
-            let module_range_entry = module_ranges
-                .entry(module_path)
-                .or_insert((parsed_region.start_address, parsed_region.end_address));
-
-            module_range_entry.0 = module_range_entry.0.min(parsed_region.start_address);
-            module_range_entry.1 = module_range_entry.1.max(parsed_region.end_address);
-        }
-
-        let mut modules: Vec<NormalizedModule> = module_ranges
-            .iter()
-            .filter_map(|(module_path, (module_start_address, module_end_address))| {
-                let module_region_size = module_end_address.saturating_sub(*module_start_address);
-                if module_region_size == 0 {
-                    return None;
-                }
-
-                let module_name = Self::module_name_from_path(module_path);
-
-                Some(NormalizedModule::new(&module_name, *module_start_address, module_region_size))
-            })
-            .collect();
-
-        modules.sort_by_key(|module| module.get_base_address());
-
-        modules
+        Self::build_modules_from_regions(&parsed_regions)
     }
 
     fn address_to_module(
@@ -478,5 +492,49 @@ mod tests {
         let (module_name, module_offset) = resolution.expect("address should resolve inside target module.");
         assert_eq!(module_name, "target.so");
         assert_eq!(module_offset, 0xABC);
+    }
+
+    #[test]
+    fn build_modules_from_regions_spans_all_mappings_for_executable_file() {
+        let parsed_regions = vec![
+            ProcMapsRegion {
+                start_address: 0x1000,
+                end_address: 0x2000,
+                permissions: "r--p".to_string(),
+                pathname: "/tmp/squalr".to_string(),
+            },
+            ProcMapsRegion {
+                start_address: 0x2000,
+                end_address: 0x5000,
+                permissions: "r-xp".to_string(),
+                pathname: "/tmp/squalr".to_string(),
+            },
+            ProcMapsRegion {
+                start_address: 0x5000,
+                end_address: 0x6000,
+                permissions: "rw-p".to_string(),
+                pathname: "/tmp/squalr".to_string(),
+            },
+            ProcMapsRegion {
+                start_address: 0x8000,
+                end_address: 0x9000,
+                permissions: "rw-p".to_string(),
+                pathname: "/tmp/data.bin".to_string(),
+            },
+        ];
+
+        let modules = LinuxMemoryQueryer::build_modules_from_regions(&parsed_regions);
+
+        assert_eq!(modules.len(), 1);
+        assert_eq!(modules[0].get_module_name(), "squalr");
+        assert_eq!(modules[0].get_base_address(), 0x1000);
+        assert_eq!(modules[0].get_region_size(), 0x5000);
+
+        let queryer = LinuxMemoryQueryer::new();
+        let (_module_name, module_offset) = queryer
+            .address_to_module(0x5800, &modules)
+            .expect("address in writable executable-file mapping should resolve to the module.");
+
+        assert_eq!(module_offset, 0x4800);
     }
 }
