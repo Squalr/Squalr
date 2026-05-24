@@ -1,7 +1,7 @@
 use crate::response_handlers::{handle_privileged_engine_response, handle_unprivileged_engine_response};
 use anyhow::{Result, anyhow};
 use squalr_engine_api::commands::command_line::clap::ErrorKind;
-use squalr_engine_api::commands::command_line::{CommandLineCommand, CommandLineParseError, parse_command_line_with_program_name};
+use squalr_engine_api::commands::command_line::{CommandLineCommand, CommandLineParseError, format_prompt_command_error, parse_command_line_with_program_name};
 use squalr_engine_api::commands::privileged_command::PrivilegedCommand;
 use squalr_engine_api::commands::unprivileged_command::UnprivilegedCommand;
 use squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState;
@@ -60,7 +60,7 @@ impl Cli {
         engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
         raw_command_text: &str,
     ) -> Result<()> {
-        let parsed_input = match Self::parse_input(raw_command_text)? {
+        let parsed_input = match Self::parse_input(raw_command_text, CommandInputMode::OneShot)? {
             ParsedInput::PrivilegedCommand(engine_command) => ParsedInput::PrivilegedCommand(engine_command),
             ParsedInput::UnprivilegedCommand(engine_command) => ParsedInput::UnprivilegedCommand(engine_command),
             ParsedInput::DisplayedHelpOrVersion => return Ok(()),
@@ -98,7 +98,7 @@ impl Cli {
             return false;
         }
 
-        let parsed_input = match Self::parse_input(input) {
+        let parsed_input = match Self::parse_input(input, CommandInputMode::Session) {
             Ok(ParsedInput::PrivilegedCommand(engine_command)) => ParsedInput::PrivilegedCommand(engine_command),
             Ok(ParsedInput::UnprivilegedCommand(engine_command)) => ParsedInput::UnprivilegedCommand(engine_command),
             Ok(ParsedInput::DisplayedHelpOrVersion) => return true,
@@ -125,22 +125,35 @@ impl Cli {
         true
     }
 
-    fn parse_input(input: &str) -> Result<ParsedInput> {
+    fn parse_input(
+        input: &str,
+        command_input_mode: CommandInputMode,
+    ) -> Result<ParsedInput> {
         match parse_command_line_with_program_name(input, "squalr-cli") {
             Ok(CommandLineCommand::Privileged(engine_command)) => Ok(ParsedInput::PrivilegedCommand(engine_command)),
             Ok(CommandLineCommand::Unprivileged(engine_command)) => Ok(ParsedInput::UnprivilegedCommand(engine_command)),
             Err(CommandLineParseError::Command(error)) if matches!(error.kind, ErrorKind::HelpDisplayed | ErrorKind::VersionDisplayed) => {
-                print!("{}", error);
+                match command_input_mode {
+                    CommandInputMode::Session => println!("{}", format_prompt_command_error(&error)),
+                    CommandInputMode::OneShot => print!("{}", error),
+                }
                 Ok(ParsedInput::DisplayedHelpOrVersion)
             }
+            Err(CommandLineParseError::Command(error)) if command_input_mode == CommandInputMode::Session => Err(anyhow!(format_prompt_command_error(&error))),
             Err(error) => Err(anyhow!(error.to_string())),
         }
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum CommandInputMode {
+    Session,
+    OneShot,
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{Cli, ParsedInput};
+    use super::{Cli, CommandInputMode, ParsedInput};
     use squalr_engine_api::commands::project_items::project_items_command::ProjectItemsCommand;
     use squalr_engine_api::commands::project_symbols::project_symbols_command::ProjectSymbolsCommand;
     use squalr_engine_api::commands::unprivileged_command::UnprivilegedCommand;
@@ -148,29 +161,57 @@ mod tests {
 
     #[test]
     fn parse_input_returns_help_for_top_level_help_flag() {
-        let parsed_input = Cli::parse_input("--help").expect("Expected --help to be handled as a display-only command");
+        let parsed_input = Cli::parse_input("--help", CommandInputMode::Session).expect("Expected --help to be handled as a display-only command");
 
         assert!(matches!(parsed_input, ParsedInput::DisplayedHelpOrVersion));
     }
 
     #[test]
+    fn parse_session_input_formats_top_level_error_without_binary_name() {
+        let parse_error = match Cli::parse_input("24", CommandInputMode::Session) {
+            Ok(_) => panic!("Expected invalid session command."),
+            Err(parse_error) => parse_error,
+        };
+        let error_text = parse_error.to_string();
+
+        assert!(error_text.contains("Usage: <COMMAND>"));
+        assert!(!error_text.contains("squalr-cli"));
+        assert!(!error_text.contains("squalr-engine-api"));
+    }
+
+    #[test]
+    fn parse_one_shot_input_keeps_binary_name_in_top_level_error() {
+        let parse_error = match Cli::parse_input("24", CommandInputMode::OneShot) {
+            Ok(_) => panic!("Expected invalid one-shot command."),
+            Err(parse_error) => parse_error,
+        };
+        let error_text = parse_error.to_string();
+
+        assert!(error_text.contains("squalr-cli <SUBCOMMAND>"));
+    }
+
+    #[test]
     fn parse_input_returns_command_for_valid_process_list_command() {
-        let parsed_input = Cli::parse_input("process list").expect("Expected process list command to parse successfully");
+        let parsed_input = Cli::parse_input("process list", CommandInputMode::Session).expect("Expected process list command to parse successfully");
 
         assert!(matches!(parsed_input, ParsedInput::PrivilegedCommand(_)));
     }
 
     #[test]
     fn parse_input_returns_unprivileged_command_for_project_symbols_list_command() {
-        let parsed_input = Cli::parse_input("project_symbols list").expect("Expected project_symbols list command to parse successfully");
+        let parsed_input =
+            Cli::parse_input("project_symbols list", CommandInputMode::Session).expect("Expected project_symbols list command to parse successfully");
 
         assert!(matches!(parsed_input, ParsedInput::UnprivilegedCommand(UnprivilegedCommand::ProjectSymbols(_))));
     }
 
     #[test]
     fn parse_input_returns_unprivileged_command_for_project_symbols_write_value_command() {
-        let parsed_input = Cli::parse_input("project_symbols write-value --address 4660 --type u32 --field value -v '255;decimal;'")
-            .expect("Expected project_symbols write-value command to parse successfully");
+        let parsed_input = Cli::parse_input(
+            "project_symbols write-value --address 4660 --type u32 --field value -v '255;decimal;'",
+            CommandInputMode::Session,
+        )
+        .expect("Expected project_symbols write-value command to parse successfully");
 
         let ParsedInput::UnprivilegedCommand(UnprivilegedCommand::ProjectSymbols(ProjectSymbolsCommand::WriteValue {
             project_symbols_write_value_request,
@@ -192,8 +233,11 @@ mod tests {
 
     #[test]
     fn parse_input_returns_unprivileged_command_for_project_symbols_upsert_layout_command() {
-        let parsed_input = Cli::parse_input("project_symbols upsert-layout --id player.stats --field health:u32 --field unassigned[4] --size 8")
-            .expect("Expected project_symbols upsert-layout command to parse successfully");
+        let parsed_input = Cli::parse_input(
+            "project_symbols upsert-layout --id player.stats --field health:u32 --field unassigned[4] --size 8",
+            CommandInputMode::Session,
+        )
+        .expect("Expected project_symbols upsert-layout command to parse successfully");
 
         let ParsedInput::UnprivilegedCommand(UnprivilegedCommand::ProjectSymbols(ProjectSymbolsCommand::UpsertLayout {
             project_symbols_upsert_layout_request,
@@ -209,8 +253,8 @@ mod tests {
 
     #[test]
     fn parse_input_returns_unprivileged_command_for_project_symbols_delete_layout_command() {
-        let parsed_input =
-            Cli::parse_input("project_symbols delete-layout --id player.stats").expect("Expected project_symbols delete-layout command to parse successfully");
+        let parsed_input = Cli::parse_input("project_symbols delete-layout --id player.stats", CommandInputMode::Session)
+            .expect("Expected project_symbols delete-layout command to parse successfully");
 
         let ParsedInput::UnprivilegedCommand(UnprivilegedCommand::ProjectSymbols(ProjectSymbolsCommand::DeleteLayout {
             project_symbols_delete_layout_request,
@@ -225,8 +269,11 @@ mod tests {
 
     #[test]
     fn parse_input_returns_unprivileged_command_for_project_symbols_upsert_resolver_command() {
-        let parsed_input = Cli::parse_input(r#"project_symbols upsert-resolver --id inventory.count --definition-json "{\"root_node\":{\"Literal\":4}}""#)
-            .expect("Expected project_symbols upsert-resolver command to parse successfully");
+        let parsed_input = Cli::parse_input(
+            r#"project_symbols upsert-resolver --id inventory.count --definition-json "{\"root_node\":{\"Literal\":4}}""#,
+            CommandInputMode::Session,
+        )
+        .expect("Expected project_symbols upsert-resolver command to parse successfully");
 
         let ParsedInput::UnprivilegedCommand(UnprivilegedCommand::ProjectSymbols(ProjectSymbolsCommand::UpsertResolver {
             project_symbols_upsert_resolver_request,
@@ -240,7 +287,7 @@ mod tests {
 
     #[test]
     fn parse_input_returns_unprivileged_command_for_project_symbols_delete_resolver_command() {
-        let parsed_input = Cli::parse_input("project_symbols delete-resolver --id inventory.count")
+        let parsed_input = Cli::parse_input("project_symbols delete-resolver --id inventory.count", CommandInputMode::Session)
             .expect("Expected project_symbols delete-resolver command to parse successfully");
 
         let ParsedInput::UnprivilegedCommand(UnprivilegedCommand::ProjectSymbols(ProjectSymbolsCommand::DeleteResolver {
@@ -255,8 +302,11 @@ mod tests {
 
     #[test]
     fn parse_input_returns_unprivileged_command_for_project_items_write_value_command() {
-        let parsed_input = Cli::parse_input("project_items write-value -p project_items/health.json --field value -v '255;decimal;'")
-            .expect("Expected project_items write-value command to parse successfully");
+        let parsed_input = Cli::parse_input(
+            "project_items write-value -p project_items/health.json --field value -v '255;decimal;'",
+            CommandInputMode::Session,
+        )
+        .expect("Expected project_items write-value command to parse successfully");
 
         let ParsedInput::UnprivilegedCommand(UnprivilegedCommand::ProjectItems(ProjectItemsCommand::WriteValue {
             project_items_write_value_request,
@@ -280,7 +330,7 @@ mod tests {
 
     #[test]
     fn parse_input_returns_unprivileged_command_for_project_items_strip_symbol_command() {
-        let parsed_input = Cli::parse_input("project_items strip-symbol -p project_items/health.json")
+        let parsed_input = Cli::parse_input("project_items strip-symbol -p project_items/health.json", CommandInputMode::Session)
             .expect("Expected project_items strip-symbol command to parse successfully");
 
         let ParsedInput::UnprivilegedCommand(UnprivilegedCommand::ProjectItems(ProjectItemsCommand::StripSymbol {
@@ -298,8 +348,11 @@ mod tests {
 
     #[test]
     fn parse_input_returns_unprivileged_command_for_project_items_update_details_command() {
-        let parsed_input = Cli::parse_input("project_items update-details -p project_items/health.json --property icon_id -v 'u64;string;'")
-            .expect("Expected project_items update-details command to parse successfully");
+        let parsed_input = Cli::parse_input(
+            "project_items update-details -p project_items/health.json --property icon_id -v 'u64;string;'",
+            CommandInputMode::Session,
+        )
+        .expect("Expected project_items update-details command to parse successfully");
 
         let ParsedInput::UnprivilegedCommand(UnprivilegedCommand::ProjectItems(ProjectItemsCommand::UpdateDetails {
             project_items_update_details_request,
@@ -325,7 +378,7 @@ mod tests {
 
     #[test]
     fn parse_input_returns_unprivileged_command_for_project_list_command() {
-        let parsed_input = Cli::parse_input("project list").expect("Expected project list command to parse successfully");
+        let parsed_input = Cli::parse_input("project list", CommandInputMode::Session).expect("Expected project list command to parse successfully");
 
         assert!(matches!(parsed_input, ParsedInput::UnprivilegedCommand(UnprivilegedCommand::Project(_))));
     }

@@ -69,6 +69,20 @@ fn prompt_command_error_summary_keeps_usage_without_full_help_footer() {
 }
 
 #[test]
+fn prompt_command_top_level_error_uses_prompt_usage() {
+    let parse_error = parse_prompt_command_line("24").expect_err("Expected parse failure.");
+    let CommandLineParseError::Command(parse_error) = parse_error else {
+        panic!("Expected clap parse error.");
+    };
+
+    let prompt_error_message = format_prompt_command_error(&parse_error);
+
+    assert!(prompt_error_message.starts_with("error:"));
+    assert!(prompt_error_message.contains("Usage: <COMMAND>"));
+    assert!(!prompt_error_message.contains("squalr-engine-api"));
+}
+
+#[test]
 fn prompt_command_help_is_compact_for_terminal_output() {
     let parse_error = parse_prompt_command_line("scan new --help").expect_err("Expected help response.");
     let CommandLineParseError::Command(parse_error) = parse_error else {
