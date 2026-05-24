@@ -10,8 +10,9 @@ Our current task, from `README.md`, is:
 
 ## Current Tasklist
 
-- 
+- Completed: Revisited PE symbol generation for the new `string_utf8{null_terminated}` support. `IMAGE_SECTION_HEADER.Name` now uses an 8-byte fixed null-terminated UTF-8 field instead of `u8[8]`.
 
 ## Important Information
 
-- 
+- Validation: `cargo fmt --all` completed with existing rustfmt deprecation warnings for `fn_args_layout`; `cargo test -p squalr-plugin-binary-symbols` passed 18 tests.
+- Human verification: PE section names should now display as normal C-style short names while retaining the full 8-byte header field size.
