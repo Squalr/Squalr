@@ -60,12 +60,12 @@ impl InterprocessPipeUnidirectional {
         })
     }
 
-    /// Creates a single manager connection: effectively "binds" to the socket
+    /// Creates a single manager connection: effectively "binds" to the socket.
     /// (or named pipe on Windows), listens, and accepts exactly one incoming connection.
     fn create_interprocess_pipe(to_shell: bool) -> Result<LocalSocketStream, InterprocessPipeError> {
         let ipc_socket_path = if to_shell { IPC_SOCKET_PATH_TO_SHELL } else { IPC_SOCKET_PATH_OUTBOND };
 
-        // On Unix-like non-Android systems, remove any leftover socket file
+        // On Unix-like non-Android systems, remove any leftover socket file.
         #[cfg(all(not(windows), not(target_os = "android")))]
         {
             use std::fs;
@@ -95,7 +95,7 @@ impl InterprocessPipeUnidirectional {
                 details: error.to_string(),
             })?;
 
-        // Create the listener using ListenerOptions
+        // Create the listener using ListenerOptions.
         let listener = ListenerOptions::new()
             .name(name)
             .create_sync()
@@ -104,7 +104,7 @@ impl InterprocessPipeUnidirectional {
                 details: error.to_string(),
             })?;
 
-        // Accept one connection
+        // Accept one connection.
         let stream = match listener.incoming().next() {
             Some(Ok(conn)) => conn,
             Some(Err(error)) => {
@@ -166,8 +166,7 @@ impl InterprocessPipeUnidirectional {
         request_id: Uuid,
     ) -> Result<(), InterprocessPipeError> {
         // Serialize the data.
-        let serialized_data = bincode::serde::encode_to_vec(&value, bincode::config::standard())
-            .map_err(|error| InterprocessPipeError::PayloadSerializationFailed { source: error })?;
+        let serialized_data = Self::serialize_payload(&value)?;
 
         // Acquire write lock on the connection to send in a thread-safe manner.
         if let Ok(socket_stream_lock) = self.socket_stream.lock() {
@@ -219,7 +218,7 @@ impl InterprocessPipeUnidirectional {
 
     /// Receives a value of generic type `T` (which must implement `DeserializeOwned`) from the IPC connection.
     pub fn ipc_receive<T: DeserializeOwned>(&self) -> Result<(T, Uuid), InterprocessPipeError> {
-        // Acquire read lock on the connection
+        // Acquire read lock on the connection.
         if let Ok(socket_stream_lock) = self.socket_stream.lock() {
             if let Some(mut socket_stream) = socket_stream_lock.as_ref() {
                 // First read the length (4 bytes).
@@ -260,9 +259,8 @@ impl InterprocessPipeUnidirectional {
                         source: error,
                     })?;
 
-                // Deserialize the data into T
-                let (value, _bytes_read) = bincode::serde::decode_from_slice::<T, _>(&data_buf, bincode::config::standard())
-                    .map_err(|error| InterprocessPipeError::PayloadDeserializationFailed { source: error })?;
+                // Deserialize the data into T.
+                let value = Self::deserialize_payload::<T>(&data_buf)?;
 
                 Ok((value, request_id))
             } else {
@@ -273,5 +271,61 @@ impl InterprocessPipeUnidirectional {
                 details: "Failed to acquire IPC stream lock for receiving.".to_string(),
             })
         }
+    }
+
+    fn serialize_payload<T: Serialize>(value: &T) -> Result<Vec<u8>, InterprocessPipeError> {
+        serde_json::to_vec(value).map_err(|error| InterprocessPipeError::PayloadSerializationFailed { source: error })
+    }
+
+    fn deserialize_payload<T: DeserializeOwned>(data: &[u8]) -> Result<T, InterprocessPipeError> {
+        serde_json::from_slice::<T>(data).map_err(|error| InterprocessPipeError::PayloadDeserializationFailed { source: error })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::InterprocessPipeUnidirectional;
+    use crate::engine_bindings::engine_egress::EngineEgress;
+    use squalr_engine_api::commands::{
+        privileged_command_response::PrivilegedCommandResponse, privileged_command_result::PrivilegedCommandResult,
+        registry::get_metadata::registry_get_metadata_response::RegistryGetMetadataResponse, registry::registry_response::RegistryResponse,
+    };
+    use squalr_engine_api::registries::symbols::{privileged_registry_catalog::PrivilegedRegistryCatalog, struct_layout_descriptor::StructLayoutDescriptor};
+    use squalr_engine_api::structures::{
+        data_types::data_type_ref::DataTypeRef,
+        data_values::container_type::ContainerType,
+        structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition},
+    };
+
+    #[test]
+    fn ipc_payload_codec_round_trips_registry_catalog_with_symbolic_layout() {
+        let symbolic_layout = SymbolicStructDefinition::new(
+            "android.process.row".to_string(),
+            vec![SymbolicFieldDefinition::new_named(
+                "pid".to_string(),
+                DataTypeRef::new("u32"),
+                ContainerType::None,
+            )],
+        );
+        let registry_catalog = PrivilegedRegistryCatalog::new(
+            1,
+            Vec::new(),
+            vec![StructLayoutDescriptor::new(
+                "android.process.row".to_string(),
+                symbolic_layout,
+            )],
+        );
+        let response = PrivilegedCommandResponse::Registry(RegistryResponse::GetMetadata {
+            registry_get_metadata_response: RegistryGetMetadataResponse {
+                privileged_registry_catalog: registry_catalog.clone(),
+            },
+        });
+        let engine_egress = EngineEgress::PrivilegedCommandResponse(PrivilegedCommandResult::new(response, Some(registry_catalog)));
+
+        let serialized_payload = InterprocessPipeUnidirectional::serialize_payload(&engine_egress).expect("Expected IPC payload serialization to succeed.");
+        let decoded_payload =
+            InterprocessPipeUnidirectional::deserialize_payload::<EngineEgress>(&serialized_payload).expect("Expected IPC payload deserialization to succeed.");
+
+        assert!(matches!(decoded_payload, EngineEgress::PrivilegedCommandResponse(_)));
     }
 }

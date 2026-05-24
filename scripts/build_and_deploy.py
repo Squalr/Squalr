@@ -284,6 +284,14 @@ def deploy_privileged_worker(workspace_directory, worker_profile):
     )
 
 
+def kill_existing_privileged_worker(workspace_directory):
+    run_su_command_with_fallback(
+        workspace_directory,
+        "worker_pids=$(pidof squalr-cli 2>/dev/null); if [ -n \"$worker_pids\" ]; then kill $worker_pids; fi",
+        "terminate stale privileged worker processes",
+    )
+
+
 def resolve_launch_activity(workspace_directory):
     resolve_command = [
         "adb",
@@ -517,6 +525,7 @@ def main():
         return
 
     ensure_adb_device_connected(workspace_directory)
+    kill_existing_privileged_worker(workspace_directory)
     install_apk(workspace_directory, apk_profile)
     verify_launcher_identity(workspace_directory)
     if not parsed_arguments.skip_worker:

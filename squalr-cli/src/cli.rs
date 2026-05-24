@@ -8,6 +8,7 @@ use squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState;
 use std::io;
 use std::io::Write;
 use std::sync::{Arc, mpsc};
+use std::thread;
 
 pub struct Cli {}
 
@@ -42,7 +43,6 @@ impl Cli {
     }
 
     pub fn stay_alive() {
-        let stdin = io::stdin();
         let mut stdout = io::stdout();
 
         if let Err(error) = stdout.flush() {
@@ -50,9 +50,11 @@ impl Cli {
             return;
         }
 
-        let mut input = String::new();
-        let _ = stdin.read_line(&mut input);
-        log::error!("Exiting cli.");
+        // IPC-mode workers can be spawned without a readable stdin, especially through Android `su`.
+        // Keep the process alive until another thread exits.
+        loop {
+            thread::park();
+        }
     }
 
     /// Executes a single command and blocks until the engine response arrives.
