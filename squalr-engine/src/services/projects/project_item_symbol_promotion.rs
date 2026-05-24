@@ -913,7 +913,7 @@ mod tests {
     use squalr_engine_session::engine_unprivileged_state::{EngineUnprivilegedState, EngineUnprivilegedStateOptions};
     use std::{
         collections::HashMap,
-        fs::File,
+        fs::{self, File},
         path::{Path, PathBuf},
         sync::{Arc, Mutex, RwLock},
     };
@@ -924,6 +924,24 @@ mod tests {
         memory_query_success: bool,
         memory_query_modules: Vec<NormalizedModule>,
         memory_query_virtual_pages: Vec<NormalizedRegion>,
+    }
+
+    struct SampleProjectDirectoryCleanup {
+        project_directory_path: PathBuf,
+    }
+
+    impl SampleProjectDirectoryCleanup {
+        fn new(project_directory_path: PathBuf) -> Self {
+            let _ = fs::remove_dir_all(&project_directory_path);
+
+            Self { project_directory_path }
+        }
+    }
+
+    impl Drop for SampleProjectDirectoryCleanup {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.project_directory_path);
+        }
     }
 
     impl MockPromoteBindings {
@@ -1225,6 +1243,36 @@ mod tests {
                 .map(StructLayoutDescriptor::get_struct_layout_id),
             Some("game.exe")
         );
+    }
+
+    #[test]
+    fn promote_symbol_request_rebases_project_rooted_relative_path_to_opened_project_path() {
+        let sample_project_directory_path = PathBuf::from("./target/squalr_relative_promote_symbol_sample");
+        let _sample_project_directory_cleanup = SampleProjectDirectoryCleanup::new(sample_project_directory_path.clone());
+        let address_project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU8::get_value_from_primitive(0));
+        let (project, _project_item_path) = create_project_with_item(&sample_project_directory_path, "health.json", address_project_item);
+        let requested_project_item_path = PathBuf::from("target/squalr_relative_promote_symbol_sample/project_items/health.json");
+        let mock_promote_bindings = MockPromoteBindings::new(|_memory_read_request| MemoryReadResponse::default())
+            .with_memory_query_modules(vec![NormalizedModule::new("game.exe", 0x10000000, 0x2000)])
+            .with_memory_query_virtual_pages(vec![NormalizedRegion::new(0x10000000, 0x5000)]);
+        let engine_unprivileged_state = create_engine_unprivileged_state(mock_promote_bindings);
+
+        *engine_unprivileged_state
+            .get_project_manager()
+            .get_opened_project()
+            .write()
+            .expect("Expected opened project write lock in test.") = Some(project);
+
+        let engine_execution_context: Arc<dyn EngineExecutionContext> = engine_unprivileged_state.clone();
+        let promote_symbol_response = ProjectItemsPromoteSymbolRequest {
+            project_item_paths: vec![requested_project_item_path],
+            overwrite_conflicting_symbols: false,
+        }
+        .execute(&engine_execution_context);
+
+        assert!(promote_symbol_response.success);
+        assert_eq!(promote_symbol_response.promoted_symbol_count, 1);
+        assert_eq!(promote_symbol_response.promoted_symbol_locator_keys, vec![String::from("module:game.exe:1234")]);
     }
 
     #[test]
