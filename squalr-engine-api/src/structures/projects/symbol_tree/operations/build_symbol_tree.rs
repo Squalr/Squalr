@@ -1520,7 +1520,8 @@ mod tests {
         pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
         projects::{
             project_symbol_catalog::ProjectSymbolCatalog, project_symbol_claim::ProjectSymbolClaim, project_symbol_locator::ProjectSymbolLocator,
-            project_symbol_module::ProjectSymbolModule, symbol_tree::symbol_tree_node::SymbolTreeNodeKind,
+            project_symbol_module::ProjectSymbolModule, project_symbol_module_field::ProjectSymbolModuleField,
+            symbol_tree::symbol_tree_node::SymbolTreeNodeKind,
         },
         structs::{
             symbolic_field_definition::SymbolicFieldDefinition,
@@ -2888,6 +2889,82 @@ mod tests {
         assert_eq!(
             symbol_tree_nodes[3].get_locator(),
             &ProjectSymbolLocator::new_module_offset(String::from("game.exe"), 12)
+        );
+    }
+
+    #[test]
+    fn build_symbol_tree_nodes_matches_winmine_module_root_layout_order() {
+        let mut symbol_module = ProjectSymbolModule::new(String::from("winmine.exe"), 131072);
+        symbol_module
+            .get_fields_mut()
+            .push(ProjectSymbolModuleField::new(
+                String::from("PE Headers"),
+                0,
+                String::from("win.pe.PE_HEADERS32"),
+            ));
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_and_symbol_claims(
+            vec![symbol_module],
+            vec![
+                StructLayoutDescriptor::new(
+                    String::from("win.pe.PE_HEADERS32"),
+                    SymbolicStructDefinition::new(String::from("win.pe.PE_HEADERS32"), vec![SymbolicFieldDefinition::new_unassigned(353)])
+                        .with_declared_size_in_bytes(Some(353)),
+                ),
+                StructLayoutDescriptor::new(
+                    String::from("winmine.exe"),
+                    SymbolicStructDefinition::new(
+                        String::from("winmine.exe"),
+                        vec![
+                            SymbolicFieldDefinition::new_named(String::from("PE Headers"), DataTypeRef::new("win.pe.PE_HEADERS32"), ContainerType::None),
+                            SymbolicFieldDefinition::new_unassigned(21844),
+                            SymbolicFieldDefinition::new_named(String::from("winmine_exe_0x579C"), DataTypeRef::new("i32"), ContainerType::None),
+                            SymbolicFieldDefinition::new_unassigned(108640),
+                        ],
+                    )
+                    .with_declared_size_in_bytes(Some(131072)),
+                ),
+            ],
+            vec![ProjectSymbolClaim::new_module_offset(
+                String::from("winmine_exe_0x579C"),
+                String::from("winmine.exe"),
+                22428,
+                String::from("i32"),
+            )],
+        );
+
+        let symbol_tree_nodes = build_symbol_tree_nodes(
+            &project_symbol_catalog,
+            &HashSet::from([String::from("module:winmine.exe")]),
+            &HashMap::new(),
+            |data_type_ref| match data_type_ref.get_data_type_id() {
+                "i32" => Some(4),
+                "u8" => Some(1),
+                _ => None,
+            },
+        );
+        let direct_child_display_names = symbol_tree_nodes
+            .iter()
+            .filter(|symbol_tree_node| symbol_tree_node.get_depth() == 1)
+            .map(|symbol_tree_node| symbol_tree_node.get_display_name().to_string())
+            .collect::<Vec<_>>();
+        let unassigned_node_count = symbol_tree_nodes
+            .iter()
+            .filter(|symbol_tree_node| matches!(symbol_tree_node.get_kind(), SymbolTreeNodeKind::UnassignedSegment { .. }))
+            .count();
+
+        assert_eq!(
+            direct_child_display_names,
+            vec![
+                String::from("PE Headers"),
+                String::from("UNASSIGNED_00000161"),
+                String::from("winmine_exe_0x579C"),
+                String::from("UNASSIGNED_000057A0"),
+            ]
+        );
+        assert_eq!(unassigned_node_count, 2);
+        assert_eq!(
+            symbol_tree_nodes[3].get_locator(),
+            &ProjectSymbolLocator::new_module_offset(String::from("winmine.exe"), 22428)
         );
     }
 
