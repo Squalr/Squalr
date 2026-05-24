@@ -209,9 +209,10 @@ pub enum SymbolLayoutEditorTakeOverState {
     DeleteConfirmation {
         layout_id: String,
     },
-    DeleteFieldConfirmation {
+    UnassignFieldConfirmation {
         layout_id: String,
         field_index: usize,
+        return_state: SymbolLayoutDefineFieldReturnState,
     },
 }
 
@@ -847,13 +848,31 @@ impl SymbolLayoutEditorViewData {
         }
     }
 
-    pub fn request_field_delete_confirmation(
+    pub fn request_field_unassign_confirmation(
         symbol_layout_editor_view_data: Dependency<Self>,
         layout_id: String,
         field_index: usize,
     ) {
-        if let Some(mut symbol_layout_editor_view_data) = symbol_layout_editor_view_data.write("SymbolLayoutEditor request field delete confirmation") {
-            symbol_layout_editor_view_data.take_over_state = Some(SymbolLayoutEditorTakeOverState::DeleteFieldConfirmation { layout_id, field_index });
+        if let Some(mut symbol_layout_editor_view_data) = symbol_layout_editor_view_data.write("SymbolLayoutEditor request field unassign confirmation") {
+            let return_state = match symbol_layout_editor_view_data.take_over_state.as_ref() {
+                Some(SymbolLayoutEditorTakeOverState::CreateSymbolLayout) => SymbolLayoutDefineFieldReturnState::CreateSymbolLayout,
+                Some(SymbolLayoutEditorTakeOverState::RenameSymbolLayout { layout_id }) => {
+                    SymbolLayoutDefineFieldReturnState::RenameSymbolLayout { layout_id: layout_id.clone() }
+                }
+                Some(SymbolLayoutEditorTakeOverState::OpenSymbolLayout { layout_id })
+                | Some(SymbolLayoutEditorTakeOverState::DeleteConfirmation { layout_id })
+                | Some(SymbolLayoutEditorTakeOverState::DefineFieldFromUnassignedSpan { layout_id, .. })
+                | Some(SymbolLayoutEditorTakeOverState::UnassignFieldConfirmation { layout_id, .. }) => {
+                    SymbolLayoutDefineFieldReturnState::OpenSymbolLayout { layout_id: layout_id.clone() }
+                }
+                None => SymbolLayoutDefineFieldReturnState::OpenSymbolLayout { layout_id: layout_id.clone() },
+            };
+
+            symbol_layout_editor_view_data.take_over_state = Some(SymbolLayoutEditorTakeOverState::UnassignFieldConfirmation {
+                layout_id,
+                field_index,
+                return_state,
+            });
             symbol_layout_editor_view_data.selected_field_index = Some(field_index);
             symbol_layout_editor_view_data.selected_field_layout_id = None;
             symbol_layout_editor_view_data.selected_unassigned_span = None;
@@ -910,7 +929,7 @@ impl SymbolLayoutEditorViewData {
                     SymbolLayoutDefineFieldReturnState::RenameSymbolLayout { layout_id: layout_id.clone() }
                 }
                 Some(SymbolLayoutEditorTakeOverState::OpenSymbolLayout { layout_id })
-                | Some(SymbolLayoutEditorTakeOverState::DeleteFieldConfirmation { layout_id, .. })
+                | Some(SymbolLayoutEditorTakeOverState::UnassignFieldConfirmation { layout_id, .. })
                 | Some(SymbolLayoutEditorTakeOverState::DeleteConfirmation { layout_id })
                 | Some(SymbolLayoutEditorTakeOverState::DefineFieldFromUnassignedSpan { layout_id, .. }) => {
                     SymbolLayoutDefineFieldReturnState::OpenSymbolLayout { layout_id: layout_id.clone() }
@@ -1111,7 +1130,7 @@ impl SymbolLayoutEditorViewData {
                 SymbolLayoutEditorTakeOverState::RenameSymbolLayout { layout_id }
                 | SymbolLayoutEditorTakeOverState::OpenSymbolLayout { layout_id }
                 | SymbolLayoutEditorTakeOverState::DeleteConfirmation { layout_id }
-                | SymbolLayoutEditorTakeOverState::DeleteFieldConfirmation { layout_id, .. },
+                | SymbolLayoutEditorTakeOverState::UnassignFieldConfirmation { layout_id, .. },
             ) => !project_symbol_catalog
                 .get_struct_layout_descriptors()
                 .iter()
@@ -1138,8 +1157,8 @@ impl SymbolLayoutEditorViewData {
             symbol_layout_editor_view_data.clear_pending_variant_drafts();
         }
 
-        let stale_field_delete_layout_id = match symbol_layout_editor_view_data.take_over_state.as_ref() {
-            Some(SymbolLayoutEditorTakeOverState::DeleteFieldConfirmation { layout_id, field_index })
+        let stale_field_unassign_layout_id = match symbol_layout_editor_view_data.take_over_state.as_ref() {
+            Some(SymbolLayoutEditorTakeOverState::UnassignFieldConfirmation { layout_id, field_index, .. })
                 if symbol_layout_editor_view_data
                     .draft
                     .as_ref()
@@ -1150,7 +1169,7 @@ impl SymbolLayoutEditorViewData {
             _ => None,
         };
 
-        if let Some(layout_id) = stale_field_delete_layout_id {
+        if let Some(layout_id) = stale_field_unassign_layout_id {
             symbol_layout_editor_view_data.take_over_state = Some(SymbolLayoutEditorTakeOverState::OpenSymbolLayout { layout_id });
             symbol_layout_editor_view_data.field_context_menu_target = None;
             symbol_layout_editor_view_data.unassigned_context_menu_target = None;
@@ -1204,23 +1223,17 @@ impl SymbolLayoutEditorViewData {
         }
     }
 
-    pub fn remove_field_from_draft(
+    pub fn unassign_field_from_draft(
         draft: &mut SymbolLayoutEditDraft,
         field_index: usize,
-        default_data_type_ref: DataTypeRef,
-    ) -> Option<usize> {
+    ) -> bool {
         if field_index >= draft.field_drafts.len() {
-            return None;
+            return false;
         }
 
         draft.field_drafts.remove(field_index);
-        if draft.field_drafts.is_empty() {
-            draft
-                .field_drafts
-                .push(SymbolLayoutFieldEditDraft::new(default_data_type_ref));
-        }
 
-        Some(field_index.min(draft.field_drafts.len().saturating_sub(1)))
+        true
     }
 
     pub fn layout_matches_filter(

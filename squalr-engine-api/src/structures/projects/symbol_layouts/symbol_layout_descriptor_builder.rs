@@ -152,7 +152,7 @@ impl SymbolLayoutDescriptorBuilder {
                 next_sequential_offset,
                 declared_size_in_bytes,
                 unassigned_split_offsets,
-                draft.get_field_count() > 0 || !unassigned_split_offsets.is_empty(),
+                true,
             );
         }
 
@@ -429,5 +429,23 @@ mod tests {
         assert_eq!(fields[0].to_string(), "unassigned[4]");
         assert_eq!(fields[1].to_string(), "health:u32");
         assert_eq!(fields[2].to_string(), "unassigned[4]");
+    }
+
+    #[test]
+    fn descriptor_builder_materializes_empty_struct_layout_as_unassigned() {
+        let draft = TestDraft {
+            original_layout_id: None,
+            layout_id: String::from("reserved"),
+            layout_kind: SymbolicLayoutKind::Struct,
+            size_text: String::from("8"),
+            fields: Vec::new(),
+        };
+
+        let descriptor = SymbolLayoutDescriptorBuilder::build_symbol_layout_descriptor(&ProjectSymbolCatalog::default(), &draft, |_data_type_ref| None)
+            .expect("Expected descriptor to build.");
+        let fields = descriptor.get_struct_layout_definition().get_fields();
+
+        assert_eq!(fields.len(), 1);
+        assert_eq!(fields[0].to_string(), "unassigned[8]");
     }
 }

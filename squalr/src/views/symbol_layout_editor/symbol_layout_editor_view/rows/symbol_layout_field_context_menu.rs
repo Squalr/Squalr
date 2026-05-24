@@ -11,16 +11,17 @@ pub(in crate::views::symbol_layout_editor::symbol_layout_editor_view) fn render_
     layout_kind: SymbolicLayoutKind,
     context_menu_target: &SymbolLayoutFieldContextMenuTarget,
     field_count: usize,
-    can_delete_final_field: bool,
+    can_remove_final_entry: bool,
 ) -> Option<SymbolLayoutFieldRowAction> {
     let theme = &symbol_layout_editor_view.app_context.theme;
     let field_index = context_menu_target.get_field_index();
-    let can_remove_field = can_delete_final_field || field_count > 1;
+    let can_remove_field = can_remove_final_entry || field_count > 1;
     let can_move_up = field_index > 0;
     let can_move_down = field_index + 1 < field_count;
     let mut open = true;
     let mut pending_field_row_action = None;
     let entry_name = if layout_kind.is_union() { "variant" } else { "field" };
+    let remove_label = if layout_kind.is_union() { "Remove variant" } else { "Unassign" };
     let context_menu_id = context_menu_target
         .get_layout_id()
         .map(|layout_id| format!("symbol_layout_field_context_menu_{}", layout_id))
@@ -95,8 +96,8 @@ pub(in crate::views::symbol_layout_editor::symbol_layout_editor_view) fn render_
                 .add(
                     ToolbarMenuItemView::new(
                         symbol_layout_editor_view.app_context.clone(),
-                        "Delete",
-                        "symbol_layout_field_ctx_delete",
+                        remove_label,
+                        "symbol_layout_field_ctx_unassign",
                         &None,
                         SymbolLayoutEditorView::FIELD_CONTEXT_MENU_WIDTH,
                     )
@@ -106,7 +107,7 @@ pub(in crate::views::symbol_layout_editor::symbol_layout_editor_view) fn render_
                 )
                 .clicked()
             {
-                pending_field_row_action = Some(SymbolLayoutFieldRowAction::RequestRemoveFieldConfirmation);
+                pending_field_row_action = Some(SymbolLayoutFieldRowAction::RequestUnassignFieldConfirmation);
                 *should_close = true;
             }
         },

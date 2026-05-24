@@ -204,8 +204,8 @@ impl Widget for SymbolLayoutEditorView {
             .can_window_handle_shortcuts(user_interface.ctx(), Self::WINDOW_ID);
 
         if is_window_focused && user_interface.input(|input_state| input_state.key_pressed(Key::Escape)) && is_take_over_active {
-            if let Some(SymbolLayoutEditorTakeOverState::DeleteFieldConfirmation { layout_id, .. }) = take_over_state.as_ref() {
-                SymbolLayoutEditorViewData::return_to_open_symbol_layout(self.symbol_layout_editor_view_data.clone(), layout_id.clone());
+            if let Some(SymbolLayoutEditorTakeOverState::UnassignFieldConfirmation { return_state, .. }) = take_over_state.as_ref() {
+                SymbolLayoutEditorViewData::return_to_define_field_source(self.symbol_layout_editor_view_data.clone(), return_state.clone());
             } else if let Some(SymbolLayoutEditorTakeOverState::DefineFieldFromUnassignedSpan { return_state, .. }) = take_over_state.as_ref() {
                 SymbolLayoutEditorViewData::return_to_define_field_source(self.symbol_layout_editor_view_data.clone(), return_state.clone());
             } else {
@@ -333,12 +333,16 @@ impl Widget for SymbolLayoutEditorView {
                     Some(SymbolLayoutEditorTakeOverState::DeleteConfirmation { layout_id }) => {
                         self.render_delete_confirmation_take_over(&mut content_user_interface, &project_symbol_catalog, layout_id);
                     }
-                    Some(SymbolLayoutEditorTakeOverState::DeleteFieldConfirmation { layout_id, field_index }) => {
-                        self.render_field_delete_confirmation_take_over(
+                    Some(SymbolLayoutEditorTakeOverState::UnassignFieldConfirmation {
+                        layout_id: _,
+                        field_index,
+                        return_state,
+                    }) => {
+                        self.render_field_unassign_confirmation_take_over(
                             &mut content_user_interface,
                             &project_symbol_catalog,
-                            layout_id,
                             *field_index,
+                            return_state,
                             draft.as_ref(),
                         );
                     }

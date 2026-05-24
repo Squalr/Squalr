@@ -36,7 +36,7 @@ use super::super::details::symbol_layout_details_focus::{
 pub(in crate::views::symbol_layout_editor::symbol_layout_editor_view) enum SymbolLayoutFieldRowAction {
     InsertAfter,
     InsertFieldIntoVariant,
-    RequestRemoveFieldConfirmation,
+    RequestUnassignFieldConfirmation,
     MoveUp,
     MoveDown,
     SelectField,
@@ -135,8 +135,8 @@ impl SymbolLayoutFieldRowAction {
                 field_index_to_focus = Some(insert_index);
                 should_persist_variant_draft = true;
             }
-            SymbolLayoutFieldRowAction::RequestRemoveFieldConfirmation => {
-                delete_variant_field(symbol_layout_editor_view, project_symbol_catalog, &mut variant_draft, field_index);
+            SymbolLayoutFieldRowAction::RequestUnassignFieldConfirmation => {
+                unassign_variant_field(symbol_layout_editor_view, project_symbol_catalog, &mut variant_draft, field_index);
                 return;
             }
             SymbolLayoutFieldRowAction::InsertFieldIntoVariant => {}
@@ -197,8 +197,8 @@ impl SymbolLayoutFieldRowAction {
                     focus_variant_field_in_struct_viewer(symbol_layout_editor_view, project_symbol_catalog, &variant_draft, variant_field_index);
                 }
             }
-            SymbolLayoutFieldRowAction::RequestRemoveFieldConfirmation => {
-                SymbolLayoutEditorViewData::request_field_delete_confirmation(
+            SymbolLayoutFieldRowAction::RequestUnassignFieldConfirmation => {
+                SymbolLayoutEditorViewData::request_field_unassign_confirmation(
                     symbol_layout_editor_view.symbol_layout_editor_view_data.clone(),
                     draft.layout_id.clone(),
                     field_index,
@@ -265,7 +265,7 @@ impl SymbolLayoutFieldRowAction {
     }
 }
 
-fn delete_variant_field(
+fn unassign_variant_field(
     symbol_layout_editor_view: &SymbolLayoutEditorView,
     project_symbol_catalog: &ProjectSymbolCatalog,
     variant_draft: &mut SymbolLayoutEditDraft,
@@ -275,8 +275,39 @@ fn delete_variant_field(
         return;
     }
 
+    let unassigned_field_span = SymbolLayoutDraftAnalyzer::resolve_draft_field_spans(project_symbol_catalog, variant_draft, |data_type_ref| {
+        symbol_layout_editor_view.resolve_data_type_size_in_bytes(data_type_ref)
+    })
+    .and_then(|(layout_size_in_bytes, field_spans)| {
+        SymbolLayoutDraftOps::resolve_field_span_by_position(&field_spans, field_index).map(|field_span| (layout_size_in_bytes, field_span))
+    });
+
     variant_draft.field_drafts.remove(field_index);
     if !SymbolLayoutVariantSession::persist_variant_layout_draft(symbol_layout_editor_view.symbol_layout_editor_view_data.clone(), variant_draft) {
+        return;
+    }
+
+    if let Some((layout_size_in_bytes, field_span)) = unassigned_field_span {
+        for split_offset_in_bytes in SymbolLayoutDraftOps::split_offsets_to_preserve_unassigned_field(field_span, layout_size_in_bytes) {
+            SymbolLayoutEditorViewData::insert_unassigned_split_offset_for_layout(
+                symbol_layout_editor_view.symbol_layout_editor_view_data.clone(),
+                Some(variant_draft.layout_id.clone()),
+                split_offset_in_bytes,
+            );
+        }
+        SymbolLayoutEditorViewData::select_unassigned_span_for_layout(
+            symbol_layout_editor_view.symbol_layout_editor_view_data.clone(),
+            Some(variant_draft.layout_id.clone()),
+            field_span.offset_in_bytes,
+            field_span.size_in_bytes,
+        );
+        focus_unassigned_span_in_struct_viewer(
+            symbol_layout_editor_view.app_context.clone(),
+            symbol_layout_editor_view.struct_viewer_view_data.clone(),
+            variant_draft,
+            field_span.offset_in_bytes,
+            field_span.size_in_bytes,
+        );
         return;
     }
 
