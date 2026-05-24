@@ -375,7 +375,7 @@ mod tests {
         assert_eq!(symbol_module.get_fields()[0].get_display_name(), "ELF Headers");
         assert_eq!(symbol_module.get_fields()[0].get_struct_layout_id(), "linux.elf.squalr.headers");
         assert_eq!(elf_header_field_names, vec!["ELFHeader", "ProgramHeaders", "SectionHeaders"]);
-        assert_eq!(program_header_field_names, vec!["Header"]);
+        assert_eq!(program_header_field_names, vec!["PT_NULL_00", "PT_NULL_01"]);
     }
 
     fn create_test_pe_memory_read_response(memory_read_request: &MemoryReadRequest) -> MemoryReadResponse {
