@@ -1,4 +1,4 @@
-use crate::formats::{BinaryFormat, macho::PopulateMachOSymbolsAction, pe::PopulatePeSymbolsAction};
+use crate::formats::{BinaryFormat, elf::PopulateElfSymbolsAction, macho::PopulateMachOSymbolsAction, pe::PopulatePeSymbolsAction};
 use squalr_engine_api::plugins::{
     PluginPermission,
     symbol_tree::symbol_tree_action::{SymbolTreeAction, SymbolTreeActionContext, SymbolTreeActionSelection, SymbolTreeActionServices},
@@ -55,7 +55,7 @@ impl SymbolTreeAction for PopulateBinarySymbolsAction {
         match binary_format {
             BinaryFormat::Pe => PopulatePeSymbolsAction.execute(context, services),
             BinaryFormat::MachO => PopulateMachOSymbolsAction.execute(context, services),
-            BinaryFormat::Elf => Err(format!("{} symbol population is not implemented yet.", binary_format.display_name())),
+            BinaryFormat::Elf => PopulateElfSymbolsAction.execute(context, services),
             BinaryFormat::Unknown => Err(String::from("Unsupported or unrecognized binary image format.")),
         }
     }
