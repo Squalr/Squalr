@@ -3,11 +3,15 @@ use crate::{
     ui::{
         draw::icon_draw::IconDraw,
         widgets::controls::{
-            button::Button, data_type_selector::data_type_selector_view::DataTypeSelectorView, data_value_box::data_value_box_view::DataValueBoxView,
+            button::Button,
+            combo_box::{combo_box_item_view::ComboBoxItemView, combo_box_view::ComboBoxView},
+            data_type_selector::data_type_selector_view::DataTypeSelectorView,
+            data_value_box::data_value_box_view::DataValueBoxView,
             scan_constraint_selector::scan_compare_type_selector_view::ScanCompareTypeSelectorView,
         },
     },
-    views::element_scanner::scanner::view_data::element_scanner_view_data::ElementScannerViewData,
+    views::element_scanner::scanner::view_data::element_scanner_view_data::{ElementScannerScanMode, ElementScannerViewData},
+    views::process_selector::view_data::process_selector_view_data::ProcessSelectorViewData,
 };
 use eframe::egui::{Align, Layout, Response, Sense, Ui, UiBuilder, Widget};
 use epaint::{Color32, CornerRadius, vec2};
@@ -18,27 +22,49 @@ use std::sync::Arc;
 pub struct ElementScannerToolbarView {
     app_context: Arc<AppContext>,
     element_scanner_view_data: Dependency<ElementScannerViewData>,
+    process_selector_view_data: Dependency<ProcessSelectorViewData>,
 }
 
 impl ElementScannerToolbarView {
+    const DEFAULT_TOP_ROW_HEIGHT: f32 = 34.0;
+    const DEFAULT_CONSTRAINT_ROW_HEIGHT: f32 = 34.0;
+    const INSTRUCTION_CONSTRAINT_ROW_HEIGHT: f32 = 74.0;
+
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let element_scanner_view_data = app_context
             .dependency_container
             .get_dependency::<ElementScannerViewData>();
+        let process_selector_view_data = app_context
+            .dependency_container
+            .get_dependency::<ProcessSelectorViewData>();
         let instance = Self {
             app_context,
             element_scanner_view_data,
+            process_selector_view_data,
         };
 
         instance
     }
 
     pub fn get_top_row_height(&self) -> f32 {
-        34.0
+        Self::DEFAULT_TOP_ROW_HEIGHT
     }
 
     pub fn get_constraint_row_height(&self) -> f32 {
-        34.0
+        self.element_scanner_view_data
+            .read("Element scanner toolbar view get constraint row height")
+            .map(|element_scanner_view_data| {
+                if ElementScannerViewData::is_instruction_sequence_data_type(
+                    element_scanner_view_data
+                        .data_type_selection
+                        .visible_data_type(),
+                ) {
+                    Self::INSTRUCTION_CONSTRAINT_ROW_HEIGHT
+                } else {
+                    Self::DEFAULT_CONSTRAINT_ROW_HEIGHT
+                }
+            })
+            .unwrap_or(Self::DEFAULT_CONSTRAINT_ROW_HEIGHT)
     }
 
     pub fn get_height(&self) -> f32 {
@@ -64,7 +90,8 @@ impl Widget for ElementScannerToolbarView {
         let top_row_height = self.get_top_row_height();
         let constraint_row_height = self.get_constraint_row_height();
 
-        let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), total_height), Sense::hover());
+        let (allocated_size_rectangle, response) =
+            user_interface.allocate_exact_size(vec2(user_interface.available_width().max(1.0), total_height), Sense::hover());
 
         // Background.
         user_interface
@@ -77,6 +104,10 @@ impl Widget for ElementScannerToolbarView {
             .layout(Layout::top_down(Align::Min));
 
         let mut toolbar_user_interface = user_interface.new_child(builder);
+        let available_data_types = self
+            .app_context
+            .engine_unprivileged_state
+            .get_registered_data_type_refs();
 
         let mut element_scanner_view_data = match self
             .element_scanner_view_data
@@ -92,6 +123,64 @@ impl Widget for ElementScannerToolbarView {
         let mut should_start_scan = false;
         let mut should_add_new_scan_constraint = false;
         let mut remove_scan_constraint_index = 0;
+        let mut selected_scan_mode: Option<ElementScannerScanMode> = None;
+        let is_data_type_selection_disabled = element_scanner_view_data.view_state.has_active_scan();
+        let has_opened_process = self
+            .process_selector_view_data
+            .read("Element scanner toolbar view opened process")
+            .map(|process_selector_view_data| process_selector_view_data.opened_process.is_some())
+            .unwrap_or(false);
+        let new_scan_tooltip = if has_opened_process {
+            "New scan."
+        } else {
+            "Attach to a process before starting a new scan."
+        };
+        let collect_values_tooltip = if has_opened_process {
+            "Collect values."
+        } else {
+            "Attach to a process before collecting values."
+        };
+        let start_scan_tooltip = if has_opened_process {
+            "Start scan."
+        } else {
+            "Attach to a process before scanning."
+        };
+
+        let visible_data_type_ref = element_scanner_view_data
+            .data_type_selection
+            .visible_data_type()
+            .clone();
+        let is_instruction_sequence_data_type = ElementScannerViewData::is_instruction_sequence_data_type(&visible_data_type_ref);
+        let raw_supported_display_formats = self
+            .app_context
+            .engine_unprivileged_state
+            .get_supported_anonymous_value_string_formats(&visible_data_type_ref);
+        let available_scan_modes = ElementScannerViewData::get_scan_mode_options_for_data_type(&visible_data_type_ref, &raw_supported_display_formats);
+        let requested_scan_mode = ElementScannerViewData::resolve_scan_mode_for_data_type(&visible_data_type_ref, element_scanner_view_data.scan_mode);
+        let effective_scan_mode = if available_scan_modes.contains(&requested_scan_mode) {
+            requested_scan_mode
+        } else {
+            ElementScannerScanMode::Element
+        };
+        element_scanner_view_data.scan_mode = effective_scan_mode;
+        let supported_display_formats =
+            ElementScannerViewData::get_supported_display_formats_for_scan_mode(&raw_supported_display_formats, effective_scan_mode);
+        element_scanner_view_data.active_display_format = ElementScannerViewData::resolve_active_display_format(
+            effective_scan_mode,
+            element_scanner_view_data.active_display_format,
+            &supported_display_formats,
+        );
+        let active_display_format = element_scanner_view_data.active_display_format;
+        let disabled_icon_tint = theme.foreground_preview;
+        let enabled_icon_tint = Color32::WHITE;
+
+        for scan_value_and_constraint in &mut element_scanner_view_data.scan_values_and_constraints {
+            ElementScannerViewData::apply_scan_mode_to_constraint_value(
+                effective_scan_mode,
+                active_display_format,
+                &mut scan_value_and_constraint.current_scan_value,
+            );
+        }
 
         // Top row.
         toolbar_user_interface.allocate_ui(vec2(toolbar_user_interface.available_width(), top_row_height), |user_interface| {
@@ -100,10 +189,16 @@ impl Widget for ElementScannerToolbarView {
                 let button_new_scan = user_interface.add_sized(
                     button_size,
                     Button::new_from_theme(theme)
+                        .disabled(!has_opened_process)
                         .background_color(Color32::TRANSPARENT)
-                        .with_tooltip_text("New scan."),
+                        .with_tooltip_text(new_scan_tooltip),
                 );
-                IconDraw::draw(user_interface, button_new_scan.rect, &theme.icon_library.icon_handle_scan_new);
+                IconDraw::draw_tinted(
+                    user_interface,
+                    button_new_scan.rect,
+                    &theme.icon_library.icon_handle_scan_new,
+                    if has_opened_process { enabled_icon_tint } else { disabled_icon_tint },
+                );
 
                 if button_new_scan.clicked() {
                     should_perform_new_scan = true;
@@ -111,20 +206,59 @@ impl Widget for ElementScannerToolbarView {
 
                 // Data type selector.
                 user_interface.add_space(8.0);
-                user_interface.add(DataTypeSelectorView::new(
-                    self.app_context.clone(),
-                    &mut element_scanner_view_data.selected_data_type,
-                    "element_scanner_data_type_selector",
-                ));
+                user_interface.add(
+                    DataTypeSelectorView::new(
+                        self.app_context.clone(),
+                        &mut element_scanner_view_data.data_type_selection,
+                        "element_scanner_data_type_selector",
+                    )
+                    .enforce_format_compatibility()
+                    .disabled(is_data_type_selection_disabled)
+                    .available_data_types(available_data_types.clone()),
+                );
+
+                // Scan mode selector.
+                user_interface.add_space(8.0);
+                user_interface.add(
+                    ComboBoxView::new(
+                        self.app_context.clone(),
+                        ElementScannerViewData::get_scan_mode_label(&visible_data_type_ref, effective_scan_mode),
+                        "element_scanner_scan_mode",
+                        None,
+                        |popup_user_interface: &mut Ui, should_close: &mut bool| {
+                            for scan_mode in &available_scan_modes {
+                                let item_response = popup_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), scan_mode.label(), None, 100.0));
+
+                                if item_response.clicked() {
+                                    selected_scan_mode = Some(*scan_mode);
+                                    *should_close = true;
+                                }
+                            }
+                        },
+                    )
+                    .width(100.0)
+                    .height(28.0)
+                    .disabled(available_scan_modes.len() <= 1),
+                );
+
+                if let Some(new_scan_mode) = selected_scan_mode {
+                    element_scanner_view_data.scan_mode = new_scan_mode;
+                }
 
                 // Collect values.
                 let button_collect_values = user_interface.add_sized(
                     button_size,
                     Button::new_from_theme(theme)
+                        .disabled(!has_opened_process)
                         .background_color(Color32::TRANSPARENT)
-                        .with_tooltip_text("Collect values."),
+                        .with_tooltip_text(collect_values_tooltip),
                 );
-                IconDraw::draw(user_interface, button_collect_values.rect, &theme.icon_library.icon_handle_scan_collect_values);
+                IconDraw::draw_tinted(
+                    user_interface,
+                    button_collect_values.rect,
+                    &theme.icon_library.icon_handle_scan_collect_values,
+                    if has_opened_process { enabled_icon_tint } else { disabled_icon_tint },
+                );
 
                 if button_collect_values.clicked() {
                     should_collect_values = true;
@@ -134,10 +268,16 @@ impl Widget for ElementScannerToolbarView {
                 let button_start_scan = user_interface.add_sized(
                     button_size,
                     Button::new_from_theme(theme)
+                        .disabled(!has_opened_process)
                         .background_color(Color32::TRANSPARENT)
-                        .with_tooltip_text("Start scan."),
+                        .with_tooltip_text(start_scan_tooltip),
                 );
-                IconDraw::draw(user_interface, button_start_scan.rect, &theme.icon_library.icon_handle_navigation_right_arrow);
+                IconDraw::draw_tinted(
+                    user_interface,
+                    button_start_scan.rect,
+                    &theme.icon_library.icon_handle_navigation_right_arrow,
+                    if has_opened_process { enabled_icon_tint } else { disabled_icon_tint },
+                );
 
                 if button_start_scan.clicked() {
                     should_start_scan = true;
@@ -145,11 +285,25 @@ impl Widget for ElementScannerToolbarView {
             });
         });
 
-        let selected_data_type = &element_scanner_view_data.selected_data_type.clone();
+        let selected_data_type = visible_data_type_ref;
+        let selected_scan_mode = effective_scan_mode;
+        let mut selected_display_format = active_display_format;
+        let scan_value_placeholder = if is_instruction_sequence_data_type {
+            "Enter instructions. Use Shift+Enter or Enter for new lines."
+        } else if selected_scan_mode == ElementScannerScanMode::Pattern {
+            "Enter hex bytes or wildcards..."
+        } else {
+            "Enter a value..."
+        };
 
         // Constraint rows.
         for index in 0..element_scanner_view_data.scan_values_and_constraints.len() {
             let scan_values_and_constraint = &mut element_scanner_view_data.scan_values_and_constraints[index];
+            ElementScannerViewData::apply_scan_mode_to_constraint_value(
+                selected_scan_mode,
+                selected_display_format,
+                &mut scan_values_and_constraint.current_scan_value,
+            );
 
             toolbar_user_interface.allocate_ui(vec2(toolbar_user_interface.available_width(), constraint_row_height), |user_interface| {
                 user_interface.with_layout(Layout::left_to_right(Align::Center), |user_interface| {
@@ -166,18 +320,43 @@ impl Widget for ElementScannerToolbarView {
                             // Nothing to display for relative scans.
                         }
                         _ => {
-                            let data_type_ref = selected_data_type.clone();
-
+                            let previous_scan_value_format = scan_values_and_constraint
+                                .current_scan_value
+                                .get_anonymous_value_string_format();
                             user_interface.add_space(8.0);
-                            user_interface.add(DataValueBoxView::new(
-                                self.app_context.clone(),
-                                &mut scan_values_and_constraint.current_scan_value,
-                                &data_type_ref,
-                                false,
-                                true,
-                                "Enter a scan value...",
-                                &format!("data_value_box_scan_value_index_{}", index),
-                            ));
+                            user_interface.add(
+                                DataValueBoxView::new(
+                                    self.app_context.clone(),
+                                    &mut scan_values_and_constraint.current_scan_value,
+                                    &selected_data_type,
+                                    false,
+                                    true,
+                                    scan_value_placeholder,
+                                    &format!("data_value_box_scan_value_index_{}", index),
+                                )
+                                .validation_scan_compare_type(scan_values_and_constraint.selected_scan_compare_type)
+                                .validation_use_hex_pattern_matching(selected_scan_mode == ElementScannerScanMode::Pattern)
+                                .normalize_value_format(false)
+                                .show_format_button(selected_scan_mode != ElementScannerScanMode::Pattern)
+                                .height(if is_instruction_sequence_data_type {
+                                    constraint_row_height - 6.0
+                                } else {
+                                    28.0
+                                })
+                                .multiline(is_instruction_sequence_data_type)
+                                .multiline_rows(if is_instruction_sequence_data_type { 3 } else { 1 }),
+                            );
+
+                            let updated_scan_value_format = scan_values_and_constraint
+                                .current_scan_value
+                                .get_anonymous_value_string_format();
+
+                            if selected_scan_mode != ElementScannerScanMode::Pattern
+                                && supported_display_formats.contains(&updated_scan_value_format)
+                                && updated_scan_value_format != previous_scan_value_format
+                            {
+                                selected_display_format = updated_scan_value_format;
+                            }
                         }
                     }
 
@@ -214,12 +393,24 @@ impl Widget for ElementScannerToolbarView {
             });
         }
 
+        if element_scanner_view_data.active_display_format != selected_display_format {
+            element_scanner_view_data.active_display_format = selected_display_format;
+
+            for scan_value_and_constraint in &mut element_scanner_view_data.scan_values_and_constraints {
+                ElementScannerViewData::apply_scan_mode_to_constraint_value(
+                    selected_scan_mode,
+                    selected_display_format,
+                    &mut scan_value_and_constraint.current_scan_value,
+                );
+            }
+        }
+
         drop(element_scanner_view_data);
 
         if should_perform_new_scan {
             ElementScannerViewData::reset_scan(self.element_scanner_view_data.clone(), self.app_context.engine_unprivileged_state.clone());
         } else if should_collect_values {
-            ElementScannerViewData::collect_values(self.app_context.engine_unprivileged_state.clone());
+            ElementScannerViewData::collect_values(self.element_scanner_view_data.clone(), self.app_context.engine_unprivileged_state.clone());
         } else if should_start_scan {
             ElementScannerViewData::start_scan(self.element_scanner_view_data.clone(), self.app_context.engine_unprivileged_state.clone());
         } else if should_add_new_scan_constraint {

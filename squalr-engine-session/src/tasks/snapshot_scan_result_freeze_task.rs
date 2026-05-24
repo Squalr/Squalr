@@ -1,8 +1,8 @@
 use crate::os::engine_os_provider::EngineOsProviders;
+use crate::settings::scan_settings_store::ScanSettingsStore;
 use squalr_engine_api::registries::freeze_list::freeze_list_registry::FreezeListRegistry;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::tasks::trackable_task::TrackableTask;
-use squalr_engine_scanning::scan_settings_config::ScanSettingsConfig;
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::sync::atomic::Ordering;
@@ -30,7 +30,7 @@ impl SnapshotScanResultFreezeTask {
                 }
 
                 Self::freeze_values(&process_info, &freeze_list_registry, &os_providers);
-                thread::sleep(Duration::from_millis(ScanSettingsConfig::get_results_read_interval_ms()));
+                thread::sleep(Duration::from_millis(ScanSettingsStore::get_results_read_interval_ms()));
             }
 
             task_clone.complete();
@@ -71,13 +71,34 @@ impl SnapshotScanResultFreezeTask {
 
         for pointer in freeze_list_registry_guard.get_frozen_pointers().keys() {
             if let Some(value_bytes) = freeze_list_registry_guard.get_address_frozen_bytes(pointer) {
-                let module_address = os_providers
-                    .memory_query
-                    .resolve_module(&modules, pointer.get_module_name());
+                let resolved_address = pointer.resolve_final_address(
+                    |module_name, module_offset| {
+                        os_providers
+                            .memory_query
+                            .resolve_module_address(&modules, module_name, module_offset)
+                    },
+                    |address, pointer_size| {
+                        let mut pointer_bytes = vec![0_u8; pointer_size.get_size_in_bytes() as usize];
 
-                let _success = os_providers
-                    .memory_write
-                    .write_bytes(process_info, module_address.saturating_add(pointer.get_address()), value_bytes);
+                        if !os_providers
+                            .memory_read
+                            .read_bytes(process_info, address, &mut pointer_bytes)
+                        {
+                            return None;
+                        }
+
+                        pointer_size.read_address_value(&squalr_engine_api::structures::data_values::data_value::DataValue::new(
+                            pointer_size.to_data_type_ref(),
+                            pointer_bytes,
+                        ))
+                    },
+                );
+
+                if let Some(resolved_address) = resolved_address {
+                    let _success = os_providers
+                        .memory_write
+                        .write_bytes(process_info, resolved_address, value_bytes);
+                }
             }
         }
     }

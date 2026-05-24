@@ -4,10 +4,8 @@ use squalr_engine_api::structures::memory::normalized_region::NormalizedRegion;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::processes::process_info::ProcessInfo;
 use squalr_engine_api::structures::structs::valued_struct::ValuedStruct;
-use squalr_engine_operating_system::memory_queryer::page_retrieval_mode::PageRetrievalMode;
-use squalr_engine_operating_system::process_query::process_query_error::ProcessQueryError;
-use squalr_engine_operating_system::process_query::process_query_options::ProcessQueryOptions;
 use squalr_engine_session::os::engine_os_provider::{EngineOsProviders, MemoryQueryProvider, MemoryReadProvider, MemoryWriteProvider, ProcessQueryProvider};
+use squalr_engine_targets::{PageRetrievalMode, ProcessQueryError, ProcessQueryOptions};
 use std::sync::{Arc, Mutex};
 
 #[derive(Clone)]
@@ -238,6 +236,15 @@ impl MemoryQueryProvider for MockMemoryQueryProvider {
         }
 
         0
+    }
+
+    fn resolve_module_address(
+        &self,
+        modules: &Vec<NormalizedModule>,
+        identifier: &str,
+        offset: u64,
+    ) -> Option<u64> {
+        self.resolve_module(modules, identifier).checked_add(offset)
     }
 
     fn get_memory_page_bounds(

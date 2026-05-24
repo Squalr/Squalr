@@ -1,0 +1,7 @@
+pub mod project_item_details_edit_applier;
+pub mod project_item_details_edit_planner;
+pub mod project_item_details_projection;
+
+pub use project_item_details_edit_applier::ProjectItemDetailsEditApplier;
+pub use project_item_details_edit_planner::ProjectItemDetailsEditPlanner;
+pub use project_item_details_projection::ProjectItemDetailsProjection;

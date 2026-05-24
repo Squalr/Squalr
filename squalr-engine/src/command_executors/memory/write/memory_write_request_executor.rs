@@ -28,12 +28,14 @@ impl PrivilegedCommandRequestExecutor for MemoryWriteRequest {
                 };
                 let module_address = os_providers
                     .memory_query
-                    .resolve_module(&modules, &self.module_name);
+                    .resolve_module_address(&modules, &self.module_name, self.address);
                 let success = os_providers
                     .memory_write
-                    .write_bytes(&process_info, module_address.saturating_add(self.address), &self.value);
+                    .write_bytes(&process_info, module_address.unwrap_or(0), &self.value);
 
-                MemoryWriteResponse { success }
+                MemoryWriteResponse {
+                    success: module_address.is_some() && success,
+                }
             } else {
                 let success = os_providers
                     .memory_write

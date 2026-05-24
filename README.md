@@ -20,6 +20,46 @@ This project is unaffiliated with any employers of our team members, past, prese
 
 ![SqualrGUI](docs/Squalr.png)
 
+## Usage
+
+Squalr can be used as a desktop app, a terminal tool, an Android app, or as Rust crates for custom scanning workflows.
+
+### Standalone App
+Use this when you want the full interactive workflow: process selection, element scans, array/string scans, pointer scans, the memory viewer, project files, symbol layouts, and plugin-backed tooling.
+
+| Platform   | GUI   | CLI   | TUI   | Remote (Host)   | Remote (Shell)   |
+| ---------- | ----- | ----- | ----- | --------------- | ---------------- |
+| Windows    | ✅    | ✅    | ✅    | ✅              | ✅               |
+| Linux    | ✅    | ✅    | ✅    | ✅              | ✅               |
+| Mac    | ✅    | ✅    | ✅    | ✅              | ✅               |
+| Android (Rooted)   | ✅    | ✅    | ✅    | ❌              | ✅               |
+| iPhone (Not Available Yet)     | ✅    | ✅    | ✅     | ❌              | ✅               |
+
+### Plugins and Extensions
+Plugins are the path for extending Squalr's behavior. Existing plugin crates cover built-in plugins, 24-bit data types, instruction providers, binary symbols, and Dolphin memory-view routing. The medium-term goal is for plugins to extend data types, project item types, virtual modules, middleware, and tools without requiring changes to the core app.
+
+Scripting is planned, but there is not yet a stable public scripting surface.
+
+### Squalr as a Library
+Use the crates directly when you want to embed pieces of Squalr instead of running a Squalr frontend. Pick the layer based on how much of the workflow you want Squalr to own.
+
+| Consumer | You bring | Squalr provides | Crates |
+| -------- | --------- | --------------- | ------ |
+| Byte scanner | Your own bytes, snapshots, files, emulator dumps, or captured memory buffers. | Scan plans, data types, snapshot structures, scan execution, and result filters. | `squalr-engine-api`, `squalr-engine-scanning` |
+| Custom target integrator | Your own target implementation, such as an emulator, debugger, remote agent, trace recorder, or sandbox. | Stable target traits for memory maps, reads, writes, modules, and target handles. | `squalr-engine-api`, `squalr-engine-targets`, `squalr-engine-scanning` |
+| Native process scanner | A local process you want Squalr to enumerate, open, read, write, and scan. | Native Windows/macOS/Linux/Android target access plus the scanner crates. | `squalr-engine-api`, `squalr-engine-targets`, `squalr-engine-targets-native`, `squalr-engine-scanning` |
+| Squalr frontend or automation shell | A GUI, CLI, TUI, bot, or command runner that wants the normal Squalr workflow. | Session state, command dispatch, app-level orchestration, target I/O coordination, scans, projects, and responses. | `squalr-engine-session`, `squalr-engine` |
+| Command-line adapter | A CLI, REPL, remote shell, or script bridge that wants user-entered command lines lowered into engine commands. | Command grammar, aliases, help/version handling, and conversion into shared command models. | `squalr-engine-api` |
+| Project and symbol tooling | Tools that need to read, write, inspect, or transform Squalr projects. | Project files, symbol catalogs, layouts, locators, and shared data models. | `squalr-engine-api`, `squalr-engine-projects` |
+
+`squalr-engine-api` is the shared model crate. It contains the public data types that the other layers speak: scan plans, values, snapshots, results, commands, symbols, and project-facing structures.
+
+If you already own the bytes, stay in the byte scanner layer: construct `SnapshotRegion` values, wrap them in a `Snapshot`, and call `ElementScanner::scan_snapshot`. This path does not need a process handle or native target backend.
+
+If you want to scan a real process, keep target I/O and scanning as separate phases. Use `squalr-engine-targets` for the abstraction, `squalr-engine-targets-native` when you want Squalr's native backend, and feed the collected memory into `squalr-engine-scanning`.
+
+If you want the full Squalr app workflow, use the session/command crates instead of assembling the lower layers yourself. That path is for consumers who want Squalr to coordinate target access, scans, projects, and responses.
+
 ## Development Philosophy
 Systems level work demands a systems level language. Rust was chosen because it eliminates entire classes of bugs and is perfectly suited to the job.
 
@@ -47,11 +87,10 @@ Long term, we do wish to integrate into the AI landscape, in a manner that actua
 ### Developer-Facing Features
 - [ ] Command/event hooks
 - [ ] Plugin system: Data Types
-- [ ] Plugin system: Middleware (Filters for emu support, filter down virtual memory through custom logic)
-- [ ] Plugin system: Virtual Modules (custom defined static bases -- could be threadstack, special emulator memory regions, etc)
-- [ ] Plugin system: Project item types
+- [X] Plugin system: Middleware (Filters for emu support, filter down virtual memory through custom logic)
+- [X] Plugin system: Virtual Modules (custom defined static bases -- could be threadstack, special emulator memory regions, etc)
+- [X] Plugin system: Project item types
 - [ ] Scripting system (exact language TBD)
-- [ ] MCP APIs for LLM integrations (Needs architecting work)
 
 ### User-Facing Features
 - [X] Primitive scans
@@ -60,7 +99,7 @@ Long term, we do wish to integrate into the AI landscape, in a manner that actua
 - [X] Struct viewer
 - [X] Dockable window system
 - [ ] Struct scans
-- [ ] Pointer scans
+- [X] Pointer scans
 - [X] Project system
 
 ## Linux Build
@@ -84,7 +123,7 @@ Install native dependencies before building:
 
 ## Android Build
 
-Android builds are currently validated on target `aarch64-linux-android` with API level 23.
+Android builds are currently validated on target `aarch64-linux-android` with API level 30.
 
 ### Quickstart: APK on Device (Privileged GUI Path)
 
@@ -156,15 +195,9 @@ This process can be reversed at any time to undo the security changes with `csru
 ## Architectural Overview
 
 ### Command Response System
-Squalr has two components, a privileged interface, and an unprivileged core. This naturally gives rise to a command/response architecture, which makes for clear separation of concerns. To do this cleanly, we use structopts to make all commands have a text input equivalent, meaning that both a GUI and CLI can invoke the command fairly easily.
+Squalr has two components, a privileged interface, and an unprivileged core. This naturally gives rise to a command/response architecture, which makes for clear separation of concerns. Shared command models live in `squalr-engine-api`; command-line parsing is an API adapter under `squalr-engine-api::commands::command_line` that lowers CLI/REPL-style input into those shared commands.
 
-This allows us to create several different modes, such as a unified GUI/CLI/TUI build, an MPC shell, and a potential remote host to control a remote shell or MPC endpoint.
-
-| Platform   | GUI   | CLI   | TUI   | MCP    | Remote (Host)   | Remote (Shell)   |
-| ---------- | ----- | ----- | ----- | ------ | --------------- | ---------------- |
-| Desktop    | ✅    | ✅    | ✅    | ✅     | ✅              | ✅               |
-| Android    | ✅    | ✅    | ✅    | ✅     | ❌              | ✅               |
-| iPhone (Not Available Yet)     | ✅    | ✅    | ✅    | ✅     | ❌              | ✅               |
+This allows us to create several different modes, such as a unified GUI/CLI/TUI build, and a potential remote host to control a remote shell.
 
 ### Architecture Glossary
 - A **snapshot** is a full query of all virtual memory regions in an internal process. This is created in two passes, once to determine the virtual page addresses and sizes, and another pass to collect the values.
@@ -230,7 +263,7 @@ This is why selecting the best scanner is crucial, we have many such as:
 - Vector scanner (overlapping periodic): Performs a SIMD overlapping scan, but discards run lengths below a specified size as part of the periodic optimization mentioned earlier.
 - Booyer-Moore: Performs an arbitrary array of byte scan, using the scalar Booyer-Moore search algorithm.
 
-## Launch Tasklist
+## Feature List
 - [X] Custom installer and auto updater from Git tags.
 - [X] Dockable window system.
 - [X] Dependency Injection framework for GUI and engine.
@@ -256,23 +289,18 @@ This is why selecting the best scanner is crucial, we have many such as:
 - [X] String-based editing / committing of struct viewer entries.
 - [X] Projects with a per-file backing. Freezable addresses. Sortable.
 - [X] Editing scan results directly (via struct viewer).
-
-## Post-Launch Tasklist
-Lower priority features that we can defer, for now.
-
-Post-launch Features:
 - [ ] Struct Scans.
 - [ ] Improve coverage of conversion framework.
 - [ ] More string encodings
 - [ ] Custom and built in editors for property viewer data types.
-- [ ] Deleting scan results directly.
+- [X] Deleting scan results directly.
 - [ ] Case insensitive string scans.
 - [ ] Tolerance handling for float array scans.
-- [ ] Pointer Scans.
-- [ ] Memory viewer.
+- [X] Pointer Scans.
+- [X] Memory viewer.
 - [ ] Masked byte scans.
 - [ ] Bitfield scans.
-- [ ] Plugin system for new data types. The engine is already designed with this feature in mind, so actually this should be fairly easy.
+- [X] Plugin system for new data types. The engine is already designed with this feature in mind, so actually this should be fairly easy.
 - [ ] Plugin system to support emulator middleware (ie filtering queried virtual memory, remapping virtual address space, etc).
 - [ ] Plugin system to support virtual modules. Very similar to above, but registering fake modules, with emulators again being the primary use case.
 - [ ] Plugin system for new project item types (ie supporting a .NET item, or a JRE item).
@@ -321,72 +349,3 @@ Seems like no real downsides from a comprehension point of view.
 Struct scans will be very challenging. Imagine scanning for {float} {float} {float}, ie XYZ coordinates as a struct. You can't just serialize to bytes and scan for them, due to floating point tolerance. Even worse, if you did X > 2000, Y < 500, Z > 0, this necessitates per-field handling.
 
 Our existing architecture is quite flexible, but this definitely requires a special scanner implementation, and it is highly unlikely to benefit from any of the rules engine optimizations.
-
-## Detailed Tasklist
-This is a highly descriptive list of tasks to be implemented, with enough detail such that an agent should be able to audit the codebase and come up with a plan.
-
-### Symbol Registry
-Branch: `pr/symbol-registry`
-We need a robust symbol system that allows for registering custom structs and data types for quick lookup. This can be tricky due to the need for both privileged and unprivileged domains requiring access to the symbol registry. See Registry Synchronization section.
-
-
-### Scan Result Deletion
-Branch: `pr/scan-result-deletion`
-
-We need to support deleting specific scan results. The internal data structures for storing scan results are not robust to this operation, so it actually makes more sense to manually track deletions rather than rebuilding all scan result data structures after a delete. Instead, we store deletions and use this information to intelligently skip entries when seeking to scan results by page.
-
-### Android Build
-Branch: `pr/android`
-The android build should be made functional again. Note that unlike the main gui build, this must run in IPC mode with a privileged shell rather than standalone.
-
-This was once fully functional for querying processes, but this was using Slint for the GUI, and we have since moved to egui.
-
-This will require a bit of a revival.
-
-### Draggable Docking Windows
-Branch: `pr/docking`
-
-Our docking system is quite robust, but we currently do not support changing the layout with drag/drop. The operations already exist to reparent and move windows around, so this may not be terribly bad. The tricky parts are the visual updates (ie while dragging something, show a blue sheen over drop targets that indicate where the docked window will insert).
-
-### Conversion Testing
-Branch: `pr/conversion-testing`
-
-The conversions in the squalr-engine-api should probably have a dedicated test suite.
-
-Additionally, conversions should be architecturally audited for robustness.
-
-### Pointer Scanning
-Branch: `pr/pointer-scanning`
-
-Pointer scans need to be implemented. The actual algorithm is too complex for an agent, as this is on the cutting edge of knowledge, but the APIs can be made, and it can be co-authored with an agent.
-
-### Release Test
-Branch: `pr/linux`
-
-We need a functional Linux build
-
-### Release Test
-Branch: `pr/macos`
-
-We need a functional MacOS build. Not sure how feasible this is with Mac security features.
-
-### Release Test
-Branch: `pr/release-test`
-
-We need to orchestrate a full attempt at a v1.0.0 release to see how the process goes.
-
-### Engine Event Hooks
-Branch: `pr/engine-event-hooks`
-
-When the engine emits events, it would be nice for listeners and plugins to hook into these.
-
-### Registry Synchronization
-Branch: `pr/registry-synchronization`
-
-Currently, there is a global singleton of the registry that exists for both the unprivileged side, and the privileged side. In a standalone build, this is the same registry, with only one instance.
-
-This is not a system that makes sense for a long term plugin based approach. Ideally, plugins could register new things to the registries, and then this would be synchronized with the unprivileged GUI.
-
-This needs to be done such that the GUI can make snap decisions without chatty traffic to the privileged side.
-
-Very challenging task.

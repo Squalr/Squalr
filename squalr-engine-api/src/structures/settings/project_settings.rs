@@ -1,4 +1,3 @@
-use directories::UserDirs;
 use serde::{Deserialize, Serialize};
 use serde_json::to_string_pretty;
 use std::fmt;
@@ -24,12 +23,8 @@ impl fmt::Debug for ProjectSettings {
 
 impl Default for ProjectSettings {
     fn default() -> Self {
-        let projects_root = UserDirs::new()
-            .and_then(|dirs| Some(dirs.document_dir()?.join("Squalr")))
-            .unwrap_or_else(|| PathBuf::from("./Squalr"));
-
         Self {
-            projects_root,
+            projects_root: PathBuf::from("./Squalr"),
             project_update_interval_ms: 200,
         }
     }

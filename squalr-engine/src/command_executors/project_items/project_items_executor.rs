@@ -27,16 +27,41 @@ impl UnprivilegedCommandExecutor for ProjectItemsCommand {
             ProjectItemsCommand::Delete { project_items_delete_request } => project_items_delete_request
                 .execute(engine_unprivileged_state)
                 .to_engine_response(),
+            ProjectItemsCommand::Duplicate {
+                project_items_duplicate_request,
+            } => project_items_duplicate_request
+                .execute(engine_unprivileged_state)
+                .to_engine_response(),
             ProjectItemsCommand::List { project_items_list_request } => project_items_list_request
                 .execute(engine_unprivileged_state)
                 .to_engine_response(),
             ProjectItemsCommand::Move { project_items_move_request } => project_items_move_request
                 .execute(engine_unprivileged_state)
                 .to_engine_response(),
+            ProjectItemsCommand::PromoteSymbol {
+                project_items_promote_symbol_request,
+            } => project_items_promote_symbol_request
+                .execute(engine_unprivileged_state)
+                .to_engine_response(),
             ProjectItemsCommand::Rename { project_items_rename_request } => project_items_rename_request
                 .execute(engine_unprivileged_state)
                 .to_engine_response(),
             ProjectItemsCommand::Reorder { project_items_reorder_request } => project_items_reorder_request
+                .execute(engine_unprivileged_state)
+                .to_engine_response(),
+            ProjectItemsCommand::StripSymbol {
+                project_items_strip_symbol_request,
+            } => project_items_strip_symbol_request
+                .execute(engine_unprivileged_state)
+                .to_engine_response(),
+            ProjectItemsCommand::UpdateDetails {
+                project_items_update_details_request,
+            } => project_items_update_details_request
+                .execute(engine_unprivileged_state)
+                .to_engine_response(),
+            ProjectItemsCommand::WriteValue {
+                project_items_write_value_request,
+            } => project_items_write_value_request
                 .execute(engine_unprivileged_state)
                 .to_engine_response(),
         }

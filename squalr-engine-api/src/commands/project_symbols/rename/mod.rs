@@ -1,0 +1,2 @@
+pub mod project_symbols_rename_request;
+pub mod project_symbols_rename_response;

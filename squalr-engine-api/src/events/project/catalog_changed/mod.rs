@@ -1,0 +1,1 @@
+pub mod project_catalog_changed_event;

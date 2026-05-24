@@ -1,48 +1,57 @@
 use crate::app_context::AppContext;
 use crate::ui::widgets::controls::state_layer::StateLayer;
+use crate::ui::widgets::controls::tooltip::ThemedTooltip;
 use eframe::egui::{Align, Area, Frame, Id, Key, Layout, Order, Response, Sense, Ui, Widget};
-use epaint::{Color32, CornerRadius, Margin, Rect, TextureHandle, Vec2, pos2, vec2};
-use std::sync::Arc;
+use epaint::{Color32, CornerRadius, Margin, Rect, Stroke, TextureHandle, Vec2, pos2, vec2};
+use std::{borrow::Cow, sync::Arc};
 
 /// A combo box that allows arbitrary custom content (ie not a normalized dropdown entry list).
 pub struct ComboBoxView<'lifetime, F: FnOnce(&mut Ui, &mut bool)> {
     app_context: Arc<AppContext>,
-    label: &'lifetime str,
+    label: Cow<'lifetime, str>,
     menu_id: &'lifetime str,
     icon: Option<TextureHandle>,
     add_contents: F,
+    disabled: bool,
     width: f32,
     height: f32,
+    popup_width: Option<f32>,
     icon_padding_left: f32,
     icon_size: f32,
     label_spacing: f32,
+    show_dropdown_arrow: bool,
     divider_width: f32,
     border_width: f32,
     corner_radius: u8,
+    tooltip_text: Option<Cow<'lifetime, str>>,
 }
 
 impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> ComboBoxView<'lifetime, F> {
     pub fn new(
         app_context: Arc<AppContext>,
-        label: &'lifetime str,
+        label: impl Into<Cow<'lifetime, str>>,
         menu_id: &'lifetime str,
         icon: Option<TextureHandle>,
         add_contents: F,
     ) -> Self {
         Self {
             app_context,
-            label,
+            label: label.into(),
             menu_id,
             icon,
             add_contents,
+            disabled: false,
             width: 192.0,
             height: 28.0,
+            popup_width: None,
             icon_padding_left: 8.0,
             icon_size: 16.0,
             label_spacing: 8.0,
+            show_dropdown_arrow: true,
             divider_width: 1.0,
             border_width: 1.0,
             corner_radius: 0,
+            tooltip_text: None,
         }
     }
 
@@ -50,7 +59,7 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> ComboBoxView<'lifetime, F> {
         &self,
         user_interface: &mut Ui,
     ) {
-        let popup_id = Id::new(("combo_popup", user_interface.id().value(), self.label));
+        let popup_id = Id::new(("combo_popup", self.menu_id, user_interface.id().value()));
 
         user_interface.memory_mut(|memory| {
             memory.data.insert_temp(popup_id, false);
@@ -65,11 +74,51 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> ComboBoxView<'lifetime, F> {
         self
     }
 
+    pub fn disabled(
+        mut self,
+        disabled: bool,
+    ) -> Self {
+        self.disabled = disabled;
+        self
+    }
+
     pub fn height(
         mut self,
         height: f32,
     ) -> Self {
         self.height = height;
+        self
+    }
+
+    pub fn popup_width(
+        mut self,
+        popup_width: f32,
+    ) -> Self {
+        self.popup_width = Some(popup_width.max(1.0));
+        self
+    }
+
+    pub fn show_dropdown_arrow(
+        mut self,
+        show_dropdown_arrow: bool,
+    ) -> Self {
+        self.show_dropdown_arrow = show_dropdown_arrow;
+        self
+    }
+
+    pub fn with_tooltip_text(
+        mut self,
+        tooltip_text: impl Into<Cow<'lifetime, str>>,
+    ) -> Self {
+        self.tooltip_text = Some(tooltip_text.into());
+        self
+    }
+
+    pub fn with_label_tooltip(mut self) -> Self {
+        if !self.label.is_empty() {
+            self.tooltip_text = Some(Cow::Owned(self.label.to_string()));
+        }
+
         self
     }
 }
@@ -81,22 +130,35 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
     ) -> Response {
         let theme = &self.app_context.theme;
         let font_id = theme.font_library.font_noto_sans.font_normal.clone();
-        let text_color = theme.foreground;
+        let text_color = if self.disabled { theme.foreground_preview } else { theme.foreground };
+        let icon_tint = if self.disabled { theme.foreground_preview } else { Color32::WHITE };
         let down_arrow = &theme.icon_library.icon_handle_navigation_down_arrow_small;
         let desired_size = vec2(self.width, self.height);
-        let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(desired_size, Sense::click());
+        let sense = if self.disabled { Sense::hover() } else { Sense::click() };
+        let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(desired_size, sense);
 
         // Precompute positions.
         let icon_size_vec = vec2(self.icon_size, self.icon_size);
         let icon_y = allocated_size_rectangle.center().y - icon_size_vec.y * 0.5;
+        let right_side_width = if self.show_dropdown_arrow {
+            self.icon_size + self.icon_padding_left * 2.0 + self.divider_width
+        } else {
+            0.0
+        };
 
         // Left-side icon.
-        let left_icon_pos = pos2(allocated_size_rectangle.min.x + self.icon_padding_left, icon_y);
+        let has_label = !self.label.is_empty();
+        let should_center_icon_only = self.icon.is_some() && !has_label && !self.show_dropdown_arrow;
+        let left_icon_pos = if should_center_icon_only {
+            pos2(allocated_size_rectangle.center().x - icon_size_vec.x * 0.5, icon_y)
+        } else {
+            pos2(allocated_size_rectangle.min.x + self.icon_padding_left, icon_y)
+        };
 
         // Text label.
         let galley = user_interface
             .ctx()
-            .fonts_mut(|fonts| fonts.layout_no_wrap(self.label.to_owned(), font_id.clone(), text_color));
+            .fonts_mut(|fonts| fonts.layout_no_wrap(self.label.to_string(), font_id.clone(), text_color));
         let base_x = allocated_size_rectangle.min.x + self.icon_padding_left;
         let text_pos = pos2(
             if self.icon.is_some() {
@@ -105,6 +167,11 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
                 base_x
             },
             allocated_size_rectangle.center().y - galley.size().y * 0.5,
+        );
+        let divider_x = allocated_size_rectangle.max.x - right_side_width;
+        let label_clip_rectangle = Rect::from_min_max(
+            pos2(text_pos.x, allocated_size_rectangle.min.y + self.border_width),
+            pos2((divider_x - self.label_spacing).max(text_pos.x), allocated_size_rectangle.max.y),
         );
 
         // Draw base background.
@@ -116,8 +183,8 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
         StateLayer {
             bounds_min: allocated_size_rectangle.min,
             bounds_max: allocated_size_rectangle.max,
-            enabled: true,
-            pressed: response.is_pointer_button_down_on(),
+            enabled: !self.disabled,
+            pressed: !self.disabled && response.is_pointer_button_down_on(),
             has_hover: response.hovered(),
             has_focus: response.has_focus(),
             corner_radius: CornerRadius::same(self.corner_radius),
@@ -135,39 +202,49 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
                 icon.id(),
                 Rect::from_min_size(left_icon_pos, icon_size_vec),
                 Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
-                Color32::WHITE,
+                icon_tint,
             );
         }
         // Draw text next to icon.
-        user_interface.painter().galley(text_pos, galley, text_color);
+        if has_label {
+            user_interface
+                .painter()
+                .with_clip_rect(label_clip_rectangle)
+                .galley(text_pos, galley, text_color);
+        }
 
-        // Divider bar before right arrow.
-        let divider_x = allocated_size_rectangle.max.x - (self.icon_size + self.icon_padding_left * 2.0 + self.divider_width);
-        let divider_rectangle = Rect::from_min_max(
-            pos2(divider_x, allocated_size_rectangle.min.y + self.border_width),
-            pos2(divider_x + self.divider_width, allocated_size_rectangle.max.y),
-        );
+        if self.show_dropdown_arrow {
+            // Divider bar before right arrow.
+            let divider_rectangle = Rect::from_min_max(
+                pos2(divider_x, allocated_size_rectangle.min.y + self.border_width),
+                pos2(divider_x + self.divider_width, allocated_size_rectangle.max.y),
+            );
 
-        user_interface
-            .painter()
-            .rect_filled(divider_rectangle, 0.0, theme.submenu_border);
+            user_interface
+                .painter()
+                .rect_filled(divider_rectangle, 0.0, theme.submenu_border);
 
-        // Draw right arrow.
-        let right_arrow_pos = pos2(allocated_size_rectangle.max.x - self.icon_size - self.icon_padding_left, icon_y);
+            // Draw right arrow.
+            let right_arrow_pos = pos2(allocated_size_rectangle.max.x - self.icon_size - self.icon_padding_left, icon_y);
 
-        user_interface.painter().image(
-            down_arrow.id(),
-            Rect::from_min_size(right_arrow_pos, icon_size_vec),
-            Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
-            Color32::WHITE,
-        );
+            user_interface.painter().image(
+                down_arrow.id(),
+                Rect::from_min_size(right_arrow_pos, icon_size_vec),
+                Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
+                icon_tint,
+            );
+        }
 
         // Popup logic.
-        let popup_id = Id::new((self.menu_id, user_interface.id().value(), self.label));
+        let popup_id = Id::new(("combo_popup", self.menu_id, user_interface.id().value()));
         let mut open = user_interface.memory(|memory| memory.data.get_temp::<bool>(popup_id).unwrap_or(false));
 
-        if response.clicked() {
+        if response.clicked() && !self.disabled {
             open = !open;
+        }
+
+        if self.disabled {
+            open = false;
         }
 
         if user_interface.input(|input_state| input_state.key_pressed(Key::Escape)) {
@@ -177,28 +254,45 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
         user_interface.memory_mut(|memory| memory.data.insert_temp(popup_id, open));
 
         if !open {
+            if let Some(tooltip_text) = &self.tooltip_text {
+                ThemedTooltip::show_text(
+                    user_interface,
+                    &response,
+                    Id::new(("combo_tooltip", self.menu_id, user_interface.id().value())),
+                    theme,
+                    tooltip_text.as_ref(),
+                );
+            }
+
             return response;
         }
 
         // Draw popup content.
         let popup_pos = pos2(allocated_size_rectangle.min.x, allocated_size_rectangle.max.y + 2.0);
-        let popup_id_area = Id::new(("combo_popup_area", user_interface.id().value(), self.label));
+        let popup_id_area = Id::new(("combo_popup_area", self.menu_id, user_interface.id().value()));
         let mut should_close = false;
+        let popup_width = self.popup_width.unwrap_or(self.width).max(1.0);
 
         let area_response = Area::new(popup_id_area)
             .order(Order::Foreground)
             .fixed_pos(popup_pos)
+            .constrain_to(user_interface.ctx().content_rect())
             .show(user_interface.ctx(), |popup_user_interface| {
-                Frame::popup(user_interface.style())
+                Frame::new()
                     .fill(theme.background_primary)
+                    .stroke(Stroke::new(self.border_width, theme.submenu_border))
                     .inner_margin(Margin::ZERO)
+                    .outer_margin(0)
                     .corner_radius(self.corner_radius)
                     .show(popup_user_interface, |popup_user_interface| {
                         popup_user_interface.spacing_mut().menu_margin = Margin::ZERO;
                         popup_user_interface.spacing_mut().window_margin = Margin::ZERO;
                         popup_user_interface.spacing_mut().menu_spacing = 0.0;
                         popup_user_interface.spacing_mut().item_spacing = Vec2::ZERO;
-                        popup_user_interface.set_min_width(self.width);
+                        // ScrollArea expands its clip rect by `visuals.clip_rect_margin`; keep combo rows inside the popup border.
+                        popup_user_interface.visuals_mut().clip_rect_margin = 0.0;
+                        popup_user_interface.set_min_width(popup_width);
+                        popup_user_interface.set_max_width(popup_width);
                         popup_user_interface.with_layout(Layout::top_down(Align::Min), |inner_user_interface| {
                             (self.add_contents)(inner_user_interface, &mut should_close);
                         });

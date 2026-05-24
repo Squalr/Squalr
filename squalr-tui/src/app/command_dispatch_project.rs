@@ -14,22 +14,39 @@ use squalr_engine_api::commands::project_items::create::project_items_create_req
 use squalr_engine_api::commands::project_items::delete::project_items_delete_request::ProjectItemsDeleteRequest;
 use squalr_engine_api::commands::project_items::list::project_items_list_request::ProjectItemsListRequest;
 use squalr_engine_api::commands::project_items::move_item::project_items_move_request::ProjectItemsMoveRequest;
+use squalr_engine_api::commands::project_items::promote_symbol::project_items_promote_symbol_request::ProjectItemsPromoteSymbolRequest;
 use squalr_engine_api::commands::project_items::rename::project_items_rename_request::ProjectItemsRenameRequest;
 use squalr_engine_api::commands::project_items::reorder::project_items_reorder_request::ProjectItemsReorderRequest;
+use squalr_engine_api::commands::project_symbols::delete::project_symbols_delete_request::ProjectSymbolsDeleteRequest;
+use squalr_engine_api::commands::project_symbols::list::project_symbols_list_request::ProjectSymbolsListRequest;
 use squalr_engine_api::commands::scan_results::set_property::scan_results_set_property_request::ScanResultsSetPropertyRequest;
 use squalr_engine_api::commands::unprivileged_command_request::UnprivilegedCommandRequest;
-use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
-use squalr_engine_api::structures::projects::project::Project;
-use squalr_engine_api::structures::projects::project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress;
-use squalr_engine_api::structures::projects::project_items::built_in_types::project_item_type_directory::ProjectItemTypeDirectory;
+use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
+use squalr_engine_api::structures::data_values::{
+    container_type::ContainerType,
+    data_value_preview_formatter::{DataValuePreviewFormatOptions, DataValuePreviewFormatter},
+};
+use squalr_engine_api::structures::projects::project_items::built_in_types::{
+    project_item_type_address::ProjectItemTypeAddress, project_item_type_directory::ProjectItemTypeDirectory, project_item_type_pointer::ProjectItemTypePointer,
+};
 use squalr_engine_api::structures::projects::project_items::project_item::ProjectItem;
 use squalr_engine_api::structures::scan_results::scan_result_ref::ScanResultRef;
-use squalr_engine_api::structures::structs::valued_struct_field::ValuedStructField;
+use squalr_engine_api::structures::structs::{
+    symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition, valued_struct_field::ValuedStructField,
+};
+use squalr_engine_session::{
+    engine_unprivileged_state::EngineUnprivilegedState,
+    virtual_snapshots::{virtual_snapshot_query::VirtualSnapshotQuery, virtual_snapshot_query_result::VirtualSnapshotQueryResult},
+};
 use std::path::Path;
-use std::sync::mpsc;
+use std::str::FromStr;
+use std::sync::{Arc, mpsc};
 use std::time::Duration;
 
 impl AppShell {
+    const PROJECT_ITEM_PREVIEW_VIRTUAL_SNAPSHOT_ID: &'static str = "tui_project_item_previews";
+    const PROJECT_ITEM_PREVIEW_FORMAT_OPTIONS: DataValuePreviewFormatOptions = DataValuePreviewFormatOptions::new(4, 96, 96);
+
     pub(super) fn commit_project_selector_input(
         &mut self,
         squalr_engine: &mut SqualrEngine,
@@ -155,7 +172,9 @@ impl AppShell {
             self.app_state.project_explorer_pane_state.status_message = "Refreshing project item hierarchy.".to_string();
         }
 
-        let project_items_list_request = ProjectItemsListRequest {};
+        let project_items_list_request = ProjectItemsListRequest {
+            preview_project_item_paths: Some(Vec::new()),
+        };
         let (response_sender, response_receiver) = mpsc::sync_channel(1);
         project_items_list_request.send(engine_unprivileged_state, move |project_items_list_response| {
             let _ = response_sender.send(project_items_list_response);
@@ -163,10 +182,12 @@ impl AppShell {
 
         match response_receiver.recv_timeout(Duration::from_secs(3)) {
             Ok(project_items_list_response) => {
+                let opened_project_info = project_items_list_response.opened_project_info;
                 let project_item_count = project_items_list_response.opened_project_items.len();
                 self.app_state
                     .project_explorer_pane_state
-                    .apply_project_items_list(project_items_list_response.opened_project_items);
+                    .apply_project_items_list(opened_project_info, project_items_list_response.opened_project_items);
+                self.sync_project_item_virtual_snapshot(engine_unprivileged_state);
                 if should_update_status_message {
                     self.app_state.project_explorer_pane_state.status_message = format!("Loaded {} project items.", project_item_count);
                 }
@@ -181,6 +202,140 @@ impl AppShell {
         self.app_state
             .project_explorer_pane_state
             .is_awaiting_project_item_list_response = false;
+    }
+
+    pub(super) fn refresh_project_symbols_list(
+        &mut self,
+        squalr_engine: &mut SqualrEngine,
+    ) {
+        self.refresh_project_symbols_list_with_feedback(squalr_engine, true);
+    }
+
+    pub(super) fn refresh_project_symbols_list_with_feedback(
+        &mut self,
+        squalr_engine: &mut SqualrEngine,
+        should_update_status_message: bool,
+    ) {
+        if self
+            .app_state
+            .project_explorer_pane_state
+            .is_awaiting_project_symbol_list_response
+        {
+            if should_update_status_message {
+                self.app_state.project_explorer_pane_state.status_message = "Project symbol list request already in progress.".to_string();
+            }
+            return;
+        }
+
+        let engine_unprivileged_state = match squalr_engine.get_engine_unprivileged_state().as_ref() {
+            Some(engine_unprivileged_state) => engine_unprivileged_state,
+            None => {
+                if should_update_status_message {
+                    self.app_state.project_explorer_pane_state.status_message =
+                        "No unprivileged engine state is available for project symbol listing.".to_string();
+                }
+                return;
+            }
+        };
+
+        self.app_state
+            .project_explorer_pane_state
+            .is_awaiting_project_symbol_list_response = true;
+        if should_update_status_message {
+            self.app_state.project_explorer_pane_state.status_message = "Refreshing symbol claims.".to_string();
+        }
+
+        let project_symbols_list_request = ProjectSymbolsListRequest::default();
+        let (response_sender, response_receiver) = mpsc::sync_channel(1);
+        project_symbols_list_request.send(engine_unprivileged_state, move |project_symbols_list_response| {
+            let _ = response_sender.send(project_symbols_list_response);
+        });
+
+        match response_receiver.recv_timeout(Duration::from_secs(3)) {
+            Ok(project_symbols_list_response) => {
+                let symbol_claim_count = project_symbols_list_response
+                    .project_symbol_catalog
+                    .as_ref()
+                    .map(|project_symbol_catalog| project_symbol_catalog.get_symbol_claims().len())
+                    .unwrap_or(0);
+                self.app_state
+                    .project_explorer_pane_state
+                    .apply_project_symbols_list(project_symbols_list_response.project_symbol_catalog);
+                if should_update_status_message {
+                    self.app_state.project_explorer_pane_state.status_message = format!("Loaded {} symbol claims.", symbol_claim_count);
+                }
+            }
+            Err(receive_error) => {
+                if should_update_status_message {
+                    self.app_state.project_explorer_pane_state.status_message =
+                        format!("Timed out waiting for project symbol list response: {}", receive_error);
+                }
+            }
+        }
+
+        self.app_state
+            .project_explorer_pane_state
+            .is_awaiting_project_symbol_list_response = false;
+    }
+
+    pub(super) fn sync_project_item_virtual_snapshot(
+        &mut self,
+        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
+    ) {
+        let requested_preview_project_item_paths = self
+            .app_state
+            .project_explorer_pane_state
+            .collect_requested_preview_project_item_paths();
+        let virtual_snapshot_queries = requested_preview_project_item_paths
+            .iter()
+            .filter_map(|project_item_path| {
+                let project_item = self
+                    .app_state
+                    .project_explorer_pane_state
+                    .opened_project_item(project_item_path)?;
+
+                Self::build_project_item_virtual_snapshot_query(project_item_path, project_item, engine_unprivileged_state)
+            })
+            .collect::<Vec<_>>();
+
+        engine_unprivileged_state.set_virtual_snapshot_queries(
+            Self::PROJECT_ITEM_PREVIEW_VIRTUAL_SNAPSHOT_ID,
+            self.project_items_periodic_refresh_interval(),
+            virtual_snapshot_queries,
+        );
+        engine_unprivileged_state.request_virtual_snapshot_refresh(Self::PROJECT_ITEM_PREVIEW_VIRTUAL_SNAPSHOT_ID);
+        self.apply_project_item_virtual_snapshot_results(engine_unprivileged_state, &requested_preview_project_item_paths);
+    }
+
+    fn apply_project_item_virtual_snapshot_results(
+        &mut self,
+        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
+        requested_preview_project_item_paths: &[std::path::PathBuf],
+    ) {
+        let Some(virtual_snapshot) = engine_unprivileged_state.get_virtual_snapshot(Self::PROJECT_ITEM_PREVIEW_VIRTUAL_SNAPSHOT_ID) else {
+            return;
+        };
+
+        for project_item_path in requested_preview_project_item_paths {
+            let query_id = project_item_path.to_string_lossy().to_string();
+            let Some(project_item) = self
+                .app_state
+                .project_explorer_pane_state
+                .opened_project_item(project_item_path)
+                .cloned()
+            else {
+                continue;
+            };
+            let Some(virtual_snapshot_query_result) = virtual_snapshot.get_query_results().get(query_id.as_str()) else {
+                continue;
+            };
+            let preview_value =
+                Self::build_project_item_preview_value_from_virtual_snapshot_result(engine_unprivileged_state, &project_item, virtual_snapshot_query_result);
+
+            self.app_state
+                .project_explorer_pane_state
+                .apply_virtual_snapshot_preview(project_item_path, &preview_value, &virtual_snapshot_query_result.evaluated_pointer_path);
+        }
     }
 
     pub(super) fn create_project_from_pending_name(
@@ -306,7 +461,11 @@ impl AppShell {
         let project_items_create_request = ProjectItemsCreateRequest {
             parent_directory_path,
             project_item_name: project_item_name.clone(),
-            project_item_type: "directory".to_string(),
+            is_directory: true,
+            address: None,
+            module_name: None,
+            data_type_id: None,
+            pointer_offsets: None,
         };
         let (response_sender, response_receiver) = mpsc::sync_channel(1);
         project_items_create_request.send(engine_unprivileged_state, move |project_items_create_response| {
@@ -626,6 +785,113 @@ impl AppShell {
             .is_deleting_project_item = false;
     }
 
+    pub(super) fn promote_selected_project_item_to_symbol(
+        &mut self,
+        squalr_engine: &mut SqualrEngine,
+    ) {
+        let Some(selected_project_item_path) = self
+            .app_state
+            .project_explorer_pane_state
+            .selected_project_item_path()
+        else {
+            self.app_state.project_explorer_pane_state.status_message = "No project item is selected for symbol promotion.".to_string();
+            return;
+        };
+
+        let engine_unprivileged_state = match squalr_engine.get_engine_unprivileged_state().as_ref() {
+            Some(engine_unprivileged_state) => engine_unprivileged_state,
+            None => {
+                self.app_state.project_explorer_pane_state.status_message = "No unprivileged engine state is available for symbol promotion.".to_string();
+                return;
+            }
+        };
+
+        self.app_state.project_explorer_pane_state.status_message = format!("Promoting {} to symbol claim.", selected_project_item_path.display());
+
+        let project_items_promote_symbol_request = ProjectItemsPromoteSymbolRequest {
+            project_item_paths: vec![selected_project_item_path.clone()],
+            overwrite_conflicting_symbols: false,
+        };
+        let (response_sender, response_receiver) = mpsc::sync_channel(1);
+        project_items_promote_symbol_request.send(engine_unprivileged_state, move |project_items_promote_symbol_response| {
+            let _ = response_sender.send(project_items_promote_symbol_response);
+        });
+
+        match response_receiver.recv_timeout(Duration::from_secs(3)) {
+            Ok(project_items_promote_symbol_response) => {
+                if project_items_promote_symbol_response.success {
+                    self.app_state.project_explorer_pane_state.status_message = format!(
+                        "Promoted {} symbol claim(s), reused {}, conflicts {}.",
+                        project_items_promote_symbol_response.promoted_symbol_count,
+                        project_items_promote_symbol_response.reused_symbol_count,
+                        project_items_promote_symbol_response.conflicts.len()
+                    );
+                    self.refresh_project_symbols_list_with_feedback(squalr_engine, false);
+                } else {
+                    self.app_state.project_explorer_pane_state.status_message = if project_items_promote_symbol_response.status_message.is_empty() {
+                        "Project item symbol promotion failed.".to_string()
+                    } else {
+                        project_items_promote_symbol_response.status_message
+                    };
+                }
+            }
+            Err(receive_error) => {
+                self.app_state.project_explorer_pane_state.status_message =
+                    format!("Timed out waiting for project item symbol promotion response: {}", receive_error);
+            }
+        }
+    }
+
+    pub(super) fn delete_selected_symbol_claim(
+        &mut self,
+        squalr_engine: &mut SqualrEngine,
+    ) {
+        let Some(selected_symbol_claim) = self
+            .app_state
+            .project_explorer_pane_state
+            .selected_symbol_claim()
+            .cloned()
+        else {
+            self.app_state.project_explorer_pane_state.status_message = "No symbol claim is selected for delete.".to_string();
+            return;
+        };
+
+        let engine_unprivileged_state = match squalr_engine.get_engine_unprivileged_state().as_ref() {
+            Some(engine_unprivileged_state) => engine_unprivileged_state,
+            None => {
+                self.app_state.project_explorer_pane_state.status_message = "No unprivileged engine state is available for symbol claim delete.".to_string();
+                return;
+            }
+        };
+
+        self.app_state.project_explorer_pane_state.status_message = format!("Deleting symbol claim '{}'.", selected_symbol_claim.get_display_name());
+
+        let project_symbols_delete_request = ProjectSymbolsDeleteRequest {
+            symbol_locator_keys: vec![selected_symbol_claim.get_symbol_locator_key().to_string()],
+            module_names: Vec::new(),
+            module_ranges: Vec::new(),
+        };
+        let (response_sender, response_receiver) = mpsc::sync_channel(1);
+        project_symbols_delete_request.send(engine_unprivileged_state, move |project_symbols_delete_response| {
+            let _ = response_sender.send(project_symbols_delete_response);
+        });
+
+        match response_receiver.recv_timeout(Duration::from_secs(3)) {
+            Ok(project_symbols_delete_response) => {
+                if project_symbols_delete_response.success {
+                    self.app_state.project_explorer_pane_state.status_message =
+                        format!("Deleted {} symbol claim(s).", project_symbols_delete_response.deleted_symbol_count);
+                    self.refresh_project_symbols_list_with_feedback(squalr_engine, false);
+                } else {
+                    self.app_state.project_explorer_pane_state.status_message = "Symbol claim delete request failed.".to_string();
+                }
+            }
+            Err(receive_error) => {
+                self.app_state.project_explorer_pane_state.status_message = format!("Timed out waiting for symbol claim delete response: {}", receive_error);
+            }
+        }
+    }
+
     pub(super) fn open_selected_project(
         &mut self,
         squalr_engine: &mut SqualrEngine,
@@ -681,8 +947,13 @@ impl AppShell {
                         .project_explorer_pane_state
                         .set_active_project(Some(selected_project_name.clone()), Some(selected_project_directory_path.clone()));
                     self.app_state.project_explorer_pane_state.clear_project_items();
+                    self.app_state
+                        .project_explorer_pane_state
+                        .clear_project_symbols();
                     self.app_state.project_explorer_pane_state.status_message = format!("Opened project '{}'.", selected_project_name);
                     self.refresh_project_items_list(squalr_engine);
+                    self.refresh_project_symbols_list_with_feedback(squalr_engine, false);
+                    self.refresh_plugins_with_feedback(squalr_engine, false);
                 } else {
                     self.app_state.project_explorer_pane_state.status_message = "Project open request failed.".to_string();
                 }
@@ -845,6 +1116,9 @@ impl AppShell {
                             .project_explorer_pane_state
                             .set_active_project(None, None);
                         self.app_state.project_explorer_pane_state.clear_project_items();
+                        self.app_state
+                            .project_explorer_pane_state
+                            .clear_project_symbols();
                     }
                     self.app_state.project_explorer_pane_state.status_message = format!("Deleted project '{}'.", selected_project_name);
                     self.refresh_project_list(squalr_engine);
@@ -893,6 +1167,9 @@ impl AppShell {
                         .project_explorer_pane_state
                         .set_active_project(None, None);
                     self.app_state.project_explorer_pane_state.clear_project_items();
+                    self.app_state
+                        .project_explorer_pane_state
+                        .clear_project_symbols();
                     self.app_state.project_explorer_pane_state.status_message = "Closed active project.".to_string();
                 } else {
                     self.app_state.project_explorer_pane_state.status_message = "Project close request failed.".to_string();
@@ -906,6 +1183,143 @@ impl AppShell {
         self.app_state.project_explorer_pane_state.is_closing_project = false;
     }
 
+    fn build_project_item_virtual_snapshot_query(
+        project_item_path: &Path,
+        project_item: &ProjectItem,
+        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
+    ) -> Option<VirtualSnapshotQuery> {
+        let query_id = project_item_path.to_string_lossy().to_string();
+        let symbolic_struct_namespace = Self::resolve_project_item_symbolic_struct_namespace(project_item)?;
+        let symbolic_struct_definition = Self::build_project_item_preview_symbolic_struct_definition(engine_unprivileged_state, &symbolic_struct_namespace)?;
+        let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
+
+        if project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
+            let mut project_item = project_item.clone();
+
+            return Some(VirtualSnapshotQuery::Address {
+                query_id,
+                address: ProjectItemTypeAddress::get_field_address(&mut project_item),
+                module_name: ProjectItemTypeAddress::get_field_module(&mut project_item),
+                symbolic_struct_definition,
+            });
+        }
+
+        if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
+            return Some(VirtualSnapshotQuery::Pointer {
+                query_id,
+                pointer: ProjectItemTypePointer::get_field_pointer(project_item),
+                symbolic_struct_definition,
+            });
+        }
+
+        None
+    }
+
+    fn build_project_item_preview_symbolic_struct_definition(
+        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
+        symbolic_struct_namespace: &str,
+    ) -> Option<SymbolicStructDefinition> {
+        let symbolic_struct_definition = engine_unprivileged_state.resolve_struct_layout_definition(symbolic_struct_namespace)?;
+        let preview_field_definition = SymbolicFieldDefinition::from_str(symbolic_struct_namespace).ok();
+
+        let Some(preview_field_definition) = preview_field_definition else {
+            return Some(symbolic_struct_definition);
+        };
+
+        let preview_container_type = DataValuePreviewFormatter::limit_array_container_type(preview_field_definition.get_container_type());
+
+        if preview_container_type == preview_field_definition.get_container_type() {
+            Some(symbolic_struct_definition)
+        } else {
+            Some(SymbolicStructDefinition::new_anonymous(vec![SymbolicFieldDefinition::new(
+                preview_field_definition.get_data_type_ref().clone(),
+                preview_container_type,
+            )]))
+        }
+    }
+
+    fn build_project_item_preview_value_from_virtual_snapshot_result(
+        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
+        project_item: &ProjectItem,
+        virtual_snapshot_query_result: &VirtualSnapshotQueryResult,
+    ) -> String {
+        let Some(memory_read_response) = virtual_snapshot_query_result.memory_read_response.as_ref() else {
+            return String::new();
+        };
+
+        if !memory_read_response.success {
+            return String::new();
+        }
+
+        let Some(first_read_field_data_value) = memory_read_response
+            .valued_struct
+            .get_fields()
+            .first()
+            .and_then(|valued_struct_field| valued_struct_field.get_data_value())
+        else {
+            return String::new();
+        };
+
+        let default_anonymous_value_string_format =
+            engine_unprivileged_state.get_default_anonymous_value_string_format(first_read_field_data_value.get_data_type_ref());
+        let symbolic_field_container_type = Self::resolve_project_item_symbolic_container_type(project_item);
+        let preview_was_truncated = Self::project_item_preview_was_truncated(project_item);
+
+        engine_unprivileged_state
+            .anonymize_value(first_read_field_data_value, default_anonymous_value_string_format)
+            .map(|anonymous_value_string| {
+                DataValuePreviewFormatter::format_anonymous_value_preview(
+                    &anonymous_value_string,
+                    symbolic_field_container_type,
+                    preview_was_truncated,
+                    Self::PROJECT_ITEM_PREVIEW_FORMAT_OPTIONS,
+                )
+            })
+            .unwrap_or_default()
+    }
+
+    fn resolve_project_item_symbolic_struct_namespace(project_item: &ProjectItem) -> Option<String> {
+        let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
+
+        if project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
+            let mut project_item = project_item.clone();
+
+            return ProjectItemTypeAddress::get_field_symbolic_struct_definition_reference(&mut project_item).map(|symbolic_struct_reference| {
+                symbolic_struct_reference
+                    .get_symbolic_struct_namespace()
+                    .to_string()
+            });
+        }
+
+        if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
+            return ProjectItemTypePointer::get_field_symbolic_struct_definition_reference(project_item).map(|symbolic_struct_reference| {
+                symbolic_struct_reference
+                    .get_symbolic_struct_namespace()
+                    .to_string()
+            });
+        }
+
+        None
+    }
+
+    fn resolve_project_item_symbolic_container_type(project_item: &ProjectItem) -> ContainerType {
+        Self::resolve_project_item_symbolic_struct_namespace(project_item)
+            .and_then(|symbolic_struct_namespace| SymbolicFieldDefinition::from_str(&symbolic_struct_namespace).ok())
+            .map(|symbolic_field_definition| symbolic_field_definition.get_container_type())
+            .unwrap_or(ContainerType::None)
+    }
+
+    fn project_item_preview_was_truncated(project_item: &ProjectItem) -> bool {
+        let Some(symbolic_struct_namespace) = Self::resolve_project_item_symbolic_struct_namespace(project_item) else {
+            return false;
+        };
+        let Some(symbolic_field_definition) = SymbolicFieldDefinition::from_str(&symbolic_struct_namespace).ok() else {
+            return false;
+        };
+
+        DataValuePreviewFormatter::array_preview_was_truncated(symbolic_field_definition.get_container_type())
+    }
+
     pub(super) fn extract_string_value_from_edited_field(edited_field: &ValuedStructField) -> Option<String> {
         let edited_data_value = edited_field.get_data_value()?;
         let edited_name = String::from_utf8(edited_data_value.get_value_bytes().clone()).ok()?;
@@ -916,44 +1330,18 @@ impl AppShell {
 
     pub(super) fn build_project_item_rename_request(
         project_item_path: &Path,
-        project_item_type_id: &str,
+        _project_item_type_id: &str,
         edited_name: &str,
     ) -> Option<ProjectItemsRenameRequest> {
-        let sanitized_file_name = Path::new(edited_name)
-            .file_name()
-            .and_then(|file_name| file_name.to_str())
-            .map(str::trim)
-            .filter(|file_name| !file_name.is_empty())?
-            .to_string();
-        let is_directory_project_item = project_item_type_id == ProjectItemTypeDirectory::PROJECT_ITEM_TYPE_ID;
-        let renamed_project_item_name = if is_directory_project_item {
-            sanitized_file_name
-        } else {
-            let mut file_name_with_extension = sanitized_file_name.clone();
-            let expected_extension = Project::PROJECT_ITEM_EXTENSION.trim_start_matches('.');
-            let has_expected_extension = Path::new(&sanitized_file_name)
-                .extension()
-                .and_then(|extension| extension.to_str())
-                .map(|extension| extension.eq_ignore_ascii_case(expected_extension))
-                .unwrap_or(false);
-            if !has_expected_extension {
-                file_name_with_extension.push('.');
-                file_name_with_extension.push_str(expected_extension);
-            }
+        let renamed_project_item_name = edited_name.trim();
 
-            file_name_with_extension
-        };
-        let current_file_name = project_item_path
-            .file_name()
-            .and_then(|file_name| file_name.to_str())
-            .unwrap_or_default();
-        if current_file_name == renamed_project_item_name {
+        if renamed_project_item_name.is_empty() {
             return None;
         }
 
         Some(ProjectItemsRenameRequest {
             project_item_path: project_item_path.to_path_buf(),
-            project_item_name: renamed_project_item_name,
+            project_item_name: renamed_project_item_name.to_string(),
         })
     }
 
@@ -982,13 +1370,13 @@ impl AppShell {
     pub(super) fn build_scan_results_set_property_request_for_struct_edit(
         scan_result_refs: Vec<ScanResultRef>,
         edited_field: &ValuedStructField,
+        engine_unprivileged_state: &EngineUnprivilegedState,
     ) -> Result<ScanResultsSetPropertyRequest, String> {
         let edited_data_value = edited_field
             .get_data_value()
             .ok_or_else(|| "Nested struct scan result edits are not supported in the TUI yet.".to_string())?;
-        let symbol_registry = SymbolRegistry::get_instance();
-        let default_edit_format = symbol_registry.get_default_anonymous_value_string_format(edited_data_value.get_data_type_ref());
-        let edited_anonymous_value = symbol_registry
+        let default_edit_format = engine_unprivileged_state.get_default_anonymous_value_string_format(edited_data_value.get_data_type_ref());
+        let edited_anonymous_value = engine_unprivileged_state
             .anonymize_value(edited_data_value, default_edit_format)
             .map_err(|error| format!("Failed to format edited scan result value: {}", error))?;
 

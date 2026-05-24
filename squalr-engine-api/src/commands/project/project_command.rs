@@ -6,48 +6,23 @@ use crate::commands::project::rename::project_rename_request::ProjectRenameReque
 use crate::commands::project::save::project_save_request::ProjectSaveRequest;
 use crate::commands::project::{close::project_close_request::ProjectCloseRequest, delete::project_delete_request::ProjectDeleteRequest};
 use serde::{Deserialize, Serialize};
-use structopt::StructOpt;
 
-#[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ProjectCommand {
     /// Create a project.
-    Create {
-        #[structopt(flatten)]
-        project_create_request: ProjectCreateRequest,
-    },
+    Create { project_create_request: ProjectCreateRequest },
     /// Delete a project.
-    Delete {
-        #[structopt(flatten)]
-        project_delete_request: ProjectDeleteRequest,
-    },
+    Delete { project_delete_request: ProjectDeleteRequest },
     /// Open a project.
-    Open {
-        #[structopt(flatten)]
-        project_open_request: ProjectOpenRequest,
-    },
+    Open { project_open_request: ProjectOpenRequest },
     /// Close a project.
-    Close {
-        #[structopt(flatten)]
-        project_close_request: ProjectCloseRequest,
-    },
+    Close { project_close_request: ProjectCloseRequest },
     /// Rename a project.
-    Rename {
-        #[structopt(flatten)]
-        project_rename_request: ProjectRenameRequest,
-    },
+    Rename { project_rename_request: ProjectRenameRequest },
     /// Save a project.
-    Save {
-        #[structopt(flatten)]
-        project_save_request: ProjectSaveRequest,
-    },
+    Save { project_save_request: ProjectSaveRequest },
     /// Export a project.
-    Export {
-        #[structopt(flatten)]
-        project_export_request: ProjectExportRequest,
-    },
+    Export { project_export_request: ProjectExportRequest },
     /// List all projects.
-    List {
-        #[structopt(flatten)]
-        project_list_request: ProjectListRequest,
-    },
+    List { project_list_request: ProjectListRequest },
 }

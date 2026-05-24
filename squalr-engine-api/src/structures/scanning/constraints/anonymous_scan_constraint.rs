@@ -7,6 +7,7 @@ use crate::structures::scanning::comparisons::scan_compare_type_delta::ScanCompa
 use crate::structures::scanning::comparisons::scan_compare_type_immediate::ScanCompareTypeImmediate;
 use crate::structures::scanning::comparisons::scan_compare_type_relative::ScanCompareTypeRelative;
 use crate::structures::scanning::constraints::scan_constraint::ScanConstraint;
+use crate::structures::scanning::constraints::scan_constraint_builder::ScanConstraintBuilder;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
@@ -16,6 +17,8 @@ use std::str::FromStr;
 pub struct AnonymousScanConstraint {
     scan_compare_type: ScanCompareType,
     anonymous_value_string: Option<AnonymousValueString>,
+    #[serde(default)]
+    use_hex_pattern_matching: bool,
 }
 
 impl AnonymousScanConstraint {
@@ -26,6 +29,7 @@ impl AnonymousScanConstraint {
         Self {
             scan_compare_type,
             anonymous_value_string,
+            use_hex_pattern_matching: false,
         }
     }
 
@@ -37,21 +41,33 @@ impl AnonymousScanConstraint {
         &self.anonymous_value_string
     }
 
+    pub fn with_hex_pattern_matching(
+        mut self,
+        use_hex_pattern_matching: bool,
+    ) -> Self {
+        self.use_hex_pattern_matching = use_hex_pattern_matching;
+        self
+    }
+
+    pub fn uses_hex_pattern_matching(&self) -> bool {
+        self.use_hex_pattern_matching
+    }
+
     pub fn deanonymize_constraint(
         &self,
+        symbol_registry: &SymbolRegistry,
         data_type_ref: &DataTypeRef,
         floating_point_tolerance: FloatingPointTolerance,
     ) -> Option<ScanConstraint> {
-        let symbol_registry = SymbolRegistry::get_instance();
+        let scan_constraint_builder = ScanConstraintBuilder::new(symbol_registry, floating_point_tolerance);
 
-        if let Some(anonymous_value_string) = &self.anonymous_value_string {
-            match symbol_registry.deanonymize_value_string(&data_type_ref, &anonymous_value_string) {
-                Ok(data_value) => return Some(ScanConstraint::new(self.scan_compare_type, data_value, floating_point_tolerance)),
-                Err(error) => log::error!("Unable to parse value in anonymous constraint: {}", error),
+        match scan_constraint_builder.build(self, data_type_ref) {
+            Ok(scan_constraint) => scan_constraint,
+            Err(error) => {
+                log::error!("Unable to create scan constraint: {}", error);
+                None
             }
         }
-
-        None
     }
 }
 
@@ -107,6 +123,7 @@ impl FromStr for AnonymousScanConstraint {
                 return Ok(AnonymousScanConstraint {
                     scan_compare_type,
                     anonymous_value_string,
+                    use_hex_pattern_matching: false,
                 });
             }
         }

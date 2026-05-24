@@ -1,3 +1,4 @@
+use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
 use crate::views::element_scanner::scanner::{
     element_scanner_view_state::ElementScannerViewState, view_data::element_scanner_value_view_data::ElementScannerValueViewData,
 };
@@ -12,7 +13,7 @@ use squalr_engine_api::{
     dependency_injection::dependency::Dependency,
     structures::{
         data_types::{built_in_types::i32::data_type_i32::DataTypeI32, data_type_ref::DataTypeRef},
-        data_values::anonymous_value_string_format::AnonymousValueStringFormat,
+        data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
         scanning::{
             comparisons::{scan_compare_type::ScanCompareType, scan_compare_type_immediate::ScanCompareTypeImmediate},
             constraints::anonymous_scan_constraint::AnonymousScanConstraint,
@@ -22,22 +23,44 @@ use squalr_engine_api::{
 use squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState;
 use std::sync::Arc;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ElementScannerScanMode {
+    Element,
+    Array,
+    Pattern,
+}
+
+impl ElementScannerScanMode {
+    pub const ALL: &'static [Self] = &[Self::Element, Self::Array, Self::Pattern];
+
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::Element => "Element",
+            Self::Array => "Array",
+            Self::Pattern => "Pattern",
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct ElementScannerViewData {
-    pub selected_data_type: DataTypeRef,
+    pub data_type_selection: DataTypeSelection,
     pub active_display_format: AnonymousValueStringFormat,
     pub view_state: ElementScannerViewState,
+    pub scan_mode: ElementScannerScanMode,
     pub scan_values_and_constraints: Vec<ElementScannerValueViewData>,
 }
 
 impl ElementScannerViewData {
     const MAX_CONSTRAINTS: usize = 5;
+    const INSTRUCTION_SEQUENCE_DATA_TYPE_PREFIX: &'static str = "i_";
 
     pub fn new() -> Self {
         Self {
-            selected_data_type: DataTypeRef::new(DataTypeI32::get_data_type_id()),
+            data_type_selection: DataTypeSelection::new(DataTypeRef::new(DataTypeI32::get_data_type_id())),
             active_display_format: AnonymousValueStringFormat::Decimal,
             view_state: ElementScannerViewState::NoResults,
+            scan_mode: ElementScannerScanMode::Element,
             scan_values_and_constraints: vec![ElementScannerValueViewData::new(Self::create_menu_id(0))],
         }
     }
@@ -74,22 +97,61 @@ impl ElementScannerViewData {
         });
     }
 
-    pub fn collect_values(engine_unprivileged_state: Arc<EngineUnprivilegedState>) {
-        let collect_values_request = ScanCollectValuesRequest {};
+    pub fn collect_values(
+        element_scanner_view_data: Dependency<Self>,
+        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
+    ) {
+        let data_type_refs = element_scanner_view_data
+            .read("Element scanner view data collect values")
+            .map(|element_scanner_view_data| {
+                element_scanner_view_data
+                    .data_type_selection
+                    .scan_data_type_refs()
+            })
+            .unwrap_or_default();
+        let element_scanner_view_data_clone = element_scanner_view_data.clone();
+        let did_request_new_scan = !data_type_refs.is_empty();
+        let collect_values_request = ScanCollectValuesRequest { data_type_refs };
 
-        collect_values_request.send(&engine_unprivileged_state, |_scan_collect_values_response| {});
+        collect_values_request.send(&engine_unprivileged_state, move |scan_collect_values_response| {
+            if !scan_collect_values_response.success {
+                return;
+            }
+
+            if let Some(mut element_scanner_view_data) = element_scanner_view_data_clone.write("Element scanner view data collect values response") {
+                let did_collect_snapshot_values = scan_collect_values_response
+                    .scan_results_metadata
+                    .total_size_in_bytes
+                    > 0;
+
+                if element_scanner_view_data.view_state == ElementScannerViewState::HasResults || (did_request_new_scan && did_collect_snapshot_values) {
+                    element_scanner_view_data.view_state = ElementScannerViewState::HasResults;
+                }
+            }
+        });
     }
 
     pub fn start_scan(
         element_scanner_view_data: Dependency<Self>,
         engine_unprivileged_state: Arc<EngineUnprivilegedState>,
     ) {
-        let element_scanner_view_data_view_state = {
+        let (element_scanner_view_data_view_state, has_selected_data_types) = {
             match element_scanner_view_data.read("Element scanner view data start scan") {
-                Some(element_scanner_view_data) => element_scanner_view_data.view_state,
+                Some(element_scanner_view_data) => (
+                    element_scanner_view_data.view_state,
+                    !element_scanner_view_data
+                        .data_type_selection
+                        .selected_data_types()
+                        .is_empty(),
+                ),
                 None => return,
             }
         };
+
+        if !has_selected_data_types {
+            log::error!("Cannot start an element scan without at least one selected data type.");
+            return;
+        }
 
         match element_scanner_view_data_view_state {
             ElementScannerViewState::HasResults => {
@@ -113,7 +175,11 @@ impl ElementScannerViewData {
         let scan_new_request = ScanNewRequest {};
 
         // Start a new scan, and recurse to start the scan once the new scan is made.
-        scan_new_request.send(&engine_unprivileged_state, move |_scan_new_response| {
+        scan_new_request.send(&engine_unprivileged_state, move |scan_new_response| {
+            if !scan_new_response.success {
+                return;
+            }
+
             Self::start_next_scan(element_scanner_view_data, engine_unprivileged_state_clone);
         });
     }
@@ -129,17 +195,23 @@ impl ElementScannerViewData {
                 None => return,
             }
         };
-        let data_type_refs = vec![element_scanner_view_data.selected_data_type.clone()];
-        let scan_constraints = element_scanner_view_data
-            .scan_values_and_constraints
-            .iter()
-            .map(|scan_value_and_constraint| {
-                AnonymousScanConstraint::new(
-                    scan_value_and_constraint.selected_scan_compare_type,
-                    Some(scan_value_and_constraint.current_scan_value.clone()),
-                )
-            })
-            .collect();
+        let previous_view_state = element_scanner_view_data.view_state;
+        let data_type_refs = element_scanner_view_data
+            .data_type_selection
+            .scan_data_type_refs();
+        let effective_scan_mode = Self::resolve_scan_mode_for_data_type(
+            element_scanner_view_data
+                .data_type_selection
+                .visible_data_type(),
+            element_scanner_view_data.scan_mode,
+        );
+
+        if data_type_refs.is_empty() {
+            log::error!("Cannot start an element scan without at least one selected data type.");
+            return;
+        }
+
+        let scan_constraints = element_scanner_view_data.build_scan_constraints(effective_scan_mode);
         let element_scan_request = ElementScanRequest {
             scan_constraints,
             data_type_refs,
@@ -150,6 +222,15 @@ impl ElementScannerViewData {
         drop(element_scanner_view_data);
 
         element_scan_request.send(&engine_unprivileged_state, move |scan_execute_response| {
+            if !scan_execute_response.success {
+                if let Some(mut element_scanner_view_data) = element_scanner_view_data_clone.write("Element scanner view data start next scan failure response")
+                {
+                    element_scanner_view_data.view_state = previous_view_state;
+                }
+
+                return;
+            }
+
             // JIRA: We actually need to wait for the task to complete, which can be tricky with our request/response architecture.
             // For now we just set it immediately to avoid being stuck in in progress state.
             // JIRA: Use scan_execute_response.scan_results_metadata.
@@ -160,6 +241,29 @@ impl ElementScannerViewData {
                 None => {}
             }
         });
+    }
+
+    fn build_scan_constraints(
+        &self,
+        effective_scan_mode: ElementScannerScanMode,
+    ) -> Vec<AnonymousScanConstraint> {
+        self.scan_values_and_constraints
+            .iter()
+            .map(|scan_value_and_constraint| {
+                let constraint_value = match scan_value_and_constraint.selected_scan_compare_type {
+                    ScanCompareType::Relative(_) => None,
+                    ScanCompareType::Immediate(_) | ScanCompareType::Delta(_) => {
+                        let mut constraint_value = scan_value_and_constraint.current_scan_value.clone();
+                        Self::apply_scan_mode_to_constraint_value(effective_scan_mode, self.active_display_format, &mut constraint_value);
+
+                        Some(constraint_value)
+                    }
+                };
+
+                AnonymousScanConstraint::new(scan_value_and_constraint.selected_scan_compare_type, constraint_value)
+                    .with_hex_pattern_matching(effective_scan_mode == ElementScannerScanMode::Pattern)
+            })
+            .collect()
     }
 
     pub fn add_constraint(element_scanner_view_data: Dependency<Self>) {
@@ -209,5 +313,154 @@ impl ElementScannerViewData {
 
     fn create_menu_id(index: usize) -> String {
         format!("element_scanner_data_type_selector_{}", index)
+    }
+
+    pub fn apply_scan_mode_to_constraint_value(
+        scan_mode: ElementScannerScanMode,
+        active_display_format: AnonymousValueStringFormat,
+        constraint_value: &mut AnonymousValueString,
+    ) {
+        match scan_mode {
+            ElementScannerScanMode::Element => {
+                constraint_value.set_container_type(ContainerType::None);
+                constraint_value.set_anonymous_value_string_format(active_display_format);
+            }
+            ElementScannerScanMode::Array => {
+                constraint_value.set_container_type(ContainerType::Array);
+                constraint_value.set_anonymous_value_string_format(active_display_format);
+            }
+            ElementScannerScanMode::Pattern => {
+                constraint_value.set_container_type(ContainerType::None);
+                constraint_value.set_anonymous_value_string_format(AnonymousValueStringFormat::Hexadecimal);
+            }
+        }
+    }
+
+    pub fn is_instruction_sequence_data_type(data_type_ref: &DataTypeRef) -> bool {
+        data_type_ref
+            .get_data_type_id()
+            .starts_with(Self::INSTRUCTION_SEQUENCE_DATA_TYPE_PREFIX)
+    }
+
+    pub fn resolve_scan_mode_for_data_type(
+        data_type_ref: &DataTypeRef,
+        requested_scan_mode: ElementScannerScanMode,
+    ) -> ElementScannerScanMode {
+        if Self::is_instruction_sequence_data_type(data_type_ref) {
+            ElementScannerScanMode::Element
+        } else {
+            requested_scan_mode
+        }
+    }
+
+    pub fn get_scan_mode_label(
+        data_type_ref: &DataTypeRef,
+        scan_mode: ElementScannerScanMode,
+    ) -> &'static str {
+        if Self::is_instruction_sequence_data_type(data_type_ref) {
+            "Sequence"
+        } else {
+            scan_mode.label()
+        }
+    }
+
+    pub fn get_scan_mode_options_for_data_type(
+        data_type_ref: &DataTypeRef,
+        supported_display_formats: &[AnonymousValueStringFormat],
+    ) -> Vec<ElementScannerScanMode> {
+        if Self::is_instruction_sequence_data_type(data_type_ref) {
+            vec![ElementScannerScanMode::Element]
+        } else if supported_display_formats.contains(&AnonymousValueStringFormat::Hexadecimal) {
+            ElementScannerScanMode::ALL.to_vec()
+        } else {
+            vec![ElementScannerScanMode::Element, ElementScannerScanMode::Array]
+        }
+    }
+
+    pub fn resolve_active_display_format(
+        resolved_scan_mode: ElementScannerScanMode,
+        requested_display_format: AnonymousValueStringFormat,
+        supported_display_formats: &[AnonymousValueStringFormat],
+    ) -> AnonymousValueStringFormat {
+        if resolved_scan_mode == ElementScannerScanMode::Pattern {
+            return AnonymousValueStringFormat::Hexadecimal;
+        }
+
+        if supported_display_formats.contains(&requested_display_format) {
+            requested_display_format
+        } else {
+            supported_display_formats
+                .first()
+                .copied()
+                .unwrap_or(AnonymousValueStringFormat::Decimal)
+        }
+    }
+
+    pub fn get_supported_display_formats_for_scan_mode(
+        supported_anonymous_value_string_formats: &[AnonymousValueStringFormat],
+        scan_mode: ElementScannerScanMode,
+    ) -> Vec<AnonymousValueStringFormat> {
+        if scan_mode == ElementScannerScanMode::Pattern {
+            return vec![AnonymousValueStringFormat::Hexadecimal];
+        }
+
+        supported_anonymous_value_string_formats
+            .iter()
+            .copied()
+            .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ElementScannerScanMode, ElementScannerViewData};
+    use crate::views::element_scanner::scanner::view_data::element_scanner_value_view_data::ElementScannerValueViewData;
+    use squalr_engine_api::structures::scanning::comparisons::{
+        scan_compare_type::ScanCompareType, scan_compare_type_delta::ScanCompareTypeDelta, scan_compare_type_relative::ScanCompareTypeRelative,
+    };
+
+    #[test]
+    fn build_scan_constraints_omits_hidden_value_for_relative_scans() {
+        let mut element_scanner_view_data = ElementScannerViewData::new();
+        element_scanner_view_data.scan_values_and_constraints = vec![ElementScannerValueViewData {
+            selected_scan_compare_type: ScanCompareType::Relative(ScanCompareTypeRelative::Decreased),
+            ..ElementScannerValueViewData::new(String::from("test_menu"))
+        }];
+
+        let scan_constraints = element_scanner_view_data.build_scan_constraints(ElementScannerScanMode::Element);
+
+        assert_eq!(scan_constraints.len(), 1);
+        assert_eq!(
+            scan_constraints[0].get_scan_compare_type(),
+            ScanCompareType::Relative(ScanCompareTypeRelative::Decreased)
+        );
+        assert!(scan_constraints[0].get_anonymous_value_string().is_none());
+    }
+
+    #[test]
+    fn build_scan_constraints_keeps_value_for_delta_scans() {
+        let mut element_scanner_view_data = ElementScannerViewData::new();
+        element_scanner_view_data.scan_values_and_constraints = vec![ElementScannerValueViewData {
+            selected_scan_compare_type: ScanCompareType::Delta(ScanCompareTypeDelta::IncreasedByX),
+            ..ElementScannerValueViewData::new(String::from("test_menu"))
+        }];
+        element_scanner_view_data.scan_values_and_constraints[0]
+            .current_scan_value
+            .set_anonymous_value_string(String::from("4"));
+
+        let scan_constraints = element_scanner_view_data.build_scan_constraints(ElementScannerScanMode::Element);
+
+        assert_eq!(scan_constraints.len(), 1);
+        assert_eq!(
+            scan_constraints[0].get_scan_compare_type(),
+            ScanCompareType::Delta(ScanCompareTypeDelta::IncreasedByX)
+        );
+        assert_eq!(
+            scan_constraints[0]
+                .get_anonymous_value_string()
+                .as_ref()
+                .map(|anonymous_value_string| anonymous_value_string.get_anonymous_value_string()),
+            Some("4")
+        );
     }
 }

@@ -1,0 +1,10 @@
+[package]
+name = "squalr-engine-targets"
+version = "0.3.0"
+authors = ["Zachary Canann"]
+edition = "2024"
+
+[dependencies]
+squalr-engine-api = { path = "../squalr-engine-api" }
+sysinfo = "0.38.0"
+thiserror = "2.0.18"

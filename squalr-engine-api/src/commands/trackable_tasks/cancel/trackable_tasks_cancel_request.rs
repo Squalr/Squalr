@@ -4,11 +4,9 @@ use crate::commands::trackable_tasks::cancel::trackable_tasks_cancel_response::T
 use crate::commands::trackable_tasks::trackable_tasks_command::TrackableTasksCommand;
 use crate::commands::trackable_tasks::trackable_tasks_response::TrackableTasksResponse;
 use serde::{Deserialize, Serialize};
-use structopt::StructOpt;
 
-#[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TrackableTasksCancelRequest {
-    #[structopt(short = "t", long)]
     pub task_id: String,
 }
 

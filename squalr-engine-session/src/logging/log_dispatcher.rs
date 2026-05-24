@@ -2,7 +2,7 @@ use crate::logging::log_history_appender::LogHistoryAppender;
 use log::LevelFilter;
 use log4rs::{
     append::{console::ConsoleAppender, file::FileAppender},
-    config::{Appender, Config, Root},
+    config::{Appender, Config, Logger, Root},
     encode::pattern::PatternEncoder,
 };
 use squalr_engine_api::structures::logging::log_event::LogEvent;
@@ -117,6 +117,12 @@ impl LogDispatcher {
         }
 
         config_builder
+            .logger(Logger::builder().build("eframe", LevelFilter::Info))
+            .logger(Logger::builder().build("glutin", LevelFilter::Info))
+            .logger(Logger::builder().build("sctk", LevelFilter::Info))
+            .logger(Logger::builder().build("tracing::span", LevelFilter::Info))
+            .logger(Logger::builder().build("winit", LevelFilter::Info))
+            .logger(Logger::builder().build("winit::platform_impl::linux::wayland::window::state", LevelFilter::Error))
             .build(root_builder.build(LevelFilter::Debug))
             .map_err(Into::into)
     }

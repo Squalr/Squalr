@@ -2,6 +2,7 @@ use crate::app_provisioner::updater::app_updater::AppUpdater;
 use crate::engine_bindings::standalone::standalone_engine_api_unprivileged_bindings::StandaloneEngineApiUnprivilegedBindings;
 use crate::engine_mode::EngineMode;
 use crate::engine_privileged_state::{EnginePrivilegedState, create_engine_privileged_state};
+use crate::startup_messages::get_random_startup_message;
 use crate::vectors::Vectors;
 use crate::{
     app_provisioner::progress_tracker::ProgressTracker,
@@ -88,14 +89,6 @@ impl SqualrEngine {
             dependency_container: DependencyContainer::new(),
         };
 
-        log::info!("Squalr started");
-        log::info!(
-            "CPU vector size for accelerated scans: {:?} bytes ({:?} bits), architecture: {}",
-            Vectors::get_hardware_vector_size(),
-            Vectors::get_hardware_vector_size() * 8,
-            Vectors::get_hardware_vector_name(),
-        );
-
         Ok(squalr_engine)
     }
 
@@ -104,6 +97,15 @@ impl SqualrEngine {
         if let Some(engine_unprivileged_state) = &self.engine_unprivileged_state {
             engine_unprivileged_state.initialize();
         }
+
+        log::info!("Squalr started");
+        log::info!(
+            "CPU vector size for accelerated scans: {:?} bytes ({:?} bits), architecture: {}",
+            Vectors::get_hardware_vector_size(),
+            Vectors::get_hardware_vector_size() * 8,
+            Vectors::get_hardware_vector_name(),
+        );
+        log::info!("{}", get_random_startup_message());
 
         AppUpdater::run_update(ProgressTracker::new());
     }

@@ -5,15 +5,11 @@ use crate::commands::struct_scan::struct_scan_response::StructScanResponse;
 use crate::structures::data_values::anonymous_value_string::AnonymousValueString;
 use crate::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
 use serde::{Deserialize, Serialize};
-use structopt::StructOpt;
 
-#[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StructScanRequest {
-    #[structopt(short = "v", long)]
     pub scan_value: Option<AnonymousValueString>,
-    #[structopt(short = "d", long)]
     pub data_type_ids: Vec<String>,
-    #[structopt(short = "c", long)]
     pub compare_type: ScanCompareType,
 }
 

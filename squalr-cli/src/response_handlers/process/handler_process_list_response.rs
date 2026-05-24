@@ -40,7 +40,7 @@ pub fn handle_process_list_response(process_response: ProcessResponse) {
                 icon_dimensions
             );
 
-            emit_process_list_line(&process_list_line);
+            log::info!("{}", process_list_line);
         }
     }
 }

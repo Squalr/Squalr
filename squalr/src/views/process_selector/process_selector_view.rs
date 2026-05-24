@@ -23,6 +23,7 @@ impl ProcessSelectorView {
         let process_selector_view_data = app_context
             .dependency_container
             .get_dependency::<ProcessSelectorViewData>();
+        ProcessSelectorViewData::observe_command_responses(process_selector_view_data.clone(), app_context.clone());
         ProcessSelectorViewData::refresh_active_process_list(process_selector_view_data.clone(), app_context.clone());
         let process_selector_toolbar_view = ProcessSelectorToolbarView::new(app_context.clone());
 
@@ -62,23 +63,24 @@ impl Widget for ProcessSelectorView {
                     process_selector_view_data.is_awaiting_full_process_list
                 };
                 let mut selected_process = None;
-
+                let mut missing_icon_process_ids = Vec::new();
                 if !is_awaiting_active_process_list {
                     ScrollArea::vertical()
                         .id_salt("process_selector")
                         .auto_shrink([false, false])
                         .show(&mut user_interface, |inner_user_interface| {
                             for process in active_process_list {
-                                let icon = match process.get_icon() {
-                                    Some(icon) => process_selector_view_data.get_icon(&self.app_context, process.get_process_id_raw(), icon),
-                                    None => None,
-                                };
+                                let process_id = process.get_process_id_raw();
+                                let icon = process_selector_view_data.get_cached_icon(process_id);
+                                if icon.is_none() {
+                                    missing_icon_process_ids.push(process_id);
+                                }
 
                                 if inner_user_interface
                                     .add(ProcessEntryView::new(self.app_context.clone(), process.get_name(), icon))
                                     .double_clicked()
                                 {
-                                    selected_process = Some(Some(process.get_process_id_raw()));
+                                    selected_process = Some(Some(process_id));
                                 }
                             }
                         });
@@ -93,6 +95,12 @@ impl Widget for ProcessSelectorView {
                 }
 
                 drop(process_selector_view_data);
+
+                ProcessSelectorViewData::request_process_icons_if_needed(
+                    self.process_selector_view_data.clone(),
+                    self.app_context.clone(),
+                    missing_icon_process_ids,
+                );
 
                 if let Some(selected_process) = selected_process {
                     ProcessSelectorViewData::select_process(self.process_selector_view_data.clone(), self.app_context.clone(), selected_process);

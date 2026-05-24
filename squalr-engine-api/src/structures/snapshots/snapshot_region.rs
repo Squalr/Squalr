@@ -6,7 +6,7 @@ use crate::structures::memory::normalized_region::NormalizedRegion;
 use crate::structures::results::snapshot_region_scan_results::SnapshotRegionScanResults;
 use crate::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::structures::scanning::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection;
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 
 /// Defines a contiguous region of memory within a snapshot.
 /// JIRA: Please no public fields. These were made public to support pushing memory reading functionality into a trait.
@@ -45,6 +45,34 @@ impl SnapshotRegion {
         }
     }
 
+    /// Creates a standalone snapshot region from caller-provided current bytes.
+    pub fn from_bytes(
+        base_address: u64,
+        current_values: Vec<u8>,
+    ) -> Self {
+        let region_size = current_values.len() as u64;
+        let mut snapshot_region = Self::new(NormalizedRegion::new(base_address, region_size), Vec::new());
+
+        snapshot_region.current_values = current_values;
+
+        snapshot_region
+    }
+
+    /// Creates a standalone snapshot region from caller-provided current and previous bytes.
+    pub fn from_current_and_previous_bytes(
+        base_address: u64,
+        current_values: Vec<u8>,
+        previous_values: Vec<u8>,
+    ) -> Self {
+        let region_size = current_values.len().max(previous_values.len()) as u64;
+        let mut snapshot_region = Self::new(NormalizedRegion::new(base_address, region_size), Vec::new());
+
+        snapshot_region.current_values = current_values;
+        snapshot_region.previous_values = previous_values;
+
+        snapshot_region
+    }
+
     /// Gets the most recent values collected from memory within this snapshot region bounds.
     pub fn get_current_values(&self) -> &Vec<u8> {
         &self.current_values
@@ -59,15 +87,16 @@ impl SnapshotRegion {
     pub fn get_current_value(
         &self,
         element_address: u64,
+        symbol_registry: &SymbolRegistry,
         data_type_ref: &DataTypeRef,
+        value_size_in_bytes: u64,
     ) -> Option<DataValue> {
         let byte_offset: u64 = element_address.saturating_sub(self.get_base_address());
-        let data_type_size = SymbolRegistry::get_instance().get_unit_size_in_bytes(data_type_ref);
 
-        if byte_offset.saturating_add(data_type_size) <= self.current_values.len() as u64 {
-            if let Some(mut data_value) = SymbolRegistry::get_instance().get_default_value(data_type_ref) {
+        if byte_offset.saturating_add(value_size_in_bytes) <= self.current_values.len() as u64 {
+            if let Some(mut data_value) = symbol_registry.get_default_value(data_type_ref) {
                 let start = byte_offset as usize;
-                let end = start + data_type_size as usize;
+                let end = start + value_size_in_bytes as usize;
                 data_value.copy_from_bytes(&self.current_values[start..end]);
 
                 Some(data_value)
@@ -83,15 +112,16 @@ impl SnapshotRegion {
     pub fn get_previous_value(
         &self,
         element_address: u64,
+        symbol_registry: &SymbolRegistry,
         data_type_ref: &DataTypeRef,
+        value_size_in_bytes: u64,
     ) -> Option<DataValue> {
         let byte_offset: u64 = element_address.saturating_sub(self.get_base_address());
-        let data_type_size = SymbolRegistry::get_instance().get_unit_size_in_bytes(data_type_ref);
 
-        if byte_offset.saturating_add(data_type_size) <= self.previous_values.len() as u64 {
-            if let Some(mut data_value) = SymbolRegistry::get_instance().get_default_value(data_type_ref) {
+        if byte_offset.saturating_add(value_size_in_bytes) <= self.previous_values.len() as u64 {
+            if let Some(mut data_value) = symbol_registry.get_default_value(data_type_ref) {
                 let start = byte_offset as usize;
-                let end = start + data_type_size as usize;
+                let end = start + value_size_in_bytes as usize;
                 data_value.copy_from_bytes(&self.previous_values[start..end]);
 
                 Some(data_value)
@@ -155,6 +185,7 @@ impl SnapshotRegion {
 
     pub fn initialize_scan_results<'lifetime>(
         &mut self,
+        symbol_registry: &SymbolRegistry,
         data_type_refs_iterator: impl Iterator<Item = &'lifetime DataTypeRef>,
         memory_alignment: MemoryAlignment,
     ) {
@@ -165,6 +196,7 @@ impl SnapshotRegion {
         let snapshot_region_filter_collections = data_type_refs_iterator
             .map(|data_type_ref| {
                 SnapshotRegionFilterCollection::new(
+                    symbol_registry,
                     vec![vec![SnapshotRegionFilter::new(
                         self.get_base_address(),
                         self.get_region_size(),
@@ -180,6 +212,23 @@ impl SnapshotRegion {
 
     pub fn get_scan_results(&self) -> &SnapshotRegionScanResults {
         &self.scan_results
+    }
+
+    pub fn remove_scan_results_by_global_indices(
+        &mut self,
+        symbol_registry: &SymbolRegistry,
+        region_global_scan_result_index_base: u64,
+        deleted_scan_result_indices: &BTreeSet<u64>,
+    ) -> u64 {
+        let removed_result_count =
+            self.scan_results
+                .remove_scan_results_by_global_indices(symbol_registry, region_global_scan_result_index_base, deleted_scan_result_indices);
+
+        if removed_result_count > 0 {
+            self.resize_to_filters();
+        }
+
+        removed_result_count
     }
 
     pub fn set_scan_results(

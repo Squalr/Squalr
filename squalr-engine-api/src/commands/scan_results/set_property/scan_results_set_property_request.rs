@@ -5,15 +5,11 @@ use crate::commands::scan_results::set_property::scan_results_set_property_respo
 use crate::structures::scan_results::scan_result_ref::ScanResultRef;
 use crate::{commands::privileged_command::PrivilegedCommand, structures::data_values::anonymous_value_string::AnonymousValueString};
 use serde::{Deserialize, Serialize};
-use structopt::StructOpt;
 
-#[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ScanResultsSetPropertyRequest {
-    #[structopt(short = "s", long)]
     pub scan_result_refs: Vec<ScanResultRef>,
-    #[structopt(short = "v", long)]
     pub anonymous_value_string: AnonymousValueString,
-    #[structopt(short = "f", long)]
     pub field_namespace: String,
 }
 

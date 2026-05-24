@@ -1,4 +1,6 @@
 use crossbeam_channel::{Receiver, unbounded};
+use squalr_engine_api::commands::command_invocation::{CommandInvocationDecision, CommandInvocationSource, EngineCommandResponse};
+use squalr_engine_api::commands::command_line::parse_privileged_command;
 use squalr_engine_api::commands::privileged_command::PrivilegedCommand;
 use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRequest;
 use squalr_engine_api::commands::privileged_command_response::TypedPrivilegedCommandResponse;
@@ -14,20 +16,21 @@ use squalr_engine_api::commands::scan_results::query::scan_results_query_respons
 use squalr_engine_api::commands::scan_results::refresh::scan_results_refresh_request::ScanResultsRefreshRequest;
 use squalr_engine_api::commands::scan_results::refresh::scan_results_refresh_response::ScanResultsRefreshResponse;
 use squalr_engine_api::commands::scan_results::scan_results_command::ScanResultsCommand;
+use squalr_engine_api::commands::scan_results::scan_results_response::ScanResultsResponse;
 use squalr_engine_api::commands::scan_results::set_property::scan_results_set_property_request::ScanResultsSetPropertyRequest;
 use squalr_engine_api::commands::scan_results::set_property::scan_results_set_property_response::ScanResultsSetPropertyResponse;
 use squalr_engine_api::commands::unprivileged_command_response::TypedUnprivilegedCommandResponse;
 use squalr_engine_api::engine::engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings;
 use squalr_engine_api::engine::engine_binding_error::EngineBindingError;
+use squalr_engine_api::engine::engine_event_envelope::EngineEventEnvelope;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
-use squalr_engine_api::events::engine_event::EngineEvent;
 use squalr_engine_api::structures::data_values::anonymous_value_string::AnonymousValueString;
 use squalr_engine_api::structures::scan_results::scan_result_ref::ScanResultRef;
 use squalr_engine_api::{commands::unprivileged_command::UnprivilegedCommand, commands::unprivileged_command_response::UnprivilegedCommandResponse};
+use squalr_engine_session::engine_unprivileged_state::{EngineUnprivilegedState, EngineUnprivilegedStateOptions};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
-use structopt::StructOpt;
 
 use squalr_tests::mocks::mock_engine_bindings::MockEngineBindings;
 
@@ -51,7 +54,7 @@ impl EngineApiUnprivilegedBindings for FailingDispatchBindings {
         Err(EngineBindingError::unavailable("dispatching unprivileged command in test"))
     }
 
-    fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEvent>, EngineBindingError> {
+    fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEventEnvelope>, EngineBindingError> {
         let (_event_sender, event_receiver) = unbounded();
         Ok(event_receiver)
     }
@@ -62,6 +65,7 @@ fn scan_results_list_request_dispatches_list_command_and_invokes_typed_callback(
     let bindings = MockEngineBindings::new(
         ScanResultsListResponse {
             scan_results: vec![],
+            data_type_result_counts: vec![],
             page_index: 4,
             last_page_index: 12,
             page_size: 22,
@@ -73,7 +77,10 @@ fn scan_results_list_request_dispatches_list_command_and_invokes_typed_callback(
     );
     let dispatched_commands = bindings.get_dispatched_commands();
 
-    let scan_results_list_request = ScanResultsListRequest { page_index: 4 };
+    let scan_results_list_request = ScanResultsListRequest {
+        page_index: 4,
+        data_type_filters: None,
+    };
     let callback_page_index = Arc::new(RwLock::new(None::<u64>));
     let callback_page_index_clone = callback_page_index.clone();
 
@@ -109,7 +116,11 @@ fn scan_results_query_request_send_unprivileged_returns_false_when_dispatch_fail
     let callback_invoked = Arc::new(AtomicBool::new(false));
     let callback_invoked_clone = callback_invoked.clone();
 
-    let did_dispatch = ScanResultsQueryRequest { page_index: 0 }.send_unprivileged(&bindings, move |_scan_results_query_response| {
+    let did_dispatch = ScanResultsQueryRequest {
+        page_index: 0,
+        data_type_filters: None,
+    }
+    .send_unprivileged(&bindings, move |_scan_results_query_response| {
         callback_invoked_clone.store(true, Ordering::SeqCst);
     });
 
@@ -125,7 +136,10 @@ fn scan_results_list_request_does_not_invoke_callback_when_response_variant_is_w
     );
     let dispatched_commands = bindings.get_dispatched_commands();
 
-    let scan_results_list_request = ScanResultsListRequest { page_index: 9 };
+    let scan_results_list_request = ScanResultsListRequest {
+        page_index: 9,
+        data_type_filters: None,
+    };
     let callback_invoked = Arc::new(AtomicBool::new(false));
     let callback_invoked_clone = callback_invoked.clone();
 
@@ -155,6 +169,7 @@ fn scan_results_query_request_dispatches_query_command_and_invokes_typed_callbac
     let bindings = MockEngineBindings::new(
         ScanResultsQueryResponse {
             scan_results: vec![],
+            data_type_result_counts: vec![],
             page_index: 3,
             last_page_index: 8,
             page_size: 20,
@@ -166,7 +181,10 @@ fn scan_results_query_request_dispatches_query_command_and_invokes_typed_callbac
     );
     let dispatched_commands = bindings.get_dispatched_commands();
 
-    let scan_results_query_request = ScanResultsQueryRequest { page_index: 3 };
+    let scan_results_query_request = ScanResultsQueryRequest {
+        page_index: 3,
+        data_type_filters: None,
+    };
     let callback_page_size = Arc::new(RwLock::new(None::<u64>));
     let callback_page_size_clone = callback_page_size.clone();
 
@@ -197,6 +215,101 @@ fn scan_results_query_request_dispatches_query_command_and_invokes_typed_callbac
 }
 
 #[test]
+fn scan_results_query_request_publishes_command_invocation_outcome() {
+    let bindings = Arc::new(RwLock::new(MockEngineBindings::new(
+        ScanResultsQueryResponse {
+            scan_results: vec![],
+            data_type_result_counts: vec![],
+            page_index: 2,
+            last_page_index: 4,
+            page_size: 20,
+            result_count: 80,
+            total_size_in_bytes: 1024,
+        }
+        .to_engine_response(),
+        ProjectListResponse::default().to_engine_response(),
+    )));
+    let engine_unprivileged_state = EngineUnprivilegedState::new_with_options(bindings, EngineUnprivilegedStateOptions { enable_console_logging: false });
+    let observed_page_index = Arc::new(RwLock::new(None::<u64>));
+    let observed_page_index_clone = observed_page_index.clone();
+    let observed_source = Arc::new(RwLock::new(None::<CommandInvocationSource>));
+    let observed_source_clone = observed_source.clone();
+
+    engine_unprivileged_state.listen_for_command_response(move |command_invocation_outcome| {
+        if let Ok(mut observed_source) = observed_source_clone.write() {
+            *observed_source = Some(command_invocation_outcome.get_invocation().get_source().clone());
+        }
+
+        if let EngineCommandResponse::Privileged(squalr_engine_api::commands::privileged_command_response::PrivilegedCommandResponse::Results(
+            ScanResultsResponse::Query { scan_results_query_response },
+        )) = command_invocation_outcome.get_response()
+        {
+            if let Ok(mut observed_page_index) = observed_page_index_clone.write() {
+                *observed_page_index = Some(scan_results_query_response.page_index);
+            }
+        }
+    });
+
+    let did_dispatch = ScanResultsQueryRequest {
+        page_index: 2,
+        data_type_filters: None,
+    }
+    .send(&engine_unprivileged_state, |_scan_results_query_response| {});
+
+    assert!(did_dispatch);
+    assert_eq!(
+        *observed_page_index
+            .read()
+            .expect("observed response lock should be available"),
+        Some(2)
+    );
+    assert!(matches!(
+        observed_source
+            .read()
+            .expect("observed source lock should be available")
+            .as_ref(),
+        Some(CommandInvocationSource::ApiRequest)
+    ));
+}
+
+#[test]
+fn command_invocation_middleware_can_reject_scan_results_query_request() {
+    let mock_bindings = MockEngineBindings::new(
+        ScanResultsQueryResponse::default().to_engine_response(),
+        ProjectListResponse::default().to_engine_response(),
+    );
+    let dispatched_commands = mock_bindings.get_dispatched_commands();
+    let engine_unprivileged_state = EngineUnprivilegedState::new_with_options(
+        Arc::new(RwLock::new(mock_bindings)),
+        EngineUnprivilegedStateOptions { enable_console_logging: false },
+    );
+    let callback_invoked = Arc::new(AtomicBool::new(false));
+    let callback_invoked_clone = callback_invoked.clone();
+
+    engine_unprivileged_state.register_command_invocation_middleware(|_command_invocation| CommandInvocationDecision::Reject {
+        reason: "blocked by test middleware".to_string(),
+    });
+
+    let did_dispatch = ScanResultsQueryRequest {
+        page_index: 0,
+        data_type_filters: None,
+    }
+    .send(&engine_unprivileged_state, move |_scan_results_query_response| {
+        callback_invoked_clone.store(true, Ordering::SeqCst);
+    });
+
+    assert!(!did_dispatch);
+    assert!(!callback_invoked.load(Ordering::SeqCst));
+    assert_eq!(
+        dispatched_commands
+            .lock()
+            .expect("dispatched command lock should be available")
+            .len(),
+        0
+    );
+}
+
+#[test]
 fn scan_results_query_request_does_not_invoke_callback_when_response_variant_is_wrong() {
     let bindings = MockEngineBindings::new(
         ScanResultsDeleteResponse::default().to_engine_response(),
@@ -204,7 +317,10 @@ fn scan_results_query_request_does_not_invoke_callback_when_response_variant_is_
     );
     let dispatched_commands = bindings.get_dispatched_commands();
 
-    let scan_results_query_request = ScanResultsQueryRequest { page_index: 7 };
+    let scan_results_query_request = ScanResultsQueryRequest {
+        page_index: 7,
+        data_type_filters: None,
+    };
     let callback_invoked = Arc::new(AtomicBool::new(false));
     let callback_invoked_clone = callback_invoked.clone();
 
@@ -575,7 +691,7 @@ fn scan_results_set_property_request_does_not_invoke_callback_when_response_vari
 
 #[test]
 fn privileged_command_parser_accepts_scan_results_list_with_long_flags() {
-    let parse_result = std::panic::catch_unwind(|| PrivilegedCommand::from_iter_safe(["squalr-cli", "results", "list", "--page-index", "2"]));
+    let parse_result = std::panic::catch_unwind(|| parse_privileged_command(["squalr-cli", "results", "list", "--page-index", "2"]));
 
     assert!(parse_result.is_ok());
 
@@ -592,7 +708,7 @@ fn privileged_command_parser_accepts_scan_results_list_with_long_flags() {
 
 #[test]
 fn privileged_command_parser_accepts_scan_results_query_with_long_flags() {
-    let parse_result = std::panic::catch_unwind(|| PrivilegedCommand::from_iter_safe(["squalr-cli", "results", "query", "--page-index", "5"]));
+    let parse_result = std::panic::catch_unwind(|| parse_privileged_command(["squalr-cli", "results", "query", "--page-index", "5"]));
 
     assert!(parse_result.is_ok());
 
@@ -610,7 +726,7 @@ fn privileged_command_parser_accepts_scan_results_query_with_long_flags() {
 #[test]
 fn privileged_command_parser_accepts_scan_results_refresh_with_long_flags() {
     let parse_result = std::panic::catch_unwind(|| {
-        PrivilegedCommand::from_iter_safe([
+        parse_privileged_command([
             "squalr-cli",
             "results",
             "refresh",
@@ -639,7 +755,7 @@ fn privileged_command_parser_accepts_scan_results_refresh_with_long_flags() {
 #[test]
 fn privileged_command_parser_accepts_scan_results_set_property_with_long_flags() {
     let parse_result = std::panic::catch_unwind(|| {
-        PrivilegedCommand::from_iter_safe([
+        parse_privileged_command([
             "squalr-cli",
             "results",
             "set-property",
@@ -679,7 +795,7 @@ fn privileged_command_parser_accepts_scan_results_set_property_with_long_flags()
 #[test]
 fn privileged_command_parser_accepts_scan_results_delete_with_long_flags() {
     let parse_result = std::panic::catch_unwind(|| {
-        PrivilegedCommand::from_iter_safe([
+        parse_privileged_command([
             "squalr-cli",
             "results",
             "delete",
@@ -708,7 +824,7 @@ fn privileged_command_parser_accepts_scan_results_delete_with_long_flags() {
 #[test]
 fn privileged_command_parser_accepts_scan_results_freeze_with_long_flags() {
     let parse_result = std::panic::catch_unwind(|| {
-        PrivilegedCommand::from_iter_safe([
+        parse_privileged_command([
             "squalr-cli",
             "results",
             "freeze",
@@ -739,7 +855,7 @@ fn privileged_command_parser_accepts_scan_results_freeze_with_long_flags() {
 #[test]
 fn privileged_command_parser_rejects_scan_results_set_property_with_invalid_anonymous_value_string() {
     let parse_result = std::panic::catch_unwind(|| {
-        PrivilegedCommand::from_iter_safe([
+        parse_privileged_command([
             "squalr-cli",
             "results",
             "set-property",

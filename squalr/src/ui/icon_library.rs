@@ -45,6 +45,7 @@ static ICON_DATA_TYPE_PURPLE_BLOCKS_REVERSE_2: &[u8] = include_bytes!("../../ima
 static ICON_DATA_TYPE_PURPLE_BLOCKS_REVERSE_4: &[u8] = include_bytes!("../../images/app/data_types/purple_blocks_reverse_4.png");
 static ICON_DATA_TYPE_PURPLE_BLOCKS_REVERSE_8: &[u8] = include_bytes!("../../images/app/data_types/purple_blocks_reverse_8.png");
 static ICON_DATA_TYPE_STRING: &[u8] = include_bytes!("../../images/app/data_types/string.png");
+static ICON_DATA_TYPE_STRUCT: &[u8] = include_bytes!("../../images/app/data_types/struct.png");
 static ICON_DATA_TYPE_UNKNOWN: &[u8] = include_bytes!("../../images/app/data_types/unknown.png");
 
 // Display Types.
@@ -157,6 +158,7 @@ pub struct IconLibrary {
     pub icon_handle_data_type_purple_blocks_reverse_4: TextureHandle,
     pub icon_handle_data_type_purple_blocks_reverse_8: TextureHandle,
     pub icon_handle_data_type_string: TextureHandle,
+    pub icon_handle_data_type_struct: TextureHandle,
     pub icon_handle_data_type_unknown: TextureHandle,
 
     // Display Types.
@@ -271,6 +273,7 @@ impl IconLibrary {
         let icon_handle_data_type_purple_blocks_reverse_4 = Self::load_icon(context, ICON_DATA_TYPE_PURPLE_BLOCKS_REVERSE_4);
         let icon_handle_data_type_purple_blocks_reverse_8 = Self::load_icon(context, ICON_DATA_TYPE_PURPLE_BLOCKS_REVERSE_8);
         let icon_handle_data_type_string = Self::load_icon(context, ICON_DATA_TYPE_STRING);
+        let icon_handle_data_type_struct = Self::load_icon(context, ICON_DATA_TYPE_STRUCT);
         let icon_handle_data_type_unknown = Self::load_icon(context, ICON_DATA_TYPE_UNKNOWN);
 
         // Display Types.
@@ -383,6 +386,7 @@ impl IconLibrary {
             icon_handle_data_type_purple_blocks_reverse_4,
             icon_handle_data_type_purple_blocks_reverse_8,
             icon_handle_data_type_string,
+            icon_handle_data_type_struct,
             icon_handle_data_type_unknown,
 
             // Display Types.

@@ -1,5 +1,7 @@
+use crate::plugins::PluginConfiguration;
 use crate::structures::processes::process_icon::ProcessIcon;
 use crate::structures::projects::project_manifest::ProjectManifest;
+use crate::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -15,7 +17,16 @@ pub struct ProjectInfo {
     project_icon_rgba: Option<ProcessIcon>,
 
     /// The manifest for this project, containing the sort order of project items.
+    #[serde(default)]
     project_manifest: ProjectManifest,
+
+    /// User-authored symbolic struct definitions stored with this project.
+    #[serde(default)]
+    project_symbol_catalog: ProjectSymbolCatalog,
+
+    /// Plugin configuration persisted with this project. Absent preserves plugin defaults.
+    #[serde(default)]
+    plugin_configuration: Option<PluginConfiguration>,
 
     #[serde(skip)]
     has_unsaved_changes: bool,
@@ -26,6 +37,15 @@ impl ProjectInfo {
         project_file_path: PathBuf,
         project_icon_rgba: Option<ProcessIcon>,
         project_manifest: ProjectManifest,
+    ) -> Self {
+        Self::new_with_symbol_catalog(project_file_path, project_icon_rgba, project_manifest, ProjectSymbolCatalog::default())
+    }
+
+    pub fn new_with_symbol_catalog(
+        project_file_path: PathBuf,
+        project_icon_rgba: Option<ProcessIcon>,
+        project_manifest: ProjectManifest,
+        project_symbol_catalog: ProjectSymbolCatalog,
     ) -> Self {
         let project_name = project_file_path
             .parent()
@@ -39,6 +59,8 @@ impl ProjectInfo {
             project_file_path,
             project_icon_rgba,
             project_manifest,
+            project_symbol_catalog,
+            plugin_configuration: None,
             has_unsaved_changes: true,
         }
     }
@@ -74,6 +96,25 @@ impl ProjectInfo {
 
     pub fn get_project_manifest_mut(&mut self) -> &mut ProjectManifest {
         &mut self.project_manifest
+    }
+
+    pub fn get_project_symbol_catalog(&self) -> &ProjectSymbolCatalog {
+        &self.project_symbol_catalog
+    }
+
+    pub fn get_project_symbol_catalog_mut(&mut self) -> &mut ProjectSymbolCatalog {
+        &mut self.project_symbol_catalog
+    }
+
+    pub fn get_plugin_configuration(&self) -> Option<&PluginConfiguration> {
+        self.plugin_configuration.as_ref()
+    }
+
+    pub fn set_plugin_configuration(
+        &mut self,
+        plugin_configuration: Option<PluginConfiguration>,
+    ) {
+        self.plugin_configuration = plugin_configuration.filter(|plugin_configuration| !plugin_configuration.is_empty());
     }
 
     pub fn get_has_unsaved_changes(&self) -> bool {

@@ -1,14 +1,32 @@
 use crate::{
     app_context::AppContext,
-    ui::widgets::controls::{checkbox::Checkbox, combo_box::combo_box_view::ComboBoxView, groupbox::GroupBox, slider::Slider},
+    ui::widgets::controls::{
+        checkbox::Checkbox,
+        combo_box::{combo_box_item_view::ComboBoxItemView, combo_box_view::ComboBoxView},
+        groupbox::GroupBox,
+        slider::Slider,
+    },
 };
 use eframe::egui::{Align, Layout, Response, RichText, Ui, Widget};
 use epaint::vec2;
 use squalr_engine_api::{
     commands::{
+        command_invocation::{CommandInvocationOutcome, EngineCommand, EngineCommandResponse},
+        privileged_command::PrivilegedCommand,
         privileged_command_request::PrivilegedCommandRequest,
-        settings::scan::{list::scan_settings_list_request::ScanSettingsListRequest, set::scan_settings_set_request::ScanSettingsSetRequest},
+        privileged_command_response::PrivilegedCommandResponse,
+        settings::{
+            scan::{
+                list::scan_settings_list_request::ScanSettingsListRequest, scan_settings_command::ScanSettingsCommand,
+                scan_settings_response::ScanSettingsResponse, set::scan_settings_set_request::ScanSettingsSetRequest,
+            },
+            settings_command::SettingsCommand,
+            settings_response::SettingsResponse,
+        },
     },
+    engine::engine_execution_context::EngineExecutionContext,
+    plugins::memory_view::PageRetrievalMode,
+    structures::memory::memory_alignment::MemoryAlignment,
     structures::settings::scan_settings::ScanSettings,
 };
 use std::sync::{Arc, RwLock};
@@ -26,6 +44,7 @@ impl SettingsTabScanView {
             cached_scan_settings: Arc::new(RwLock::new(ScanSettings::default())),
         };
 
+        settings_view.observe_command_responses();
         settings_view.sync_ui_with_scan_settings();
 
         settings_view
@@ -42,6 +61,134 @@ impl SettingsTabScanView {
                 }
             }
         });
+    }
+
+    fn observe_command_responses(&self) {
+        let cached_scan_settings = self.cached_scan_settings.clone();
+        let app_context = self.app_context.clone();
+
+        self.app_context
+            .engine_unprivileged_state
+            .listen_for_command_response(move |command_invocation_outcome| {
+                Self::apply_observed_command_response(cached_scan_settings.clone(), app_context.clone(), command_invocation_outcome);
+            });
+    }
+
+    fn apply_observed_command_response(
+        cached_scan_settings: Arc<RwLock<ScanSettings>>,
+        app_context: Arc<AppContext>,
+        command_invocation_outcome: &CommandInvocationOutcome,
+    ) {
+        let EngineCommandResponse::Privileged(PrivilegedCommandResponse::Settings(SettingsResponse::Scan { scan_settings_response })) =
+            command_invocation_outcome.get_response()
+        else {
+            return;
+        };
+
+        match scan_settings_response {
+            ScanSettingsResponse::List { scan_settings_list_response } => {
+                if let Ok(scan_settings) = scan_settings_list_response.scan_settings.clone() {
+                    app_context
+                        .engine_unprivileged_state
+                        .get_project_manager()
+                        .set_project_file_system_watch_enabled(scan_settings.project_file_system_watch_enabled);
+
+                    if let Ok(mut cached_scan_settings) = cached_scan_settings.write() {
+                        *cached_scan_settings = scan_settings;
+                    }
+                }
+            }
+            ScanSettingsResponse::Set { .. } => {
+                let Some(scan_settings_set_request) = Self::get_observed_scan_settings_set_request(command_invocation_outcome) else {
+                    return;
+                };
+
+                if let Some(project_file_system_watch_enabled) = scan_settings_set_request.project_file_system_watch_enabled {
+                    app_context
+                        .engine_unprivileged_state
+                        .get_project_manager()
+                        .set_project_file_system_watch_enabled(project_file_system_watch_enabled);
+                }
+
+                if let Ok(mut cached_scan_settings) = cached_scan_settings.write() {
+                    Self::apply_scan_settings_set_request(&mut cached_scan_settings, scan_settings_set_request);
+                }
+            }
+        }
+    }
+
+    fn get_observed_scan_settings_set_request(command_invocation_outcome: &CommandInvocationOutcome) -> Option<&ScanSettingsSetRequest> {
+        match command_invocation_outcome.get_invocation().get_command() {
+            EngineCommand::Privileged(PrivilegedCommand::Settings(SettingsCommand::Scan {
+                scan_settings_command: ScanSettingsCommand::Set { scan_settings_set_request },
+            })) => Some(scan_settings_set_request),
+            _ => None,
+        }
+    }
+
+    fn apply_scan_settings_set_request(
+        cached_scan_settings: &mut ScanSettings,
+        scan_settings_set_request: &ScanSettingsSetRequest,
+    ) {
+        if let Some(page_retrieval_mode) = scan_settings_set_request.page_retrieval_mode {
+            cached_scan_settings.page_retrieval_mode = page_retrieval_mode;
+        }
+        if let Some(results_page_size) = scan_settings_set_request.results_page_size {
+            cached_scan_settings.results_page_size = results_page_size;
+        }
+        if let Some(results_read_interval_ms) = scan_settings_set_request.results_read_interval_ms {
+            cached_scan_settings.results_read_interval_ms = results_read_interval_ms;
+        }
+        if let Some(project_read_interval_ms) = scan_settings_set_request.project_read_interval_ms {
+            cached_scan_settings.project_read_interval_ms = project_read_interval_ms;
+        }
+        if let Some(project_file_system_watch_enabled) = scan_settings_set_request.project_file_system_watch_enabled {
+            cached_scan_settings.project_file_system_watch_enabled = project_file_system_watch_enabled;
+        }
+        if let Some(freeze_interval_ms) = scan_settings_set_request.freeze_interval_ms {
+            cached_scan_settings.freeze_interval_ms = freeze_interval_ms;
+        }
+        if let Some(memory_alignment) = scan_settings_set_request.memory_alignment {
+            cached_scan_settings.memory_alignment = Some(memory_alignment);
+        }
+        if let Some(memory_read_mode) = scan_settings_set_request.memory_read_mode {
+            cached_scan_settings.memory_read_mode = memory_read_mode;
+        }
+        if let Some(floating_point_tolerance) = scan_settings_set_request.floating_point_tolerance {
+            cached_scan_settings.floating_point_tolerance = floating_point_tolerance;
+        }
+        if let Some(is_single_threaded_scan) = scan_settings_set_request.is_single_threaded_scan {
+            cached_scan_settings.is_single_threaded_scan = is_single_threaded_scan;
+        }
+        if let Some(debug_perform_validation_scan) = scan_settings_set_request.debug_perform_validation_scan {
+            cached_scan_settings.debug_perform_validation_scan = debug_perform_validation_scan;
+        }
+    }
+
+    fn send_scan_settings_update(
+        &self,
+        scan_settings_set_request: ScanSettingsSetRequest,
+    ) {
+        scan_settings_set_request.send(&self.app_context.engine_unprivileged_state, move |_scan_settings_set_response| {});
+    }
+
+    fn page_retrieval_mode_label(page_retrieval_mode: PageRetrievalMode) -> &'static str {
+        match page_retrieval_mode {
+            PageRetrievalMode::FromSettings => "Auto",
+            PageRetrievalMode::FromUserMode => "Host usermode",
+            PageRetrievalMode::FromNonModules => "Host non-modules",
+            PageRetrievalMode::FromModules => "All modules",
+            PageRetrievalMode::FromVirtualModules => "Virtual modules",
+        }
+    }
+
+    fn memory_alignment_label(memory_alignment: MemoryAlignment) -> &'static str {
+        match memory_alignment {
+            MemoryAlignment::Alignment1 => "1 byte",
+            MemoryAlignment::Alignment2 => "2 bytes",
+            MemoryAlignment::Alignment4 => "4 bytes",
+            MemoryAlignment::Alignment8 => "8 bytes",
+        }
     }
 }
 
@@ -78,7 +225,7 @@ impl Widget for SettingsTabScanView {
                                     ..ScanSettingsSetRequest::default()
                                 };
 
-                                scan_settings_set_request.send(&self.app_context.engine_unprivileged_state, move |scan_settings_set_response| {});
+                                self.send_scan_settings_update(scan_settings_set_request);
                             }
 
                             user_interface.add_space(8.0);
@@ -124,7 +271,7 @@ impl Widget for SettingsTabScanView {
                                     ..ScanSettingsSetRequest::default()
                                 };
 
-                                scan_settings_set_request.send(&self.app_context.engine_unprivileged_state, move |scan_settings_set_response| {});
+                                self.send_scan_settings_update(scan_settings_set_request);
                             }
 
                             user_interface.add_space(8.0);
@@ -163,7 +310,7 @@ impl Widget for SettingsTabScanView {
                                         ..ScanSettingsSetRequest::default()
                                     };
 
-                                    scan_settings_set_request.send(&self.app_context.engine_unprivileged_state, move |scan_settings_set_response| {});
+                                    self.send_scan_settings_update(scan_settings_set_request);
                                 }
                             }
 
@@ -188,6 +335,34 @@ impl Widget for SettingsTabScanView {
                             );
                         });
                         user_interface.horizontal(|user_interface| {
+                            if user_interface
+                                .add(Checkbox::new_from_theme(theme).with_check_state_bool(cached_scan_settings.project_file_system_watch_enabled))
+                                .clicked()
+                            {
+                                if let Ok(mut cached_scan_settings) = self.cached_scan_settings.write() {
+                                    cached_scan_settings.project_file_system_watch_enabled = !cached_scan_settings.project_file_system_watch_enabled;
+
+                                    let scan_settings_set_request = ScanSettingsSetRequest {
+                                        project_file_system_watch_enabled: Some(cached_scan_settings.project_file_system_watch_enabled),
+                                        ..ScanSettingsSetRequest::default()
+                                    };
+
+                                    self.app_context
+                                        .engine_unprivileged_state
+                                        .get_project_manager()
+                                        .set_project_file_system_watch_enabled(cached_scan_settings.project_file_system_watch_enabled);
+                                    self.send_scan_settings_update(scan_settings_set_request);
+                                }
+                            }
+
+                            user_interface.add_space(8.0);
+                            user_interface.label(
+                                RichText::new("Watch project files for changes")
+                                    .font(theme.font_library.font_noto_sans.font_normal.clone())
+                                    .color(theme.foreground),
+                            );
+                        });
+                        user_interface.horizontal(|user_interface| {
                             let mut value: i64 = cached_scan_settings.results_read_interval_ms as i64;
                             let slider = Slider::new_from_theme(theme)
                                 .current_value(&mut value)
@@ -203,7 +378,7 @@ impl Widget for SettingsTabScanView {
                                         ..ScanSettingsSetRequest::default()
                                     };
 
-                                    scan_settings_set_request.send(&self.app_context.engine_unprivileged_state, move |scan_settings_set_response| {});
+                                    self.send_scan_settings_update(scan_settings_set_request);
                                 }
                             }
 
@@ -234,15 +409,99 @@ impl Widget for SettingsTabScanView {
                 user_interface.add(
                     GroupBox::new_from_theme(theme, "Scan Params", |user_interface| {
                         user_interface.horizontal(|user_interface| {
+                            let selected_page_retrieval_mode = cached_scan_settings.page_retrieval_mode;
+
                             user_interface.add(ComboBoxView::new(
                                 self.app_context.clone(),
-                                "x-byte aligned",
-                                "settings_tab_scan_alignment",
+                                Self::page_retrieval_mode_label(selected_page_retrieval_mode),
+                                "settings_tab_scan_page_source",
                                 None,
                                 |user_interface: &mut Ui, should_close: &mut bool| {
-                                    //
+                                    for page_retrieval_mode in [
+                                        PageRetrievalMode::FromSettings,
+                                        PageRetrievalMode::FromUserMode,
+                                        PageRetrievalMode::FromModules,
+                                        PageRetrievalMode::FromNonModules,
+                                        PageRetrievalMode::FromVirtualModules,
+                                    ] {
+                                        if user_interface
+                                            .add(ComboBoxItemView::new(
+                                                self.app_context.clone(),
+                                                Self::page_retrieval_mode_label(page_retrieval_mode),
+                                                None,
+                                                192.0,
+                                            ))
+                                            .clicked()
+                                        {
+                                            if let Ok(mut cached_scan_settings) = self.cached_scan_settings.write() {
+                                                cached_scan_settings.page_retrieval_mode = page_retrieval_mode;
+                                            }
+
+                                            self.send_scan_settings_update(ScanSettingsSetRequest {
+                                                page_retrieval_mode: Some(page_retrieval_mode),
+                                                ..ScanSettingsSetRequest::default()
+                                            });
+                                            *should_close = true;
+                                        }
+                                    }
                                 },
                             ));
+
+                            user_interface.add_space(8.0);
+                            user_interface.label(
+                                RichText::new("Page source")
+                                    .font(theme.font_library.font_noto_sans.font_normal.clone())
+                                    .color(theme.foreground),
+                            );
+                        });
+
+                        user_interface.add_space(8.0);
+                        user_interface.horizontal(|user_interface| {
+                            let selected_memory_alignment = cached_scan_settings
+                                .memory_alignment
+                                .unwrap_or(MemoryAlignment::Alignment1);
+
+                            user_interface.add(ComboBoxView::new(
+                                self.app_context.clone(),
+                                Self::memory_alignment_label(selected_memory_alignment),
+                                "settings_tab_scan_memory_alignment",
+                                None,
+                                |user_interface: &mut Ui, should_close: &mut bool| {
+                                    for memory_alignment in [
+                                        MemoryAlignment::Alignment1,
+                                        MemoryAlignment::Alignment2,
+                                        MemoryAlignment::Alignment4,
+                                        MemoryAlignment::Alignment8,
+                                    ] {
+                                        if user_interface
+                                            .add(ComboBoxItemView::new(
+                                                self.app_context.clone(),
+                                                Self::memory_alignment_label(memory_alignment),
+                                                None,
+                                                192.0,
+                                            ))
+                                            .clicked()
+                                        {
+                                            if let Ok(mut cached_scan_settings) = self.cached_scan_settings.write() {
+                                                cached_scan_settings.memory_alignment = Some(memory_alignment);
+                                            }
+
+                                            self.send_scan_settings_update(ScanSettingsSetRequest {
+                                                memory_alignment: Some(memory_alignment),
+                                                ..ScanSettingsSetRequest::default()
+                                            });
+                                            *should_close = true;
+                                        }
+                                    }
+                                },
+                            ));
+
+                            user_interface.add_space(8.0);
+                            user_interface.label(
+                                RichText::new("Scan alignment")
+                                    .font(theme.font_library.font_noto_sans.font_normal.clone())
+                                    .color(theme.foreground),
+                            );
                         });
                     })
                     .desired_width(412.0),
@@ -263,7 +522,7 @@ impl Widget for SettingsTabScanView {
                                         ..ScanSettingsSetRequest::default()
                                     };
 
-                                    scan_settings_set_request.send(&self.app_context.engine_unprivileged_state, move |scan_settings_set_response| {});
+                                    self.send_scan_settings_update(scan_settings_set_request);
                                 }
                             }
 
@@ -289,7 +548,7 @@ impl Widget for SettingsTabScanView {
                                         ..ScanSettingsSetRequest::default()
                                     };
 
-                                    scan_settings_set_request.send(&self.app_context.engine_unprivileged_state, move |scan_settings_set_response| {});
+                                    self.send_scan_settings_update(scan_settings_set_request);
                                 }
                             }
 

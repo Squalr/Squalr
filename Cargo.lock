@@ -2469,6 +2469,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "iced-x86"
+version = "1.21.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7c447cff8c7f384a7d4f741cfcff32f75f3ad02b406432e8d6c878d56b1edf6b"
+dependencies = [
+ "lazy_static",
+]
+
+[[package]]
 name = "icu_collections"
 version = "2.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4855,12 +4864,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d767eb0aabc880b29956c35734170f26ed551a859dbd361d140cdbeca61ab1e2"
 
 [[package]]
-name = "seq-macro"
-version = "0.3.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1bc711410fbe7399f390ca1c3b60ad0f53f80e95c5eb935e52268a0e2cd49acc"
-
-[[package]]
 name = "serde"
 version = "1.0.228"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5128,7 +5131,7 @@ dependencies = [
 
 [[package]]
 name = "squalr"
-version = "0.1.1"
+version = "0.3.0"
 dependencies = [
  "android-activity",
  "anyhow",
@@ -5147,13 +5150,14 @@ dependencies = [
  "squalr-engine",
  "squalr-engine-api",
  "squalr-engine-session",
+ "squalr-plugin-instructions-x86",
  "wasm-bindgen",
  "winresource",
 ]
 
 [[package]]
 name = "squalr-cli"
-version = "0.1.1"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "crossbeam-channel",
@@ -5161,16 +5165,14 @@ dependencies = [
  "log",
  "serde",
  "serde_json",
- "shlex",
  "squalr-engine",
  "squalr-engine-api",
  "squalr-engine-session",
- "structopt",
 ]
 
 [[package]]
 name = "squalr-engine"
-version = "0.1.1"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "bincode",
@@ -5180,6 +5182,7 @@ dependencies = [
  "interprocess",
  "log",
  "opener",
+ "rayon",
  "rfd",
  "self-replace",
  "semver",
@@ -5189,36 +5192,34 @@ dependencies = [
  "squalr-engine-projects",
  "squalr-engine-scanning",
  "squalr-engine-session",
- "structopt",
  "tempfile",
  "thiserror 2.0.18",
  "ureq",
  "url",
  "urlencoding",
  "uuid",
+ "windows 0.61.3",
  "zip",
 ]
 
 [[package]]
 name = "squalr-engine-api"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "arc-swap",
  "bus",
  "crossbeam-channel",
- "directories",
  "encoding",
  "encoding_rs",
  "log",
- "notify",
  "num-traits",
  "rayon",
  "serde",
  "serde_json",
+ "shlex",
  "slab",
  "smallvec",
- "squalr-engine-domain",
  "structopt",
  "thiserror 2.0.18",
  "typetag",
@@ -5226,19 +5227,60 @@ dependencies = [
 ]
 
 [[package]]
-name = "squalr-engine-domain"
-version = "0.1.0"
+name = "squalr-engine-projects"
+version = "0.3.0"
 dependencies = [
+ "anyhow",
+ "directories",
  "log",
- "num-traits",
  "serde",
  "serde_json",
+ "squalr-engine-api",
+ "tempfile",
+]
+
+[[package]]
+name = "squalr-engine-scanning"
+version = "0.3.0"
+dependencies = [
+ "log",
+ "rayon",
+ "squalr-engine-api",
+]
+
+[[package]]
+name = "squalr-engine-session"
+version = "0.3.0"
+dependencies = [
+ "android_logger",
+ "anyhow",
+ "crossbeam-channel",
+ "dirs",
+ "log",
+ "log4rs",
+ "notify",
+ "serde_json",
+ "squalr-engine-api",
+ "squalr-engine-projects",
+ "squalr-engine-targets",
+ "squalr-engine-targets-native",
+ "squalr-plugin-builtins",
+ "sysinfo",
+ "tempfile",
+]
+
+[[package]]
+name = "squalr-engine-targets"
+version = "0.3.0"
+dependencies = [
+ "squalr-engine-api",
+ "sysinfo",
  "thiserror 2.0.18",
 ]
 
 [[package]]
-name = "squalr-engine-operating-system"
-version = "0.1.1"
+name = "squalr-engine-targets-native"
+version = "0.3.0"
 dependencies = [
  "bitflags 2.10.0",
  "image",
@@ -5253,6 +5295,7 @@ dependencies = [
  "serde",
  "serde_json",
  "squalr-engine-api",
+ "squalr-engine-targets",
  "sysinfo",
  "thiserror 2.0.18",
  "windows-sys 0.61.2",
@@ -5260,53 +5303,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "squalr-engine-projects"
-version = "0.1.1"
-dependencies = [
- "anyhow",
- "log",
- "serde",
- "serde_json",
- "squalr-engine-api",
-]
-
-[[package]]
-name = "squalr-engine-scanning"
-version = "0.1.1"
-dependencies = [
- "bitflags 2.10.0",
- "bytemuck",
- "futures",
- "lazy_static",
- "log",
- "rayon",
- "seq-macro",
- "serde",
- "serde_json",
- "smallvec",
- "squalr-engine-api",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "squalr-engine-session"
-version = "0.1.0"
-dependencies = [
- "android_logger",
- "anyhow",
- "crossbeam-channel",
- "dirs",
- "log",
- "log4rs",
- "squalr-engine-api",
- "squalr-engine-operating-system",
- "squalr-engine-scanning",
- "sysinfo",
-]
-
-[[package]]
 name = "squalr-installer"
-version = "0.1.1"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "eframe",
@@ -5318,20 +5316,76 @@ dependencies = [
 ]
 
 [[package]]
-name = "squalr-tests"
+name = "squalr-plugin-binary-symbols"
+version = "0.3.0"
+dependencies = [
+ "squalr-engine-api",
+]
+
+[[package]]
+name = "squalr-plugin-builtins"
+version = "0.3.0"
+dependencies = [
+ "squalr-engine-api",
+ "squalr-plugin-binary-symbols",
+ "squalr-plugin-data-types-24bit",
+ "squalr-plugin-instructions-arm",
+ "squalr-plugin-instructions-powerpc",
+ "squalr-plugin-instructions-x86",
+ "squalr-plugin-memory-view-dolphin",
+]
+
+[[package]]
+name = "squalr-plugin-data-types-24bit"
+version = "0.3.0"
+dependencies = [
+ "squalr-engine-api",
+]
+
+[[package]]
+name = "squalr-plugin-instructions-arm"
 version = "0.1.0"
+dependencies = [
+ "squalr-engine-api",
+]
+
+[[package]]
+name = "squalr-plugin-instructions-powerpc"
+version = "0.1.0"
+dependencies = [
+ "squalr-engine-api",
+]
+
+[[package]]
+name = "squalr-plugin-instructions-x86"
+version = "0.1.0"
+dependencies = [
+ "iced-x86",
+ "squalr-engine-api",
+]
+
+[[package]]
+name = "squalr-plugin-memory-view-dolphin"
+version = "0.3.0"
+dependencies = [
+ "squalr-engine-api",
+ "squalr-engine-targets-native",
+]
+
+[[package]]
+name = "squalr-tests"
+version = "0.3.0"
 dependencies = [
  "crossbeam-channel",
  "squalr-engine",
  "squalr-engine-api",
- "squalr-engine-operating-system",
  "squalr-engine-session",
- "structopt",
+ "squalr-engine-targets",
 ]
 
 [[package]]
 name = "squalr-tui"
-version = "0.1.1"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "crossbeam-channel",
@@ -5344,7 +5398,8 @@ dependencies = [
  "shlex",
  "squalr-engine",
  "squalr-engine-api",
- "structopt",
+ "squalr-engine-session",
+ "squalr-plugin-instructions-x86",
 ]
 
 [[package]]

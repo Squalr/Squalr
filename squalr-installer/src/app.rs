@@ -1,11 +1,12 @@
-use crate::installer_runtime::start_installer;
+use crate::installer_runtime::{launch_app, start_installer};
 use crate::theme::InstallerTheme;
 use crate::ui_assets::{InstallerIconLibrary, load_installer_icon_library};
 use crate::ui_state::InstallerUiState;
-use crate::views::main_window::installer_main_window_view::InstallerMainWindowView;
+use crate::views::main_window::installer_main_window_view::{InstallerMainWindowAction, InstallerMainWindowView};
 use eframe::egui;
-use eframe::egui::{Frame, Visuals};
+use eframe::egui::{Frame, ViewportCommand, Visuals};
 use epaint::{CornerRadius, Rgba, vec2};
+use squalr_engine::app_provisioner::installer::install_shortcut_options::InstallShortcutOptions;
 use std::sync::{Arc, Mutex};
 
 pub(crate) struct InstallerApp {
@@ -26,7 +27,6 @@ impl InstallerApp {
         let corner_radius = CornerRadius::same(installer_theme.corner_radius_panel);
 
         let installer_icon_library = load_installer_icon_library(context);
-        start_installer(ui_state.clone(), context.clone());
 
         Self {
             ui_state,
@@ -53,15 +53,32 @@ impl eframe::App for InstallerApp {
         // Reapply visuals each frame so native theme updates cannot restore default light panel colors.
         self.installer_theme.apply(context);
 
-        let state_snapshot = match self.ui_state.lock() {
-            Ok(ui_state) => ui_state.clone(),
-            Err(_) => InstallerUiState::new(),
-        };
+        let mut pending_install_request: Option<(std::path::PathBuf, InstallShortcutOptions)> = None;
+        if let Ok(mut installer_state) = self.ui_state.lock() {
+            if installer_state.install_permission_granted && !installer_state.install_started {
+                match installer_state.resolve_install_directory() {
+                    Ok(install_directory) => {
+                        installer_state.install_started = true;
+                        installer_state.install_configuration_error = None;
+                        pending_install_request = Some((install_directory, installer_state.install_shortcut_options.clone()));
+                    }
+                    Err(error_message) => {
+                        installer_state.install_permission_granted = false;
+                        installer_state.install_configuration_error = Some(error_message);
+                    }
+                }
+            }
+        }
+
+        if let Some((pending_install_directory, install_shortcut_options)) = pending_install_request {
+            start_installer(self.ui_state.clone(), context.clone(), pending_install_directory, install_shortcut_options);
+        }
 
         let app_frame = Frame::new()
             .corner_radius(self.corner_radius)
             .stroke(context.style().visuals.widgets.noninteractive.fg_stroke)
             .outer_margin(2.0);
+        let mut pending_window_action = None;
 
         egui::CentralPanel::default()
             .frame(app_frame)
@@ -69,7 +86,30 @@ impl eframe::App for InstallerApp {
                 user_interface.style_mut().spacing.item_spacing = vec2(0.0, 0.0);
 
                 let installer_main_window_view = InstallerMainWindowView::new(self.installer_theme.clone(), self.installer_icon_library.clone());
-                installer_main_window_view.show(user_interface, &state_snapshot);
+                if let Ok(mut installer_state) = self.ui_state.lock() {
+                    pending_window_action = installer_main_window_view.show(user_interface, &mut installer_state);
+                } else {
+                    let mut installer_state = InstallerUiState::new();
+                    pending_window_action = installer_main_window_view.show(user_interface, &mut installer_state);
+                }
             });
+
+        if let Some(InstallerMainWindowAction::LaunchInstalledApp(install_directory)) = pending_window_action {
+            if let Ok(mut installer_state) = self.ui_state.lock() {
+                installer_state.install_configuration_error = None;
+            }
+
+            match launch_app(&install_directory) {
+                Ok(()) => {
+                    context.send_viewport_cmd(ViewportCommand::Close);
+                }
+                Err(error) => {
+                    if let Ok(mut installer_state) = self.ui_state.lock() {
+                        installer_state.install_configuration_error = Some(format!("Failed to launch installed app: {}", error));
+                    }
+                    context.request_repaint();
+                }
+            }
+        }
     }
 }

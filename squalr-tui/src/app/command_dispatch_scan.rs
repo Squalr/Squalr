@@ -16,6 +16,7 @@ use squalr_engine_api::commands::scan_results::query::scan_results_query_request
 use squalr_engine_api::commands::scan_results::refresh::scan_results_refresh_request::ScanResultsRefreshRequest;
 use squalr_engine_api::commands::scan_results::set_property::scan_results_set_property_request::ScanResultsSetPropertyRequest;
 use squalr_engine_api::commands::unprivileged_command_request::UnprivilegedCommandRequest;
+use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::anonymous_value_string::AnonymousValueString;
 use squalr_engine_api::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
 use squalr_engine_api::structures::data_values::container_type::ContainerType;
@@ -123,7 +124,13 @@ impl AppShell {
             .has_pending_scan_request = true;
         self.app_state.element_scanner_pane_state.status_message = "Collecting scan values.".to_string();
 
-        let scan_collect_values_request = ScanCollectValuesRequest {};
+        let selected_data_type_refs = self
+            .app_state
+            .element_scanner_pane_state
+            .selected_data_type_refs();
+        let scan_collect_values_request = ScanCollectValuesRequest {
+            data_type_refs: selected_data_type_refs.clone(),
+        };
         let (response_sender, response_receiver) = mpsc::sync_channel(1);
         let request_dispatched = scan_collect_values_request.send(engine_unprivileged_state, move |scan_collect_values_response| {
             let _ = response_sender.send(scan_collect_values_response);
@@ -139,12 +146,23 @@ impl AppShell {
 
         match response_receiver.recv_timeout(Duration::from_secs(3)) {
             Ok(scan_collect_values_response) => {
+                let had_scan_results = self.app_state.element_scanner_pane_state.has_scan_results;
                 self.app_state.element_scanner_pane_state.last_result_count = scan_collect_values_response.scan_results_metadata.result_count;
                 self.app_state
                     .element_scanner_pane_state
                     .last_total_size_in_bytes = scan_collect_values_response
                     .scan_results_metadata
                     .total_size_in_bytes;
+                if had_scan_results
+                    || (!selected_data_type_refs.is_empty()
+                        && scan_collect_values_response
+                            .scan_results_metadata
+                            .total_size_in_bytes
+                            > 0)
+                {
+                    self.app_state.element_scanner_pane_state.has_scan_results = true;
+                    self.query_scan_results_current_page(squalr_engine);
+                }
                 self.app_state.element_scanner_pane_state.status_message = format!(
                     "Collected values for {} results.",
                     scan_collect_values_response.scan_results_metadata.result_count
@@ -297,7 +315,15 @@ impl AppShell {
 
         let page_index = self.app_state.scan_results_pane_state.current_page_index;
         self.sync_scan_results_type_filters_from_element_scanner();
-        let scan_results_query_request = ScanResultsQueryRequest { page_index };
+        let data_type_filters = Some(
+            self.app_state
+                .scan_results_pane_state
+                .filtered_data_type_ids
+                .iter()
+                .map(|filtered_data_type_id| DataTypeRef::new(filtered_data_type_id))
+                .collect(),
+        );
+        let scan_results_query_request = ScanResultsQueryRequest { page_index, data_type_filters };
         let (response_sender, response_receiver) = mpsc::sync_channel(1);
         let request_dispatched = scan_results_query_request.send(engine_unprivileged_state, move |scan_results_query_response| {
             let _ = response_sender.send(scan_results_query_response);
@@ -565,10 +591,14 @@ impl AppShell {
             .scan_results_pane_state
             .is_adding_scan_results_to_project = true;
         self.app_state.scan_results_pane_state.status_message = format!("Adding {} scan results to project.", selected_scan_result_refs.len());
+        let target_directory_path = self
+            .app_state
+            .project_explorer_pane_state
+            .selected_project_item_directory_target_path();
 
         let project_items_add_request = ProjectItemsAddRequest {
             scan_result_refs: selected_scan_result_refs,
-            target_directory_path: None,
+            target_directory_path,
         };
         let (response_sender, response_receiver) = mpsc::sync_channel(1);
         project_items_add_request.send(engine_unprivileged_state, move |project_items_add_response| {
@@ -640,8 +670,15 @@ impl AppShell {
         }
 
         match response_receiver.recv_timeout(Duration::from_secs(3)) {
-            Ok(_scan_results_delete_response) => {
-                self.app_state.scan_results_pane_state.status_message = "Deleted selected scan results.".to_string();
+            Ok(scan_results_delete_response) => {
+                if scan_results_delete_response.deleted_result_count < scan_results_delete_response.requested_result_count {
+                    self.app_state.scan_results_pane_state.status_message = format!(
+                        "Deleted {} of {} selected scan results.",
+                        scan_results_delete_response.deleted_result_count, scan_results_delete_response.requested_result_count
+                    );
+                } else {
+                    self.app_state.scan_results_pane_state.status_message = "Deleted selected scan results.".to_string();
+                }
                 self.query_scan_results_current_page(squalr_engine);
             }
             Err(receive_error) => {

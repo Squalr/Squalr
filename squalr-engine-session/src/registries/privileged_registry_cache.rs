@@ -1,0 +1,460 @@
+use squalr_engine_api::{
+    plugins::PluginPackage,
+    registries::symbols::{
+        data_type_descriptor::DataTypeDescriptor, privileged_registry_catalog::PrivilegedRegistryCatalog, struct_layout_descriptor::StructLayoutDescriptor,
+        symbol_registry::SymbolRegistry,
+    },
+    structures::{
+        data_types::data_type_ref::DataTypeRef,
+        data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, data_value::DataValue},
+        scanning::comparisons::scan_compare_type::ScanCompareType,
+        structs::symbolic_struct_definition::SymbolicStructDefinition,
+    },
+};
+use squalr_plugin_builtins::get_builtin_plugin_packages;
+use std::sync::Arc;
+
+/// Cache of the latest privileged registry catalog on the unprivileged side.
+///
+/// The cache only holds privileged-owned registry state, such as built-in and
+/// plugin-authored data type descriptors and struct layouts. Project-authored
+/// symbols remain unprivileged-owned and resolve from local project state.
+pub struct PrivilegedRegistryCache {
+    latest_privileged_registry_catalog: Option<PrivilegedRegistryCatalog>,
+    built_in_symbol_registry: SymbolRegistry,
+}
+
+impl Default for PrivilegedRegistryCache {
+    fn default() -> Self {
+        Self {
+            latest_privileged_registry_catalog: None,
+            built_in_symbol_registry: Self::create_builtin_symbol_registry(),
+        }
+    }
+}
+
+impl PrivilegedRegistryCache {
+    fn create_builtin_symbol_registry() -> SymbolRegistry {
+        let symbol_registry = SymbolRegistry::new();
+
+        for plugin_package in get_builtin_plugin_packages() {
+            Self::register_plugin_data_types(&symbol_registry, plugin_package.as_ref());
+        }
+
+        symbol_registry
+    }
+
+    fn register_plugin_data_types(
+        symbol_registry: &SymbolRegistry,
+        plugin_package: &dyn PluginPackage,
+    ) {
+        let Some(data_type_plugin) = plugin_package.as_data_type_plugin() else {
+            return;
+        };
+
+        for data_type in data_type_plugin.contributed_data_types() {
+            if !symbol_registry.register_data_type(data_type.clone()) {
+                log::warn!(
+                    "Failed to register plugin-authored data type '{}' from plugin '{}' in privileged registry cache.",
+                    data_type.get_data_type_id(),
+                    data_type_plugin.metadata().get_plugin_id()
+                );
+            }
+        }
+    }
+
+    pub fn apply_registry_catalog(
+        &mut self,
+        privileged_registry_catalog: PrivilegedRegistryCatalog,
+    ) {
+        self.latest_privileged_registry_catalog = Some(privileged_registry_catalog);
+    }
+
+    pub fn get_registry_catalog(&self) -> Option<&PrivilegedRegistryCatalog> {
+        self.latest_privileged_registry_catalog.as_ref()
+    }
+
+    pub fn get_generation(&self) -> u64 {
+        self.latest_privileged_registry_catalog
+            .as_ref()
+            .map(|privileged_registry_catalog| privileged_registry_catalog.get_generation())
+            .unwrap_or_default()
+    }
+
+    pub fn get_registered_data_type_refs(&self) -> Vec<DataTypeRef> {
+        self.latest_privileged_registry_catalog
+            .as_ref()
+            .map(|privileged_registry_catalog| {
+                privileged_registry_catalog
+                    .get_data_type_descriptors()
+                    .iter()
+                    .map(|data_type_descriptor| DataTypeRef::new(data_type_descriptor.get_data_type_id()))
+                    .collect()
+            })
+            .unwrap_or_else(|| self.built_in_symbol_registry.get_registered_data_type_refs())
+    }
+
+    pub fn is_registered_data_type_ref(
+        &self,
+        data_type_ref: &DataTypeRef,
+    ) -> bool {
+        self.find_data_type_descriptor(data_type_ref.get_data_type_id())
+            .is_some()
+    }
+
+    pub fn get_supported_anonymous_value_string_formats(
+        &self,
+        data_type_ref: &DataTypeRef,
+    ) -> Vec<AnonymousValueStringFormat> {
+        self.find_data_type_descriptor(data_type_ref.get_data_type_id())
+            .map(|data_type_descriptor| {
+                data_type_descriptor
+                    .get_supported_anonymous_value_string_formats()
+                    .to_vec()
+            })
+            .unwrap_or_else(|| {
+                self.built_in_symbol_registry
+                    .get_supported_anonymous_value_string_formats(data_type_ref)
+            })
+    }
+
+    pub fn get_default_anonymous_value_string_format(
+        &self,
+        data_type_ref: &DataTypeRef,
+    ) -> AnonymousValueStringFormat {
+        self.find_data_type_descriptor(data_type_ref.get_data_type_id())
+            .map(|data_type_descriptor| data_type_descriptor.get_default_anonymous_value_string_format())
+            .unwrap_or_else(|| {
+                self.built_in_symbol_registry
+                    .get_default_anonymous_value_string_format(data_type_ref)
+            })
+    }
+
+    pub fn validate_value_string(
+        &self,
+        data_type_ref: &DataTypeRef,
+        anonymous_value_string: &AnonymousValueString,
+    ) -> bool {
+        self.built_in_symbol_registry
+            .validate_value_string(data_type_ref, anonymous_value_string)
+    }
+
+    pub fn validate_scan_constraint(
+        &self,
+        data_type_ref: &DataTypeRef,
+        scan_compare_type: ScanCompareType,
+        anonymous_value_string: &AnonymousValueString,
+    ) -> bool {
+        self.built_in_symbol_registry
+            .validate_scan_constraint(data_type_ref, scan_compare_type, anonymous_value_string)
+    }
+
+    pub fn validate_scan_constraint_with_hex_pattern_matching(
+        &self,
+        data_type_ref: &DataTypeRef,
+        scan_compare_type: ScanCompareType,
+        anonymous_value_string: &AnonymousValueString,
+        use_hex_pattern_matching: bool,
+    ) -> bool {
+        self.built_in_symbol_registry
+            .validate_scan_constraint_with_hex_pattern_matching(data_type_ref, scan_compare_type, anonymous_value_string, use_hex_pattern_matching)
+    }
+
+    pub fn deanonymize_value_string(
+        &self,
+        data_type_ref: &DataTypeRef,
+        anonymous_value_string: &AnonymousValueString,
+    ) -> Result<DataValue, squalr_engine_api::registries::symbols::symbol_registry_error::SymbolRegistryError> {
+        self.built_in_symbol_registry
+            .deanonymize_value_string(data_type_ref, anonymous_value_string)
+    }
+
+    pub fn anonymize_value(
+        &self,
+        data_value: &DataValue,
+        anonymous_value_string_format: AnonymousValueStringFormat,
+    ) -> Result<AnonymousValueString, squalr_engine_api::registries::symbols::symbol_registry_error::SymbolRegistryError> {
+        self.built_in_symbol_registry
+            .anonymize_value(data_value, anonymous_value_string_format)
+    }
+
+    pub fn anonymize_value_to_supported_formats(
+        &self,
+        data_value: &DataValue,
+    ) -> Result<Vec<AnonymousValueString>, squalr_engine_api::registries::symbols::symbol_registry_error::SymbolRegistryError> {
+        self.built_in_symbol_registry
+            .anonymize_value_to_supported_formats(data_value)
+    }
+
+    pub fn supports_scalar_integer_values(
+        &self,
+        data_type_ref: &DataTypeRef,
+    ) -> bool {
+        self.built_in_symbol_registry
+            .supports_scalar_integer_values(data_type_ref)
+    }
+
+    pub fn read_scalar_integer_value(
+        &self,
+        data_value: &DataValue,
+    ) -> Result<Option<i128>, squalr_engine_api::registries::symbols::symbol_registry_error::SymbolRegistryError> {
+        self.built_in_symbol_registry
+            .read_scalar_integer_value(data_value)
+    }
+
+    pub fn get_default_value(
+        &self,
+        data_type_ref: &DataTypeRef,
+    ) -> Option<DataValue> {
+        self.built_in_symbol_registry.get_default_value(data_type_ref)
+    }
+
+    pub fn get_data_type_descriptor(
+        &self,
+        data_type_ref: &DataTypeRef,
+    ) -> Option<DataTypeDescriptor> {
+        self.find_data_type_descriptor(data_type_ref.get_data_type_id())
+            .cloned()
+            .or_else(|| {
+                self.built_in_symbol_registry
+                    .get_data_type_descriptor(data_type_ref.get_data_type_id())
+                    .as_deref()
+                    .cloned()
+            })
+    }
+
+    pub fn get_unit_size_in_bytes(
+        &self,
+        data_type_ref: &DataTypeRef,
+    ) -> u64 {
+        self.find_data_type_descriptor(data_type_ref.get_data_type_id())
+            .map(|data_type_descriptor| data_type_descriptor.get_unit_size_in_bytes())
+            .unwrap_or_else(|| {
+                self.built_in_symbol_registry
+                    .get_unit_size_in_bytes(data_type_ref)
+            })
+    }
+
+    pub fn resolve_struct_layout_definition(
+        &self,
+        symbolic_struct_id: &str,
+    ) -> Option<SymbolicStructDefinition> {
+        self.get_struct_layout(symbolic_struct_id).as_deref().cloned()
+    }
+
+    pub fn get_struct_layout(
+        &self,
+        symbolic_struct_id: &str,
+    ) -> Option<Arc<SymbolicStructDefinition>> {
+        self.find_struct_layout_descriptor(symbolic_struct_id)
+            .map(|struct_layout_descriptor| Arc::new(struct_layout_descriptor.get_struct_layout_definition().clone()))
+            .or_else(|| self.built_in_symbol_registry.get(symbolic_struct_id))
+    }
+
+    fn find_data_type_descriptor(
+        &self,
+        data_type_id: &str,
+    ) -> Option<&DataTypeDescriptor> {
+        self.latest_privileged_registry_catalog
+            .as_ref()
+            .and_then(|privileged_registry_catalog| {
+                privileged_registry_catalog
+                    .get_data_type_descriptors()
+                    .iter()
+                    .find(|data_type_descriptor| data_type_descriptor.get_data_type_id() == data_type_id)
+            })
+    }
+
+    fn find_struct_layout_descriptor(
+        &self,
+        symbolic_struct_id: &str,
+    ) -> Option<&StructLayoutDescriptor> {
+        self.latest_privileged_registry_catalog
+            .as_ref()
+            .and_then(|privileged_registry_catalog| {
+                privileged_registry_catalog
+                    .get_struct_layout_descriptors()
+                    .iter()
+                    .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == symbolic_struct_id)
+            })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::PrivilegedRegistryCache;
+    use squalr_engine_api::registries::symbols::data_type_descriptor::DataTypeDescriptor;
+    use squalr_engine_api::{
+        registries::symbols::{privileged_registry_catalog::PrivilegedRegistryCatalog, struct_layout_descriptor::StructLayoutDescriptor},
+        structures::{
+            data_types::data_type_ref::DataTypeRef,
+            data_values::{
+                anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType,
+                data_value::DataValue,
+            },
+            memory::endian::Endian,
+            scanning::comparisons::{
+                scan_compare_type::ScanCompareType, scan_compare_type_immediate::ScanCompareTypeImmediate, scan_compare_type_relative::ScanCompareTypeRelative,
+            },
+            structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition},
+        },
+    };
+    use squalr_plugin_builtins::get_builtin_plugin_packages;
+
+    #[test]
+    fn registered_data_type_refs_are_read_from_latest_privileged_registry_catalog() {
+        let mut privileged_registry_cache = PrivilegedRegistryCache::default();
+        privileged_registry_cache.apply_registry_catalog(PrivilegedRegistryCatalog::new(
+            7,
+            vec![
+                DataTypeDescriptor::new(
+                    String::from("i32"),
+                    String::from("icon_i32"),
+                    4,
+                    vec![AnonymousValueStringFormat::Decimal],
+                    AnonymousValueStringFormat::Decimal,
+                    Endian::Little,
+                    false,
+                    true,
+                ),
+                DataTypeDescriptor::new(
+                    String::from("u64"),
+                    String::from("icon_u64"),
+                    8,
+                    vec![AnonymousValueStringFormat::Hexadecimal],
+                    AnonymousValueStringFormat::Hexadecimal,
+                    Endian::Little,
+                    false,
+                    false,
+                ),
+            ],
+            Vec::new(),
+        ));
+
+        assert_eq!(
+            privileged_registry_cache.get_registered_data_type_refs(),
+            vec![DataTypeRef::new("i32"), DataTypeRef::new("u64")]
+        );
+    }
+
+    #[test]
+    fn privileged_struct_layouts_are_read_from_latest_privileged_registry_catalog() {
+        let mut privileged_registry_cache = PrivilegedRegistryCache::default();
+        privileged_registry_cache.apply_registry_catalog(PrivilegedRegistryCatalog::new(
+            3,
+            vec![DataTypeDescriptor::new(
+                String::from("f32"),
+                String::from("icon_f32"),
+                4,
+                vec![AnonymousValueStringFormat::Decimal],
+                AnonymousValueStringFormat::Decimal,
+                Endian::Little,
+                true,
+                true,
+            )],
+            vec![StructLayoutDescriptor::new(
+                String::from("remote.test.struct"),
+                SymbolicStructDefinition::new(
+                    String::from("remote.test.struct"),
+                    vec![SymbolicFieldDefinition::new(
+                        DataTypeRef::new("f32"),
+                        Default::default(),
+                    )],
+                ),
+            )],
+        ));
+
+        assert!(privileged_registry_cache.is_registered_data_type_ref(&DataTypeRef::new("f32")));
+        assert!(!privileged_registry_cache.is_registered_data_type_ref(&DataTypeRef::new("u16")));
+        assert!(
+            privileged_registry_cache
+                .resolve_struct_layout_definition("remote.test.struct")
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn builtin_plugin_data_types_are_available_in_default_cache_registry() {
+        let privileged_registry_cache = PrivilegedRegistryCache::default();
+        let built_in_plugin_packages = get_builtin_plugin_packages();
+        let first_plugin_data_type_id = built_in_plugin_packages
+            .iter()
+            .find_map(|plugin_package| plugin_package.as_data_type_plugin())
+            .expect("Expected at least one built-in data-type plugin package.")
+            .contributed_data_type_ids()[0];
+
+        assert!(
+            privileged_registry_cache
+                .get_default_value(&DataTypeRef::new(first_plugin_data_type_id))
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn default_cache_reads_plugin_scalar_integer_values() {
+        let privileged_registry_cache = PrivilegedRegistryCache::default();
+        let data_value = DataValue::new(DataTypeRef::new("u24"), vec![0x56, 0x34, 0x12]);
+
+        assert!(privileged_registry_cache.supports_scalar_integer_values(data_value.get_data_type_ref()));
+        assert_eq!(
+            privileged_registry_cache
+                .read_scalar_integer_value(&data_value)
+                .expect("Expected scalar integer value to decode."),
+            Some(0x12_3456)
+        );
+    }
+
+    #[test]
+    fn validate_scan_constraint_rejects_non_equality_array_values() {
+        let privileged_registry_cache = PrivilegedRegistryCache::default();
+        let data_type_ref = DataTypeRef::new("i32");
+        let anonymous_value_string = AnonymousValueString::new("1, 2".to_string(), AnonymousValueStringFormat::Decimal, ContainerType::None);
+
+        assert!(!privileged_registry_cache.validate_scan_constraint(
+            &data_type_ref,
+            ScanCompareType::Relative(ScanCompareTypeRelative::Changed),
+            &anonymous_value_string,
+        ));
+        assert!(privileged_registry_cache.validate_scan_constraint(
+            &data_type_ref,
+            ScanCompareType::Immediate(ScanCompareTypeImmediate::Equal),
+            &AnonymousValueString::new("1, 2".to_string(), AnonymousValueStringFormat::Decimal, ContainerType::Array),
+        ));
+    }
+
+    #[test]
+    fn validate_scan_constraint_rejects_comma_separated_element_input() {
+        let privileged_registry_cache = PrivilegedRegistryCache::default();
+        let data_type_ref = DataTypeRef::new("i32");
+
+        assert!(!privileged_registry_cache.validate_scan_constraint(
+            &data_type_ref,
+            ScanCompareType::Immediate(ScanCompareTypeImmediate::Equal),
+            &AnonymousValueString::new("1, 2".to_string(), AnonymousValueStringFormat::Decimal, ContainerType::None),
+        ));
+    }
+
+    #[test]
+    fn validate_scan_constraint_accepts_decimal_array_wildcards() {
+        let privileged_registry_cache = PrivilegedRegistryCache::default();
+        let data_type_ref = DataTypeRef::new("u8");
+
+        assert!(privileged_registry_cache.validate_scan_constraint(
+            &data_type_ref,
+            ScanCompareType::Immediate(ScanCompareTypeImmediate::Equal),
+            &AnonymousValueString::new("1 xx 55".to_string(), AnonymousValueStringFormat::Decimal, ContainerType::Array),
+        ));
+    }
+
+    #[test]
+    fn validate_scan_constraint_accepts_hex_array_nibble_wildcards() {
+        let privileged_registry_cache = PrivilegedRegistryCache::default();
+        let data_type_ref = DataTypeRef::new("u8");
+
+        assert!(privileged_registry_cache.validate_scan_constraint(
+            &data_type_ref,
+            ScanCompareType::Immediate(ScanCompareTypeImmediate::Equal),
+            &AnonymousValueString::new("1 7x 55".to_string(), AnonymousValueStringFormat::Hexadecimal, ContainerType::Array),
+        ));
+    }
+}

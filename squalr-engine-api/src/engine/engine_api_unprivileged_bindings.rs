@@ -3,8 +3,7 @@ use crate::{
         privileged_command::PrivilegedCommand, privileged_command_response::PrivilegedCommandResponse, unprivileged_command::UnprivilegedCommand,
         unprivileged_command_response::UnprivilegedCommandResponse,
     },
-    engine::{engine_binding_error::EngineBindingError, engine_execution_context::EngineExecutionContext},
-    events::engine_event::EngineEvent,
+    engine::{engine_binding_error::EngineBindingError, engine_event_envelope::EngineEventEnvelope, engine_execution_context::EngineExecutionContext},
 };
 use crossbeam_channel::Receiver;
 use std::sync::Arc;
@@ -27,5 +26,5 @@ pub trait EngineApiUnprivilegedBindings: Send + Sync {
     ) -> Result<(), EngineBindingError>;
 
     /// Requests to listen to all engine events.
-    fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEvent>, EngineBindingError>;
+    fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEventEnvelope>, EngineBindingError>;
 }

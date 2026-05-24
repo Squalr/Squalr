@@ -7,6 +7,7 @@ mod theme;
 mod ui_assets;
 mod ui_state;
 mod views;
+mod widgets;
 
 use crate::app::InstallerApp;
 use crate::logging::initialize_logger;

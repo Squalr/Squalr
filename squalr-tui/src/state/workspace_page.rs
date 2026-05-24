@@ -1,11 +1,14 @@
 use crate::state::pane::TuiPane;
 
-/// Represents the three full-screen workflow pages in the TUI.
+/// Represents the full-screen workflow pages in the TUI.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TuiWorkspacePage {
     ProjectWorkspace,
     ScannerWorkspace,
     SettingsWorkspace,
+    PluginsWorkspace,
+    MemoryWorkspace,
+    CodeWorkspace,
 }
 
 impl TuiWorkspacePage {
@@ -13,7 +16,10 @@ impl TuiWorkspacePage {
         match function_key_index {
             2 => Some(Self::ScannerWorkspace),
             3 => Some(Self::SettingsWorkspace),
+            5 => Some(Self::PluginsWorkspace),
             4 => Some(Self::ProjectWorkspace),
+            6 => Some(Self::MemoryWorkspace),
+            7 => Some(Self::CodeWorkspace),
             _ => None,
         }
     }
@@ -23,14 +29,20 @@ impl TuiWorkspacePage {
             Self::ProjectWorkspace => "Project Workspace",
             Self::ScannerWorkspace => "Scanner Workspace",
             Self::SettingsWorkspace => "Settings Workspace",
+            Self::PluginsWorkspace => "Plugins Workspace",
+            Self::MemoryWorkspace => "Memory Workspace",
+            Self::CodeWorkspace => "Code Workspace",
         }
     }
 
     pub fn focus_cycle_hint(self) -> &'static str {
         match self {
-            Self::ProjectWorkspace => "Process Selector -> Project Explorer -> Output",
+            Self::ProjectWorkspace => "Project Explorer -> Struct Viewer -> Output",
             Self::ScannerWorkspace => "Element Scanner -> Scan Results -> Output",
             Self::SettingsWorkspace => "Settings -> Output",
+            Self::PluginsWorkspace => "Plugins -> Output",
+            Self::MemoryWorkspace => "Memory Viewer -> Interpretation -> Output",
+            Self::CodeWorkspace => "Code Viewer -> Output",
         }
     }
 
@@ -39,10 +51,18 @@ impl TuiWorkspacePage {
             Self::ProjectWorkspace => &[
                 TuiPane::ProcessSelector,
                 TuiPane::ProjectExplorer,
+                TuiPane::StructViewer,
                 TuiPane::Output,
             ],
             Self::ScannerWorkspace => &[TuiPane::ElementScanner, TuiPane::ScanResults, TuiPane::Output],
             Self::SettingsWorkspace => &[TuiPane::Settings, TuiPane::Output],
+            Self::PluginsWorkspace => &[TuiPane::Plugins, TuiPane::Output],
+            Self::MemoryWorkspace => &[
+                TuiPane::MemoryViewer,
+                TuiPane::MemoryInterpretation,
+                TuiPane::Output,
+            ],
+            Self::CodeWorkspace => &[TuiPane::CodeViewer, TuiPane::Output],
         }
     }
 }
@@ -63,7 +83,10 @@ mod tests {
         assert_eq!(TuiWorkspacePage::from_function_key(1), None);
         assert_eq!(TuiWorkspacePage::from_function_key(2), Some(TuiWorkspacePage::ScannerWorkspace));
         assert_eq!(TuiWorkspacePage::from_function_key(3), Some(TuiWorkspacePage::SettingsWorkspace));
+        assert_eq!(TuiWorkspacePage::from_function_key(5), Some(TuiWorkspacePage::PluginsWorkspace));
         assert_eq!(TuiWorkspacePage::from_function_key(4), Some(TuiWorkspacePage::ProjectWorkspace));
+        assert_eq!(TuiWorkspacePage::from_function_key(6), Some(TuiWorkspacePage::MemoryWorkspace));
+        assert_eq!(TuiWorkspacePage::from_function_key(7), Some(TuiWorkspacePage::CodeWorkspace));
     }
 
     #[test]
@@ -73,6 +96,7 @@ mod tests {
             &[
                 TuiPane::ProcessSelector,
                 TuiPane::ProjectExplorer,
+                TuiPane::StructViewer,
                 TuiPane::Output
             ]
         );
@@ -81,5 +105,15 @@ mod tests {
             &[TuiPane::ElementScanner, TuiPane::ScanResults, TuiPane::Output]
         );
         assert_eq!(TuiWorkspacePage::SettingsWorkspace.visible_panes(), &[TuiPane::Settings, TuiPane::Output]);
+        assert_eq!(TuiWorkspacePage::PluginsWorkspace.visible_panes(), &[TuiPane::Plugins, TuiPane::Output]);
+        assert_eq!(
+            TuiWorkspacePage::MemoryWorkspace.visible_panes(),
+            &[
+                TuiPane::MemoryViewer,
+                TuiPane::MemoryInterpretation,
+                TuiPane::Output
+            ]
+        );
+        assert_eq!(TuiWorkspacePage::CodeWorkspace.visible_panes(), &[TuiPane::CodeViewer, TuiPane::Output]);
     }
 }

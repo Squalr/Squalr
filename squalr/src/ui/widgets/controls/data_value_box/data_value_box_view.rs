@@ -2,12 +2,10 @@ use crate::ui::widgets::controls::state_layer::StateLayer;
 use crate::{app_context::AppContext, ui::widgets::controls::data_value_box::data_value_box_convert_item_view::DataValueBoxConvertItemView};
 use eframe::egui::{Align, Area, Frame, Id, Key, Layout, Order, Response, Sense, TextEdit, Ui, UiBuilder, Widget};
 use epaint::{Color32, CornerRadius, Margin, Rect, Stroke, StrokeKind, Vec2, pos2, vec2};
-use squalr_engine_api::{
-    registries::symbols::symbol_registry::SymbolRegistry,
-    structures::{
-        data_types::data_type_ref::DataTypeRef,
-        data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat},
-    },
+use squalr_engine_api::structures::{
+    data_types::data_type_ref::DataTypeRef,
+    data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat},
+    scanning::comparisons::scan_compare_type::ScanCompareType,
 };
 use std::sync::Arc;
 
@@ -15,13 +13,22 @@ pub struct DataValueBoxView<'lifetime> {
     app_context: Arc<AppContext>,
     anonymous_value_string: &'lifetime mut AnonymousValueString,
     validation_data_type: &'lifetime DataTypeRef,
+    validation_scan_compare_type: Option<ScanCompareType>,
     display_values: Option<&'lifetime [AnonymousValueString]>,
+    allowed_anonymous_value_string_formats: Option<Vec<AnonymousValueStringFormat>>,
     is_read_only: bool,
     is_value_owned: bool,
     preview_text: &'lifetime str,
     id: &'lifetime str,
     allow_read_only_interpretation: bool,
+    validation_use_hex_pattern_matching: bool,
+    skip_validation: bool,
     use_preview_foreground: bool,
+    use_format_text_colors: bool,
+    normalize_value_format: bool,
+    show_format_button: bool,
+    is_multiline: bool,
+    multiline_rows: usize,
     width: f32,
     height: f32,
     icon_padding: f32,
@@ -29,6 +36,15 @@ pub struct DataValueBoxView<'lifetime> {
     border_width: f32,
     divider_width: f32,
     corner_radius: u8,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum DataValueBoxDisplayFormatIconKind {
+    Binary,
+    Decimal,
+    Hexadecimal,
+    Bool,
+    String,
 }
 
 impl<'lifetime> DataValueBoxView<'lifetime> {
@@ -48,13 +64,22 @@ impl<'lifetime> DataValueBoxView<'lifetime> {
             app_context,
             anonymous_value_string,
             validation_data_type,
+            validation_scan_compare_type: None,
             display_values: None,
+            allowed_anonymous_value_string_formats: None,
             is_read_only,
             is_value_owned,
             preview_text,
             id,
             allow_read_only_interpretation: false,
+            validation_use_hex_pattern_matching: false,
+            skip_validation: false,
             use_preview_foreground: false,
+            use_format_text_colors: true,
+            normalize_value_format: true,
+            show_format_button: true,
+            is_multiline: false,
+            multiline_rows: 3,
             width: 212.0,
             height: 28.0,
 
@@ -72,6 +97,27 @@ impl<'lifetime> DataValueBoxView<'lifetime> {
         border_width: f32,
     ) -> Self {
         self.border_width = border_width;
+        self
+    }
+
+    pub fn validation_scan_compare_type(
+        mut self,
+        validation_scan_compare_type: ScanCompareType,
+    ) -> Self {
+        self.validation_scan_compare_type = Some(validation_scan_compare_type);
+        self
+    }
+
+    pub fn validation_use_hex_pattern_matching(
+        mut self,
+        validation_use_hex_pattern_matching: bool,
+    ) -> Self {
+        self.validation_use_hex_pattern_matching = validation_use_hex_pattern_matching;
+        self
+    }
+
+    pub fn skip_validation(mut self) -> Self {
+        self.skip_validation = true;
         self
     }
 
@@ -99,6 +145,14 @@ impl<'lifetime> DataValueBoxView<'lifetime> {
         self
     }
 
+    pub fn allowed_anonymous_value_string_formats(
+        mut self,
+        allowed_anonymous_value_string_formats: Vec<AnonymousValueStringFormat>,
+    ) -> Self {
+        self.allowed_anonymous_value_string_formats = Some(allowed_anonymous_value_string_formats);
+        self
+    }
+
     pub fn use_preview_foreground(
         mut self,
         use_preview_foreground: bool,
@@ -107,11 +161,51 @@ impl<'lifetime> DataValueBoxView<'lifetime> {
         self
     }
 
+    pub fn use_format_text_colors(
+        mut self,
+        use_format_text_colors: bool,
+    ) -> Self {
+        self.use_format_text_colors = use_format_text_colors;
+        self
+    }
+
+    pub fn normalize_value_format(
+        mut self,
+        normalize_value_format: bool,
+    ) -> Self {
+        self.normalize_value_format = normalize_value_format;
+        self
+    }
+
+    pub fn show_format_button(
+        mut self,
+        show_format_button: bool,
+    ) -> Self {
+        self.show_format_button = show_format_button;
+        self
+    }
+
     pub fn height(
         mut self,
         height: f32,
     ) -> Self {
         self.height = height;
+        self
+    }
+
+    pub fn multiline(
+        mut self,
+        is_multiline: bool,
+    ) -> Self {
+        self.is_multiline = is_multiline;
+        self
+    }
+
+    pub fn multiline_rows(
+        mut self,
+        multiline_rows: usize,
+    ) -> Self {
+        self.multiline_rows = multiline_rows.max(1);
         self
     }
 
@@ -137,6 +231,37 @@ impl<'lifetime> DataValueBoxView<'lifetime> {
 
         did_commit_on_enter
     }
+
+    fn display_format_icon(&self) -> &eframe::egui::TextureHandle {
+        let icon_library = &self.app_context.theme.icon_library;
+
+        match Self::resolve_display_format_icon_kind(self.anonymous_value_string.get_anonymous_value_string_format()) {
+            DataValueBoxDisplayFormatIconKind::Binary => &icon_library.icon_handle_display_type_binary,
+            DataValueBoxDisplayFormatIconKind::Decimal => &icon_library.icon_handle_display_type_decimal,
+            DataValueBoxDisplayFormatIconKind::Hexadecimal => &icon_library.icon_handle_display_type_hexadecimal,
+            DataValueBoxDisplayFormatIconKind::Bool => &icon_library.icon_handle_data_type_bool,
+            DataValueBoxDisplayFormatIconKind::String => &icon_library.icon_handle_display_type_string,
+        }
+    }
+
+    fn resolve_display_format_icon_kind(anonymous_value_string_format: AnonymousValueStringFormat) -> DataValueBoxDisplayFormatIconKind {
+        match anonymous_value_string_format {
+            AnonymousValueStringFormat::Binary => DataValueBoxDisplayFormatIconKind::Binary,
+            AnonymousValueStringFormat::Decimal => DataValueBoxDisplayFormatIconKind::Decimal,
+            AnonymousValueStringFormat::Hexadecimal | AnonymousValueStringFormat::Address => DataValueBoxDisplayFormatIconKind::Hexadecimal,
+            AnonymousValueStringFormat::Bool => DataValueBoxDisplayFormatIconKind::Bool,
+            AnonymousValueStringFormat::String | AnonymousValueStringFormat::DataTypeRef | AnonymousValueStringFormat::Enumeration => {
+                DataValueBoxDisplayFormatIconKind::String
+            }
+        }
+    }
+
+    fn resolve_text_edit_clip_rect(
+        parent_clip_rect: Rect,
+        text_edit_rectangle_inner: Rect,
+    ) -> Rect {
+        text_edit_rectangle_inner.intersect(parent_clip_rect)
+    }
 }
 
 impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
@@ -144,86 +269,122 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
         self,
         user_interface: &mut Ui,
     ) -> Response {
+        if self.normalize_value_format {
+            self.app_context
+                .engine_unprivileged_state
+                .normalize_anonymous_value_string_format(self.validation_data_type, self.anonymous_value_string);
+        }
+
         let theme = &self.app_context.theme;
-        let down_arrow = &theme.icon_library.icon_handle_navigation_down_arrow_small;
-        let symbol_registry = SymbolRegistry::get_instance();
-        let is_valid = symbol_registry.validate_value_string(&self.validation_data_type, &self.anonymous_value_string);
+        let is_valid = if self.skip_validation {
+            true
+        } else {
+            match self.validation_scan_compare_type {
+                Some(scan_compare_type) => self
+                    .app_context
+                    .engine_unprivileged_state
+                    .validate_scan_constraint_with_hex_pattern_matching(
+                        &self.validation_data_type,
+                        scan_compare_type,
+                        &self.anonymous_value_string,
+                        self.validation_use_hex_pattern_matching,
+                    ),
+                None => self
+                    .app_context
+                    .engine_unprivileged_state
+                    .validate_value_string(&self.validation_data_type, &self.anonymous_value_string),
+            }
+        };
         let foreground_color = match self.use_preview_foreground {
             true => theme.foreground_preview,
             false => theme.foreground,
         };
-        let binary_color = match self.use_preview_foreground {
-            true => theme.binary_blue_preview,
-            false => theme.binary_blue,
-        };
-        let hexadecimal_color = match self.use_preview_foreground {
-            true => theme.hexadecimal_green_preview,
-            false => theme.hexadecimal_green,
-        };
         let text_color = match is_valid {
-            true => match self.anonymous_value_string.get_anonymous_value_string_format() {
-                AnonymousValueStringFormat::Bool => foreground_color,
-                AnonymousValueStringFormat::String => foreground_color,
-                AnonymousValueStringFormat::Binary => binary_color,
-                AnonymousValueStringFormat::Decimal => foreground_color,
-                AnonymousValueStringFormat::Hexadecimal => hexadecimal_color,
-                AnonymousValueStringFormat::Address => hexadecimal_color,
-                AnonymousValueStringFormat::DataTypeRef => foreground_color,
-                AnonymousValueStringFormat::Enumeration => foreground_color,
-            },
+            true => {
+                if self.use_format_text_colors {
+                    match self.anonymous_value_string.get_anonymous_value_string_format() {
+                        AnonymousValueStringFormat::Bool => foreground_color,
+                        AnonymousValueStringFormat::String => foreground_color,
+                        AnonymousValueStringFormat::Binary => match self.use_preview_foreground {
+                            true => theme.binary_blue_preview,
+                            false => theme.binary_blue,
+                        },
+                        AnonymousValueStringFormat::Decimal => foreground_color,
+                        AnonymousValueStringFormat::Hexadecimal | AnonymousValueStringFormat::Address => match self.use_preview_foreground {
+                            true => theme.hexadecimal_green_preview,
+                            false => theme.hexadecimal_green,
+                        },
+                        AnonymousValueStringFormat::DataTypeRef => foreground_color,
+                        AnonymousValueStringFormat::Enumeration => foreground_color,
+                    }
+                } else {
+                    foreground_color
+                }
+            }
             false => theme.error_red,
         };
 
-        let desired_size = vec2(self.width, self.height);
+        let display_format_icon = self.display_format_icon();
+        let desired_size = vec2(self.width.max(1.0), self.height);
         let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(desired_size, Sense::hover());
         let icon_size_vec = vec2(self.icon_size, self.icon_size);
 
-        // Divider bar before right arrow.
         let button_width = self.icon_size + self.icon_padding * 2.0;
-        let divider_x = allocated_size_rectangle.max.x - (button_width + self.divider_width);
+        let format_button_total_width = if self.show_format_button { button_width + self.divider_width } else { 0.0 };
+        let divider_x = allocated_size_rectangle.max.x - format_button_total_width;
 
-        // The button rectangle (full clickable dropdown-area background).
-        let dropdown_background_rectangle = Rect::from_min_max(
-            pos2(divider_x + self.divider_width, allocated_size_rectangle.min.y),
-            pos2(allocated_size_rectangle.max.x, allocated_size_rectangle.max.y),
-        );
+        let button_response = if self.show_format_button {
+            let dropdown_background_rectangle = Rect::from_min_max(
+                pos2(divider_x + self.divider_width, allocated_size_rectangle.min.y),
+                pos2(allocated_size_rectangle.max.x, allocated_size_rectangle.max.y),
+            );
 
-        let button_response = user_interface.interact(
-            dropdown_background_rectangle,
-            user_interface.make_persistent_id(format!("{}_button", self.id)),
-            if self.is_read_only && !self.allow_read_only_interpretation {
-                Sense::hover()
-            } else {
-                Sense::click()
-            },
-        );
+            let button_response = user_interface.interact(
+                dropdown_background_rectangle,
+                user_interface.make_persistent_id(format!("{}_button", self.id)),
+                if self.is_read_only && !self.allow_read_only_interpretation {
+                    Sense::hover()
+                } else {
+                    Sense::click()
+                },
+            );
 
-        // Arrow position.
-        let right_arrow_pos = pos2(
-            allocated_size_rectangle.max.x - self.icon_padding - self.icon_size,
-            allocated_size_rectangle.center().y - self.icon_size * 0.5,
-        );
+            let display_format_icon_position = pos2(
+                allocated_size_rectangle.max.x - self.icon_padding - self.icon_size,
+                allocated_size_rectangle.center().y - self.icon_size * 0.5,
+            );
 
-        user_interface
-            .painter()
-            .rect_filled(dropdown_background_rectangle, CornerRadius::same(self.corner_radius), theme.background_control);
+            user_interface
+                .painter()
+                .rect_filled(dropdown_background_rectangle, CornerRadius::same(self.corner_radius), theme.background_control);
 
-        // State overlay (hover/press).
-        StateLayer {
-            bounds_min: dropdown_background_rectangle.min,
-            bounds_max: dropdown_background_rectangle.max,
-            enabled: true,
-            pressed: button_response.is_pointer_button_down_on(),
-            has_hover: button_response.hovered(),
-            has_focus: button_response.has_focus(),
-            corner_radius: CornerRadius::same(self.corner_radius),
-            border_width: self.border_width,
-            hover_color: theme.hover_tint,
-            pressed_color: theme.pressed_tint,
-            border_color: theme.submenu_border,
-            border_color_focused: theme.focused_border,
-        }
-        .ui(user_interface);
+            StateLayer {
+                bounds_min: dropdown_background_rectangle.min,
+                bounds_max: dropdown_background_rectangle.max,
+                enabled: true,
+                pressed: button_response.is_pointer_button_down_on(),
+                has_hover: button_response.hovered(),
+                has_focus: button_response.has_focus(),
+                corner_radius: CornerRadius::same(self.corner_radius),
+                border_width: self.border_width,
+                hover_color: theme.hover_tint,
+                pressed_color: theme.pressed_tint,
+                border_color: theme.submenu_border,
+                border_color_focused: theme.focused_border,
+            }
+            .ui(user_interface);
+
+            user_interface.painter().image(
+                display_format_icon.id(),
+                Rect::from_min_size(display_format_icon_position, icon_size_vec),
+                Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
+                Color32::WHITE,
+            );
+
+            Some(button_response)
+        } else {
+            None
+        };
 
         // Define editable region (between left label and dropdown divider).
         let text_edit_rectangle = Rect::from_min_max(
@@ -242,6 +403,7 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
                 .max_rect(text_edit_rectangle_inner)
                 .layout(Layout::right_to_left(Align::Center)),
         );
+        text_edit_user_interface.set_clip_rect(Self::resolve_text_edit_clip_rect(user_interface.clip_rect(), text_edit_rectangle_inner));
 
         let font_id = if text_value.len() > 0 {
             theme.font_library.font_ubuntu_mono_bold.font_normal.clone()
@@ -249,16 +411,31 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
             theme.font_library.font_noto_sans.font_normal.clone()
         };
         let text_edit_id = Id::new(format!("{}_text_edit", self.id));
-        let text_edit_response = text_edit_user_interface.add(
-            TextEdit::singleline(&mut text_value)
-                .id(text_edit_id)
-                .vertical_align(eframe::egui::Align::Center)
-                .font(font_id.clone())
-                .text_color(text_color)
-                .hint_text(self.preview_text)
-                .interactive(!self.is_read_only)
-                .frame(false),
-        );
+        let text_edit_response = if self.is_multiline {
+            text_edit_user_interface.add(
+                TextEdit::multiline(&mut text_value)
+                    .id(text_edit_id)
+                    .font(font_id.clone())
+                    .text_color(text_color)
+                    .hint_text(self.preview_text)
+                    .interactive(!self.is_read_only)
+                    .desired_rows(self.multiline_rows)
+                    .desired_width(text_edit_rectangle_inner.width())
+                    .frame(false),
+            )
+        } else {
+            text_edit_user_interface.add(
+                TextEdit::singleline(&mut text_value)
+                    .id(text_edit_id)
+                    .vertical_align(eframe::egui::Align::Center)
+                    .font(font_id.clone())
+                    .text_color(text_color)
+                    .hint_text(self.preview_text)
+                    .interactive(!self.is_read_only)
+                    .desired_width(text_edit_rectangle_inner.width())
+                    .frame(false),
+            )
+        };
 
         if self.border_width > 0.0 {
             user_interface.painter().rect_stroke(
@@ -269,21 +446,17 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
             );
         }
 
-        // Draw drop-down arrow.
-        user_interface.painter().image(
-            down_arrow.id(),
-            Rect::from_min_size(right_arrow_pos, icon_size_vec),
-            Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
-            Color32::WHITE,
-        );
-
         // If the user changed text, update the display value
         if text_edit_response.changed() {
             self.anonymous_value_string
                 .set_anonymous_value_string(text_value);
         }
 
-        let commit_on_enter_pressed = text_edit_response.lost_focus() && user_interface.input(|input_state| input_state.key_pressed(Key::Enter));
+        let commit_on_enter_pressed = if self.is_multiline {
+            text_edit_response.has_focus() && user_interface.input(|input_state| input_state.modifiers.ctrl && input_state.key_pressed(Key::Enter))
+        } else {
+            text_edit_response.lost_focus() && user_interface.input(|input_state| input_state.key_pressed(Key::Enter))
+        };
 
         if commit_on_enter_pressed {
             user_interface.memory_mut(|memory| memory.data.insert_temp(Self::commit_on_enter_id(self.id), true));
@@ -293,11 +466,16 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
         let popup_id = Id::new(("data_value_box_popup", self.id, user_interface.id().value()));
         let mut open = user_interface.memory(|memory| memory.data.get_temp::<bool>(popup_id).unwrap_or(false));
 
-        if button_response.clicked() && (!self.is_read_only || self.allow_read_only_interpretation) {
+        if button_response
+            .as_ref()
+            .map(|button_response| button_response.clicked())
+            .unwrap_or(false)
+            && (!self.is_read_only || self.allow_read_only_interpretation)
+        {
             open = !open;
         }
 
-        if self.is_read_only && !self.allow_read_only_interpretation {
+        if !self.show_format_button || (self.is_read_only && !self.allow_read_only_interpretation) {
             open = false;
         }
 
@@ -332,7 +510,14 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
                         popup_user_interface.spacing_mut().item_spacing = Vec2::ZERO;
                         popup_user_interface.set_min_width(Self::MIN_POPUP_WIDTH);
                         popup_user_interface.with_layout(Layout::top_down(Align::Min), |inner_user_interface| {
-                            let anonymous_value_string_formats = symbol_registry.get_supported_anonymous_value_string_formats(&self.validation_data_type);
+                            let anonymous_value_string_formats = self
+                                .allowed_anonymous_value_string_formats
+                                .clone()
+                                .unwrap_or_else(|| {
+                                    self.app_context
+                                        .engine_unprivileged_state
+                                        .get_supported_anonymous_value_string_formats(&self.validation_data_type)
+                                });
 
                             for anonymous_value_string_format in &anonymous_value_string_formats {
                                 let target_display_value = self.display_values.and_then(|display_values| {

@@ -1,171 +1,352 @@
-use crate::scanners::scan_execution_context::ScanExecutionContext;
-use crate::scanners::value_collector_task::ValueCollector;
-use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
+use crate::pointer_scans::pointer_scan_level_collector::PointerScanLevelCollector;
+use crate::pointer_scans::pointer_scan_results_builder::PointerScanResultsBuilder;
+use squalr_engine_api::structures::memory::normalized_module::NormalizedModule;
+use squalr_engine_api::structures::pointer_scans::pointer_scan_address_space::PointerScanAddressSpace;
+use squalr_engine_api::structures::pointer_scans::pointer_scan_results::PointerScanResults;
+use squalr_engine_api::structures::pointer_scans::pointer_scan_target_descriptor::PointerScanTargetDescriptor;
 use squalr_engine_api::structures::scanning::plans::pointer_scan::pointer_scan_parameters::PointerScanParameters;
 use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
 use std::sync::{Arc, RwLock};
 
 pub struct PointerScanExecutor;
 
-/// Implementation of a task that performs a scan against the provided snapshot. Does not collect new values.
-/// Caller is assumed to have already done this if desired.
+/// Performs an initial pointer scan against already-collected snapshot values.
 impl PointerScanExecutor {
     pub fn execute_scan(
-        process_info: OpenedProcessInfo,
         statics_snapshot: Arc<RwLock<Snapshot>>,
         heaps_snapshot: Arc<RwLock<Snapshot>>,
+        pointer_scan_session_id: u64,
         pointer_scan_parameters: PointerScanParameters,
+        target_descriptor: PointerScanTargetDescriptor,
+        target_addresses: Vec<u64>,
+        address_space: PointerScanAddressSpace,
+        modules: &[NormalizedModule],
         with_logging: bool,
-        scan_execution_context: &ScanExecutionContext,
-    ) {
-        Self::scan_task(
-            process_info,
+    ) -> PointerScanResults {
+        Self::build_session_from_collected_values(
             statics_snapshot,
             heaps_snapshot,
+            pointer_scan_session_id,
             pointer_scan_parameters,
+            target_descriptor,
+            target_addresses,
+            address_space,
+            modules,
             with_logging,
-            scan_execution_context,
-        );
+        )
     }
 
-    fn scan_task(
-        process_info: OpenedProcessInfo,
+    fn build_session_from_collected_values(
         statics_snapshot: Arc<RwLock<Snapshot>>,
         heaps_snapshot: Arc<RwLock<Snapshot>>,
-        _pointer_scan_parameters: PointerScanParameters,
+        pointer_scan_session_id: u64,
+        pointer_scan_parameters: PointerScanParameters,
+        target_descriptor: PointerScanTargetDescriptor,
+        target_addresses: Vec<u64>,
+        address_space: PointerScanAddressSpace,
+        modules: &[NormalizedModule],
         with_logging: bool,
-        scan_execution_context: &ScanExecutionContext,
-    ) {
-        if with_logging {
-            log::info!("Performing pointer scan...");
+    ) -> PointerScanResults {
+        let empty_target_descriptor = target_descriptor.clone();
+        let empty_target_addresses = target_addresses.clone();
+
+        Self::with_pointer_scan_snapshots(
+            statics_snapshot,
+            heaps_snapshot,
+            &pointer_scan_parameters,
+            pointer_scan_session_id,
+            &empty_target_descriptor,
+            &empty_target_addresses,
+            address_space,
+            modules,
+            with_logging,
+            |snapshots| {
+                let discovered_pointer_levels =
+                    PointerScanLevelCollector::discover_pointer_levels(snapshots, &target_addresses, &pointer_scan_parameters, modules, with_logging);
+
+                PointerScanResultsBuilder::build_results(
+                    pointer_scan_session_id,
+                    &pointer_scan_parameters,
+                    target_descriptor,
+                    target_addresses,
+                    address_space,
+                    modules,
+                    &discovered_pointer_levels,
+                    with_logging,
+                )
+            },
+        )
+    }
+
+    fn with_pointer_scan_snapshots<BuildSession>(
+        statics_snapshot: Arc<RwLock<Snapshot>>,
+        heaps_snapshot: Arc<RwLock<Snapshot>>,
+        pointer_scan_parameters: &PointerScanParameters,
+        pointer_scan_session_id: u64,
+        target_descriptor: &PointerScanTargetDescriptor,
+        target_addresses: &[u64],
+        address_space: PointerScanAddressSpace,
+        modules: &[NormalizedModule],
+        with_logging: bool,
+        build_session: BuildSession,
+    ) -> PointerScanResults
+    where
+        BuildSession: FnOnce(&[&Snapshot]) -> PointerScanResults,
+    {
+        if Arc::ptr_eq(&statics_snapshot, &heaps_snapshot) {
+            let snapshot_guard = match statics_snapshot.read() {
+                Ok(snapshot_guard) => snapshot_guard,
+                Err(error) => {
+                    if with_logging {
+                        log::error!("Failed to acquire read lock on pointer scan snapshot: {}", error);
+                    }
+
+                    return PointerScanResultsBuilder::create_empty_results(
+                        pointer_scan_session_id,
+                        pointer_scan_parameters,
+                        target_descriptor.clone(),
+                        target_addresses.to_vec(),
+                        address_space,
+                    );
+                }
+            };
+            let snapshots = [&*snapshot_guard];
+
+            return build_session(&snapshots);
         }
 
-        // Populate the latest static and heap values from process memory.
-        ValueCollector::collect_values(process_info.clone(), statics_snapshot.clone(), with_logging, scan_execution_context);
-        ValueCollector::collect_values(process_info.clone(), heaps_snapshot.clone(), with_logging, scan_execution_context);
+        let statics_snapshot_guard = match statics_snapshot.read() {
+            Ok(statics_snapshot_guard) => statics_snapshot_guard,
+            Err(error) => {
+                if with_logging {
+                    log::error!("Failed to acquire read lock on static pointer scan snapshot: {}", error);
+                }
 
-        // Find valid pointers. JIRA: Binary search kernel?
-        /*
-        let pointer_scan_minimum_address = ElementScanValue::new(DataTypeU64::get_value_from_primitive(0), MemoryAlignment::Alignment4);
-        let element_scan_parameters = ElementScanParameters::new(
-            Vec::new(),
-            ScanCompareType::Immediate(ScanCompareTypeImmediate::GreaterThan),
-            vec![pointer_scan_minimum_address],
-            FloatingPointTolerance::default(),
-            MemoryReadMode::Skip,
-            pointer_scan_parameters.get_is_single_thread_scan(),
-            pointer_scan_parameters.get_debug_perform_validation_scan(),
+                return PointerScanResultsBuilder::create_empty_results(
+                    pointer_scan_session_id,
+                    pointer_scan_parameters,
+                    target_descriptor.clone(),
+                    target_addresses.to_vec(),
+                    address_space,
+                );
+            }
+        };
+        let heaps_snapshot_guard = match heaps_snapshot.read() {
+            Ok(heaps_snapshot_guard) => heaps_snapshot_guard,
+            Err(error) => {
+                if with_logging {
+                    log::error!("Failed to acquire read lock on heap pointer scan snapshot: {}", error);
+                }
+
+                return PointerScanResultsBuilder::create_empty_results(
+                    pointer_scan_session_id,
+                    pointer_scan_parameters,
+                    target_descriptor.clone(),
+                    target_addresses.to_vec(),
+                    address_space,
+                );
+            }
+        };
+        let snapshots = [&*statics_snapshot_guard, &*heaps_snapshot_guard];
+
+        if modules.is_empty() && with_logging {
+            log::debug!("Pointer scan is executing without any module metadata for static classification.");
+        }
+
+        build_session(&snapshots)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::PointerScanExecutor;
+    use squalr_engine_api::structures::memory::normalized_module::NormalizedModule;
+    use squalr_engine_api::structures::memory::normalized_region::NormalizedRegion;
+    use squalr_engine_api::structures::pointer_scans::pointer_scan_address_space::PointerScanAddressSpace;
+    use squalr_engine_api::structures::pointer_scans::pointer_scan_node_type::PointerScanNodeType;
+    use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
+    use squalr_engine_api::structures::pointer_scans::pointer_scan_target_descriptor::PointerScanTargetDescriptor;
+    use squalr_engine_api::structures::scanning::plans::pointer_scan::pointer_scan_parameters::PointerScanParameters;
+    use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
+    use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
+    use std::collections::HashMap;
+    use std::sync::{Arc, RwLock};
+
+    #[test]
+    fn execute_scan_builds_pointer_chains_and_classifies_static_nodes() {
+        let memory_map = build_pointer_scan_memory_map();
+        let snapshot = Arc::new(RwLock::new(build_pointer_scan_snapshot(&memory_map)));
+        let pointer_scan_parameters = PointerScanParameters::new(PointerScanPointerSize::Pointer64, 0x20, 3, true, false);
+        let mut pointer_scan_results = PointerScanExecutor::execute_scan(
+            snapshot.clone(),
+            snapshot,
+            41,
+            pointer_scan_parameters,
+            PointerScanTargetDescriptor::address(0x3010),
+            vec![0x3010],
+            PointerScanAddressSpace::EmulatorMemory,
+            &[NormalizedModule::new("game.exe", 0x1000, 0x100)],
+            false,
         );
-        ElementScanExecutorTask::start_task(
-            process_info.clone(),
-            statics_snapshot.clone(),
-            element_scan_rule_registry.clone(),
-            symbol_registry.clone(),
-            element_scan_parameters.clone(),
-            with_logging,
-        )
-        .wait_for_completion();
-        ElementScanExecutorTask::start_task(
-            process_info.clone(),
-            heaps_snapshot.clone(),
-            element_scan_rule_registry,
-            symbol_registry,
-            element_scan_parameters,
-            with_logging,
-        )
-        .wait_for_completion();
 
-        let mut statics_snapshot = match statics_snapshot.write() {
-            Ok(guard) => guard,
-            Err(error) => {
-                if with_logging {
-                    log::error!("Failed to acquire write lock on statics_snapshot: {}", error);
-                }
+        assert_eq!(pointer_scan_results.get_session_id(), 41);
+        assert_eq!(pointer_scan_results.get_root_node_count(), 2);
+        assert_eq!(pointer_scan_results.get_total_node_count(), 3);
+        assert_eq!(pointer_scan_results.get_total_static_node_count(), 2);
+        assert_eq!(pointer_scan_results.get_total_heap_node_count(), 1);
 
-                return;
-            }
-        };
-        /*
-        let mut heaps_snapshot = match heaps_snapshot.write() {
-            Ok(guard) => guard,
-            Err(error) => {
-                if with_logging {
-                    log::error!("Failed to acquire write lock on heaps_snapshot: {}", error);
-                }
+        let pointer_scan_levels = pointer_scan_results.get_pointer_scan_levels();
+        assert_eq!(pointer_scan_levels.len(), 2);
+        assert_eq!(pointer_scan_levels[0].get_depth(), 1);
+        assert_eq!(pointer_scan_levels[0].get_node_count(), 2);
+        assert_eq!(pointer_scan_levels[0].get_static_node_count(), 1);
+        assert_eq!(pointer_scan_levels[0].get_heap_node_count(), 1);
+        assert_eq!(pointer_scan_levels[1].get_depth(), 2);
+        assert_eq!(pointer_scan_levels[1].get_node_count(), 1);
+        assert_eq!(pointer_scan_levels[1].get_static_node_count(), 1);
+        assert_eq!(pointer_scan_levels[1].get_heap_node_count(), 0);
 
-                return;
-            }
-        };
-        */
+        let root_nodes = pointer_scan_results.get_expanded_nodes(None);
+        assert_eq!(root_nodes.len(), 2);
 
-        let start_time = Instant::now();
-        let processed_region_count = Arc::new(AtomicUsize::new(0));
-        let total_region_count = statics_snapshot.get_region_count();
-        let cancellation_token = trackable_task.get_cancellation_token();
-        let snapshot_regions = statics_snapshot.get_snapshot_regions_mut();
+        let static_chain_root = root_nodes
+            .iter()
+            .find(|pointer_scan_node| pointer_scan_node.get_pointer_address() == 0x1010)
+            .expect("Expected the rooted static pointer chain.");
+        let direct_static_root = root_nodes
+            .iter()
+            .find(|pointer_scan_node| pointer_scan_node.get_pointer_address() == 0x1030)
+            .expect("Expected the direct static pointer chain.");
 
-        // Create a function that processes every snapshot region, from which we will grab the existing snapshot filters (previous results) to perform our next scan.
-        let snapshot_iterator = |snapshot_region: &mut SnapshotRegion| {
-            if cancellation_token.load(Ordering::SeqCst) {
-                return;
-            }
+        assert_eq!(static_chain_root.get_pointer_scan_node_type(), PointerScanNodeType::Static);
+        assert_eq!(static_chain_root.get_depth(), 1);
+        assert_eq!(static_chain_root.get_module_name(), "game.exe");
+        assert_eq!(static_chain_root.get_module_offset(), 0x10);
+        assert_eq!(static_chain_root.get_resolved_target_address(), 0x1FF0);
+        assert_eq!(static_chain_root.get_pointer_offset(), 0);
+        assert!(static_chain_root.has_children());
 
-            /*
-            // Create a function to dispatch our element scan to the best scanner implementation for the current region.
-            let pointer_scan_dispatcher = |snapshot_region_filter_collection| {
-                PointerScanDispatcher::dispatch_scan(
-                    &pointer_scan_rule_registry,
-                    &symbol_registry,
-                    snapshot_region,
-                    snapshot_region_filter_collection,
-                    &pointer_scan_parameters,
-                )
-            };
+        let child_nodes = pointer_scan_results.get_expanded_nodes(Some(static_chain_root.get_node_id()));
+        assert_eq!(child_nodes.len(), 1);
+        assert_eq!(child_nodes[0].get_pointer_address(), 0x1010);
+        assert_eq!(child_nodes[0].get_pointer_scan_node_type(), PointerScanNodeType::Static);
+        assert_eq!(child_nodes[0].get_depth(), 2);
+        assert_eq!(child_nodes[0].get_resolved_target_address(), 0x2000);
+        assert_eq!(child_nodes[0].get_pointer_offset(), 0x10);
+        assert!(child_nodes[0].has_children());
 
-            // Again, select the parallel or sequential iterator to iterate over each data type in the scan. Generally there is only 1, but multi-type scans are supported.
-            let scan_results_collection = snapshot_region.get_scan_results().get_filter_collections();
-            let single_thread_scan = pointer_scan_parameters.get_is_single_thread_scan() || scan_results_collection.len() == 1;
-            let scan_results = SnapshotRegionScanResults::new(if single_thread_scan {
-                scan_results_collection
-                    .iter()
-                    .map(pointer_scan_dispatcher)
-                    .collect()
-            } else {
-                scan_results_collection
-                    .par_iter()
-                    .map(pointer_scan_dispatcher)
-                    .collect()
-            });
+        let grandchild_nodes = pointer_scan_results.get_expanded_nodes(Some(child_nodes[0].get_node_id()));
+        assert_eq!(grandchild_nodes.len(), 1);
+        assert_eq!(grandchild_nodes[0].get_pointer_address(), 0x2000);
+        assert_eq!(grandchild_nodes[0].get_pointer_scan_node_type(), PointerScanNodeType::Heap);
+        assert_eq!(grandchild_nodes[0].get_depth(), 3);
+        assert_eq!(grandchild_nodes[0].get_resolved_target_address(), 0x3010);
+        assert_eq!(grandchild_nodes[0].get_pointer_offset(), 0x10);
+        assert!(!grandchild_nodes[0].has_children());
 
-            snapshot_region.set_scan_results(scan_results);*/
+        assert_eq!(direct_static_root.get_pointer_scan_node_type(), PointerScanNodeType::Static);
+        assert_eq!(direct_static_root.get_depth(), 1);
+        assert_eq!(direct_static_root.get_module_name(), "game.exe");
+        assert_eq!(direct_static_root.get_module_offset(), 0x30);
+        assert_eq!(direct_static_root.get_resolved_target_address(), 0x3010);
+        assert_eq!(direct_static_root.get_pointer_offset(), -0x10);
+        assert!(!direct_static_root.has_children());
+    }
 
-            let processed = processed_region_count.fetch_add(1, Ordering::SeqCst);
+    #[test]
+    fn execute_scan_omits_terminal_heap_candidates() {
+        let memory_map = build_terminal_heap_pointer_scan_memory_map();
+        let snapshot = Arc::new(RwLock::new(build_terminal_heap_pointer_scan_snapshot(&memory_map)));
+        let pointer_scan_parameters = PointerScanParameters::new(PointerScanPointerSize::Pointer64, 0x20, 2, true, false);
+        let pointer_scan_results = PointerScanExecutor::execute_scan(
+            snapshot.clone(),
+            snapshot,
+            42,
+            pointer_scan_parameters,
+            PointerScanTargetDescriptor::address(0x3010),
+            vec![0x3010],
+            PointerScanAddressSpace::EmulatorMemory,
+            &[NormalizedModule::new("game.exe", 0x1000, 0x100)],
+            false,
+        );
 
-            // To reduce performance impact, only periodically send progress updates.
-            if processed % 32 == 0 {
-                let progress = (processed as f32 / total_region_count as f32) * 100.0;
-                trackable_task.set_progress(progress);
-            }
-        };
+        let pointer_scan_levels = pointer_scan_results.get_pointer_scan_levels();
 
-        // Select either the parallel or sequential iterator. Single-thread is not advised unless debugging.
-        let single_thread_scan = pointer_scan_parameters.get_is_single_thread_scan() || snapshot_regions.len() == 1;
-        if single_thread_scan {
-            snapshot_regions.iter_mut().for_each(snapshot_iterator);
-        } else {
-            snapshot_regions.par_iter_mut().for_each(snapshot_iterator);
-        };
+        assert_eq!(pointer_scan_levels.len(), 2);
+        assert_eq!(pointer_scan_levels[0].get_heap_node_count(), 1);
+        assert_eq!(pointer_scan_levels[1].get_static_node_count(), 1);
+        assert_eq!(pointer_scan_levels[1].get_heap_node_count(), 0);
+        assert_eq!(pointer_scan_results.get_total_heap_node_count(), 1);
+    }
 
-        statics_snapshot.discard_empty_regions();
+    fn build_pointer_scan_snapshot(memory_map: &HashMap<u64, u8>) -> Snapshot {
+        let mut snapshot = Snapshot::new();
 
-        if with_logging {
-            let byte_count = statics_snapshot.get_byte_count();
-            let duration = start_time.elapsed();
-            let total_duration = total_start_time.elapsed();
+        snapshot.set_snapshot_regions(vec![
+            build_snapshot_region(NormalizedRegion::new(0x1000, 0x40), memory_map),
+            build_snapshot_region(NormalizedRegion::new(0x2000, 0x40), memory_map),
+            build_snapshot_region(NormalizedRegion::new(0x3000, 0x40), memory_map),
+        ]);
 
-            log::info!("Results: {} bytes", Conversions::value_to_metric_size(byte_count));
-            log::info!("Scan complete in: {:?}", duration);
-            log::info!("Total scan time: {:?}", total_duration);
-        }*/
+        snapshot
+    }
+
+    fn build_terminal_heap_pointer_scan_snapshot(memory_map: &HashMap<u64, u8>) -> Snapshot {
+        let mut snapshot = Snapshot::new();
+
+        snapshot.set_snapshot_regions(vec![
+            build_snapshot_region(NormalizedRegion::new(0x1000, 0x40), memory_map),
+            build_snapshot_region(NormalizedRegion::new(0x2000, 0x40), memory_map),
+            build_snapshot_region(NormalizedRegion::new(0x4000, 0x40), memory_map),
+        ]);
+
+        snapshot
+    }
+
+    fn build_snapshot_region(
+        normalized_region: NormalizedRegion,
+        memory_map: &HashMap<u64, u8>,
+    ) -> SnapshotRegion {
+        let mut snapshot_region = SnapshotRegion::new(normalized_region.clone(), Vec::new());
+        snapshot_region.current_values = (0..normalized_region.get_region_size())
+            .map(|byte_offset| {
+                *memory_map
+                    .get(&normalized_region.get_base_address().saturating_add(byte_offset))
+                    .unwrap_or(&0)
+            })
+            .collect();
+
+        snapshot_region
+    }
+
+    fn build_pointer_scan_memory_map() -> HashMap<u64, u8> {
+        let mut memory_map = HashMap::new();
+
+        write_pointer_bytes(&mut memory_map, 0x1010, 0x1FF0_u64);
+        write_pointer_bytes(&mut memory_map, 0x1030, 0x3020_u64);
+        write_pointer_bytes(&mut memory_map, 0x2000, 0x3000_u64);
+
+        memory_map
+    }
+
+    fn build_terminal_heap_pointer_scan_memory_map() -> HashMap<u64, u8> {
+        let mut memory_map = HashMap::new();
+
+        write_pointer_bytes(&mut memory_map, 0x1030, 0x3020_u64);
+        write_pointer_bytes(&mut memory_map, 0x1020, 0x2000_u64);
+        write_pointer_bytes(&mut memory_map, 0x2000, 0x3000_u64);
+        write_pointer_bytes(&mut memory_map, 0x4000, 0x2000_u64);
+
+        memory_map
+    }
+
+    fn write_pointer_bytes(
+        memory_map: &mut HashMap<u64, u8>,
+        address: u64,
+        value: u64,
+    ) {
+        for (byte_index, byte_value) in value.to_le_bytes().iter().enumerate() {
+            memory_map.insert(address.saturating_add(byte_index as u64), *byte_value);
+        }
     }
 }

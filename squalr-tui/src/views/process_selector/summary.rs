@@ -2,7 +2,7 @@ use crate::views::process_selector::pane_state::ProcessSelectorPaneState;
 
 pub fn build_process_selector_summary_lines(process_selector_pane_state: &ProcessSelectorPaneState) -> Vec<String> {
     vec![
-        "[ACT] Enter/o open | / search | Up/Down move | Home/End jump | r refresh | w windowed/full | F1 Project | F4 Process.".to_string(),
+        "[ACT] Enter/o open | / search | Up/Down move | Home/End jump | r refresh | w windowed/full | F1 Project | F4 Process | F5 Plugins.".to_string(),
         format!(
             "[LIST] shown={} | total={} | windowed_only={} | loading={}.",
             process_selector_pane_state.process_list_entries.len(),

@@ -1,15 +1,16 @@
-use epaint::Pos2;
 use std::path::PathBuf;
 
 #[derive(Clone, PartialEq)]
 pub enum ProjectSelectorFrameAction {
     None,
-    ShowContextMenu(PathBuf, Pos2),
-    HideContextMenu(),
     SelectProject(PathBuf),
+    StartEditingProject(PathBuf, String),
+    CancelEditingProject(),
     CancelRenamingProject(),
     StartRenamingProject(PathBuf, String),
     CommitRename(PathBuf, String),
     OpenProject(PathBuf, String),
+    RequestDeleteConfirmation(PathBuf, String),
+    CancelDeleteConfirmation(),
     DeleteProject(PathBuf, String),
 }

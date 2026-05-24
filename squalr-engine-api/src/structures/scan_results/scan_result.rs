@@ -1,9 +1,10 @@
-use crate::registries::symbols::symbol_registry::SymbolRegistry;
 use crate::structures::data_types::built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8;
 use crate::structures::data_types::built_in_types::u64::data_type_u64::DataTypeU64;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
 use crate::structures::data_values::data_value::DataValue;
+use crate::structures::memory::address_display::{format_absolute_address, format_module_address};
+use crate::structures::memory::normalized_module::ModuleAddressDisplay;
 use crate::structures::scan_results::scan_result_base::ScanResultBase;
 use crate::structures::scan_results::scan_result_valued::ScanResultValued;
 use crate::structures::structs::valued_struct::ValuedStruct;
@@ -16,6 +17,8 @@ pub struct ScanResult {
     valued_result: ScanResultValued,
     module: String,
     module_offset: u64,
+    #[serde(default)]
+    module_address_display: ModuleAddressDisplay,
     recently_read_value: Option<DataValue>,
     recently_read_display_values: Vec<AnonymousValueString>,
     is_frozen: bool,
@@ -32,6 +35,7 @@ impl ScanResult {
         valued_result: ScanResultValued,
         module: String,
         module_offset: u64,
+        module_address_display: ModuleAddressDisplay,
         recently_read_value: Option<DataValue>,
         recently_read_display_values: Vec<AnonymousValueString>,
         is_frozen: bool,
@@ -40,6 +44,7 @@ impl ScanResult {
             valued_result,
             module,
             module_offset,
+            module_address_display,
             recently_read_value,
             recently_read_display_values,
             is_frozen,
@@ -108,6 +113,10 @@ impl ScanResult {
         self.module_offset
     }
 
+    pub fn get_module_address_display(&self) -> ModuleAddressDisplay {
+        self.module_address_display
+    }
+
     pub fn get_recently_read_value(&self) -> &Option<DataValue> {
         &self.recently_read_value
     }
@@ -137,18 +146,18 @@ impl ScanResult {
         &self,
         anonymous_value_string_format: AnonymousValueStringFormat,
     ) -> Option<AnonymousValueString> {
-        if let Some(display_value) = self.get_recently_read_display_value(anonymous_value_string_format) {
-            return Some(display_value.clone());
-        }
+        self.get_recently_read_display_value(anonymous_value_string_format)
+            .cloned()
+    }
 
-        let symbol_registry = SymbolRegistry::get_instance();
-        self.recently_read_value
-            .as_ref()
-            .and_then(|recently_read_value| {
-                symbol_registry
-                    .anonymize_value(recently_read_value, anonymous_value_string_format)
-                    .ok()
-            })
+    pub fn get_preferred_current_display_value(
+        &self,
+        anonymous_value_string_format: AnonymousValueStringFormat,
+    ) -> Option<&AnonymousValueString> {
+        self.get_recently_read_display_value(anonymous_value_string_format)
+            .or_else(|| self.get_current_display_value(anonymous_value_string_format))
+            .or_else(|| self.get_current_display_values().first())
+            .or_else(|| self.get_recently_read_display_values().first())
     }
 
     pub fn get_current_value(&self) -> &Option<DataValue> {
@@ -183,8 +192,26 @@ impl ScanResult {
             .get_previous_display_value(anonymous_value_string_format)
     }
 
+    pub fn get_preferred_previous_display_value(
+        &self,
+        anonymous_value_string_format: AnonymousValueStringFormat,
+    ) -> Option<&AnonymousValueString> {
+        self.get_previous_display_value(anonymous_value_string_format)
+            .or_else(|| self.get_previous_display_values().first())
+    }
+
     pub fn get_is_frozen(&self) -> bool {
         self.is_frozen
+    }
+
+    pub fn get_address_display_text(&self) -> String {
+        if !self.is_module() {
+            format_absolute_address(self.get_address())
+        } else if self.get_module_address_display() == ModuleAddressDisplay::AbsoluteAddress {
+            format_absolute_address(self.get_address())
+        } else {
+            format_module_address(self.get_module(), self.get_module_offset())
+        }
     }
 
     pub fn set_is_frozen_client_only(
@@ -221,6 +248,7 @@ mod tests {
     use crate::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
     use crate::structures::data_values::container_type::ContainerType;
     use crate::structures::data_values::data_value::DataValue;
+    use crate::structures::memory::normalized_module::ModuleAddressDisplay;
     use crate::structures::scan_results::scan_result_ref::ScanResultRef;
     use crate::structures::scan_results::scan_result_valued::ScanResultValued;
 
@@ -236,7 +264,15 @@ mod tests {
             ScanResultRef::new(1),
         );
 
-        ScanResult::new(scan_result_valued, String::from("module"), 0x20, None, Vec::new(), true)
+        ScanResult::new(
+            scan_result_valued,
+            String::from("module"),
+            0x20,
+            ModuleAddressDisplay::ModuleRelative,
+            None,
+            Vec::new(),
+            true,
+        )
     }
 
     #[test]
@@ -283,6 +319,7 @@ mod tests {
             scan_result_valued,
             String::from("module"),
             0x20,
+            ModuleAddressDisplay::ModuleRelative,
             Some(DataTypeU8::get_value_from_primitive(25)),
             Vec::new(),
             false,
@@ -300,7 +337,7 @@ mod tests {
     }
 
     #[test]
-    fn get_recently_read_display_value_resolved_uses_recently_read_value_when_format_missing() {
+    fn get_recently_read_display_value_resolved_requires_materialized_display_value() {
         let scan_result = ScanResult::new(
             ScanResultValued::new(
                 0x1000,
@@ -314,6 +351,7 @@ mod tests {
             ),
             String::new(),
             0,
+            ModuleAddressDisplay::ModuleRelative,
             Some(DataTypeU8::get_value_from_primitive(33)),
             Vec::new(),
             false,
@@ -323,7 +361,7 @@ mod tests {
             .get_recently_read_display_value_resolved(AnonymousValueStringFormat::Decimal)
             .map(|display_value| display_value.get_anonymous_value_string().to_string());
 
-        assert_eq!(resolved_display_value, Some("33".to_string()));
+        assert_eq!(resolved_display_value, None);
     }
 
     #[test]
@@ -345,6 +383,7 @@ mod tests {
             ),
             String::new(),
             0,
+            ModuleAddressDisplay::ModuleRelative,
             None,
             Vec::new(),
             false,
@@ -355,5 +394,117 @@ mod tests {
                 .get_recently_read_display_value_resolved(AnonymousValueStringFormat::Decimal)
                 .is_none()
         );
+    }
+
+    #[test]
+    fn get_preferred_current_display_value_falls_back_to_current_scan_display_values() {
+        let scan_result = ScanResult::new(
+            ScanResultValued::new(
+                0x1000,
+                DataTypeRef::new("i_x86"),
+                String::new(),
+                Some(DataTypeU8::get_value_from_primitive(0xB8)),
+                vec![AnonymousValueString::new(
+                    "mov eax, 0".to_string(),
+                    AnonymousValueStringFormat::String,
+                    ContainerType::None,
+                )],
+                None,
+                Vec::new(),
+                ScanResultRef::new(1),
+            ),
+            String::new(),
+            0,
+            ModuleAddressDisplay::ModuleRelative,
+            None,
+            Vec::new(),
+            false,
+        );
+
+        let preferred_display_value = scan_result
+            .get_preferred_current_display_value(AnonymousValueStringFormat::String)
+            .map(|display_value| display_value.get_anonymous_value_string().to_string());
+
+        assert_eq!(preferred_display_value, Some("mov eax, 0".to_string()));
+    }
+
+    #[test]
+    fn get_preferred_previous_display_value_falls_back_to_first_previous_display_value() {
+        let scan_result = ScanResult::new(
+            ScanResultValued::new(
+                0x1000,
+                DataTypeRef::new("i_x86"),
+                String::new(),
+                None,
+                Vec::new(),
+                None,
+                vec![AnonymousValueString::new(
+                    "mov eax, 0".to_string(),
+                    AnonymousValueStringFormat::String,
+                    ContainerType::None,
+                )],
+                ScanResultRef::new(1),
+            ),
+            String::new(),
+            0,
+            ModuleAddressDisplay::ModuleRelative,
+            None,
+            Vec::new(),
+            false,
+        );
+
+        let preferred_display_value = scan_result
+            .get_preferred_previous_display_value(AnonymousValueStringFormat::Decimal)
+            .map(|display_value| display_value.get_anonymous_value_string().to_string());
+
+        assert_eq!(preferred_display_value, Some("mov eax, 0".to_string()));
+    }
+
+    #[test]
+    fn get_address_display_text_uses_absolute_addresses_for_absolute_modules() {
+        let scan_result = ScanResult::new(
+            ScanResultValued::new(
+                0x8000_1234,
+                DataTypeRef::new("u8"),
+                String::new(),
+                None,
+                Vec::new(),
+                None,
+                Vec::new(),
+                ScanResultRef::new(1),
+            ),
+            String::from("gc_wii"),
+            0x1234,
+            ModuleAddressDisplay::AbsoluteAddress,
+            None,
+            Vec::new(),
+            false,
+        );
+
+        assert_eq!(scan_result.get_address_display_text(), "80001234");
+    }
+
+    #[test]
+    fn get_address_display_text_uses_module_relative_text_for_relative_modules() {
+        let scan_result = ScanResult::new(
+            ScanResultValued::new(
+                0xA004_0020,
+                DataTypeRef::new("u8"),
+                String::new(),
+                None,
+                Vec::new(),
+                None,
+                Vec::new(),
+                ScanResultRef::new(1),
+            ),
+            String::from("gba_im_1"),
+            0x20,
+            ModuleAddressDisplay::ModuleRelative,
+            None,
+            Vec::new(),
+            false,
+        );
+
+        assert_eq!(scan_result.get_address_display_text(), "gba_im_1+0x20");
     }
 }

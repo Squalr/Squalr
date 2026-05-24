@@ -1,30 +1,85 @@
 use crate::logging::log_dispatcher::{LogDispatcher, LogDispatcherOptions};
+use crate::plugins::plugin_registry::PluginRegistry;
+use crate::projects::project_manager::ProjectManager;
+use crate::registries::privileged_registry_cache::PrivilegedRegistryCache;
+use crate::virtual_snapshots::{
+    virtual_snapshot::VirtualSnapshot, virtual_snapshot_query::VirtualSnapshotQuery, virtual_snapshot_resolver::materialize_virtual_snapshot_queries,
+};
+use crossbeam_channel::bounded;
+use squalr_engine_api::commands::command_invocation::{
+    CommandInvocation, CommandInvocationDecision, CommandInvocationOutcome, CommandInvocationSource, CommandResponseDecision, EngineCommand,
+    EngineCommandResponse,
+};
+use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRequest;
+use squalr_engine_api::commands::registry::get_metadata::registry_get_metadata_request::RegistryGetMetadataRequest;
+use squalr_engine_api::commands::unprivileged_command::UnprivilegedCommand;
+use squalr_engine_api::commands::unprivileged_command_response::UnprivilegedCommandResponse;
 use squalr_engine_api::commands::{privileged_command::PrivilegedCommand, privileged_command_response::PrivilegedCommandResponse};
 use squalr_engine_api::engine::engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings;
+use squalr_engine_api::engine::engine_event_envelope::EngineEventEnvelope;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::events::engine_event::{EngineEvent, EngineEventRequest};
+use squalr_engine_api::events::plugins::plugins_event::PluginsEvent;
 use squalr_engine_api::events::process::process_event::ProcessEvent;
 use squalr_engine_api::events::project::project_event::ProjectEvent;
 use squalr_engine_api::events::project_items::project_items_event::ProjectItemsEvent;
+use squalr_engine_api::events::registry::registry_event::RegistryEvent;
 use squalr_engine_api::events::scan_results::scan_results_event::ScanResultsEvent;
 use squalr_engine_api::events::trackable_task::trackable_task_event::TrackableTaskEvent;
-use squalr_engine_api::structures::projects::project_manager::ProjectManager;
+use squalr_engine_api::registries::symbols::symbol_registry_error::SymbolRegistryError;
+use squalr_engine_api::registries::symbols::{data_type_descriptor::DataTypeDescriptor, privileged_registry_catalog::PrivilegedRegistryCatalog};
+use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
+use squalr_engine_api::structures::data_values::{
+    anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, data_value::DataValue,
+};
+use squalr_engine_api::structures::projects::project_context::ProjectContext;
+use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
+use squalr_engine_api::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
 use std::{
     any::{Any, TypeId},
     collections::HashMap,
-    sync::{Arc, RwLock},
+    sync::{
+        Arc, RwLock,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::{Duration, Instant},
 };
+
+type EngineEventListenerMap = HashMap<TypeId, Vec<Box<dyn Fn(&dyn Any) + Send + Sync>>>;
+type CommandInvocationMiddleware = Box<dyn Fn(&CommandInvocation) -> CommandInvocationDecision + Send + Sync>;
+type CommandResponseMiddleware = Box<dyn Fn(&CommandInvocationOutcome) -> CommandResponseDecision + Send + Sync>;
+type CommandResponseListener = Box<dyn Fn(&CommandInvocationOutcome) + Send + Sync>;
+
+enum CommandDispatchPlan {
+    Dispatch(CommandInvocation),
+    Respond(CommandInvocation, EngineCommandResponse),
+    Reject(CommandInvocation, String),
+}
 
 /// Exposes the ability to send commands to the engine and handle events from the engine.
 pub struct EngineUnprivilegedState {
     /// The bindings that allow sending commands to the engine.
     engine_api_unprivileged_bindings: Arc<RwLock<dyn EngineApiUnprivilegedBindings>>,
+    /// Monotonically increasing identifier for command invocations issued through this session.
+    next_command_invocation_id: AtomicU64,
+    /// Middleware that can inspect, replace, reject, or answer command invocations before dispatch.
+    command_invocation_middleware: Arc<RwLock<Vec<CommandInvocationMiddleware>>>,
+    /// Middleware that can inspect, replace, or suppress command responses before observers and callbacks see them.
+    command_response_middleware: Arc<RwLock<Vec<CommandResponseMiddleware>>>,
+    /// Listeners that observe all command invocation outcomes after middleware has accepted them.
+    command_response_listeners: Arc<RwLock<Vec<CommandResponseListener>>>,
     /// All event listeners that are listening for particular engine events.
-    event_listeners: Arc<RwLock<HashMap<TypeId, Vec<Box<dyn Fn(&dyn Any) + Send + Sync>>>>>,
+    event_listeners: Arc<RwLock<EngineEventListenerMap>>,
     /// Routes logs to the file system as well as optional subscribers to log events.
     file_system_logger: Arc<LogDispatcher>,
     /// Project manager for organizing and manipulating projects.
     project_manager: Arc<ProjectManager>,
+    /// Built-in plugin registry used by client-side extension points.
+    plugin_registry: Arc<PluginRegistry>,
+    /// Cached privileged-owned registry catalog synchronized from the engine.
+    privileged_registry_cache: Arc<RwLock<PrivilegedRegistryCache>>,
+    /// Session-owned virtual snapshots used by interactive views.
+    virtual_snapshots: Arc<RwLock<HashMap<String, VirtualSnapshot>>>,
 }
 
 #[derive(Clone, Copy)]
@@ -43,8 +98,87 @@ impl EngineExecutionContext for EngineUnprivilegedState {
         &self.engine_api_unprivileged_bindings
     }
 
-    fn get_project_manager(&self) -> &Arc<ProjectManager> {
-        &self.project_manager
+    fn dispatch_privileged_command(
+        &self,
+        privileged_command: PrivilegedCommand,
+        callback: Box<dyn FnOnce(PrivilegedCommandResponse) + Send + Sync + 'static>,
+    ) -> bool {
+        self.dispatch_privileged_command_invocation(CommandInvocationSource::ApiRequest, privileged_command, callback)
+    }
+
+    fn dispatch_unprivileged_command(
+        &self,
+        unprivileged_command: UnprivilegedCommand,
+        execution_context: &Arc<dyn EngineExecutionContext>,
+        callback: Box<dyn FnOnce(UnprivilegedCommandResponse) + Send + Sync + 'static>,
+    ) -> bool {
+        self.dispatch_unprivileged_command_invocation(CommandInvocationSource::ApiRequest, unprivileged_command, execution_context, callback)
+    }
+
+    fn get_project_manager(&self) -> Arc<dyn ProjectContext> {
+        self.project_manager.clone()
+    }
+
+    fn get_registered_data_type_refs(&self) -> Vec<DataTypeRef> {
+        EngineUnprivilegedState::get_registered_data_type_refs(self)
+    }
+
+    fn get_default_anonymous_value_string_format(
+        &self,
+        data_type_ref: &DataTypeRef,
+    ) -> AnonymousValueStringFormat {
+        EngineUnprivilegedState::get_default_anonymous_value_string_format(self, data_type_ref)
+    }
+
+    fn anonymize_value(
+        &self,
+        data_value: &DataValue,
+        anonymous_value_string_format: AnonymousValueStringFormat,
+    ) -> Result<AnonymousValueString, SymbolRegistryError> {
+        EngineUnprivilegedState::anonymize_value(self, data_value, anonymous_value_string_format)
+    }
+
+    fn deanonymize_value_string(
+        &self,
+        data_type_ref: &DataTypeRef,
+        anonymous_value_string: &AnonymousValueString,
+    ) -> Result<DataValue, SymbolRegistryError> {
+        EngineUnprivilegedState::deanonymize_value_string(self, data_type_ref, anonymous_value_string)
+    }
+
+    fn get_default_value(
+        &self,
+        data_type_ref: &DataTypeRef,
+    ) -> Option<DataValue> {
+        self.read_privileged_registry_cache(|privileged_registry_cache| privileged_registry_cache.get_default_value(data_type_ref))
+            .unwrap_or_default()
+    }
+
+    fn get_data_type_descriptor(
+        &self,
+        data_type_ref: &DataTypeRef,
+    ) -> Option<DataTypeDescriptor> {
+        EngineUnprivilegedState::get_data_type_descriptor(self, data_type_ref)
+    }
+
+    fn get_unit_size_in_bytes(
+        &self,
+        data_type_ref: &DataTypeRef,
+    ) -> u64 {
+        EngineUnprivilegedState::get_unit_size_in_bytes(self, data_type_ref)
+    }
+
+    fn resolve_struct_layout_definition(
+        &self,
+        symbolic_struct_ref_id: &str,
+    ) -> Option<squalr_engine_api::structures::structs::symbolic_struct_definition::SymbolicStructDefinition> {
+        self.resolve_local_project_struct_layout_definition(symbolic_struct_ref_id)
+            .or_else(|| {
+                self.read_privileged_registry_cache(|privileged_registry_cache| {
+                    privileged_registry_cache.resolve_struct_layout_definition(symbolic_struct_ref_id)
+                })
+                .unwrap_or_default()
+            })
     }
 }
 
@@ -58,24 +192,312 @@ impl EngineUnprivilegedState {
         options: EngineUnprivilegedStateOptions,
     ) -> Arc<Self> {
         let project_manager = Arc::new(ProjectManager::new());
+        let plugin_registry = Arc::new(PluginRegistry::new());
 
-        Arc::new(EngineUnprivilegedState {
+        let engine_unprivileged_state = Arc::new(EngineUnprivilegedState {
             engine_api_unprivileged_bindings,
+            next_command_invocation_id: AtomicU64::new(0),
+            command_invocation_middleware: Arc::new(RwLock::new(Vec::new())),
+            command_response_middleware: Arc::new(RwLock::new(Vec::new())),
+            command_response_listeners: Arc::new(RwLock::new(Vec::new())),
             event_listeners: Arc::new(RwLock::new(HashMap::new())),
             file_system_logger: Arc::new(LogDispatcher::new_with_options(LogDispatcherOptions {
                 enable_console_output: options.enable_console_logging,
             })),
             project_manager,
-        })
+            plugin_registry,
+            privileged_registry_cache: Arc::new(RwLock::new(PrivilegedRegistryCache::default())),
+            virtual_snapshots: Arc::new(RwLock::new(HashMap::new())),
+        });
+
+        engine_unprivileged_state.install_project_event_emitter();
+
+        engine_unprivileged_state
     }
 
-    pub fn initialize(&self) {
+    pub fn initialize(self: &Arc<Self>) {
         self.start_event_dispatcher();
+        self.refresh_privileged_registry_catalog();
     }
 
     /// Gets the file system logger that routes log events to the log file.
     pub fn get_logger(&self) -> &Arc<LogDispatcher> {
         &self.file_system_logger
+    }
+
+    pub fn get_plugin_registry(&self) -> Arc<PluginRegistry> {
+        self.plugin_registry.clone()
+    }
+
+    pub fn get_privileged_registry_generation(&self) -> u64 {
+        self.read_privileged_registry_cache(|privileged_registry_cache| privileged_registry_cache.get_generation())
+            .unwrap_or_default()
+    }
+
+    pub fn get_privileged_registry_catalog(&self) -> Option<PrivilegedRegistryCatalog> {
+        self.read_privileged_registry_cache(|privileged_registry_cache| privileged_registry_cache.get_registry_catalog().cloned())
+            .flatten()
+    }
+
+    pub fn get_registered_data_type_refs(&self) -> Vec<DataTypeRef> {
+        self.read_privileged_registry_cache(|privileged_registry_cache| privileged_registry_cache.get_registered_data_type_refs())
+            .unwrap_or_default()
+    }
+
+    pub fn is_registered_data_type_ref(
+        &self,
+        data_type_ref: &DataTypeRef,
+    ) -> bool {
+        self.read_privileged_registry_cache(|privileged_registry_cache| privileged_registry_cache.is_registered_data_type_ref(data_type_ref))
+            .unwrap_or(false)
+    }
+
+    pub fn get_default_anonymous_value_string_format(
+        &self,
+        data_type_ref: &DataTypeRef,
+    ) -> AnonymousValueStringFormat {
+        self.read_privileged_registry_cache(|privileged_registry_cache| privileged_registry_cache.get_default_anonymous_value_string_format(data_type_ref))
+            .unwrap_or_default()
+    }
+
+    pub fn get_supported_anonymous_value_string_formats(
+        &self,
+        data_type_ref: &DataTypeRef,
+    ) -> Vec<AnonymousValueStringFormat> {
+        self.read_privileged_registry_cache(|privileged_registry_cache| privileged_registry_cache.get_supported_anonymous_value_string_formats(data_type_ref))
+            .unwrap_or_default()
+    }
+
+    pub fn resolve_supported_anonymous_value_string_format(
+        &self,
+        data_type_ref: &DataTypeRef,
+        preferred_format: AnonymousValueStringFormat,
+    ) -> AnonymousValueStringFormat {
+        let supported_formats = self.get_supported_anonymous_value_string_formats(data_type_ref);
+
+        if supported_formats.is_empty() || supported_formats.contains(&preferred_format) {
+            return preferred_format;
+        }
+
+        let default_format = self.get_default_anonymous_value_string_format(data_type_ref);
+
+        if supported_formats.contains(&default_format) {
+            return default_format;
+        }
+
+        supported_formats.first().copied().unwrap_or(preferred_format)
+    }
+
+    pub fn normalize_anonymous_value_string_format(
+        &self,
+        data_type_ref: &DataTypeRef,
+        anonymous_value_string: &mut AnonymousValueString,
+    ) -> bool {
+        let resolved_format = self.resolve_supported_anonymous_value_string_format(data_type_ref, anonymous_value_string.get_anonymous_value_string_format());
+
+        if resolved_format == anonymous_value_string.get_anonymous_value_string_format() {
+            return false;
+        }
+
+        anonymous_value_string.set_anonymous_value_string_format(resolved_format);
+
+        true
+    }
+
+    pub fn validate_value_string(
+        &self,
+        data_type_ref: &DataTypeRef,
+        anonymous_value_string: &AnonymousValueString,
+    ) -> bool {
+        self.read_privileged_registry_cache(|privileged_registry_cache| privileged_registry_cache.validate_value_string(data_type_ref, anonymous_value_string))
+            .unwrap_or(false)
+    }
+
+    pub fn validate_scan_constraint(
+        &self,
+        data_type_ref: &DataTypeRef,
+        scan_compare_type: ScanCompareType,
+        anonymous_value_string: &AnonymousValueString,
+    ) -> bool {
+        self.read_privileged_registry_cache(|privileged_registry_cache| {
+            privileged_registry_cache.validate_scan_constraint(data_type_ref, scan_compare_type, anonymous_value_string)
+        })
+        .unwrap_or(false)
+    }
+
+    pub fn validate_scan_constraint_with_hex_pattern_matching(
+        &self,
+        data_type_ref: &DataTypeRef,
+        scan_compare_type: ScanCompareType,
+        anonymous_value_string: &AnonymousValueString,
+        use_hex_pattern_matching: bool,
+    ) -> bool {
+        self.read_privileged_registry_cache(|privileged_registry_cache| {
+            privileged_registry_cache.validate_scan_constraint_with_hex_pattern_matching(
+                data_type_ref,
+                scan_compare_type,
+                anonymous_value_string,
+                use_hex_pattern_matching,
+            )
+        })
+        .unwrap_or(false)
+    }
+
+    pub fn deanonymize_value_string(
+        &self,
+        data_type_ref: &DataTypeRef,
+        anonymous_value_string: &AnonymousValueString,
+    ) -> Result<DataValue, SymbolRegistryError> {
+        self.read_privileged_registry_cache(|privileged_registry_cache| {
+            privileged_registry_cache.deanonymize_value_string(data_type_ref, anonymous_value_string)
+        })
+        .unwrap_or_else(|| {
+            Err(SymbolRegistryError::data_type_not_registered(
+                "deanonymize value string",
+                data_type_ref.get_data_type_id(),
+            ))
+        })
+    }
+
+    pub fn anonymize_value(
+        &self,
+        data_value: &DataValue,
+        anonymous_value_string_format: AnonymousValueStringFormat,
+    ) -> Result<AnonymousValueString, SymbolRegistryError> {
+        self.read_privileged_registry_cache(|privileged_registry_cache| privileged_registry_cache.anonymize_value(data_value, anonymous_value_string_format))
+            .unwrap_or_else(|| Err(SymbolRegistryError::data_type_not_registered("anonymize value", data_value.get_data_type_id())))
+    }
+
+    pub fn anonymize_value_to_supported_formats(
+        &self,
+        data_value: &DataValue,
+    ) -> Result<Vec<AnonymousValueString>, SymbolRegistryError> {
+        self.read_privileged_registry_cache(|privileged_registry_cache| privileged_registry_cache.anonymize_value_to_supported_formats(data_value))
+            .unwrap_or_else(|| Err(SymbolRegistryError::data_type_not_registered("anonymize value", data_value.get_data_type_id())))
+    }
+
+    pub fn supports_scalar_integer_values(
+        &self,
+        data_type_ref: &DataTypeRef,
+    ) -> bool {
+        self.read_privileged_registry_cache(|privileged_registry_cache| privileged_registry_cache.supports_scalar_integer_values(data_type_ref))
+            .unwrap_or(false)
+    }
+
+    pub fn read_scalar_integer_value(
+        &self,
+        data_value: &DataValue,
+    ) -> Result<Option<i128>, SymbolRegistryError> {
+        self.read_privileged_registry_cache(|privileged_registry_cache| privileged_registry_cache.read_scalar_integer_value(data_value))
+            .unwrap_or_else(|| {
+                Err(SymbolRegistryError::data_type_not_registered(
+                    "read scalar integer value",
+                    data_value.get_data_type_id(),
+                ))
+            })
+    }
+
+    pub fn get_unit_size_in_bytes(
+        &self,
+        data_type_ref: &DataTypeRef,
+    ) -> u64 {
+        self.read_privileged_registry_cache(|privileged_registry_cache| privileged_registry_cache.get_unit_size_in_bytes(data_type_ref))
+            .unwrap_or_default()
+    }
+
+    pub fn get_data_type_descriptor(
+        &self,
+        data_type_ref: &DataTypeRef,
+    ) -> Option<DataTypeDescriptor> {
+        self.read_privileged_registry_cache(|privileged_registry_cache| privileged_registry_cache.get_data_type_descriptor(data_type_ref))
+            .flatten()
+    }
+
+    pub fn get_icon_id(
+        &self,
+        data_type_ref: &DataTypeRef,
+    ) -> String {
+        self.get_data_type_descriptor(data_type_ref)
+            .map(|data_type_descriptor| data_type_descriptor.get_icon_id().to_string())
+            .unwrap_or_default()
+    }
+
+    pub fn set_virtual_snapshot_queries(
+        &self,
+        virtual_snapshot_id: &str,
+        refresh_interval: Duration,
+        queries: Vec<VirtualSnapshotQuery>,
+    ) {
+        match self.virtual_snapshots.write() {
+            Ok(mut virtual_snapshots) => {
+                let virtual_snapshot = virtual_snapshots
+                    .entry(virtual_snapshot_id.to_string())
+                    .or_insert_with(|| VirtualSnapshot::new(refresh_interval));
+
+                virtual_snapshot.set_refresh_interval(refresh_interval);
+                virtual_snapshot.set_queries(queries);
+            }
+            Err(error) => {
+                log::error!("Failed to acquire virtual snapshots write lock while setting queries: {}", error);
+            }
+        }
+    }
+
+    pub fn get_virtual_snapshot(
+        &self,
+        virtual_snapshot_id: &str,
+    ) -> Option<VirtualSnapshot> {
+        match self.virtual_snapshots.read() {
+            Ok(virtual_snapshots) => virtual_snapshots.get(virtual_snapshot_id).cloned(),
+            Err(error) => {
+                log::error!("Failed to acquire virtual snapshots read lock while reading snapshot: {}", error);
+                None
+            }
+        }
+    }
+
+    pub fn request_virtual_snapshot_refresh(
+        self: &Arc<Self>,
+        virtual_snapshot_id: &str,
+    ) {
+        let (queries, refresh_query_version) = match self.virtual_snapshots.write() {
+            Ok(mut virtual_snapshots) => {
+                let Some(virtual_snapshot) = virtual_snapshots.get_mut(virtual_snapshot_id) else {
+                    return;
+                };
+                let now = Instant::now();
+
+                if !virtual_snapshot.should_refresh(now) {
+                    return;
+                }
+
+                let refresh_query_version = virtual_snapshot.mark_refresh_started(now);
+
+                (virtual_snapshot.get_queries().to_vec(), refresh_query_version)
+            }
+            Err(error) => {
+                log::error!("Failed to acquire virtual snapshots write lock while requesting refresh: {}", error);
+                return;
+            }
+        };
+        let engine_unprivileged_state = self.clone();
+        let virtual_snapshot_id = virtual_snapshot_id.to_string();
+
+        std::thread::spawn(move || {
+            let engine_execution_context: Arc<dyn EngineExecutionContext> = engine_unprivileged_state.clone();
+            let query_results = materialize_virtual_snapshot_queries(&engine_execution_context, &queries);
+
+            match engine_unprivileged_state.virtual_snapshots.write() {
+                Ok(mut virtual_snapshots) => {
+                    if let Some(virtual_snapshot) = virtual_snapshots.get_mut(&virtual_snapshot_id) {
+                        virtual_snapshot.apply_refresh_results(refresh_query_version, query_results, Instant::now());
+                    }
+                }
+                Err(error) => {
+                    log::error!("Failed to acquire virtual snapshots write lock while applying refresh results: {}", error);
+                }
+            }
+        });
     }
 
     /// Registers a listener for each time a particular engine event is fired.
@@ -100,6 +522,36 @@ impl EngineUnprivilegedState {
         }
     }
 
+    pub fn register_command_invocation_middleware(
+        &self,
+        middleware: impl Fn(&CommandInvocation) -> CommandInvocationDecision + Send + Sync + 'static,
+    ) {
+        match self.command_invocation_middleware.write() {
+            Ok(mut command_invocation_middleware) => command_invocation_middleware.push(Box::new(middleware)),
+            Err(error) => log::error!("Error registering command invocation middleware: {}", error),
+        }
+    }
+
+    pub fn register_command_response_middleware(
+        &self,
+        middleware: impl Fn(&CommandInvocationOutcome) -> CommandResponseDecision + Send + Sync + 'static,
+    ) {
+        match self.command_response_middleware.write() {
+            Ok(mut command_response_middleware) => command_response_middleware.push(Box::new(middleware)),
+            Err(error) => log::error!("Error registering command response middleware: {}", error),
+        }
+    }
+
+    pub fn listen_for_command_response(
+        &self,
+        callback: impl Fn(&CommandInvocationOutcome) + Send + Sync + 'static,
+    ) {
+        match self.command_response_listeners.write() {
+            Ok(mut command_response_listeners) => command_response_listeners.push(Box::new(callback)),
+            Err(error) => log::error!("Error listening for command responses: {}", error),
+        }
+    }
+
     /// Dispatches a command to the engine.
     pub fn dispatch_command<F>(
         self: &Arc<Self>,
@@ -108,20 +560,300 @@ impl EngineUnprivilegedState {
     ) where
         F: FnOnce(PrivilegedCommandResponse) + Send + Sync + 'static,
     {
+        self.dispatch_privileged_command_from_source(CommandInvocationSource::Internal, privileged_command, callback);
+    }
+
+    /// Dispatches a command to the engine from a named source.
+    pub fn dispatch_privileged_command_from_source<F>(
+        self: &Arc<Self>,
+        source: CommandInvocationSource,
+        privileged_command: PrivilegedCommand,
+        callback: F,
+    ) -> bool
+    where
+        F: FnOnce(PrivilegedCommandResponse) + Send + Sync + 'static,
+    {
+        self.dispatch_privileged_command_invocation(source, privileged_command, Box::new(callback))
+    }
+
+    /// Dispatches an unprivileged command to the local execution layer.
+    pub fn dispatch_unprivileged_command<F>(
+        self: &Arc<Self>,
+        unprivileged_command: UnprivilegedCommand,
+        callback: F,
+    ) where
+        F: FnOnce(UnprivilegedCommandResponse) + Send + Sync + 'static,
+    {
+        self.dispatch_unprivileged_command_from_source(CommandInvocationSource::Internal, unprivileged_command, callback);
+    }
+
+    /// Dispatches an unprivileged command to the local execution layer from a named source.
+    pub fn dispatch_unprivileged_command_from_source<F>(
+        self: &Arc<Self>,
+        source: CommandInvocationSource,
+        unprivileged_command: UnprivilegedCommand,
+        callback: F,
+    ) -> bool
+    where
+        F: FnOnce(UnprivilegedCommandResponse) + Send + Sync + 'static,
+    {
+        let engine_execution_context: Arc<dyn EngineExecutionContext> = self.clone();
+
+        self.dispatch_unprivileged_command_invocation(source, unprivileged_command, &engine_execution_context, Box::new(callback))
+    }
+
+    fn create_command_invocation(
+        &self,
+        source: CommandInvocationSource,
+        command: EngineCommand,
+    ) -> CommandInvocation {
+        let invocation_id = self.next_command_invocation_id.fetch_add(1, Ordering::SeqCst) + 1;
+
+        CommandInvocation::new(invocation_id, source, command)
+    }
+
+    fn dispatch_privileged_command_invocation(
+        &self,
+        source: CommandInvocationSource,
+        privileged_command: PrivilegedCommand,
+        callback: Box<dyn FnOnce(PrivilegedCommandResponse) + Send + Sync + 'static>,
+    ) -> bool {
+        let command_invocation = self.create_command_invocation(source, EngineCommand::Privileged(privileged_command));
+        let dispatch_invocation = match self.prepare_command_invocation(command_invocation) {
+            CommandDispatchPlan::Dispatch(command_invocation) => command_invocation,
+            CommandDispatchPlan::Respond(command_invocation, EngineCommandResponse::Privileged(response)) => {
+                if let Some(EngineCommandResponse::Privileged(response)) =
+                    self.publish_command_response(command_invocation, EngineCommandResponse::Privileged(response))
+                {
+                    callback(response);
+                }
+
+                return true;
+            }
+            CommandDispatchPlan::Respond(command_invocation, response) => {
+                log::error!(
+                    "Command invocation {} produced a mismatched synthetic response: {:?}.",
+                    command_invocation.get_invocation_id(),
+                    response
+                );
+                return false;
+            }
+            CommandDispatchPlan::Reject(command_invocation, reason) => {
+                log::warn!(
+                    "Command invocation {} rejected before dispatch: {}",
+                    command_invocation.get_invocation_id(),
+                    reason
+                );
+                return false;
+            }
+        };
+        let EngineCommand::Privileged(privileged_command) = dispatch_invocation.get_command().clone() else {
+            log::error!(
+                "Command invocation {} was transformed into a non-privileged command before privileged dispatch.",
+                dispatch_invocation.get_invocation_id()
+            );
+            return false;
+        };
+
         match self.engine_api_unprivileged_bindings.read() {
             Ok(engine_bindings) => {
-                if let Err(error) = engine_bindings.dispatch_privileged_command(privileged_command, Box::new(callback)) {
-                    log::error!("Error dispatching engine command: {}", error);
+                let command_response_publisher = self.command_response_publisher();
+                let invocation_for_callback = dispatch_invocation.clone();
+                match engine_bindings.dispatch_privileged_command(
+                    privileged_command,
+                    Box::new(move |response| {
+                        if let Some(EngineCommandResponse::Privileged(response)) =
+                            command_response_publisher(invocation_for_callback, EngineCommandResponse::Privileged(response))
+                        {
+                            callback(response);
+                        }
+                    }),
+                ) {
+                    Ok(()) => true,
+                    Err(error) => {
+                        log::error!("Error dispatching engine command: {}", error);
+                        false
+                    }
                 }
             }
             Err(error) => {
                 log::error!("Failed to acquire unprivileged engine bindings read lock for commands: {}", error);
+                false
             }
         }
     }
 
+    fn dispatch_unprivileged_command_invocation(
+        &self,
+        source: CommandInvocationSource,
+        unprivileged_command: UnprivilegedCommand,
+        execution_context: &Arc<dyn EngineExecutionContext>,
+        callback: Box<dyn FnOnce(UnprivilegedCommandResponse) + Send + Sync + 'static>,
+    ) -> bool {
+        let command_invocation = self.create_command_invocation(source, EngineCommand::Unprivileged(unprivileged_command));
+        let dispatch_invocation = match self.prepare_command_invocation(command_invocation) {
+            CommandDispatchPlan::Dispatch(command_invocation) => command_invocation,
+            CommandDispatchPlan::Respond(command_invocation, EngineCommandResponse::Unprivileged(response)) => {
+                if let Some(EngineCommandResponse::Unprivileged(response)) =
+                    self.publish_command_response(command_invocation, EngineCommandResponse::Unprivileged(response))
+                {
+                    callback(response);
+                }
+
+                return true;
+            }
+            CommandDispatchPlan::Respond(command_invocation, response) => {
+                log::error!(
+                    "Command invocation {} produced a mismatched synthetic response: {:?}.",
+                    command_invocation.get_invocation_id(),
+                    response
+                );
+                return false;
+            }
+            CommandDispatchPlan::Reject(command_invocation, reason) => {
+                log::warn!(
+                    "Command invocation {} rejected before dispatch: {}",
+                    command_invocation.get_invocation_id(),
+                    reason
+                );
+                return false;
+            }
+        };
+        let EngineCommand::Unprivileged(unprivileged_command) = dispatch_invocation.get_command().clone() else {
+            log::error!(
+                "Command invocation {} was transformed into a non-unprivileged command before unprivileged dispatch.",
+                dispatch_invocation.get_invocation_id()
+            );
+            return false;
+        };
+
+        match self.engine_api_unprivileged_bindings.read() {
+            Ok(engine_bindings) => {
+                let command_response_publisher = self.command_response_publisher();
+                let invocation_for_callback = dispatch_invocation.clone();
+                match engine_bindings.dispatch_unprivileged_command(
+                    unprivileged_command,
+                    execution_context,
+                    Box::new(move |response| {
+                        if let Some(EngineCommandResponse::Unprivileged(response)) =
+                            command_response_publisher(invocation_for_callback, EngineCommandResponse::Unprivileged(response))
+                        {
+                            callback(response);
+                        }
+                    }),
+                ) {
+                    Ok(()) => true,
+                    Err(error) => {
+                        log::error!("Error dispatching unprivileged engine command: {}", error);
+                        false
+                    }
+                }
+            }
+            Err(error) => {
+                log::error!("Failed to acquire unprivileged engine bindings read lock for unprivileged commands: {}", error);
+                false
+            }
+        }
+    }
+
+    fn prepare_command_invocation(
+        &self,
+        mut command_invocation: CommandInvocation,
+    ) -> CommandDispatchPlan {
+        let command_invocation_middleware = match self.command_invocation_middleware.read() {
+            Ok(command_invocation_middleware) => command_invocation_middleware,
+            Err(error) => {
+                log::error!("Failed to acquire command invocation middleware read lock: {}", error);
+                return CommandDispatchPlan::Dispatch(command_invocation);
+            }
+        };
+
+        for middleware in command_invocation_middleware.iter() {
+            match middleware(&command_invocation) {
+                CommandInvocationDecision::Continue => {}
+                CommandInvocationDecision::ReplaceCommand { command } => {
+                    command_invocation = command_invocation.replace_command(command);
+                }
+                CommandInvocationDecision::Reject { reason } => {
+                    return CommandDispatchPlan::Reject(command_invocation, reason);
+                }
+                CommandInvocationDecision::Respond { response } => {
+                    return CommandDispatchPlan::Respond(command_invocation, response);
+                }
+            }
+        }
+
+        CommandDispatchPlan::Dispatch(command_invocation)
+    }
+
+    fn command_response_publisher(&self) -> impl Fn(CommandInvocation, EngineCommandResponse) -> Option<EngineCommandResponse> + Send + Sync + 'static {
+        let command_response_middleware = self.command_response_middleware.clone();
+        let command_response_listeners = self.command_response_listeners.clone();
+
+        move |command_invocation, response| {
+            Self::publish_command_response_to_targets(&command_response_middleware, &command_response_listeners, command_invocation, response)
+        }
+    }
+
+    fn publish_command_response(
+        &self,
+        command_invocation: CommandInvocation,
+        response: EngineCommandResponse,
+    ) -> Option<EngineCommandResponse> {
+        Self::publish_command_response_to_targets(
+            &self.command_response_middleware,
+            &self.command_response_listeners,
+            command_invocation,
+            response,
+        )
+    }
+
+    fn publish_command_response_to_targets(
+        command_response_middleware: &Arc<RwLock<Vec<CommandResponseMiddleware>>>,
+        command_response_listeners: &Arc<RwLock<Vec<CommandResponseListener>>>,
+        command_invocation: CommandInvocation,
+        mut response: EngineCommandResponse,
+    ) -> Option<EngineCommandResponse> {
+        match command_response_middleware.read() {
+            Ok(command_response_middleware) => {
+                for middleware in command_response_middleware.iter() {
+                    let outcome = CommandInvocationOutcome::new(command_invocation.clone(), response.clone());
+
+                    match middleware(&outcome) {
+                        CommandResponseDecision::Continue => {}
+                        CommandResponseDecision::ReplaceResponse {
+                            response: replacement_response,
+                        } => response = replacement_response,
+                        CommandResponseDecision::Suppress { reason } => {
+                            log::warn!("Command invocation {} response suppressed: {}", command_invocation.get_invocation_id(), reason);
+                            return None;
+                        }
+                    }
+                }
+            }
+            Err(error) => {
+                log::error!("Failed to acquire command response middleware read lock: {}", error);
+            }
+        }
+
+        let outcome = CommandInvocationOutcome::new(command_invocation, response.clone());
+
+        match command_response_listeners.read() {
+            Ok(command_response_listeners) => {
+                for listener in command_response_listeners.iter() {
+                    listener(&outcome);
+                }
+            }
+            Err(error) => {
+                log::error!("Failed to acquire command response listeners read lock: {}", error);
+            }
+        }
+
+        Some(response)
+    }
+
     /// Starts listening for all engine events and routes specific events to listeners for that event type.
-    fn start_event_dispatcher(&self) {
+    fn start_event_dispatcher(self: &Arc<Self>) {
         let event_receiver = match self.engine_api_unprivileged_bindings.read() {
             Ok(bindings) => match bindings.subscribe_to_engine_events() {
                 Ok(receiver) => receiver,
@@ -135,12 +867,12 @@ impl EngineUnprivilegedState {
                 return;
             }
         };
-        let event_listeners = self.event_listeners.clone();
+        let engine_unprivileged_state = self.clone();
 
         std::thread::spawn(move || {
             loop {
                 match event_receiver.recv() {
-                    Ok(engine_event) => Self::route_engine_event(&event_listeners, engine_event),
+                    Ok(engine_event_envelope) => Self::route_engine_event(&engine_unprivileged_state, engine_event_envelope),
                     Err(error) => {
                         log::error!("Fatal error listening for engine events: {}", error);
                         return;
@@ -152,16 +884,49 @@ impl EngineUnprivilegedState {
 
     /// Deconstructs an engine event to extract the particular event structure being sent and routes it to listeners.
     fn route_engine_event(
+        engine_unprivileged_state: &Arc<Self>,
+        engine_event_envelope: EngineEventEnvelope,
+    ) {
+        if !engine_unprivileged_state.ensure_privileged_registry_catalog_current(engine_event_envelope.get_registry_generation()) {
+            log::error!(
+                "Failed to refresh privileged registry cache to generation {} before dispatching engine event.",
+                engine_event_envelope.get_registry_generation()
+            );
+        }
+
+        let engine_event = engine_event_envelope.into_engine_event();
+
+        Self::dispatch_engine_event_by_variant(&engine_unprivileged_state.event_listeners, engine_event);
+    }
+
+    fn install_project_event_emitter(self: &Arc<Self>) {
+        let event_listeners = self.event_listeners.clone();
+
+        self.project_manager
+            .set_event_emitter(Arc::new(move |engine_event| {
+                Self::dispatch_engine_event_by_variant(&event_listeners, engine_event)
+            }));
+    }
+
+    fn dispatch_engine_event_by_variant(
         event_listeners: &Arc<RwLock<HashMap<TypeId, Vec<Box<dyn Fn(&dyn Any) + Send + Sync>>>>>,
         engine_event: EngineEvent,
     ) {
         match engine_event {
+            EngineEvent::Plugins(plugins_event) => match plugins_event {
+                PluginsEvent::PluginsChanged { plugins_changed_event } => {
+                    Self::dispatch_engine_event(event_listeners, plugins_changed_event);
+                }
+            },
             EngineEvent::Process(process_event) => match process_event {
                 ProcessEvent::ProcessChanged { process_changed_event } => {
                     Self::dispatch_engine_event(event_listeners, process_changed_event);
                 }
             },
             EngineEvent::Project(project_event) => match project_event {
+                ProjectEvent::ProjectCatalogChanged { project_catalog_changed_event } => {
+                    Self::dispatch_engine_event(event_listeners, project_catalog_changed_event);
+                }
                 ProjectEvent::ProjectClosed { project_closed_event } => {
                     Self::dispatch_engine_event(event_listeners, project_closed_event);
                 }
@@ -177,6 +942,11 @@ impl EngineUnprivilegedState {
                     Self::dispatch_engine_event(event_listeners, project_items_changed_event);
                 }
             },
+            EngineEvent::Registry(registry_event) => match registry_event {
+                RegistryEvent::Changed { registry_changed_event } => {
+                    Self::dispatch_engine_event(event_listeners, registry_changed_event);
+                }
+            },
             EngineEvent::ScanResults(scan_results_event) => match scan_results_event {
                 ScanResultsEvent::ScanResultsUpdated { scan_results_updated_event } => {
                     Self::dispatch_engine_event(event_listeners, scan_results_updated_event);
@@ -187,6 +957,109 @@ impl EngineUnprivilegedState {
                     Self::dispatch_engine_event(event_listeners, progress_changed_event);
                 }
             },
+        }
+    }
+
+    fn refresh_privileged_registry_catalog(self: &Arc<Self>) {
+        let registry_get_metadata_request = RegistryGetMetadataRequest::default();
+        let engine_unprivileged_state = self.clone();
+
+        let _ = registry_get_metadata_request.send(self, move |registry_get_metadata_response| {
+            engine_unprivileged_state.apply_privileged_registry_catalog(registry_get_metadata_response.privileged_registry_catalog);
+        });
+    }
+
+    fn ensure_privileged_registry_catalog_current(
+        self: &Arc<Self>,
+        expected_generation: u64,
+    ) -> bool {
+        let current_generation = self.get_privileged_registry_generation();
+
+        if current_generation >= expected_generation {
+            return true;
+        }
+
+        let registry_get_metadata_request = RegistryGetMetadataRequest::default();
+        let engine_unprivileged_state = self.clone();
+        let (completion_sender, completion_receiver) = bounded(1);
+        let did_send = registry_get_metadata_request.send(self, move |registry_get_metadata_response| {
+            let privileged_registry_catalog = registry_get_metadata_response.privileged_registry_catalog;
+            let applied_generation = privileged_registry_catalog.get_generation();
+
+            engine_unprivileged_state.apply_privileged_registry_catalog(privileged_registry_catalog);
+            let _ = completion_sender.send(applied_generation);
+        });
+
+        if !did_send {
+            log::error!(
+                "Failed to dispatch registry metadata refresh while waiting for generation {}.",
+                expected_generation
+            );
+            return false;
+        }
+
+        match completion_receiver.recv_timeout(Duration::from_secs(1)) {
+            Ok(applied_generation) => applied_generation >= expected_generation,
+            Err(error) => {
+                log::error!(
+                    "Timed out waiting for privileged symbol catalog to reach generation {}: {}",
+                    expected_generation,
+                    error
+                );
+                false
+            }
+        }
+    }
+
+    fn apply_privileged_registry_catalog(
+        &self,
+        privileged_registry_catalog: squalr_engine_api::registries::symbols::privileged_registry_catalog::PrivilegedRegistryCatalog,
+    ) {
+        if let Ok(mut privileged_registry_cache) = self.privileged_registry_cache.write() {
+            privileged_registry_cache.apply_registry_catalog(privileged_registry_catalog);
+        } else {
+            log::error!("Failed to acquire privileged registry cache write lock while applying privileged registry catalog.");
+        }
+    }
+
+    fn read_privileged_registry_cache<T>(
+        &self,
+        reader: impl FnOnce(&PrivilegedRegistryCache) -> T,
+    ) -> Option<T> {
+        match self.privileged_registry_cache.read() {
+            Ok(privileged_registry_cache) => Some(reader(&privileged_registry_cache)),
+            Err(error) => {
+                log::error!("Failed to acquire privileged registry cache read lock: {}", error);
+                None
+            }
+        }
+    }
+
+    fn resolve_local_project_struct_layout_definition(
+        &self,
+        symbolic_struct_ref_id: &str,
+    ) -> Option<squalr_engine_api::structures::structs::symbolic_struct_definition::SymbolicStructDefinition> {
+        self.get_opened_project_symbol_catalog()
+            .and_then(|project_symbol_catalog| {
+                project_symbol_catalog
+                    .get_struct_layout_descriptors()
+                    .iter()
+                    .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == symbolic_struct_ref_id)
+                    .map(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_definition().clone())
+            })
+    }
+
+    fn get_opened_project_symbol_catalog(&self) -> Option<ProjectSymbolCatalog> {
+        let opened_project = self.project_manager.get_opened_project();
+
+        match opened_project.read() {
+            Ok(opened_project_guard) => opened_project_guard
+                .as_ref()
+                .map(|project| project.get_project_info().get_project_symbol_catalog().clone()),
+            Err(error) => {
+                log::error!("Failed to acquire opened project lock while reading project symbol catalog: {}", error);
+                None
+            }
         }
     }
 

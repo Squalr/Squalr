@@ -1,10 +1,11 @@
 use crate::structures::memory::memory_alignment::MemoryAlignment;
+use serde::{Deserialize, Serialize};
 use std::cmp::{Ord, Ordering};
 use std::hash::{Hash, Hasher};
 
 /// Defines a generic range of addresses, with no extra information.
 /// This is the base type for many more specialized regions.
-#[derive(Clone)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct NormalizedRegion {
     base_address: u64,
     region_size: u64,

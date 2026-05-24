@@ -1,22 +1,27 @@
 use crate::views::project_explorer::pane_state::{ProjectExplorerFocusTarget, ProjectExplorerPaneState};
 
 pub fn build_project_explorer_summary_lines(project_explorer_pane_state: &ProjectExplorerPaneState) -> Vec<String> {
-    let mode_label = if project_explorer_pane_state
-        .active_project_directory_path
-        .is_some()
-    {
-        "Hierarchy"
-    } else {
-        "Projects"
+    let mode_label = match project_explorer_pane_state.focus_target {
+        ProjectExplorerFocusTarget::ProjectList => "Projects",
+        ProjectExplorerFocusTarget::ProjectHierarchy => "Hierarchy",
+        ProjectExplorerFocusTarget::ProjectSymbols => "Symbols",
     };
 
     let mut summary_lines = vec![format!("[MODE] {}.", mode_label)];
 
     if project_explorer_pane_state.focus_target == ProjectExplorerFocusTarget::ProjectList {
         summary_lines.push("[ACT] / search | Up/Down move | Home/End jump | n create | Enter/o open | e rename | c close | x delete | r refresh.".to_string());
-    } else {
-        summary_lines.push("[TREE] Up/Down move | Home/End jump | l/Right expand | h/Left collapse | Space activate.".to_string());
-        summary_lines.push("[MOVE] m stage | b move | [/] reorder | u clear-stage.".to_string());
+        summary_lines.push(format!(
+            "[PROJ] selected={} | active={} | count={} | loading={} | pending_name={}.",
+            option_to_compact_text(project_explorer_pane_state.selected_project_name.as_deref()),
+            option_to_compact_text(project_explorer_pane_state.active_project_name.as_deref()),
+            project_explorer_pane_state.project_entries.len(),
+            project_explorer_pane_state.is_awaiting_project_list_response,
+            project_explorer_pane_state.pending_project_name_input
+        ));
+    } else if project_explorer_pane_state.focus_target == ProjectExplorerFocusTarget::ProjectHierarchy {
+        summary_lines.push("[TREE] Up/Down move | Home/End jump | l/Right expand | h/Left collapse | Space activate | o memory | v code.".to_string());
+        summary_lines.push("[MOVE] m stage | b move | [/] reorder | u clear-stage | p promote | s symbols.".to_string());
         summary_lines.push(format!(
             "[PROJ] selected={} | active={} | dir={}.",
             option_to_compact_text(project_explorer_pane_state.selected_project_name.as_deref()),
@@ -27,29 +32,44 @@ pub fn build_project_explorer_summary_lines(project_explorer_pane_state: &Projec
                     .as_deref()
             )
         ));
-    }
-
-    summary_lines.extend([
-        format!(
-            "[ITEM] selected={} | pending_name={}.",
+        summary_lines.push(format!(
+            "[ITEM] selected={} | preview={} | visible={} | move={} | delete={} | loading={} | pending_name={}.",
             option_to_compact_text(project_explorer_pane_state.selected_item_path.as_deref()),
-            project_explorer_pane_state.pending_project_name_input
-        ),
-        format!(
-            "[PEND] move_count={} | delete_count={} | loading_items={}.",
+            option_to_compact_text(project_explorer_pane_state.selected_project_item_preview_value()),
+            project_explorer_pane_state.project_item_visible_entries.len(),
             project_explorer_pane_state.pending_move_source_paths.len(),
             project_explorer_pane_state
                 .pending_delete_confirmation_paths
                 .len(),
-            project_explorer_pane_state.is_awaiting_project_item_list_response
-        ),
-        format!(
-            "[COUNT] project_count={} | visible_item_count={}.",
-            project_explorer_pane_state.project_entries.len(),
-            project_explorer_pane_state.project_item_visible_entries.len()
-        ),
-        format!("[STAT] {}.", project_explorer_pane_state.status_message),
-    ]);
+            project_explorer_pane_state.is_awaiting_project_item_list_response,
+            project_explorer_pane_state.pending_project_name_input
+        ));
+    } else {
+        summary_lines.push("[SYM] Up/Down move | Home/End jump | o memory | v code | x delete | s tree | r refresh.".to_string());
+        summary_lines.push(format!(
+            "[PROJ] selected={} | active={} | dir={}.",
+            option_to_compact_text(project_explorer_pane_state.selected_project_name.as_deref()),
+            option_to_compact_text(project_explorer_pane_state.active_project_name.as_deref()),
+            option_path_to_compact_text(
+                project_explorer_pane_state
+                    .active_project_directory_path
+                    .as_deref()
+            )
+        ));
+        summary_lines.push(format!(
+            "[SYM] selected={} | count={} | loading={}.",
+            option_to_compact_text(
+                project_explorer_pane_state
+                    .selected_symbol_claim()
+                    .map(|symbol_claim| symbol_claim.get_symbol_locator_key())
+                    .as_deref()
+            ),
+            project_explorer_pane_state.symbol_claims.len(),
+            project_explorer_pane_state.is_awaiting_project_symbol_list_response
+        ));
+    }
+
+    summary_lines.push(format!("[STAT] {}.", project_explorer_pane_state.status_message));
 
     summary_lines
 }

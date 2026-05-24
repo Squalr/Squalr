@@ -13,10 +13,10 @@ const BYTE_COUNT_64: usize = 64;
 const ELEMENT_COUNT_64: usize = BYTE_COUNT_64 / size_of::<PrimitiveType>();
 
 const BYTE_COUNT_32: usize = 32;
-const ELEMENT_COUNT_32: usize = BYTE_COUNT_64 / size_of::<PrimitiveType>();
+const ELEMENT_COUNT_32: usize = BYTE_COUNT_32 / size_of::<PrimitiveType>();
 
 const BYTE_COUNT_16: usize = 16;
-const ELEMENT_COUNT_16: usize = BYTE_COUNT_64 / size_of::<PrimitiveType>();
+const ELEMENT_COUNT_16: usize = BYTE_COUNT_16 / size_of::<PrimitiveType>();
 
 impl VectorComparable for DataTypeU32 {
     fn get_vector_compare_equal_64(

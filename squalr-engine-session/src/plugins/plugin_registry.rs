@@ -1,0 +1,687 @@
+use std::{
+    collections::{HashMap, HashSet},
+    sync::{Arc, RwLock},
+};
+
+use squalr_engine_api::{
+    plugins::{PluginActivationState, PluginCapability, PluginPackage, PluginPermission, PluginState, symbol_tree::symbol_tree_action::SymbolTreeAction},
+    structures::processes::opened_process_info::OpenedProcessInfo,
+};
+use squalr_plugin_builtins::get_builtin_plugin_packages;
+
+pub struct PluginRegistry {
+    plugin_packages: Vec<Arc<dyn PluginPackage>>,
+    data_type_plugin_ids_by_data_type_id: RwLock<HashMap<String, String>>,
+    plugin_order: RwLock<Vec<String>>,
+    enabled_plugin_ids: RwLock<HashSet<String>>,
+}
+
+impl PluginRegistry {
+    pub fn new() -> Self {
+        Self::from_plugin_packages(get_builtin_plugin_packages())
+    }
+
+    pub(crate) fn from_plugin_packages(plugin_packages: Vec<Arc<dyn PluginPackage>>) -> Self {
+        let enabled_plugin_ids = plugin_packages
+            .iter()
+            .map(|plugin_package| plugin_package.metadata())
+            .filter(|plugin_metadata| plugin_metadata.get_is_enabled_by_default())
+            .map(|plugin_metadata| plugin_metadata.get_plugin_id().to_string())
+            .collect();
+        let plugin_order = Self::default_plugin_ids_from_packages(&plugin_packages);
+        let data_type_plugin_ids_by_data_type_id = Self::build_data_type_plugin_ids_by_data_type_id(&plugin_packages);
+
+        Self {
+            plugin_packages,
+            data_type_plugin_ids_by_data_type_id: RwLock::new(data_type_plugin_ids_by_data_type_id),
+            plugin_order: RwLock::new(plugin_order),
+            enabled_plugin_ids: RwLock::new(enabled_plugin_ids),
+        }
+    }
+
+    fn default_plugin_ids_from_packages(plugin_packages: &[Arc<dyn PluginPackage>]) -> Vec<String> {
+        plugin_packages
+            .iter()
+            .map(|plugin_package| plugin_package.metadata().get_plugin_id().to_string())
+            .collect()
+    }
+
+    fn build_data_type_plugin_ids_by_data_type_id(plugin_packages: &[Arc<dyn PluginPackage>]) -> HashMap<String, String> {
+        let mut data_type_plugin_ids_by_data_type_id = HashMap::new();
+
+        for plugin_package in plugin_packages {
+            let Some(data_type_plugin) = plugin_package.as_data_type_plugin() else {
+                continue;
+            };
+
+            for data_type_id in data_type_plugin.contributed_data_type_ids() {
+                if data_type_plugin_ids_by_data_type_id.contains_key(*data_type_id) {
+                    log::warn!(
+                        "Ignoring duplicate contributed data type id '{}' from plugin package '{}'.",
+                        data_type_id,
+                        plugin_package.metadata().get_plugin_id()
+                    );
+                    continue;
+                }
+
+                data_type_plugin_ids_by_data_type_id.insert((*data_type_id).to_string(), plugin_package.metadata().get_plugin_id().to_string());
+            }
+        }
+
+        data_type_plugin_ids_by_data_type_id
+    }
+
+    pub fn get_plugin_packages(&self) -> &[Arc<dyn PluginPackage>] {
+        &self.plugin_packages
+    }
+
+    pub fn get_default_plugin_ids(&self) -> Vec<String> {
+        Self::default_plugin_ids_from_packages(&self.plugin_packages)
+    }
+
+    pub fn get_plugin_order(&self) -> Vec<String> {
+        self.plugin_order
+            .read()
+            .map(|plugin_order| plugin_order.clone())
+            .unwrap_or_else(|error| {
+                log::error!("Failed to acquire plugin priority order snapshot: {}", error);
+                self.get_default_plugin_ids()
+            })
+    }
+
+    pub fn set_plugin_order(
+        &self,
+        plugin_ids: Vec<String>,
+    ) -> bool {
+        let normalized_plugin_order = self.normalize_plugin_order(plugin_ids);
+
+        match self.plugin_order.write() {
+            Ok(mut plugin_order) => {
+                if *plugin_order == normalized_plugin_order {
+                    return false;
+                }
+
+                *plugin_order = normalized_plugin_order;
+            }
+            Err(error) => {
+                log::error!("Failed to update plugin priority order: {}", error);
+                return false;
+            }
+        }
+
+        let ordered_plugin_packages = self.get_ordered_plugin_packages();
+        match self.data_type_plugin_ids_by_data_type_id.write() {
+            Ok(mut data_type_plugin_ids_by_data_type_id) => {
+                *data_type_plugin_ids_by_data_type_id = Self::build_data_type_plugin_ids_by_data_type_id(&ordered_plugin_packages);
+            }
+            Err(error) => {
+                log::error!("Failed to update plugin data type ownership after priority order changed: {}", error);
+            }
+        }
+
+        true
+    }
+
+    fn normalize_plugin_order(
+        &self,
+        plugin_ids: Vec<String>,
+    ) -> Vec<String> {
+        let known_plugin_ids = self
+            .plugin_packages
+            .iter()
+            .map(|plugin_package| plugin_package.metadata().get_plugin_id().to_string())
+            .collect::<HashSet<_>>();
+        let mut seen_plugin_ids = HashSet::new();
+        let mut normalized_plugin_order = Vec::new();
+
+        for plugin_id in plugin_ids {
+            if !known_plugin_ids.contains(&plugin_id) || !seen_plugin_ids.insert(plugin_id.clone()) {
+                continue;
+            }
+
+            normalized_plugin_order.push(plugin_id);
+        }
+
+        for plugin_package in &self.plugin_packages {
+            let plugin_id = plugin_package.metadata().get_plugin_id().to_string();
+
+            if seen_plugin_ids.insert(plugin_id.clone()) {
+                normalized_plugin_order.push(plugin_id);
+            }
+        }
+
+        normalized_plugin_order
+    }
+
+    fn get_ordered_plugin_packages(&self) -> Vec<Arc<dyn PluginPackage>> {
+        let plugin_order = self.get_plugin_order();
+        let plugin_packages_by_plugin_id = self
+            .plugin_packages
+            .iter()
+            .map(|plugin_package| (plugin_package.metadata().get_plugin_id().to_string(), plugin_package.clone()))
+            .collect::<HashMap<_, _>>();
+        let mut ordered_plugin_packages = Vec::new();
+        let mut seen_plugin_ids = HashSet::new();
+
+        for plugin_id in plugin_order {
+            let Some(plugin_package) = plugin_packages_by_plugin_id.get(&plugin_id) else {
+                continue;
+            };
+
+            if seen_plugin_ids.insert(plugin_id) {
+                ordered_plugin_packages.push(plugin_package.clone());
+            }
+        }
+
+        for plugin_package in &self.plugin_packages {
+            let plugin_id = plugin_package.metadata().get_plugin_id().to_string();
+
+            if seen_plugin_ids.insert(plugin_id) {
+                ordered_plugin_packages.push(plugin_package.clone());
+            }
+        }
+
+        ordered_plugin_packages
+    }
+
+    pub fn get_plugin_states(
+        &self,
+        opened_process_info: Option<&OpenedProcessInfo>,
+        active_plugin_id: Option<&str>,
+    ) -> Vec<PluginState> {
+        let enabled_plugin_ids = match self.enabled_plugin_ids.read() {
+            Ok(enabled_plugin_ids) => enabled_plugin_ids,
+            Err(error) => {
+                log::error!("Failed to acquire plugin enablement snapshot: {}", error);
+
+                return self
+                    .get_ordered_plugin_packages()
+                    .iter()
+                    .map(|plugin_package| self.build_plugin_state(plugin_package.as_ref(), false, opened_process_info, active_plugin_id, None))
+                    .collect();
+            }
+        };
+
+        let selected_plugin_id = opened_process_info
+            .and_then(|opened_process_info| self.find_memory_view_plugin_package_with_enabled_ids(opened_process_info, &enabled_plugin_ids))
+            .map(|plugin_package| plugin_package.metadata().get_plugin_id().to_string());
+
+        self.get_ordered_plugin_packages()
+            .iter()
+            .map(|plugin_package| {
+                let is_enabled = enabled_plugin_ids.contains(plugin_package.metadata().get_plugin_id());
+
+                self.build_plugin_state(
+                    plugin_package.as_ref(),
+                    is_enabled,
+                    opened_process_info,
+                    active_plugin_id,
+                    selected_plugin_id.as_deref(),
+                )
+            })
+            .collect()
+    }
+
+    fn build_plugin_state(
+        &self,
+        plugin_package: &dyn PluginPackage,
+        is_enabled: bool,
+        opened_process_info: Option<&OpenedProcessInfo>,
+        active_plugin_id: Option<&str>,
+        selected_plugin_id: Option<&str>,
+    ) -> PluginState {
+        let activation_state = plugin_package
+            .as_memory_view_plugin()
+            .map(|memory_view_plugin| {
+                let can_activate_for_current_process = opened_process_info
+                    .map(|opened_process_info| memory_view_plugin.can_attach(opened_process_info))
+                    .unwrap_or(false);
+
+                if active_plugin_id
+                    .map(|active_plugin_id| active_plugin_id == plugin_package.metadata().get_plugin_id())
+                    .unwrap_or(false)
+                {
+                    PluginActivationState::Activated
+                } else if selected_plugin_id
+                    .map(|selected_plugin_id| selected_plugin_id == plugin_package.metadata().get_plugin_id())
+                    .unwrap_or(false)
+                {
+                    PluginActivationState::Activating
+                } else if can_activate_for_current_process {
+                    PluginActivationState::Available
+                } else {
+                    PluginActivationState::Idle
+                }
+            })
+            .unwrap_or(PluginActivationState::Idle);
+
+        PluginState::new(plugin_package.metadata().clone(), is_enabled, activation_state)
+    }
+
+    pub fn set_plugin_enabled(
+        &self,
+        plugin_id: &str,
+        is_enabled: bool,
+    ) -> bool {
+        if !self
+            .plugin_packages
+            .iter()
+            .any(|plugin_package| plugin_package.metadata().get_plugin_id() == plugin_id)
+        {
+            return false;
+        }
+
+        match self.enabled_plugin_ids.write() {
+            Ok(mut enabled_plugin_ids) => {
+                if is_enabled {
+                    enabled_plugin_ids.insert(plugin_id.to_string())
+                } else {
+                    enabled_plugin_ids.remove(plugin_id)
+                }
+            }
+            Err(error) => {
+                log::error!("Failed to update plugin enablement for `{}`: {}", plugin_id, error);
+                false
+            }
+        }
+    }
+
+    pub fn is_plugin_enabled(
+        &self,
+        plugin_id: &str,
+    ) -> bool {
+        self.enabled_plugin_ids
+            .read()
+            .map(|enabled_plugin_ids| enabled_plugin_ids.contains(plugin_id))
+            .unwrap_or(false)
+    }
+
+    pub fn get_enabled_plugin_ids(&self) -> Vec<String> {
+        let mut enabled_plugin_ids = self
+            .enabled_plugin_ids
+            .read()
+            .map(|enabled_plugin_ids| enabled_plugin_ids.iter().cloned().collect::<Vec<_>>())
+            .unwrap_or_default();
+
+        enabled_plugin_ids.sort();
+        enabled_plugin_ids
+    }
+
+    pub fn get_plugin_capabilities(
+        &self,
+        plugin_id: &str,
+    ) -> Option<Vec<PluginCapability>> {
+        self.plugin_packages
+            .iter()
+            .find(|plugin_package| plugin_package.metadata().get_plugin_id() == plugin_id)
+            .map(|plugin_package| plugin_package.metadata().get_plugin_capabilities().to_vec())
+    }
+
+    pub fn has_plugin_capability(
+        &self,
+        plugin_id: &str,
+        plugin_capability: PluginCapability,
+    ) -> bool {
+        self.plugin_packages
+            .iter()
+            .find(|plugin_package| plugin_package.metadata().get_plugin_id() == plugin_id)
+            .map(|plugin_package| {
+                plugin_package
+                    .metadata()
+                    .has_plugin_capability(plugin_capability)
+            })
+            .unwrap_or(false)
+    }
+
+    pub fn get_plugin_permissions(
+        &self,
+        plugin_id: &str,
+    ) -> Option<Vec<PluginPermission>> {
+        self.plugin_packages
+            .iter()
+            .find(|plugin_package| plugin_package.metadata().get_plugin_id() == plugin_id)
+            .map(|plugin_package| plugin_package.metadata().get_plugin_permissions().to_vec())
+    }
+
+    pub fn has_plugin_permission(
+        &self,
+        plugin_id: &str,
+        plugin_permission: PluginPermission,
+    ) -> bool {
+        self.plugin_packages
+            .iter()
+            .find(|plugin_package| plugin_package.metadata().get_plugin_id() == plugin_id)
+            .map(|plugin_package| {
+                plugin_package
+                    .metadata()
+                    .has_plugin_permission(plugin_permission)
+            })
+            .unwrap_or(false)
+    }
+
+    pub fn get_enabled_symbol_tree_actions(&self) -> Vec<(String, std::sync::Arc<dyn SymbolTreeAction>)> {
+        self.get_ordered_plugin_packages()
+            .iter()
+            .filter(|plugin_package| self.is_plugin_enabled(plugin_package.metadata().get_plugin_id()))
+            .filter_map(|plugin_package| {
+                plugin_package
+                    .as_symbol_tree_plugin()
+                    .map(|symbol_tree_plugin| (plugin_package.metadata().get_plugin_id().to_string(), symbol_tree_plugin.symbol_tree_actions()))
+            })
+            .flat_map(|(plugin_id, symbol_tree_actions)| {
+                symbol_tree_actions
+                    .iter()
+                    .cloned()
+                    .map(move |symbol_tree_action| (plugin_id.clone(), symbol_tree_action))
+            })
+            .collect()
+    }
+
+    pub fn plugin_action_has_required_permissions(
+        &self,
+        plugin_id: &str,
+        symbol_tree_action: &dyn SymbolTreeAction,
+    ) -> bool {
+        symbol_tree_action
+            .required_permissions()
+            .iter()
+            .all(|plugin_permission| self.has_plugin_permission(plugin_id, *plugin_permission))
+    }
+
+    pub fn is_data_type_enabled(
+        &self,
+        data_type_id: &str,
+    ) -> bool {
+        let plugin_id = match self.data_type_plugin_ids_by_data_type_id.read() {
+            Ok(data_type_plugin_ids_by_data_type_id) => match data_type_plugin_ids_by_data_type_id.get(data_type_id) {
+                Some(plugin_id) => plugin_id.clone(),
+                None => return true,
+            },
+            Err(error) => {
+                log::error!("Failed to read plugin data type ownership: {}", error);
+                return true;
+            }
+        };
+
+        self.is_plugin_enabled(&plugin_id)
+    }
+
+    pub fn find_memory_view_plugin_package(
+        &self,
+        process_info: &OpenedProcessInfo,
+    ) -> Option<Arc<dyn PluginPackage>> {
+        let enabled_plugin_ids = match self.enabled_plugin_ids.read() {
+            Ok(enabled_plugin_ids) => enabled_plugin_ids,
+            Err(error) => {
+                log::error!("Failed to acquire plugin enablement snapshot while selecting memory-view plugin: {}", error);
+                return None;
+            }
+        };
+
+        self.find_memory_view_plugin_package_with_enabled_ids(process_info, &enabled_plugin_ids)
+    }
+
+    fn find_memory_view_plugin_package_with_enabled_ids(
+        &self,
+        process_info: &OpenedProcessInfo,
+        enabled_plugin_ids: &HashSet<String>,
+    ) -> Option<Arc<dyn PluginPackage>> {
+        self.get_ordered_plugin_packages()
+            .iter()
+            .find(|plugin_package| {
+                enabled_plugin_ids.contains(plugin_package.metadata().get_plugin_id())
+                    && plugin_package
+                        .as_memory_view_plugin()
+                        .map(|memory_view_plugin| memory_view_plugin.can_attach(process_info))
+                        .unwrap_or(false)
+            })
+            .cloned()
+    }
+}
+
+impl Default for PluginRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::PluginRegistry;
+    use squalr_engine_api::{
+        plugins::{
+            Plugin, PluginActivationState, PluginCapability, PluginMetadata, PluginPackage, PluginPermission,
+            symbol_tree::{
+                symbol_tree_action::{SymbolTreeAction, SymbolTreeActionContext, SymbolTreeActionServices},
+                symbol_tree_plugin::SymbolTreePlugin,
+            },
+        },
+        structures::{memory::bitness::Bitness, processes::opened_process_info::OpenedProcessInfo},
+    };
+    use std::sync::Arc;
+
+    struct TestSymbolTreeAction;
+
+    impl SymbolTreeAction for TestSymbolTreeAction {
+        fn action_id(&self) -> &'static str {
+            "test.symbol-tree-action"
+        }
+
+        fn label(
+            &self,
+            _context: &SymbolTreeActionContext,
+        ) -> String {
+            String::from("Test Action")
+        }
+
+        fn is_visible(
+            &self,
+            _context: &SymbolTreeActionContext,
+        ) -> bool {
+            true
+        }
+
+        fn required_permissions(&self) -> &'static [PluginPermission] {
+            &[
+                PluginPermission::ReadSymbolStore,
+                PluginPermission::WriteSymbolStore,
+            ]
+        }
+
+        fn execute(
+            &self,
+            _context: &SymbolTreeActionContext,
+            _services: &dyn SymbolTreeActionServices,
+        ) -> Result<(), String> {
+            Ok(())
+        }
+    }
+
+    struct TestSymbolTreePlugin {
+        metadata: PluginMetadata,
+        symbol_tree_actions: Vec<Arc<dyn SymbolTreeAction>>,
+    }
+
+    impl TestSymbolTreePlugin {
+        fn new() -> Self {
+            Self::new_with_plugin_id("test.symbol-tree", "Test Symbol Tree")
+        }
+
+        fn new_with_plugin_id(
+            plugin_id: &str,
+            display_name: &str,
+        ) -> Self {
+            Self {
+                metadata: PluginMetadata::new_with_permissions(
+                    plugin_id,
+                    display_name,
+                    "Test plugin",
+                    Vec::new(),
+                    vec![
+                        PluginPermission::ReadSymbolStore,
+                        PluginPermission::WriteSymbolStore,
+                    ],
+                    true,
+                    true,
+                ),
+                symbol_tree_actions: vec![Arc::new(TestSymbolTreeAction)],
+            }
+        }
+    }
+
+    impl Plugin for TestSymbolTreePlugin {
+        fn metadata(&self) -> &PluginMetadata {
+            &self.metadata
+        }
+    }
+
+    impl PluginPackage for TestSymbolTreePlugin {
+        fn as_symbol_tree_plugin(&self) -> Option<&dyn SymbolTreePlugin> {
+            Some(self)
+        }
+    }
+
+    impl SymbolTreePlugin for TestSymbolTreePlugin {
+        fn symbol_tree_actions(&self) -> &[Arc<dyn SymbolTreeAction>] {
+            &self.symbol_tree_actions
+        }
+    }
+
+    #[test]
+    fn registry_exposes_builtin_dolphin_memory_view_plugin() {
+        let plugin_registry = PluginRegistry::new();
+        let opened_process_info = OpenedProcessInfo::new(1, "Dolphin.exe".to_string(), 0, Bitness::Bit64, None);
+        let plugin_package = plugin_registry.find_memory_view_plugin_package(&opened_process_info);
+
+        assert!(plugin_package.is_some());
+        assert_eq!(plugin_registry.get_plugin_packages().len(), 6);
+        assert_eq!(
+            plugin_package
+                .expect("Expected the Dolphin plugin to match the Dolphin process.")
+                .metadata()
+                .get_plugin_id(),
+            "builtin.memory-view.dolphin"
+        );
+    }
+
+    #[test]
+    fn selected_plugin_reports_activating_until_router_has_live_instance() {
+        let plugin_registry = PluginRegistry::new();
+        let opened_process_info = OpenedProcessInfo::new(1, "Dolphin.exe".to_string(), 0, Bitness::Bit64, None);
+
+        let plugin_states = plugin_registry.get_plugin_states(Some(&opened_process_info), None);
+        let dolphin_plugin_state = plugin_states
+            .iter()
+            .find(|plugin_state| plugin_state.get_metadata().get_plugin_id() == "builtin.memory-view.dolphin")
+            .expect("Expected the Dolphin plugin state to be present.");
+
+        assert_eq!(plugin_states.len(), 6);
+        assert_eq!(dolphin_plugin_state.get_activation_state(), PluginActivationState::Activating);
+    }
+
+    #[test]
+    fn live_router_plugin_reports_activated() {
+        let plugin_registry = PluginRegistry::new();
+        let opened_process_info = OpenedProcessInfo::new(1, "Dolphin.exe".to_string(), 0, Bitness::Bit64, None);
+
+        let plugin_states = plugin_registry.get_plugin_states(Some(&opened_process_info), Some("builtin.memory-view.dolphin"));
+        let dolphin_plugin_state = plugin_states
+            .iter()
+            .find(|plugin_state| plugin_state.get_metadata().get_plugin_id() == "builtin.memory-view.dolphin")
+            .expect("Expected the Dolphin plugin state to be present.");
+
+        assert_eq!(plugin_states.len(), 6);
+        assert_eq!(dolphin_plugin_state.get_activation_state(), PluginActivationState::Activated);
+    }
+
+    #[test]
+    fn disabling_plugin_prevents_matching_and_updates_state() {
+        let plugin_registry = PluginRegistry::new();
+        let opened_process_info = OpenedProcessInfo::new(1, "Dolphin.exe".to_string(), 0, Bitness::Bit64, None);
+
+        assert!(plugin_registry.set_plugin_enabled("builtin.memory-view.dolphin", false));
+        assert!(!plugin_registry.is_plugin_enabled("builtin.memory-view.dolphin"));
+        assert!(
+            plugin_registry
+                .find_memory_view_plugin_package(&opened_process_info)
+                .is_none()
+        );
+
+        let plugin_states = plugin_registry.get_plugin_states(Some(&opened_process_info), None);
+        let dolphin_plugin_state = plugin_states
+            .iter()
+            .find(|plugin_state| plugin_state.get_metadata().get_plugin_id() == "builtin.memory-view.dolphin")
+            .expect("Expected the Dolphin plugin state to be present.");
+
+        assert_eq!(plugin_states.len(), 6);
+        assert!(!dolphin_plugin_state.get_is_enabled());
+        assert!(dolphin_plugin_state.get_can_activate_for_current_process());
+        assert!(!dolphin_plugin_state.get_is_active_for_current_process());
+    }
+
+    #[test]
+    fn registry_exposes_builtin_x86_instruction_plugin_capabilities() {
+        let plugin_registry = PluginRegistry::new();
+
+        assert!(plugin_registry.has_plugin_capability("builtin.instruction-set.x86-family", PluginCapability::InstructionSet));
+        assert!(plugin_registry.has_plugin_capability("builtin.instruction-set.x86-family", PluginCapability::DataType));
+    }
+
+    #[test]
+    fn registry_exposes_builtin_arm_instruction_plugin_capabilities() {
+        let plugin_registry = PluginRegistry::new();
+
+        assert!(plugin_registry.has_plugin_capability("builtin.instruction-set.arm-family", PluginCapability::InstructionSet));
+        assert!(plugin_registry.has_plugin_capability("builtin.instruction-set.arm-family", PluginCapability::DataType));
+    }
+
+    #[test]
+    fn registry_exposes_builtin_powerpc_instruction_plugin_capabilities() {
+        let plugin_registry = PluginRegistry::new();
+
+        assert!(plugin_registry.has_plugin_capability("builtin.instruction-set.powerpc-family", PluginCapability::InstructionSet));
+        assert!(plugin_registry.has_plugin_capability("builtin.instruction-set.powerpc-family", PluginCapability::DataType));
+    }
+
+    #[test]
+    fn registry_exposes_coarse_plugin_permissions() {
+        let plugin_registry = PluginRegistry::from_plugin_packages(vec![Arc::new(TestSymbolTreePlugin::new())]);
+
+        assert!(plugin_registry.has_plugin_permission("test.symbol-tree", PluginPermission::ReadSymbolStore));
+        assert!(plugin_registry.has_plugin_permission("test.symbol-tree", PluginPermission::WriteSymbolStore));
+        assert!(!plugin_registry.has_plugin_permission("test.symbol-tree", PluginPermission::ReadProcessMemory));
+    }
+
+    #[test]
+    fn registry_collects_enabled_symbol_tree_actions() {
+        let plugin_registry = PluginRegistry::from_plugin_packages(vec![Arc::new(TestSymbolTreePlugin::new())]);
+        let symbol_tree_actions = plugin_registry.get_enabled_symbol_tree_actions();
+
+        assert_eq!(symbol_tree_actions.len(), 1);
+        assert_eq!(symbol_tree_actions[0].0, "test.symbol-tree");
+        assert_eq!(symbol_tree_actions[0].1.action_id(), "test.symbol-tree-action");
+        assert!(plugin_registry.plugin_action_has_required_permissions(&symbol_tree_actions[0].0, symbol_tree_actions[0].1.as_ref()));
+    }
+
+    #[test]
+    fn registry_priority_order_controls_plugin_state_and_symbol_action_order() {
+        let plugin_registry = PluginRegistry::from_plugin_packages(vec![
+            Arc::new(TestSymbolTreePlugin::new_with_plugin_id("test.first", "First")),
+            Arc::new(TestSymbolTreePlugin::new_with_plugin_id("test.second", "Second")),
+        ]);
+
+        assert!(plugin_registry.set_plugin_order(vec![String::from("test.second"), String::from("test.first")]));
+
+        let plugin_states = plugin_registry.get_plugin_states(None, None);
+        let symbol_tree_actions = plugin_registry.get_enabled_symbol_tree_actions();
+
+        assert_eq!(
+            plugin_registry.get_plugin_order(),
+            vec![String::from("test.second"), String::from("test.first")]
+        );
+        assert_eq!(plugin_states[0].get_metadata().get_plugin_id(), "test.second");
+        assert_eq!(plugin_states[1].get_metadata().get_plugin_id(), "test.first");
+        assert_eq!(symbol_tree_actions[0].0, "test.second");
+        assert_eq!(symbol_tree_actions[1].0, "test.first");
+    }
+}

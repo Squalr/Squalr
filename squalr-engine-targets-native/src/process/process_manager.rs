@@ -1,0 +1,160 @@
+#[cfg(target_family = "unix")]
+use libc::{ESRCH, kill};
+use squalr_engine_api::{
+    events::{
+        engine_event::{EngineEvent, EngineEventRequest},
+        process::changed::process_changed_event::ProcessChangedEvent,
+    },
+    structures::processes::opened_process_info::OpenedProcessInfo,
+};
+use std::{
+    sync::{Arc, RwLock},
+    thread,
+    time::Duration,
+};
+use sysinfo::System;
+#[cfg(not(target_family = "unix"))]
+use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate};
+
+const OPEN_PROCESS_DEATH_POLL_INTERVAL: Duration = Duration::from_millis(250);
+
+pub struct ProcessManager {
+    opened_process: Arc<RwLock<Option<OpenedProcessInfo>>>,
+    event_emitter: Arc<dyn Fn(EngineEvent) + Send + Sync>,
+}
+
+impl ProcessManager {
+    pub fn new(event_emitter: Arc<dyn Fn(EngineEvent) + Send + Sync>) -> Self {
+        let instance = Self {
+            opened_process: Arc::new(RwLock::new(None)),
+            event_emitter: event_emitter.clone(),
+        };
+
+        Self::listen_for_open_process_death(event_emitter, instance.opened_process.clone());
+
+        instance
+    }
+
+    /// Sets the process to which we are currently attached.
+    pub fn set_opened_process(
+        &self,
+        process_info: OpenedProcessInfo,
+    ) {
+        if let Ok(mut process) = self.opened_process.write() {
+            log::info!("Opened process: {}, pid: {}", process_info.get_name(), process_info.get_process_id());
+            *process = Some(process_info.clone());
+
+            (self.event_emitter)(
+                ProcessChangedEvent {
+                    process_info: Some(process_info),
+                }
+                .to_engine_event(),
+            );
+        }
+    }
+
+    /// Clears the process to which we are currently attached.
+    pub fn clear_opened_process(&self) {
+        if let Ok(mut process) = self.opened_process.write() {
+            *process = None;
+
+            log::info!("Process closed.");
+
+            (self.event_emitter)(ProcessChangedEvent { process_info: None }.to_engine_event());
+        }
+    }
+
+    /// Gets the process to which we are currently attached, if any.
+    pub fn get_opened_process(&self) -> Option<OpenedProcessInfo> {
+        match self.opened_process.read() {
+            Ok(opened_process) => opened_process.clone(),
+            Err(error) => {
+                log::error!("Failed to access opened process: {}", error);
+                None
+            }
+        }
+    }
+
+    /// Gets a reference to the shared lock containing the currently opened process.
+    pub fn get_opened_process_ref(&self) -> Arc<RwLock<Option<OpenedProcessInfo>>> {
+        self.opened_process.clone()
+    }
+
+    /// Listens for the death of the currently opened process by polling for it repeatedly.
+    fn listen_for_open_process_death(
+        event_emitter: Arc<dyn Fn(EngineEvent) + Send + Sync>,
+        opened_process: Arc<RwLock<Option<OpenedProcessInfo>>>,
+    ) {
+        std::thread::spawn(move || {
+            let mut system = System::new();
+
+            loop {
+                thread::sleep(OPEN_PROCESS_DEATH_POLL_INTERVAL);
+
+                let opened_process_id = {
+                    let read_result = opened_process.read();
+                    if let Ok(guard) = read_result {
+                        if let Some(opened_process_info) = guard.as_ref() {
+                            opened_process_info.get_process_id()
+                        } else {
+                            continue;
+                        }
+                    } else {
+                        continue;
+                    }
+                };
+
+                if !Self::is_process_alive(&mut system, opened_process_id) {
+                    if let Ok(mut opened_process) = opened_process.write() {
+                        *opened_process = None;
+                        log::info!("Process no longer open, detaching.");
+                        (event_emitter)(ProcessChangedEvent { process_info: None }.to_engine_event());
+                    }
+                }
+            }
+        });
+    }
+
+    fn is_process_alive(
+        system: &mut System,
+        process_id: u32,
+    ) -> bool {
+        #[cfg(target_family = "unix")]
+        {
+            let _ = system;
+            let kill_result = unsafe { kill(process_id as i32, 0) };
+
+            if kill_result == 0 {
+                return true;
+            }
+
+            let error_kind = std::io::Error::last_os_error().raw_os_error();
+
+            return error_kind != Some(ESRCH);
+        }
+
+        #[cfg(not(target_family = "unix"))]
+        {
+            let pid = Pid::from_u32(process_id);
+            let monitored_processes = [pid];
+            let refresh_kind = ProcessRefreshKind::nothing().without_tasks();
+
+            system.refresh_processes_specifics(ProcessesToUpdate::Some(&monitored_processes), true, refresh_kind);
+
+            system.process(pid).is_some()
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ProcessManager;
+    use sysinfo::System;
+
+    #[test]
+    fn process_liveness_check_finds_current_process() {
+        let mut system = System::new();
+
+        assert!(ProcessManager::is_process_alive(&mut system, std::process::id()));
+    }
+}

@@ -1,6 +1,7 @@
 use crate::commands::privileged_command::PrivilegedCommand;
 use crate::commands::privileged_command_response::PrivilegedCommandResponse;
 use crate::engine::engine_binding_error::EngineBindingError;
+use crate::engine::engine_event_envelope::EngineEventEnvelope;
 use crate::events::engine_event::EngineEvent;
 use crossbeam_channel::Receiver;
 
@@ -20,5 +21,5 @@ pub trait EngineApiPrivilegedBindings: Send + Sync {
     ) -> Result<(), EngineBindingError>;
 
     /// Requests to listen to all engine events.
-    fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEvent>, EngineBindingError>;
+    fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEventEnvelope>, EngineBindingError>;
 }

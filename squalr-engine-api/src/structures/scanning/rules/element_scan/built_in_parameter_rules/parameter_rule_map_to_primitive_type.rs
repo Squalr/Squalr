@@ -21,10 +21,9 @@ impl ElementScanParametersRule for RuleMapToPrimitiveType {
 
     fn map_parameters(
         &self,
+        symbol_registry: &SymbolRegistry,
         scan_constraints: &mut Vec<ScanConstraint>,
     ) {
-        let symbol_registry = SymbolRegistry::get_instance();
-
         for scan_constraint in scan_constraints {
             let data_value = scan_constraint.get_data_value();
             let data_type_ref = data_value.get_data_type_ref();

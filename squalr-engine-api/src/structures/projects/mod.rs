@@ -1,6 +1,14 @@
 pub mod project;
+pub mod project_context;
 pub mod project_info;
 pub mod project_items;
-pub mod project_manager;
 pub mod project_manifest;
 pub mod project_ref;
+pub mod project_symbol_catalog;
+pub mod project_symbol_claim;
+pub mod project_symbol_locator;
+pub mod project_symbol_module;
+pub mod project_symbol_module_field;
+pub mod symbol_layouts;
+pub mod symbol_resolvers;
+pub mod symbol_tree;

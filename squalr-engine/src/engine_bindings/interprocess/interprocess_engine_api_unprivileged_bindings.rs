@@ -7,12 +7,13 @@ use crossbeam_channel::Receiver;
 use crossbeam_channel::Sender;
 use squalr_engine_api::commands::privileged_command::PrivilegedCommand;
 use squalr_engine_api::commands::privileged_command_response::PrivilegedCommandResponse;
+use squalr_engine_api::commands::privileged_command_result::PrivilegedCommandResult;
 use squalr_engine_api::commands::unprivileged_command::UnprivilegedCommand;
 use squalr_engine_api::commands::unprivileged_command_response::UnprivilegedCommandResponse;
 use squalr_engine_api::engine::engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings;
 use squalr_engine_api::engine::engine_binding_error::EngineBindingError;
+use squalr_engine_api::engine::engine_event_envelope::EngineEventEnvelope;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
-use squalr_engine_api::events::engine_event::EngineEvent;
 use std::collections::HashMap;
 use std::io;
 use std::process::Child;
@@ -55,7 +56,7 @@ pub struct InterprocessEngineApiUnprivilegedBindings {
     request_handles: Arc<Mutex<HashMap<Uuid, Box<dyn FnOnce(PrivilegedCommandResponse) + Send + Sync>>>>,
 
     /// The list of subscribers to which we send engine events, after having received them from the engine.
-    event_senders: Arc<RwLock<Vec<Sender<EngineEvent>>>>,
+    event_senders: Arc<RwLock<Vec<Sender<EngineEventEnvelope>>>>,
 }
 
 impl EngineApiUnprivilegedBindings for InterprocessEngineApiUnprivilegedBindings {
@@ -102,7 +103,7 @@ impl EngineApiUnprivilegedBindings for InterprocessEngineApiUnprivilegedBindings
     }
 
     /// Requests to listen to all engine events.
-    fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEvent>, EngineBindingError> {
+    fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEventEnvelope>, EngineBindingError> {
         let (sender, receiver) = crossbeam_channel::unbounded();
         let mut sender_lock = self
             .event_senders
@@ -152,19 +153,19 @@ impl InterprocessEngineApiUnprivilegedBindings {
 
     fn handle_engine_response(
         request_handles: &Arc<Mutex<HashMap<Uuid, Box<dyn FnOnce(PrivilegedCommandResponse) + Send + Sync>>>>,
-        engine_response: PrivilegedCommandResponse,
+        privileged_command_result: PrivilegedCommandResult,
         request_id: Uuid,
     ) {
         if let Ok(mut request_handles) = request_handles.lock() {
             if let Some(callback) = request_handles.remove(&request_id) {
-                callback(engine_response);
+                callback(privileged_command_result.into_privileged_command_response());
             }
         }
     }
 
     fn handle_engine_event(
-        event_senders: &Arc<RwLock<Vec<Sender<EngineEvent>>>>,
-        engine_event: EngineEvent,
+        event_senders: &Arc<RwLock<Vec<Sender<EngineEventEnvelope>>>>,
+        engine_event: EngineEventEnvelope,
     ) {
         if let Ok(senders) = event_senders.read() {
             for sender in senders.iter() {
@@ -177,7 +178,7 @@ impl InterprocessEngineApiUnprivilegedBindings {
 
     fn listen_for_shell_responses(
         request_handles: Arc<Mutex<HashMap<Uuid, Box<dyn FnOnce(PrivilegedCommandResponse) + Send + Sync>>>>,
-        event_senders: Arc<RwLock<Vec<Sender<EngineEvent>>>>,
+        event_senders: Arc<RwLock<Vec<Sender<EngineEventEnvelope>>>>,
         ipc_connection: Arc<RwLock<Option<InterprocessPipeBidirectional>>>,
     ) {
         thread::spawn(move || {
@@ -218,7 +219,6 @@ impl InterprocessEngineApiUnprivilegedBindings {
             }
         });
     }
-
     fn spawn_privileged_cli(privileged_shell_process: Arc<RwLock<Option<Child>>>) -> io::Result<()> {
         match Self::spawn_squalr_cli_as_root() {
             Ok(child) => {

@@ -10,7 +10,6 @@ pub struct ToolbarHeaderItemView<'lifetime> {
     app_context: Arc<AppContext>,
     header: &'lifetime String,
     items: &'lifetime SmallVec<[ToolbarMenuItemData; 24]>,
-    width: f32,
     height: f32,
     horizontal_padding: f32,
     on_select: &'lifetime dyn Fn(&'lifetime str),
@@ -21,7 +20,6 @@ impl<'lifetime> ToolbarHeaderItemView<'lifetime> {
         app_context: Arc<AppContext>,
         header: &'lifetime String,
         items: &'lifetime SmallVec<[ToolbarMenuItemData; 24]>,
-        width: f32,
         height: f32,
         horizontal_padding: f32,
         on_select: &'lifetime dyn Fn(&'lifetime str),
@@ -30,7 +28,6 @@ impl<'lifetime> ToolbarHeaderItemView<'lifetime> {
             app_context,
             header,
             items,
-            width,
             height,
             horizontal_padding,
             on_select,
@@ -113,7 +110,9 @@ impl<'lifetime> Widget for ToolbarHeaderItemView<'lifetime> {
         }
 
         // Compute popup width.
-        let mut widest = allocated_size_rectangle.width();
+        let mut widest = allocated_size_rectangle
+            .width()
+            .max(ToolbarMenuItemView::MIN_MENU_WIDTH);
 
         user_interface.ctx().fonts_mut(|fonts| {
             for item in self.items.iter() {
@@ -122,15 +121,9 @@ impl<'lifetime> Widget for ToolbarHeaderItemView<'lifetime> {
                     theme.font_library.font_noto_sans.font_normal.clone(),
                     style.visuals.text_color(),
                 );
-                widest = widest.max(galley.size().x + 2.0 * style.spacing.button_padding.x);
+                widest = widest.max(ToolbarMenuItemView::row_width_from_text_width(galley.size().x));
             }
         });
-
-        let widest = widest
-            + style
-                .spacing
-                .icon_width_inner
-                .max(style.spacing.interact_size.y * 0.6);
 
         // Popup drawing.
         let popup_id = Id::new(("toolbar_menu_popup", &self.header, user_interface.id().value()));
@@ -146,21 +139,23 @@ impl<'lifetime> Widget for ToolbarHeaderItemView<'lifetime> {
                     .inner_margin(0)
                     .show(popup_user_interface, |popup_user_interface| {
                         popup_user_interface.set_min_width(widest);
+                        popup_user_interface.set_max_width(widest);
                         popup_user_interface.with_layout(Layout::top_down(Align::Min), |popup_popup_user_interface| {
                             for (index, item) in self.items.iter().enumerate() {
                                 if item.has_separator && index != 0 {
                                     popup_popup_user_interface.separator();
                                 }
 
-                                let item_response = popup_popup_user_interface.add(ToolbarMenuItemView::new(
-                                    self.app_context.clone(),
-                                    &item.text,
-                                    &item.id,
-                                    &item.check_state,
-                                    self.width,
-                                ));
+                                let is_enabled = item
+                                    .enabled_state
+                                    .as_ref()
+                                    .map(|enabled_state| enabled_state())
+                                    .unwrap_or(true);
+                                let item_response = popup_popup_user_interface.add(
+                                    ToolbarMenuItemView::new(self.app_context.clone(), &item.text, &item.id, &item.check_state, widest).disabled(!is_enabled),
+                                );
 
-                                if item_response.clicked() {
+                                if is_enabled && item_response.clicked() {
                                     user_interface.memory_mut(|memory| memory.data.remove::<String>(open_menu_id));
                                     (self.on_select)(&item.id);
                                 }

@@ -5,11 +5,9 @@ use crate::commands::settings::general::general_settings_response::GeneralSettin
 use crate::commands::settings::general::set::general_settings_set_response::GeneralSettingsSetResponse;
 use crate::commands::settings::settings_command::SettingsCommand;
 use serde::{Deserialize, Serialize};
-use structopt::StructOpt;
 
-#[derive(Clone, StructOpt, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct GeneralSettingsSetRequest {
-    #[structopt(short = "r_delay", long)]
     pub engine_request_delay: Option<u64>,
 }
 

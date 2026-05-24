@@ -40,7 +40,7 @@ impl Widget for ElementScannerFooterView {
         let height = self.get_height();
         let row_height = height * 0.5;
 
-        let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), height), Sense::empty());
+        let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(vec2(user_interface.available_width().max(1.0), height), Sense::empty());
 
         let theme = &self.app_context.theme;
         let font_id = theme.font_library.font_noto_sans.font_normal.clone();
@@ -144,7 +144,7 @@ impl Widget for ElementScannerFooterView {
         IconDraw::draw(
             &top_row_user_interface,
             previous_page_button.rect,
-            &theme.icon_library.icon_handle_navigation_left_arrow,
+            &theme.icon_library.icon_handle_navigation_left_arrow_small,
         );
 
         if previous_page_button.clicked() {
@@ -164,7 +164,7 @@ impl Widget for ElementScannerFooterView {
         IconDraw::draw(
             &top_row_user_interface,
             next_page_button.rect,
-            &theme.icon_library.icon_handle_navigation_right_arrow,
+            &theme.icon_library.icon_handle_navigation_right_arrow_small,
         );
 
         if next_page_button.clicked() {

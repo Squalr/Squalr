@@ -1,6 +1,6 @@
 [package]
 name = "squalr-tests"
-version = "0.1.0"
+version = "0.3.0"
 edition = "2024"
 
 [dependencies]
@@ -8,5 +8,4 @@ crossbeam-channel = "0.5.15"
 squalr-engine = { path = "../squalr-engine" }
 squalr-engine-api = { path = "../squalr-engine-api" }
 squalr-engine-session = { path = "../squalr-engine-session" }
-squalr-engine-operating-system = { path = "../squalr-engine-operating-system" }
-structopt = "0.3.26"
+squalr-engine-targets = { path = "../squalr-engine-targets" }

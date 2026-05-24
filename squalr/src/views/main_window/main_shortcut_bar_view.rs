@@ -15,6 +15,9 @@ pub struct MainShortcutBarView {
 }
 
 impl MainShortcutBarView {
+    const PROCESS_COMBO_BOX_WIDTH: f32 = 224.0;
+    const PROCESS_DROPDOWN_HORIZONTAL_PADDING: f32 = 52.0;
+
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let process_selector_view_data = app_context
             .dependency_container
@@ -47,10 +50,8 @@ impl Widget for MainShortcutBarView {
     ) -> Response {
         ProcessSelectorViewData::clear_stale_request_state(self.process_selector_view_data.clone());
 
-        let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), 32.0), Sense::empty());
+        let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(vec2(user_interface.available_width().max(1.0), 32.0), Sense::empty());
         let theme = &self.app_context.theme;
-        let combo_box_width = 224.0;
-        let process_dropdown_list_width = 256.0;
         let process_selector_view_data = match self.process_selector_view_data.read("Main shortcut bar view") {
             Some(process_selector_view_data) => process_selector_view_data,
             None => return response,
@@ -72,7 +73,7 @@ impl Widget for MainShortcutBarView {
 
         let mut refresh_windowed_processes = false;
         let mut process_to_open = None;
-
+        let mut missing_icon_process_ids = Vec::new();
         let name_display = match &process_selector_view_data.opened_process {
             Some(opened_proces) => opened_proces.get_name(),
             None => {
@@ -83,6 +84,7 @@ impl Widget for MainShortcutBarView {
                 }
             }
         };
+        let process_dropdown_list_width = Self::calculate_process_dropdown_width(self.app_context.as_ref(), user_interface, &process_selector_view_data);
 
         let process_select_combo_box = ComboBoxView::new(
             self.app_context.clone(),
@@ -115,10 +117,11 @@ impl Widget for MainShortcutBarView {
 
                     let mut render_process_rows = |inner_user_interface: &mut Ui| {
                         for shortcut_dropdown_process in shortcut_dropdown_processes {
-                            let icon = match shortcut_dropdown_process.get_icon() {
-                                Some(icon) => process_selector_view_data.get_icon(&self.app_context, shortcut_dropdown_process.get_process_id_raw(), icon),
-                                None => None,
-                            };
+                            let process_id = shortcut_dropdown_process.get_process_id_raw();
+                            let icon = process_selector_view_data.get_cached_icon(process_id);
+                            if icon.is_none() {
+                                missing_icon_process_ids.push(process_id);
+                            }
 
                             if inner_user_interface
                                 .add(ComboBoxItemView::new(
@@ -162,7 +165,7 @@ impl Widget for MainShortcutBarView {
                 }
             },
         )
-        .width(combo_box_width);
+        .width(Self::PROCESS_COMBO_BOX_WIDTH);
 
         if row_user_interface.add(process_select_combo_box).clicked() {
             refresh_windowed_processes = true;
@@ -172,9 +175,7 @@ impl Widget for MainShortcutBarView {
             // Drop the read lock to free up the data for write lock access.
             drop(process_selector_view_data);
 
-            // Refresh the process list on first click.
-            // JIRA: Set an atomic flag maybe on the process view data such that we can show a loading indicator?
-            // Could throw in an artificial delay to simulate how this would behave over a network (GUI -> network -> shell).
+            // The shortcut dropdown only needs the windowed quick-select list.
             ProcessSelectorViewData::refresh_windowed_process_list(self.process_selector_view_data.clone(), self.app_context.clone());
             if cfg!(target_os = "android") {
                 ProcessSelectorViewData::refresh_full_process_list(self.process_selector_view_data.clone(), self.app_context.clone());
@@ -184,8 +185,58 @@ impl Widget for MainShortcutBarView {
             drop(process_selector_view_data);
 
             ProcessSelectorViewData::select_process(self.process_selector_view_data.clone(), self.app_context.clone(), process_id);
+        } else {
+            drop(process_selector_view_data);
         }
 
+        ProcessSelectorViewData::request_process_icons_if_needed(self.process_selector_view_data.clone(), self.app_context.clone(), missing_icon_process_ids);
+
         response
+    }
+}
+
+impl MainShortcutBarView {
+    fn calculate_process_dropdown_width(
+        app_context: &AppContext,
+        user_interface: &mut Ui,
+        process_selector_view_data: &ProcessSelectorViewData,
+    ) -> f32 {
+        let mut longest_label_width = 0.0_f32;
+
+        user_interface.ctx().fonts_mut(|fonts| {
+            let font_id = app_context
+                .theme
+                .font_library
+                .font_noto_sans
+                .font_normal
+                .clone();
+            let text_color = app_context.theme.foreground;
+
+            if process_selector_view_data.opened_process.is_some() {
+                longest_label_width = longest_label_width.max(
+                    fonts
+                        .layout_no_wrap(String::from("--- Detach from current process ---"), font_id.clone(), text_color)
+                        .size()
+                        .x,
+                );
+            }
+
+            for shortcut_dropdown_process in &process_selector_view_data.shortcut_dropdown_process_list {
+                longest_label_width = longest_label_width.max(
+                    fonts
+                        .layout_no_wrap(shortcut_dropdown_process.get_name().to_string(), font_id.clone(), text_color)
+                        .size()
+                        .x,
+                );
+            }
+        });
+
+        Self::process_dropdown_width_from_longest_label_width(longest_label_width)
+    }
+
+    fn process_dropdown_width_from_longest_label_width(longest_label_width: f32) -> f32 {
+        (longest_label_width + Self::PROCESS_DROPDOWN_HORIZONTAL_PADDING)
+            .ceil()
+            .max(Self::PROCESS_COMBO_BOX_WIDTH)
     }
 }

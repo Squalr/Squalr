@@ -1,13 +1,17 @@
 pub mod memory;
+pub mod plugins;
 pub mod pointer_scan;
 pub mod privileged_command_executor;
 pub mod privileged_request_executor;
 pub mod process;
 pub mod project;
 pub mod project_items;
+pub mod project_symbols;
+pub mod registry;
 pub mod scan;
 pub mod scan_results;
 pub mod settings;
+pub mod snapshot_region_builder;
 pub mod struct_scan;
 pub mod trackable_tasks;
 pub mod unprivileged_command_executor;

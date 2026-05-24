@@ -1,0 +1,2 @@
+pub mod project_symbols_execute_plugin_action_request;
+pub mod project_symbols_execute_plugin_action_response;

@@ -3,20 +3,13 @@ use crate::commands::memory::memory_response::MemoryResponse;
 use crate::commands::memory::write::memory_write_response::MemoryWriteResponse;
 use crate::commands::privileged_command::PrivilegedCommand;
 use crate::commands::privileged_command_request::PrivilegedCommandRequest;
-use crate::conversions::conversions_from_primitives::Conversions;
 use serde::{Deserialize, Serialize};
-use structopt::StructOpt;
 
-#[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MemoryWriteRequest {
     // JIRA: Seems sus to just have generic int or hex parser.
-    #[structopt(short = "a", long, parse(try_from_str = Conversions::parse_hex_or_int))]
     pub address: u64,
-
-    #[structopt(short = "m")]
     pub module_name: String,
-
-    #[structopt(short = "v")]
     pub value: Vec<u8>,
 }
 

@@ -6,8 +6,12 @@ pub enum TuiPane {
     ScanResults,
     ProjectExplorer,
     StructViewer,
+    MemoryViewer,
+    MemoryInterpretation,
+    CodeViewer,
     Output,
     Settings,
+    Plugins,
 }
 
 impl TuiPane {
@@ -18,8 +22,12 @@ impl TuiPane {
             TuiPane::ScanResults => "Scan Results",
             TuiPane::ProjectExplorer => "Project Explorer",
             TuiPane::StructViewer => "Struct Viewer",
+            TuiPane::MemoryViewer => "Memory Viewer",
+            TuiPane::MemoryInterpretation => "Interpretation",
+            TuiPane::CodeViewer => "Code Viewer",
             TuiPane::Output => "Output",
             TuiPane::Settings => "Settings",
+            TuiPane::Plugins => "Plugins",
         }
     }
 
@@ -30,8 +38,12 @@ impl TuiPane {
             TuiPane::ScanResults => 2,
             TuiPane::ProjectExplorer => 3,
             TuiPane::StructViewer => 4,
-            TuiPane::Output => 5,
-            TuiPane::Settings => 6,
+            TuiPane::MemoryViewer => 5,
+            TuiPane::MemoryInterpretation => 6,
+            TuiPane::CodeViewer => 7,
+            TuiPane::Output => 8,
+            TuiPane::Settings => 9,
+            TuiPane::Plugins => 10,
         }
     }
 }

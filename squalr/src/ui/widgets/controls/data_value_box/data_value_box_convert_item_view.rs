@@ -115,6 +115,16 @@ impl<'a> Widget for DataValueBoxConvertItemView<'a> {
                     Color32::WHITE,
                 );
             }
+        } else {
+            // Reserve visual space for checkbox alignment, even when not shown (for struct viewer consistency).
+            let checkbox_pos = pos2(
+                allocated_size_rectangle.min.x + icon_left_padding,
+                allocated_size_rectangle.center().y - icon_size.y * 0.5,
+            );
+            let checkbox_rectangle = Rect::from_min_size(checkbox_pos, icon_size);
+            user_interface
+                .painter()
+                .rect_filled(checkbox_rectangle, CornerRadius::ZERO, theme.background_control);
         }
 
         let text_pos = pos2(

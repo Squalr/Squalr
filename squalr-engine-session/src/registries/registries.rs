@@ -16,7 +16,7 @@ pub struct Registries {
     element_scan_rule_registry: Arc<RwLock<ElementScanRuleRegistry>>,
 
     /// The registry for symbolic struct definitions.
-    symbol_registry: Arc<RwLock<SymbolRegistry>>,
+    symbol_registry: Arc<SymbolRegistry>,
 }
 
 impl Registries {
@@ -24,7 +24,7 @@ impl Registries {
         let freeze_list_registry = Arc::new(RwLock::new(FreezeListRegistry::new()));
         let project_item_type_registry = Arc::new(RwLock::new(ProjectItemTypeRegistry::new()));
         let element_scan_rule_registry = Arc::new(RwLock::new(ElementScanRuleRegistry::new()));
-        let symbol_registry = Arc::new(RwLock::new(SymbolRegistry::new()));
+        let symbol_registry = Arc::new(SymbolRegistry::new());
 
         Self {
             freeze_list_registry,
@@ -32,6 +32,10 @@ impl Registries {
             element_scan_rule_registry,
             symbol_registry,
         }
+    }
+
+    pub(crate) fn get_symbol_registry(&self) -> Arc<SymbolRegistry> {
+        self.symbol_registry.clone()
     }
 }
 
@@ -49,10 +53,5 @@ impl RegistryContext for Registries {
     /// Gets the registry for element scan rules.
     fn get_element_scan_rule_registry(&self) -> Arc<RwLock<ElementScanRuleRegistry>> {
         self.element_scan_rule_registry.clone()
-    }
-
-    /// Gets the registry for symbolic struct definitions.
-    fn get_symbol_registry(&self) -> Arc<RwLock<SymbolRegistry>> {
-        self.symbol_registry.clone()
     }
 }

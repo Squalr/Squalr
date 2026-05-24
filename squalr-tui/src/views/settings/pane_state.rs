@@ -1,4 +1,5 @@
 use crate::views::settings::summary::build_settings_summary_lines_with_capacity;
+use squalr_engine_api::plugins::memory_view::PageRetrievalMode;
 use squalr_engine_api::structures::data_types::floating_point_tolerance::FloatingPointTolerance;
 use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
 use squalr_engine_api::structures::scanning::memory_read_mode::MemoryReadMode;
@@ -84,8 +85,10 @@ impl SettingsPaneState {
             SettingsCategory::Scan => {
                 let default_scan_settings = ScanSettings::default();
                 if self.scan_settings.results_page_size != default_scan_settings.results_page_size
+                    || self.scan_settings.page_retrieval_mode != default_scan_settings.page_retrieval_mode
                     || self.scan_settings.freeze_interval_ms != default_scan_settings.freeze_interval_ms
                     || self.scan_settings.project_read_interval_ms != default_scan_settings.project_read_interval_ms
+                    || self.scan_settings.project_file_system_watch_enabled != default_scan_settings.project_file_system_watch_enabled
                     || self.scan_settings.results_read_interval_ms != default_scan_settings.results_read_interval_ms
                     || self.scan_settings.memory_alignment != default_scan_settings.memory_alignment
                     || self.scan_settings.memory_read_mode != default_scan_settings.memory_read_mode
@@ -233,6 +236,10 @@ impl SettingsPaneState {
                     self.scan_settings.debug_perform_validation_scan = !self.scan_settings.debug_perform_validation_scan;
                     did_change_value = true;
                 }
+                10 => {
+                    self.scan_settings.project_file_system_watch_enabled = !self.scan_settings.project_file_system_watch_enabled;
+                    did_change_value = true;
+                }
                 _ => {}
             },
         }
@@ -320,6 +327,10 @@ impl SettingsPaneState {
                 6 => {
                     self.scan_settings.floating_point_tolerance =
                         Self::next_floating_point_tolerance(self.scan_settings.floating_point_tolerance, move_forward);
+                    did_change_value = true;
+                }
+                9 => {
+                    self.scan_settings.page_retrieval_mode = Self::next_page_retrieval_mode(self.scan_settings.page_retrieval_mode, move_forward);
                     did_change_value = true;
                 }
                 _ => {}
@@ -559,7 +570,7 @@ impl SettingsPaneState {
         match self.selected_category {
             SettingsCategory::General => 1,
             SettingsCategory::Memory => 13,
-            SettingsCategory::Scan => 9,
+            SettingsCategory::Scan => 11,
         }
     }
 
@@ -624,11 +635,7 @@ impl SettingsPaneState {
         current_mode: MemoryReadMode,
         move_forward: bool,
     ) -> MemoryReadMode {
-        let all_modes = [
-            MemoryReadMode::Skip,
-            MemoryReadMode::ReadBeforeScan,
-            MemoryReadMode::ReadInterleavedWithScan,
-        ];
+        let all_modes = [MemoryReadMode::Skip, MemoryReadMode::ReadBeforeScan];
         let current_position = all_modes
             .iter()
             .position(|memory_read_mode| *memory_read_mode == current_mode)
@@ -669,6 +676,32 @@ impl SettingsPaneState {
         };
 
         all_tolerances[next_position]
+    }
+
+    fn next_page_retrieval_mode(
+        current_mode: PageRetrievalMode,
+        move_forward: bool,
+    ) -> PageRetrievalMode {
+        let all_modes = [
+            PageRetrievalMode::FromSettings,
+            PageRetrievalMode::FromUserMode,
+            PageRetrievalMode::FromModules,
+            PageRetrievalMode::FromNonModules,
+            PageRetrievalMode::FromVirtualModules,
+        ];
+        let current_position = all_modes
+            .iter()
+            .position(|page_retrieval_mode| *page_retrieval_mode == current_mode)
+            .unwrap_or(0);
+        let next_position = if move_forward {
+            (current_position + 1) % all_modes.len()
+        } else if current_position == 0 {
+            all_modes.len() - 1
+        } else {
+            current_position - 1
+        };
+
+        all_modes[next_position]
     }
 }
 
@@ -717,7 +750,7 @@ mod tests {
 
         settings_pane_state.select_last_field();
 
-        assert_eq!(settings_pane_state.selected_field_index, 8);
+        assert_eq!(settings_pane_state.selected_field_index, 10);
     }
 
     #[test]

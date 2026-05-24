@@ -1,11 +1,12 @@
 use crate::ui::theme::Theme;
 use crate::ui::widgets::controls::state_layer::StateLayer;
+use crate::ui::widgets::controls::tooltip::{ThemedTooltip, ThemedTooltipStyle};
 use eframe::egui::{Color32, Response, Sense, Ui, Widget};
 use epaint::CornerRadius;
 
-#[derive(Default)]
 pub struct Button<'lifetime> {
     pub disabled: bool,
+    pub tooltip_style: Option<ThemedTooltipStyle>,
     pub tooltip_text: &'lifetime str,
     pub corner_radius: CornerRadius,
     pub border_width: f32,
@@ -16,6 +17,27 @@ pub struct Button<'lifetime> {
     pub border_color: Color32,
     pub click_sound: Option<&'lifetime str>,
     pub border_color_focused: Option<Color32>,
+    pub sense: Sense,
+}
+
+impl<'lifetime> Default for Button<'lifetime> {
+    fn default() -> Self {
+        Self {
+            disabled: false,
+            tooltip_style: None,
+            tooltip_text: "",
+            corner_radius: CornerRadius::ZERO,
+            border_width: 0.0,
+            margin: 0,
+            backgorund_color: Color32::TRANSPARENT,
+            hover_tint: Color32::TRANSPARENT,
+            pressed_tint: Color32::TRANSPARENT,
+            border_color: Color32::TRANSPARENT,
+            click_sound: None,
+            border_color_focused: None,
+            sense: Sense::click(),
+        }
+    }
 }
 
 impl<'lifetime> Button<'lifetime> {
@@ -23,6 +45,7 @@ impl<'lifetime> Button<'lifetime> {
         let mut button = Button::default();
 
         button.corner_radius = CornerRadius { nw: 4, ne: 4, sw: 4, se: 4 };
+        button.tooltip_style = Some(ThemedTooltipStyle::from_theme(theme));
         button.border_width = 0.0;
         button.margin = 0;
         button.backgorund_color = theme.background_control_primary;
@@ -121,6 +144,14 @@ impl<'lifetime> Button<'lifetime> {
         self.click_sound = sound;
         self
     }
+
+    pub fn sense(
+        mut self,
+        sense: Sense,
+    ) -> Self {
+        self.sense = sense;
+        self
+    }
 }
 
 impl<'lifetime> Widget for Button<'lifetime> {
@@ -128,8 +159,8 @@ impl<'lifetime> Widget for Button<'lifetime> {
         self,
         user_interface: &mut Ui,
     ) -> Response {
-        let sense = if self.disabled { Sense::hover() } else { Sense::click() };
-        let (allocated_size_rectangle, mut response) = user_interface.allocate_exact_size(user_interface.available_size(), sense);
+        let sense = if self.disabled { Sense::hover() } else { self.sense };
+        let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(user_interface.available_size(), sense);
 
         // Background.
         user_interface
@@ -156,8 +187,14 @@ impl<'lifetime> Widget for Button<'lifetime> {
         .ui(user_interface);
 
         // Tooltip.
-        if !self.tooltip_text.is_empty() {
-            response = response.on_hover_text(self.tooltip_text);
+        if let Some(tooltip_style) = &self.tooltip_style {
+            ThemedTooltip::show_text_with_style(
+                user_interface,
+                &response,
+                response.id.with("themed_button_tooltip"),
+                tooltip_style,
+                self.tooltip_text,
+            );
         }
 
         // Click sound.

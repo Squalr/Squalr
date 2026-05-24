@@ -1,11 +1,17 @@
+pub mod command_invocation;
+pub mod command_line;
 pub mod memory;
+pub mod plugins;
 pub mod pointer_scan;
 pub mod privileged_command;
 pub mod privileged_command_request;
 pub mod privileged_command_response;
+pub mod privileged_command_result;
 pub mod process;
 pub mod project;
 pub mod project_items;
+pub mod project_symbols;
+pub mod registry;
 pub mod scan;
 pub mod scan_results;
 pub mod settings;

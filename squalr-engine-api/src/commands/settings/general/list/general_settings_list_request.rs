@@ -4,9 +4,8 @@ use crate::commands::settings::general::list::general_settings_list_response::Ge
 use crate::commands::settings::settings_command::SettingsCommand;
 use crate::commands::{privileged_command::PrivilegedCommand, privileged_command_request::PrivilegedCommandRequest};
 use serde::{Deserialize, Serialize};
-use structopt::StructOpt;
 
-#[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct GeneralSettingsListRequest {}
 
 impl PrivilegedCommandRequest for GeneralSettingsListRequest {

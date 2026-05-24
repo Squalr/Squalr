@@ -4,14 +4,10 @@ use crate::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use crate::commands::{project::project_command::ProjectCommand, unprivileged_command::UnprivilegedCommand};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use structopt::StructOpt;
 
-#[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ProjectRenameRequest {
-    #[structopt(short = "p", long)]
     pub project_directory_path: PathBuf,
-
-    #[structopt(short = "n", long)]
     pub new_project_name: String,
 }
 

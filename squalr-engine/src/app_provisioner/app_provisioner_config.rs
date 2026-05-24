@@ -5,12 +5,41 @@ pub struct AppProvisionerConfig {}
 impl AppProvisionerConfig {
     pub const DOWNLOAD_WEIGHT: f32 = 0.35;
     pub const EXTRACT_WEIGHT: f32 = 1.0 - AppProvisionerConfig::DOWNLOAD_WEIGHT;
-    pub const FILENAME: &'static str = "Squalr.zip";
-    const GITHUB_API_LATEST_RELEASE: &'static str = "https://api.github.com/repos/zcanann/Squalr-Rust/releases/latest";
+    pub const FILENAME: &'static str = "squalr-release-bundle.zip";
+    const GITHUB_API_LATEST_RELEASE: &'static str = "https://api.github.com/repos/Squalr/Squalr/releases/latest";
 
     /// Gets the version URL for the latest release.
     pub fn get_latest_version_url() -> &'static str {
         &AppProvisionerConfig::GITHUB_API_LATEST_RELEASE
+    }
+
+    /// Resolves the current release artifact target in `<os>-<arch>` format.
+    pub fn get_release_artifact_target() -> Option<String> {
+        let operating_system_label = if cfg!(target_os = "windows") {
+            "windows"
+        } else if cfg!(target_os = "linux") {
+            "linux"
+        } else if cfg!(target_os = "macos") {
+            "macos"
+        } else {
+            return None;
+        };
+
+        let architecture_label = if cfg!(target_arch = "x86_64") {
+            "x86_64"
+        } else if cfg!(target_arch = "aarch64") {
+            "aarch64"
+        } else {
+            return None;
+        };
+
+        Some(format!("{operating_system_label}-{architecture_label}"))
+    }
+
+    /// Resolves the expected desktop release bundle file name for a given release tag.
+    pub fn get_release_bundle_asset_name(release_tag_name: &str) -> Option<String> {
+        let release_version = release_tag_name.trim_start_matches('v');
+        Self::get_release_artifact_target().map(|artifact_target| format!("squalr-{release_version}-{artifact_target}.zip"))
     }
 
     pub fn get_default_install_dir() -> anyhow::Result<PathBuf> {
@@ -18,5 +47,33 @@ impl AppProvisionerConfig {
         install_dir.push("Programs");
         install_dir.push("Squalr");
         Ok(install_dir)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AppProvisionerConfig;
+
+    #[test]
+    fn latest_release_url_targets_live_squalr_repository() {
+        assert_eq!(
+            AppProvisionerConfig::get_latest_version_url(),
+            "https://api.github.com/repos/Squalr/Squalr/releases/latest"
+        );
+    }
+
+    #[test]
+    #[cfg(any(
+        all(target_os = "windows", any(target_arch = "x86_64", target_arch = "aarch64")),
+        all(target_os = "linux", any(target_arch = "x86_64", target_arch = "aarch64")),
+        all(target_os = "macos", any(target_arch = "x86_64", target_arch = "aarch64"))
+    ))]
+    fn release_bundle_asset_name_uses_current_target() {
+        let resolved_artifact_target =
+            AppProvisionerConfig::get_release_artifact_target().expect("supported desktop targets must resolve an updater artifact target");
+        let expected_bundle_asset_name = format!("squalr-0.1.2-{resolved_artifact_target}.zip");
+        let resolved_bundle_asset_name = AppProvisionerConfig::get_release_bundle_asset_name("v0.1.2");
+
+        assert_eq!(resolved_bundle_asset_name.as_deref(), Some(expected_bundle_asset_name.as_str()));
     }
 }

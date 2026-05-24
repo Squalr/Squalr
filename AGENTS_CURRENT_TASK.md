@@ -1,37 +1,32 @@
-# Agentic Current Task (Readonly)
+# Agentic Current Task
 Our current task, from `README.md`, is:
-`pr/TODO`
+`pr/todo`
 
-# Notes from Owner (Readonly Section)
-- Assume any unstaged file changes are from a previous iteration, and can be kept if they look good
-- The android device is rooted.
-- You don't get to declare things as fixed. Only "need human verification".
+# Notes from Owner
+- Assume any unstaged/uncommitted file changes are from a previous iteration, or from the human author giving guidance. Keep them if they look good; do not ask about them by default.
+- Assume any connected Android devices are rooted, and assume macOS has SIP disabled.
+- Do not declare behavior as fixed. Use "needs human verification" after implementation and validation.
+- Alpha-stage data compatibility is not required for this refactor. Prefer a clean model over preserving old address/pointer/symbol-ref project item properties.
 
-## WONTFIX (For now)
-- Add multi-data-type scan parity to GUI element scanner (`squalr/src/views/element_scanner/scanner/view_data/element_scanner_view_data.rs`) so one scan request can include multiple selected data types like TUI.
-- Add GUI process list search/filter input parity with TUI process selector (`squalr/src/views/process_selector`) including in-memory filtering and refresh-aware state behavior.
-- Add GUI project selector search/filter parity with TUI project list workflows (`squalr/src/views/project_explorer/project_selector`) so large project lists can be searched quickly.
-- Add GUI output window controls parity with TUI (`squalr/src/views/output/output_view.rs`): clear log action and configurable max-line cap.
-- Complete GUI settings parity with TUI for missing controls in memory/scan tabs (`squalr/src/views/settings/settings_tab_memory_view.rs`, `squalr/src/views/settings/settings_tab_scan_view.rs`), including start/end address editing, memory alignment, memory read mode, and floating-point tolerance.
+## Current Tasklist
 
-## Current Tasklist (ordered)
-(Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
-
-- Need human verification: Validate non-Android GUI boot on a clean desktop environment after Android support changes, confirming startup no longer crashes during update/version check.
-- Need human verification: Validate desktop GUI shortcut process dropdown shows only true windowed processes (no background task leakage) after restoring non-Android windowed-only sourcing.
-- Need human verification: Validate desktop GUI process selector in `Windowed` mode only shows true windowed processes (no broad non-windowed `.exe` leakage) after Android fallback gating changes.
+- Completed: Project item runtime value display formats are now persisted separately from the preview value, and Project Explorer refresh/detail focus preserves the chosen format.
+- Completed: Output dock command input now draws a 1px border and uses a compact 28px height with 4px spacing above it.
+- Completed: Relative element scan constraints now omit hidden value-box contents, preventing empty literal parsing after Collect Values when scanning increased/decreased/changed/unchanged.
+- Completed: Removed the Symbol Tree per-node manifest display-format persistence path.
+- Completed: Symbol layout fields can now store an optional preferred display format, exposed only when the field data type reports supported display formats.
+- Completed: Symbol Tree runtime/preview values consume the layout-owned preferred display format but do not allow display-format edits from the Symbol Tree details view.
+- Completed: Symbol Tree module-root layout presentation now consumes promoted symbol claims that correspond to module-root layout fields without appending duplicate claim nodes or inserting extra undefined segments for claim-relocated sequential layout fields. A winmine-shaped regression covers the exact `PE Headers`, undefined, `winmine_exe_0x579C`, undefined order.
+- Completed: Prompt command error/help usage now strips executable/crate names for GUI and interactive CLI session mode, showing top-level prompt usage as `<COMMAND>` while preserving executable-style usage for CLI one-shot errors.
+- Completed: Valueless relative scan constraints now compile into real relative constraints instead of being dropped, so Collect Values followed by Increased/Decreased filters against the collected baseline rather than retaining every result.
+- Completed: Linux windowed-process detection now recognizes display-connected client sockets as a best-effort Wayland/X11 signal, so the Linux GUI process appears in `--require-windowed` process queries under WSLg.
+- Completed: GUI logging now suppresses noisy dependency debug/span targets and the repeated WSLg Wayland cursor warning target while preserving Squalr root debug logging.
+- Completed: Linux module enumeration now spans all mappings for a file-backed executable module instead of only the executable segment, allowing static addresses in ELF data/rodata mappings to resolve as module offsets for promote-to-symbol.
+- Completed: Project item path resolution now accepts project-rooted relative paths without prepending the opened project directory again, and rebases normalized project-root aliases back onto the opened project directory's exact path form, preventing promote-to-symbol from looking for duplicated paths or missing `./Squalr/...` map keys as `Squalr/...`.
+- Completed: Binary header symbol population now supports richer ELF module roots through the generic Populate Binary Symbols action, naming program/section/dynamic entries and resolving interpreter, dynamic string, and dynamic symbol metadata when readable.
+- Completed: Symbol Layout Editor field removal is now presented as Unassign for struct fields, preserves the removed field's byte span as an in-place unassigned block without shifting following sequential fields, allows unassigning the only struct field, and keeps true layout deletion labeled Delete.
 
 ## Important Information
-Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
 
-- Root cause for non-Android GUI boot crash: `ureq` v3 defaults TLS provider to `Rustls`, but desktop `squalr-engine` dependency enables only `native-tls`; version check thread panicked on first HTTPS request to GitHub.
-- Mitigation implemented: added `AppProvisionerHttpClient` to create a configured `ureq` agent with target-specific TLS provider (`NativeTls` on non-Android, `Rustls` on Android), and routed version-check/download HTTP calls through it.
-- Local verification: `cargo run -p squalr` no longer panics at boot; update check completes over HTTPS with `ureq::tls::native_tls` logs.
-- Note: `cargo test -p squalr-engine` has one environment-specific failure in `squalr_engine::tests::privileged_shell_does_not_create_unprivileged_state` due named pipe access denied on this host.
-- Root cause for windowed-process regression on desktop: Android fallback in `ProcessSelectorViewData::normalize_windowed_processes_with_fallback` and shortcut fallback was unconditional; on Windows, many non-windowed process names match the fallback heuristic (`contains('.') && !contains(':')`), polluting the windowed list.
-- Mitigation implemented: gated both fallbacks to Android only (`cfg!(target_os = "android")` via `IS_ANDROID_TARGET`), so non-Android windowed mode now uses strict `get_is_windowed()` filtering.
-- Local verification: `cargo test -p squalr process_selector_view_data --locked` passes with platform-conditional assertions for fallback behavior.
-- Root cause for persistent desktop leakage after fallback gating: shortcut dropdown selection logic sourced from full process list when `show_windowed_processes_only` was false (default non-Android), reintroducing background tasks despite strict windowed filtering.
-- Mitigation implemented: restored legacy desktop shortcut behavior by always sourcing shortcut dropdown from `windowed_process_list` on non-Android and only refreshing full list from the shortcut on Android.
-- Local verification: `cargo test -p squalr process_selector_view_data --locked` passes including `refresh_shortcut_dropdown_process_list_keeps_desktop_windowed_only_behavior`.
-- Android logging hooks consolidated into shared `squalr-engine-session` platform layer: added `PlatformLogHooks` trait + dispatcher in `src/logging/platform/platform_log_hooks.rs`, implemented Android hook init in existing `src/logging/platform/android_log_hooks.rs`, and updated `squalr` + `squalr-cli` entry points to call `initialize_platform_log_hooks_once(...)` instead of crate-local Android logger setup.
+- Validation: `cargo fmt --all` completed with existing rustfmt deprecation warnings for `fn_args_layout`; `cargo test -p squalr build_scan_constraints` passed 2 targeted tests; `cargo test -p squalr` passed 31 tests. Prompt validation: `cargo test -p squalr-engine-api` passed 303 tests; `cargo test -p squalr-cli` passed 14 tests; `cargo test -p squalr output_command` passed 4 targeted tests. Scan validation: `cargo test -p squalr-engine` passed 154 tests. Binary symbol validation: `cargo test -p squalr-plugin-binary-symbols -- --nocapture` passed 26 tests; `cargo test -p squalr-engine execute_plugin_action -- --nocapture` passed 3 targeted tests; WSL `cargo test -p squalr-plugin-binary-symbols -- --nocapture` passed 26 tests. Linux validation: WSL `cargo test -p squalr-engine-targets-native linux_process_query -- --nocapture` passed 14 tests; WSL `cargo test -p squalr-engine-targets-native linux_memory_queryer -- --nocapture` passed 8 tests; WSL `cargo test -p squalr-engine-targets-native -- --nocapture` passed 23 tests plus doctests; WSL `cargo test -p squalr-engine promote_symbol_request -- --nocapture` passed 10 tests; WSL `cargo test -p squalr-engine project_item_file_mutation -- --nocapture` passed 9 tests; Windows `cargo test -p squalr-engine promote_symbol_request -- --nocapture` passed 10 tests; Windows `cargo test -p squalr-engine project_item_file_mutation -- --nocapture` passed 9 tests; `cargo test -p squalr-engine-session logging -- --nocapture` passed 1 test; WSL `cargo build -p squalr -p squalr-cli` and WSL `cargo build -p squalr` passed; runtime WSL check launched `squalr`, verified `squalr-cli process list --require-windowed --search-name squalr` returned `is_windowed: true`, and verified zero `winit::Window::`, `Failed to set cursor`, or `tracing::span` matches in the captured GUI log. Symbol layout unassign validation: `cargo fmt` completed with the existing `fn_args_layout` deprecation warnings; `cargo test -p squalr-engine-api symbol_layout` passed 15 targeted tests; `cargo check -p squalr` passed.
+- Human verification: Reopen the winmine project and confirm the Symbol Tree shows `PE Headers`, one undefined segment, `winmine_exe_0x579C`, and one trailing undefined segment under `winmine.exe`, matching the single layout field shown by right-click edit layout. Also confirm the previous display-format and Output dock checks still behave as expected. In the GUI Output dock, entering `24` should report `Usage: <COMMAND>` rather than `Usage: squalr-engine-api <SUBCOMMAND>`. In the scanner, Collect Values followed by Increased should only retain entries whose scan-time current value is greater than scan-time previous value. On Linux/WSL, confirm the GUI's windowed process filter includes the running Squalr process and the Output log is not flooded with winit span/cursor messages during normal idle interaction. Recreate a Linux static project item from a fresh scan result in the rebuilt GUI, promote it to a symbol, and confirm the Symbol Tree creates the module root layout/field without logging a missing duplicated project item path. On Linux/WSL, run Populate Binary Symbols on an ELF module root and confirm `ELF Headers` expands into named `PT_*`, section, `DT_*`, interpreter, dependency/soname/runpath, and dynamic symbol fields when those regions are readable from process memory. In the Symbol Layout Editor, unassign a middle struct field and confirm following rows do not shift; also unassign the only field in a fixed-size struct and confirm the visible row becomes an unassigned block at the same byte span. This needs human verification.

@@ -62,16 +62,82 @@ def command_exists(command_name):
     return shutil.which(command_name) is not None
 
 
-def ensure_host_preflight(workspace_directory):
-    missing_commands = [command_name for command_name in ["cargo", "rustup", "adb"] if not command_exists(command_name)]
+def get_active_rust_toolchain(workspace_directory):
+    active_toolchain_command = ["rustup", "show", "active-toolchain"]
+    exit_code, output_text = run_command(active_toolchain_command, workspace_directory)
+    if exit_code != 0:
+        return None
+
+    active_toolchain_line = output_text.strip().splitlines()
+    if not active_toolchain_line:
+        return None
+
+    active_toolchain_name = active_toolchain_line[0].strip().split()[0]
+    return active_toolchain_name or None
+
+
+def get_rust_target_query_toolchains(workspace_directory):
+    active_toolchain_name = get_active_rust_toolchain(workspace_directory)
+    candidate_toolchain_names = []
+
+    if active_toolchain_name:
+        candidate_toolchain_names.append(active_toolchain_name)
+
+        if active_toolchain_name.startswith("nightly-") and "-x86_64-" in active_toolchain_name:
+            candidate_toolchain_names.append("nightly")
+
+    candidate_toolchain_names.append(None)
+
+    deduplicated_candidate_toolchain_names = []
+    seen_candidate_toolchain_names = set()
+    for candidate_toolchain_name in candidate_toolchain_names:
+        if candidate_toolchain_name in seen_candidate_toolchain_names:
+            continue
+
+        deduplicated_candidate_toolchain_names.append(candidate_toolchain_name)
+        seen_candidate_toolchain_names.add(candidate_toolchain_name)
+
+    return deduplicated_candidate_toolchain_names
+
+
+def get_installed_rust_targets(workspace_directory):
+    discovered_rust_targets = set()
+
+    for candidate_toolchain_name in get_rust_target_query_toolchains(workspace_directory):
+        if candidate_toolchain_name:
+            rust_target_list_command = ["rustup", f"+{candidate_toolchain_name}", "target", "list", "--installed"]
+        else:
+            rust_target_list_command = ["rustup", "target", "list", "--installed"]
+
+        exit_code, output_text = run_command(rust_target_list_command, workspace_directory)
+        if exit_code != 0:
+            continue
+
+        installed_rust_targets = {
+            output_line.strip()
+            for output_line in output_text.splitlines()
+            if output_line.strip() and not output_line.startswith("info:")
+        }
+
+        discovered_rust_targets.update(installed_rust_targets)
+
+    if discovered_rust_targets:
+        return discovered_rust_targets
+
+    fail("Failed to query installed Rust targets.")
+
+
+def ensure_host_preflight(workspace_directory, require_adb):
+    required_commands = ["cargo", "rustup"]
+    if require_adb:
+        required_commands.append("adb")
+
+    missing_commands = [command_name for command_name in required_commands if not command_exists(command_name)]
     if missing_commands:
         fail(f"Missing required command(s): {', '.join(missing_commands)}")
 
-    rust_target_list_command = ["rustup", "target", "list", "--installed"]
-    exit_code, output_text = run_command(rust_target_list_command, workspace_directory)
-    if exit_code != 0:
-        fail("Failed to query installed Rust targets.")
-    if TARGET_TRIPLE not in output_text.split():
+    installed_rust_targets = get_installed_rust_targets(workspace_directory)
+    if TARGET_TRIPLE not in installed_rust_targets:
         fail(f"Rust target '{TARGET_TRIPLE}' is not installed. Run: rustup target add {TARGET_TRIPLE}")
 
     android_home = os.environ.get("ANDROID_HOME")
@@ -429,7 +495,7 @@ def main():
     )
     parsed_arguments = argument_parser.parse_args()
 
-    workspace_directory = Path(__file__).resolve().parent
+    workspace_directory = Path(__file__).resolve().parent.parent
     android_manifest_directory = workspace_directory / ANDROID_MANIFEST_CRATE_NAME
 
     if parsed_arguments.release:
@@ -442,7 +508,7 @@ def main():
         release_prompt = input("Build in release mode? (y/n [default]): ").strip().lower()
         prefer_release_mode = release_prompt == "y"
 
-    ensure_host_preflight(workspace_directory)
+    ensure_host_preflight(workspace_directory, require_adb=not parsed_arguments.compile_check)
     build_cli_binary(workspace_directory, prefer_release_mode)
     apk_profile = build_apk_with_fallback(android_manifest_directory, prefer_release_mode)
 

@@ -5,13 +5,10 @@ use crate::commands::memory::memory_response::MemoryResponse;
 use crate::commands::privileged_command::PrivilegedCommand;
 use crate::commands::privileged_command_request::PrivilegedCommandRequest;
 use serde::{Deserialize, Serialize};
-use structopt::StructOpt;
 
-#[derive(Clone, StructOpt, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct MemoryFreezeRequest {
-    #[structopt(skip)]
     pub freeze_targets: Vec<MemoryFreezeTarget>,
-    #[structopt(short = "f", long = "frozen")]
     pub is_frozen: bool,
 }
 

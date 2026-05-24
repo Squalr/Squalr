@@ -7,6 +7,7 @@ pub struct ProjectHierarchyTreeEntry {
     pub project_item: ProjectItem,
     pub project_item_path: PathBuf,
     pub display_name: String,
+    pub preview_path: String,
     pub preview_value: String,
     pub is_activated: bool,
     pub depth: usize,

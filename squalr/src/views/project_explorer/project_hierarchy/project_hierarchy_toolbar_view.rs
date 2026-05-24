@@ -53,45 +53,58 @@ impl Widget for ProjectHierarchyToolbarView {
 
         toolbar_user_interface.with_layout(Layout::left_to_right(Align::Center), |user_interface| {
             let button_size = vec2(36.0, 28.0);
-            let (has_selected_project_item, is_busy, has_take_over_state) = self
+            let (is_busy, has_take_over_state) = self
                 .project_hierarchy_view_data
                 .read("Project hierarchy toolbar state")
                 .map(|project_hierarchy_view_data| {
                     (
-                        !project_hierarchy_view_data
-                            .selected_project_item_paths
-                            .is_empty(),
                         project_hierarchy_view_data.pending_operation != ProjectHierarchyPendingOperation::None,
                         project_hierarchy_view_data.take_over_state != ProjectHierarchyTakeOverState::None,
                     )
                 })
-                .unwrap_or((false, false, false));
+                .unwrap_or((false, false));
+
+            // Add project item.
+            let button_add = user_interface.add_sized(
+                button_size,
+                Button::new_from_theme(&theme)
+                    .with_tooltip_text("Add a new project item.")
+                    .background_color(Color32::TRANSPARENT)
+                    .disabled(is_busy || has_take_over_state),
+            );
+            IconDraw::draw(user_interface, button_add.rect, &theme.icon_library.icon_handle_common_add);
+
+            if button_add.clicked() {
+                if let Some(target_project_item_path) = ProjectHierarchyViewData::get_selected_or_root_directory_path(self.project_hierarchy_view_data.clone())
+                {
+                    ProjectHierarchyViewData::show_add_menu(
+                        self.project_hierarchy_view_data.clone(),
+                        target_project_item_path,
+                        button_add.rect.left_bottom(),
+                    );
+                }
+            }
+        });
+
+        let mut close_button_user_interface = user_interface.new_child(
+            UiBuilder::new()
+                .max_rect(allocated_size_rectangle)
+                .layout(Layout::right_to_left(Align::Center)),
+        );
+        close_button_user_interface.with_layout(Layout::right_to_left(Align::Center), |user_interface| {
+            let button_size = vec2(36.0, 28.0);
 
             // Close project.
-            let button_refresh = user_interface.add_sized(
+            let button_close = user_interface.add_sized(
                 button_size,
                 Button::new_from_theme(&theme)
                     .with_tooltip_text("Close this project.")
                     .background_color(Color32::TRANSPARENT),
             );
-            IconDraw::draw(user_interface, button_refresh.rect, &theme.icon_library.icon_handle_close);
+            IconDraw::draw(user_interface, button_close.rect, &theme.icon_library.icon_handle_close);
 
-            if button_refresh.clicked() {
+            if button_close.clicked() {
                 ProjectSelectorViewData::close_current_project(self.app_context.clone());
-            }
-
-            // Delete selected project item.
-            let button_delete = user_interface.add_sized(
-                button_size,
-                Button::new_from_theme(&theme)
-                    .with_tooltip_text("Delete selected project item.")
-                    .background_color(Color32::TRANSPARENT)
-                    .disabled(!has_selected_project_item || is_busy || has_take_over_state),
-            );
-            IconDraw::draw(user_interface, button_delete.rect, &theme.icon_library.icon_handle_common_delete);
-
-            if button_delete.clicked() {
-                ProjectHierarchyViewData::request_delete_confirmation_for_selected_project_item(self.project_hierarchy_view_data.clone());
             }
         });
 

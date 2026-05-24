@@ -1,14 +1,22 @@
 use crate::engine::engine_api_priviliged_bindings::EngineApiPrivilegedBindings;
 use crate::registries::registry_context::RegistryContext;
+use crate::structures::memory::{
+    pointer::Pointer,
+    pointer_chain_segment::{IntoPointerChainSegments, PointerChainSegment},
+};
 use crate::structures::processes::opened_process_info::OpenedProcessInfo;
 use crate::structures::projects::project_items::project_item_ref::ProjectItemRef;
 use crate::structures::projects::project_items::project_item_type::ProjectItemType;
 use crate::structures::{
-    data_types::built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8,
+    data_types::built_in_types::{string::utf8::data_type_string_utf8::DataTypeStringUtf8, u64::data_type_u64::DataTypeU64},
+    data_values::anonymous_value_string_format::AnonymousValueStringFormat,
+    pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
     projects::project_items::{project_item::ProjectItem, project_item_type_ref::ProjectItemTypeRef},
+    structs::symbolic_struct_ref::SymbolicStructRef,
     structs::valued_struct_field::ValuedStructFieldData,
 };
 use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 use std::sync::{Arc, RwLock};
 
 #[derive(Serialize, Deserialize)]
@@ -17,21 +25,176 @@ pub struct ProjectItemTypePointer {}
 impl ProjectItemTypePointer {
     pub const PROJECT_ITEM_TYPE_ID: &str = "pointer";
     pub const DEFAULT_PROJECT_ITEM_NAME: &str = "New Pointer";
+    pub const PROPERTY_OFFSET: &str = "offset";
+    pub const PROPERTY_MODULE: &str = "module";
+    pub const PROPERTY_POINTER_OFFSETS: &str = "pointer_offsets";
+    pub const PROPERTY_POINTER_SIZE: &str = "pointer_size";
+    pub const PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE: &str = "symbolic_struct_definition_reference";
     pub const PROPERTY_FREEZE_DISPLAY_VALUE: &str = "freeze_data_value_interpreter";
+    pub const PROPERTY_FREEZE_DISPLAY_FORMAT: &str = "freeze_display_format";
+    pub const PROPERTY_EVALUATED_POINTER_PATH: &str = "evaluated_pointer_path";
 
     pub fn new_project_item(
         name: &str,
+        pointer: &Pointer,
         description: &str,
-        freeze_data_value_interpreter: &str,
+        data_type_id: &str,
     ) -> ProjectItem {
         let project_item_type_ref = ProjectItemTypeRef::new(Self::PROJECT_ITEM_TYPE_ID.to_string());
         let project_item_name = if name.trim().is_empty() { Self::DEFAULT_PROJECT_ITEM_NAME } else { name };
         let mut project_item = ProjectItem::new(project_item_type_ref, project_item_name);
 
         project_item.set_field_description(description);
-        Self::set_field_freeze_data_value_interpreter(&mut project_item, freeze_data_value_interpreter);
+        Self::set_field_module(&mut project_item, pointer.get_module_name());
+        Self::set_field_offset(&mut project_item, pointer.get_address());
+        Self::set_field_pointer_chain_segments(&mut project_item, pointer.get_offset_segments());
+        Self::set_field_pointer_size(&mut project_item, pointer.get_pointer_size());
+        Self::set_field_freeze_data_value_interpreter(&mut project_item, "");
+        Self::set_field_symbolic_struct_definition_reference(&mut project_item, data_type_id);
 
         project_item
+    }
+
+    pub fn get_field_offset(project_item: &ProjectItem) -> u64 {
+        Self::read_u64_field(project_item, Self::PROPERTY_OFFSET).unwrap_or(0)
+    }
+
+    pub fn set_field_offset(
+        project_item: &mut ProjectItem,
+        offset: u64,
+    ) {
+        let offset_data_value = DataTypeU64::get_value_from_primitive(offset);
+        let field_data = ValuedStructFieldData::Value(offset_data_value);
+
+        project_item
+            .get_properties_mut()
+            .set_field_data(Self::PROPERTY_OFFSET, field_data, false);
+    }
+
+    fn read_u64_field(
+        project_item: &ProjectItem,
+        field_name: &str,
+    ) -> Option<u64> {
+        let data_value = project_item
+            .get_properties()
+            .get_field(field_name)
+            .and_then(|field| field.get_data_value())?;
+        let value_bytes = data_value.get_value_bytes();
+
+        match value_bytes.len() {
+            8 => {
+                let Ok(address_bytes) = <[u8; 8]>::try_from(value_bytes.as_slice()) else {
+                    return None;
+                };
+
+                Some(u64::from_le_bytes(address_bytes))
+            }
+            4 => {
+                let Ok(address_bytes) = <[u8; 4]>::try_from(value_bytes.as_slice()) else {
+                    return None;
+                };
+
+                Some(u32::from_le_bytes(address_bytes) as u64)
+            }
+            _ => None,
+        }
+    }
+
+    pub fn get_field_module(project_item: &ProjectItem) -> String {
+        Self::read_string_field(project_item, Self::PROPERTY_MODULE)
+    }
+
+    pub fn set_field_module(
+        project_item: &mut ProjectItem,
+        module: &str,
+    ) {
+        let module_data_value = DataTypeStringUtf8::get_value_from_primitive_string(module);
+        let field_data = ValuedStructFieldData::Value(module_data_value);
+
+        project_item
+            .get_properties_mut()
+            .set_field_data(Self::PROPERTY_MODULE, field_data, false);
+    }
+
+    pub fn get_field_pointer_offsets(project_item: &ProjectItem) -> Vec<i64> {
+        Self::get_field_pointer_chain_segments(project_item)
+            .into_iter()
+            .filter_map(|pointer_chain_segment| pointer_chain_segment.as_offset())
+            .collect()
+    }
+
+    pub fn get_field_pointer_chain_segments(project_item: &ProjectItem) -> Vec<PointerChainSegment> {
+        let serialized_offsets = Self::read_string_field(project_item, Self::PROPERTY_POINTER_OFFSETS);
+
+        if serialized_offsets.trim().is_empty() {
+            return Vec::new();
+        }
+
+        match serde_json::from_str::<Vec<PointerChainSegment>>(&serialized_offsets) {
+            Ok(pointer_offsets) => pointer_offsets,
+            Err(error) => {
+                log::warn!("Failed to deserialize pointer offsets for project item: {}", error);
+                PointerChainSegment::parse_text_list(&serialized_offsets)
+            }
+        }
+    }
+
+    pub fn set_field_pointer_offsets<Offsets>(
+        project_item: &mut ProjectItem,
+        pointer_offsets: Offsets,
+    ) where
+        Offsets: IntoPointerChainSegments,
+    {
+        Self::set_field_pointer_chain_segments(project_item, pointer_offsets);
+    }
+
+    pub fn set_field_pointer_chain_segments<Offsets>(
+        project_item: &mut ProjectItem,
+        pointer_offsets: Offsets,
+    ) where
+        Offsets: IntoPointerChainSegments,
+    {
+        let pointer_chain_segments = pointer_offsets.into_pointer_chain_segments();
+        let serialized_pointer_offsets = match serde_json::to_string(&pointer_chain_segments) {
+            Ok(serialized_pointer_offsets) => serialized_pointer_offsets,
+            Err(error) => {
+                log::warn!("Failed to serialize pointer offsets for project item: {}", error);
+                String::from("[]")
+            }
+        };
+        let pointer_offsets_data_value = DataTypeStringUtf8::get_value_from_primitive_string(&serialized_pointer_offsets);
+        let field_data = ValuedStructFieldData::Value(pointer_offsets_data_value);
+
+        project_item
+            .get_properties_mut()
+            .set_field_data(Self::PROPERTY_POINTER_OFFSETS, field_data, false);
+    }
+
+    pub fn get_field_pointer_size(project_item: &ProjectItem) -> PointerScanPointerSize {
+        let pointer_size = Self::read_string_field(project_item, Self::PROPERTY_POINTER_SIZE);
+
+        PointerScanPointerSize::from_str(&pointer_size).unwrap_or_default()
+    }
+
+    pub fn set_field_pointer_size(
+        project_item: &mut ProjectItem,
+        pointer_size: PointerScanPointerSize,
+    ) {
+        let pointer_size_data_value = DataTypeStringUtf8::get_value_from_primitive_string(&pointer_size.to_string());
+        let field_data = ValuedStructFieldData::Value(pointer_size_data_value);
+
+        project_item
+            .get_properties_mut()
+            .set_field_data(Self::PROPERTY_POINTER_SIZE, field_data, false);
+    }
+
+    pub fn get_field_pointer(project_item: &ProjectItem) -> Pointer {
+        Pointer::new_with_size_and_segments(
+            Self::get_field_offset(project_item),
+            Self::get_field_pointer_chain_segments(project_item),
+            Self::get_field_module(project_item),
+            Self::get_field_pointer_size(project_item),
+        )
     }
 
     pub fn get_field_freeze_data_value_interpreter(project_item: &ProjectItem) -> String {
@@ -48,6 +211,62 @@ impl ProjectItemTypePointer {
         project_item
             .get_properties_mut()
             .set_field_data(Self::PROPERTY_FREEZE_DISPLAY_VALUE, field_data, true);
+    }
+
+    pub fn get_field_freeze_display_format(project_item: &ProjectItem) -> Option<AnonymousValueStringFormat> {
+        Self::read_string_field(project_item, Self::PROPERTY_FREEZE_DISPLAY_FORMAT)
+            .parse::<AnonymousValueStringFormat>()
+            .ok()
+    }
+
+    pub fn set_field_freeze_display_format(
+        project_item: &mut ProjectItem,
+        display_format: AnonymousValueStringFormat,
+    ) {
+        let display_format_data_value = DataTypeStringUtf8::get_value_from_primitive_string(&display_format.to_string());
+        let field_data = ValuedStructFieldData::Value(display_format_data_value);
+
+        project_item
+            .get_properties_mut()
+            .set_field_data(Self::PROPERTY_FREEZE_DISPLAY_FORMAT, field_data, true);
+    }
+
+    pub fn get_field_evaluated_pointer_path(project_item: &ProjectItem) -> String {
+        Self::read_string_field(project_item, Self::PROPERTY_EVALUATED_POINTER_PATH)
+    }
+
+    pub fn set_field_evaluated_pointer_path(
+        project_item: &mut ProjectItem,
+        evaluated_pointer_path: &str,
+    ) {
+        let evaluated_pointer_path_data_value = DataTypeStringUtf8::get_value_from_primitive_string(evaluated_pointer_path);
+        let field_data = ValuedStructFieldData::Value(evaluated_pointer_path_data_value);
+
+        project_item
+            .get_properties_mut()
+            .set_field_data(Self::PROPERTY_EVALUATED_POINTER_PATH, field_data, true);
+    }
+
+    pub fn get_field_symbolic_struct_definition_reference(project_item: &ProjectItem) -> Option<SymbolicStructRef> {
+        let symbolic_struct_definition_reference = Self::read_string_field(project_item, Self::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE);
+
+        if symbolic_struct_definition_reference.is_empty() {
+            None
+        } else {
+            Some(SymbolicStructRef::new(symbolic_struct_definition_reference))
+        }
+    }
+
+    pub fn set_field_symbolic_struct_definition_reference(
+        project_item: &mut ProjectItem,
+        symbolic_struct_definition: &str,
+    ) {
+        let symbolic_struct_definition_data_value = DataTypeStringUtf8::get_value_from_primitive_string(symbolic_struct_definition);
+        let field_data = ValuedStructFieldData::Value(symbolic_struct_definition_data_value);
+
+        project_item
+            .get_properties_mut()
+            .set_field_data(Self::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE, field_data, false);
     }
 
     fn read_string_field(
@@ -94,18 +313,48 @@ impl ProjectItemType for ProjectItemTypePointer {
 #[cfg(test)]
 mod tests {
     use super::ProjectItemTypePointer;
+    use crate::structures::memory::pointer::Pointer;
+    use crate::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 
     #[test]
     fn new_project_item_uses_new_pointer_for_empty_name() {
-        let project_item = ProjectItemTypePointer::new_project_item("", "", "");
+        let pointer = Pointer::new_with_size(0x10, vec![0x20, -0x10], "game.exe".to_string(), PointerScanPointerSize::Pointer64);
+        let project_item = ProjectItemTypePointer::new_project_item("", &pointer, "", "u8");
 
         assert_eq!(project_item.get_field_name(), ProjectItemTypePointer::DEFAULT_PROJECT_ITEM_NAME);
     }
 
     #[test]
     fn new_project_item_uses_supplied_name_when_non_empty() {
-        let project_item = ProjectItemTypePointer::new_project_item("Pointer Name", "", "");
+        let pointer = Pointer::new_with_size(0x10, vec![0x20, -0x10], "game.exe".to_string(), PointerScanPointerSize::Pointer64);
+        let project_item = ProjectItemTypePointer::new_project_item("Pointer Name", &pointer, "", "u8");
 
         assert_eq!(project_item.get_field_name(), "Pointer Name");
+    }
+
+    #[test]
+    fn new_project_item_persists_pointer_chain_and_data_type() {
+        let pointer = Pointer::new_with_size(0x10, vec![0x20, -0x10], "game.exe".to_string(), PointerScanPointerSize::Pointer32);
+        let project_item = ProjectItemTypePointer::new_project_item("Pointer Name", &pointer, "desc", "u16");
+        let persisted_pointer = ProjectItemTypePointer::get_field_pointer(&project_item);
+        let symbolic_struct_reference =
+            ProjectItemTypePointer::get_field_symbolic_struct_definition_reference(&project_item).expect("Expected symbolic struct reference to be persisted.");
+
+        assert_eq!(persisted_pointer, pointer);
+        assert_eq!(symbolic_struct_reference.get_symbolic_struct_namespace(), "u16");
+        assert_eq!(ProjectItemTypePointer::get_field_freeze_data_value_interpreter(&project_item), "");
+    }
+
+    #[test]
+    fn new_project_item_persists_offset_property_name() {
+        let pointer = Pointer::new_with_size(0x10, vec![0x20], "game.exe".to_string(), PointerScanPointerSize::Pointer64);
+        let project_item = ProjectItemTypePointer::new_project_item("Pointer Name", &pointer, "", "u8");
+
+        assert!(
+            project_item
+                .get_properties()
+                .get_field(ProjectItemTypePointer::PROPERTY_OFFSET)
+                .is_some()
+        );
     }
 }

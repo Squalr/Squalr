@@ -1,5 +1,6 @@
 use crate::views::entry_row_viewport::build_selection_relative_viewport_range;
 use crate::views::settings::pane_state::{SettingsCategory, SettingsPaneState};
+use squalr_engine_api::plugins::memory_view::PageRetrievalMode;
 use squalr_engine_api::structures::data_types::floating_point_tolerance::FloatingPointTolerance;
 use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
 use squalr_engine_api::structures::scanning::memory_read_mode::MemoryReadMode;
@@ -203,6 +204,23 @@ fn scan_summary_lines(settings_pane_state: &SettingsPaneState) -> Vec<String> {
             bool_indicator(settings_pane_state.scan_settings.debug_perform_validation_scan),
             settings_pane_state.scan_settings.debug_perform_validation_scan
         ),
+        format!(
+            "{} page_source={}.",
+            selection_marker(settings_pane_state.selected_field_index, 9),
+            page_retrieval_mode_label(settings_pane_state.scan_settings.page_retrieval_mode)
+        ),
+        format!(
+            "{} watch_project_files={}{}.",
+            selection_marker(settings_pane_state.selected_field_index, 10),
+            bool_indicator(
+                settings_pane_state
+                    .scan_settings
+                    .project_file_system_watch_enabled
+            ),
+            settings_pane_state
+                .scan_settings
+                .project_file_system_watch_enabled
+        ),
     ]
 }
 
@@ -231,7 +249,6 @@ fn memory_read_mode_label(memory_read_mode: MemoryReadMode) -> &'static str {
     match memory_read_mode {
         MemoryReadMode::Skip => "skip",
         MemoryReadMode::ReadBeforeScan => "before_scan",
-        MemoryReadMode::ReadInterleavedWithScan => "interleaved",
     }
 }
 
@@ -243,6 +260,16 @@ fn floating_point_tolerance_label(floating_point_tolerance: FloatingPointToleran
         FloatingPointTolerance::Tolerance10E4 => "0.0001",
         FloatingPointTolerance::Tolerance10E5 => "0.00001",
         FloatingPointTolerance::ToleranceEpsilon => "epsilon",
+    }
+}
+
+fn page_retrieval_mode_label(page_retrieval_mode: PageRetrievalMode) -> &'static str {
+    match page_retrieval_mode {
+        PageRetrievalMode::FromSettings => "auto",
+        PageRetrievalMode::FromUserMode => "host_usermode",
+        PageRetrievalMode::FromNonModules => "host_non_modules",
+        PageRetrievalMode::FromModules => "modules",
+        PageRetrievalMode::FromVirtualModules => "virtual_modules",
     }
 }
 

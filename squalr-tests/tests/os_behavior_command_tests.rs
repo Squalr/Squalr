@@ -4,6 +4,7 @@ use squalr_engine::engine_privileged_state::{EnginePrivilegedState, create_engin
 use squalr_engine_api::commands::memory::read::memory_read_request::MemoryReadRequest;
 use squalr_engine_api::commands::memory::write::memory_write_request::MemoryWriteRequest;
 use squalr_engine_api::commands::process::close::process_close_request::ProcessCloseRequest;
+use squalr_engine_api::commands::process::icon::process_icon_request::ProcessIconRequest;
 use squalr_engine_api::commands::process::list::process_list_request::ProcessListRequest;
 use squalr_engine_api::commands::process::open::process_open_request::ProcessOpenRequest;
 use squalr_engine_api::commands::scan::new::scan_new_request::ScanNewRequest;
@@ -32,6 +33,10 @@ use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_api::structures::structs::symbolic_struct_definition::SymbolicStructDefinition;
 use squalr_tests::mocks::mock_os::MockEngineOs;
 
+fn create_symbol_registry() -> squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry {
+    squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry::new()
+}
+
 fn create_test_state() -> (MockEngineOs, std::sync::Arc<EnginePrivilegedState>) {
     let mock_engine_os = MockEngineOs::new();
     let engine_os_providers = mock_engine_os.create_providers();
@@ -56,9 +61,15 @@ fn seed_snapshot_with_single_scan_result(
     let mut snapshot_region = SnapshotRegion::new(NormalizedRegion::new(region_base, 0x100), Vec::new());
     snapshot_region.current_values = vec![0u8; 0x100];
     snapshot_region.previous_values = vec![0u8; 0x100];
+    let symbol_registry = create_symbol_registry();
 
     let snapshot_filter = SnapshotRegionFilter::new(result_address, 4);
-    let snapshot_filter_collection = SnapshotRegionFilterCollection::new(vec![vec![snapshot_filter]], DataTypeRef::new("u32"), MemoryAlignment::Alignment1);
+    let snapshot_filter_collection = SnapshotRegionFilterCollection::new(
+        &symbol_registry,
+        vec![vec![snapshot_filter]],
+        DataTypeRef::new("u32"),
+        MemoryAlignment::Alignment1,
+    );
     snapshot_region.set_scan_results(SnapshotRegionScanResults::new(vec![snapshot_filter_collection]));
 
     let snapshot_ref = engine_privileged_state.get_snapshot();
@@ -73,10 +84,81 @@ fn seed_snapshot_with_single_scan_result_missing_current_value(
 ) {
     let region_base = result_address & !0xFF;
     let mut snapshot_region = SnapshotRegion::new(NormalizedRegion::new(region_base, 0x100), Vec::new());
+    let symbol_registry = create_symbol_registry();
 
     let snapshot_filter = SnapshotRegionFilter::new(result_address, 4);
-    let snapshot_filter_collection = SnapshotRegionFilterCollection::new(vec![vec![snapshot_filter]], DataTypeRef::new("u32"), MemoryAlignment::Alignment1);
+    let snapshot_filter_collection = SnapshotRegionFilterCollection::new(
+        &symbol_registry,
+        vec![vec![snapshot_filter]],
+        DataTypeRef::new("u32"),
+        MemoryAlignment::Alignment1,
+    );
     snapshot_region.set_scan_results(SnapshotRegionScanResults::new(vec![snapshot_filter_collection]));
+
+    let snapshot_ref = engine_privileged_state.get_snapshot();
+    if let Ok(mut snapshot_guard) = snapshot_ref.write() {
+        snapshot_guard.set_snapshot_regions(vec![snapshot_region]);
+    }
+}
+
+fn seed_snapshot_with_partial_multi_type_scan_results(
+    engine_privileged_state: &std::sync::Arc<EnginePrivilegedState>,
+    region_base_address: u64,
+    result_address: u64,
+) {
+    let mut snapshot_region = SnapshotRegion::new(NormalizedRegion::new(region_base_address, 0x100), Vec::new());
+    snapshot_region.current_values = vec![0u8; 0x100];
+    snapshot_region.previous_values = vec![0u8; 0x100];
+    let symbol_registry = create_symbol_registry();
+
+    let empty_filter_collection = SnapshotRegionFilterCollection::new(&symbol_registry, vec![], DataTypeRef::new("u16"), MemoryAlignment::Alignment1);
+    let populated_filter_collection = SnapshotRegionFilterCollection::new(
+        &symbol_registry,
+        vec![vec![SnapshotRegionFilter::new(result_address, 4)]],
+        DataTypeRef::new("u32"),
+        MemoryAlignment::Alignment1,
+    );
+    snapshot_region.set_scan_results(SnapshotRegionScanResults::new(vec![empty_filter_collection, populated_filter_collection]));
+
+    let snapshot_ref = engine_privileged_state.get_snapshot();
+    if let Ok(mut snapshot_guard) = snapshot_ref.write() {
+        snapshot_guard.set_snapshot_regions(vec![snapshot_region]);
+    }
+}
+
+fn seed_snapshot_with_multi_type_address_sorted_scan_results(
+    engine_privileged_state: &std::sync::Arc<EnginePrivilegedState>,
+    region_base_address: u64,
+) {
+    let mut snapshot_region = SnapshotRegion::new(NormalizedRegion::new(region_base_address, 0x100), Vec::new());
+    snapshot_region.current_values = vec![0u8; 0x100];
+    snapshot_region.previous_values = vec![0u8; 0x100];
+    let symbol_registry = create_symbol_registry();
+
+    let u32_filter_collection = SnapshotRegionFilterCollection::new(
+        &symbol_registry,
+        vec![vec![SnapshotRegionFilter::new(region_base_address + 0x30, 4)]],
+        DataTypeRef::new("u32"),
+        MemoryAlignment::Alignment1,
+    );
+    let u16_filter_collection = SnapshotRegionFilterCollection::new(
+        &symbol_registry,
+        vec![vec![SnapshotRegionFilter::new(region_base_address + 0x10, 2)]],
+        DataTypeRef::new("u16"),
+        MemoryAlignment::Alignment1,
+    );
+    let u8_filter_collection = SnapshotRegionFilterCollection::new(
+        &symbol_registry,
+        vec![vec![SnapshotRegionFilter::new(region_base_address + 0x40, 1)]],
+        DataTypeRef::new("u8"),
+        MemoryAlignment::Alignment1,
+    );
+
+    snapshot_region.set_scan_results(SnapshotRegionScanResults::new(vec![
+        u32_filter_collection,
+        u16_filter_collection,
+        u8_filter_collection,
+    ]));
 
     let snapshot_ref = engine_privileged_state.get_snapshot();
     if let Ok(mut snapshot_guard) = snapshot_ref.write() {
@@ -216,8 +298,37 @@ fn process_executors_use_injected_process_provider() {
     assert_eq!(state_guard.process_query_requests[0].limit, Some(5));
     assert!(!state_guard.process_query_requests[0].fetch_icons);
     assert_eq!(state_guard.process_query_requests[1].required_process_id, Some(process_identifier));
+    assert!(!state_guard.process_query_requests[1].fetch_icons);
     assert_eq!(state_guard.open_process_requests, vec![process_identifier]);
     assert_eq!(state_guard.close_process_handles, vec![0xBEEF]);
+}
+
+#[test]
+fn process_icon_executor_requests_icons_from_injected_process_provider() {
+    let (mock_engine_os, engine_privileged_state) = create_test_state();
+    let process_identifier = std::process::id();
+    let process_info = ProcessInfo::new(process_identifier, "calc.exe".to_string(), true, None);
+
+    mock_engine_os.set_processes(vec![process_info]);
+
+    let process_icon_request = ProcessIconRequest {
+        process_ids: vec![process_identifier],
+    };
+    let process_icon_response = process_icon_request.execute(&engine_privileged_state);
+
+    assert_eq!(process_icon_response.process_icons.len(), 1);
+    assert_eq!(process_icon_response.process_icons[0].process_id, process_identifier);
+
+    let mock_os_state = mock_engine_os.get_state();
+    let state_guard = match mock_os_state.lock() {
+        Ok(state_guard) => state_guard,
+        Err(error) => panic!("failed to lock mock state: {}", error),
+    };
+
+    assert_eq!(state_guard.process_query_requests.len(), 1);
+    assert_eq!(state_guard.process_query_requests[0].required_process_id, Some(process_identifier));
+    assert!(state_guard.process_query_requests[0].fetch_icons);
+    assert_eq!(state_guard.process_query_requests[0].limit, Some(1));
 }
 
 #[test]
@@ -289,7 +400,11 @@ fn scan_results_list_executor_uses_injected_providers() {
         .set_opened_process(create_opened_process_info());
     seed_snapshot_with_single_scan_result(&engine_privileged_state, 0x1010);
 
-    let scan_results_list_response = ScanResultsListRequest { page_index: 0 }.execute(&engine_privileged_state);
+    let scan_results_list_response = ScanResultsListRequest {
+        page_index: 0,
+        data_type_filters: None,
+    }
+    .execute(&engine_privileged_state);
 
     assert_eq!(scan_results_list_response.scan_results.len(), 1);
     assert_eq!(scan_results_list_response.scan_results[0].get_module(), "game.exe");
@@ -313,7 +428,11 @@ fn scan_results_list_executor_handles_read_failure_without_incorrect_value_mutat
         .set_opened_process(create_opened_process_info());
     seed_snapshot_with_single_scan_result(&engine_privileged_state, 0x1010);
 
-    let scan_results_list_response = ScanResultsListRequest { page_index: 0 }.execute(&engine_privileged_state);
+    let scan_results_list_response = ScanResultsListRequest {
+        page_index: 0,
+        data_type_filters: None,
+    }
+    .execute(&engine_privileged_state);
 
     assert_eq!(scan_results_list_response.scan_results.len(), 1);
     assert_eq!(scan_results_list_response.scan_results[0].get_module(), "game.exe");
@@ -346,7 +465,11 @@ fn scan_results_query_executor_uses_injected_providers() {
         .set_opened_process(create_opened_process_info());
     seed_snapshot_with_single_scan_result(&engine_privileged_state, 0x4014);
 
-    let scan_results_query_response = ScanResultsQueryRequest { page_index: 0 }.execute(&engine_privileged_state);
+    let scan_results_query_response = ScanResultsQueryRequest {
+        page_index: 0,
+        data_type_filters: None,
+    }
+    .execute(&engine_privileged_state);
 
     assert_eq!(scan_results_query_response.scan_results.len(), 1);
     assert_eq!(scan_results_query_response.scan_results[0].get_module(), "engine.dll");
@@ -370,7 +493,11 @@ fn scan_results_query_executor_handles_read_failure_without_incorrect_value_muta
         .set_opened_process(create_opened_process_info());
     seed_snapshot_with_single_scan_result(&engine_privileged_state, 0x4014);
 
-    let scan_results_query_response = ScanResultsQueryRequest { page_index: 0 }.execute(&engine_privileged_state);
+    let scan_results_query_response = ScanResultsQueryRequest {
+        page_index: 0,
+        data_type_filters: None,
+    }
+    .execute(&engine_privileged_state);
 
     assert_eq!(scan_results_query_response.scan_results.len(), 1);
     assert_eq!(scan_results_query_response.scan_results[0].get_module(), "engine.dll");
@@ -403,7 +530,11 @@ fn scan_results_query_executor_reads_recent_values_when_scan_current_value_is_mi
         .set_opened_process(create_opened_process_info());
     seed_snapshot_with_single_scan_result_missing_current_value(&engine_privileged_state, 0x4014);
 
-    let scan_results_query_response = ScanResultsQueryRequest { page_index: 0 }.execute(&engine_privileged_state);
+    let scan_results_query_response = ScanResultsQueryRequest {
+        page_index: 0,
+        data_type_filters: None,
+    }
+    .execute(&engine_privileged_state);
 
     assert_eq!(scan_results_query_response.scan_results.len(), 1);
     assert!(
@@ -418,6 +549,105 @@ fn scan_results_query_executor_reads_recent_values_when_scan_current_value_is_mi
         Err(error) => panic!("failed to lock mock state: {}", error),
     };
     assert_eq!(state_guard.memory_read_addresses, vec![0x4014]);
+}
+
+#[test]
+fn scan_results_query_executor_ignores_empty_multi_type_collections_when_reporting_total_size() {
+    let (mock_engine_os, engine_privileged_state) = create_test_state();
+    let region_base_address = 0x7FFF_1234_0000;
+    let result_address = region_base_address + 0x20;
+
+    mock_engine_os.set_modules(vec![NormalizedModule::new("engine.dll", region_base_address, 0x1000)]);
+    engine_privileged_state
+        .get_process_manager()
+        .set_opened_process(create_opened_process_info());
+    seed_snapshot_with_partial_multi_type_scan_results(&engine_privileged_state, region_base_address, result_address);
+
+    let scan_results_query_response = ScanResultsQueryRequest {
+        page_index: 0,
+        data_type_filters: None,
+    }
+    .execute(&engine_privileged_state);
+
+    assert_eq!(scan_results_query_response.result_count, 1);
+    assert_eq!(scan_results_query_response.total_size_in_bytes, 4);
+    assert_eq!(scan_results_query_response.scan_results.len(), 1);
+    assert_eq!(scan_results_query_response.scan_results[0].get_module(), "engine.dll");
+    assert_eq!(scan_results_query_response.scan_results[0].get_module_offset(), 0x20);
+
+    let mock_os_state = mock_engine_os.get_state();
+    let state_guard = match mock_os_state.lock() {
+        Ok(state_guard) => state_guard,
+        Err(error) => panic!("failed to lock mock state: {}", error),
+    };
+    assert_eq!(state_guard.memory_read_addresses, vec![result_address]);
+}
+
+#[test]
+fn scan_results_query_executor_returns_address_sorted_multi_type_results() {
+    let (mock_engine_os, engine_privileged_state) = create_test_state();
+    let region_base_address = 0x7FFF_5555_0000;
+
+    mock_engine_os.set_modules(vec![NormalizedModule::new("engine.dll", region_base_address, 0x1000)]);
+    engine_privileged_state
+        .get_process_manager()
+        .set_opened_process(create_opened_process_info());
+    seed_snapshot_with_multi_type_address_sorted_scan_results(&engine_privileged_state, region_base_address);
+
+    let scan_results_query_response = ScanResultsQueryRequest {
+        page_index: 0,
+        data_type_filters: None,
+    }
+    .execute(&engine_privileged_state);
+    let result_addresses = scan_results_query_response
+        .scan_results
+        .iter()
+        .map(|scan_result| scan_result.get_address())
+        .collect::<Vec<_>>();
+    let result_data_type_ids = scan_results_query_response
+        .scan_results
+        .iter()
+        .map(|scan_result| scan_result.get_data_type_ref().get_data_type_id().to_string())
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        result_addresses,
+        vec![
+            region_base_address + 0x10,
+            region_base_address + 0x30,
+            region_base_address + 0x40
+        ]
+    );
+    assert_eq!(result_data_type_ids, vec!["u16".to_string(), "u32".to_string(), "u8".to_string()]);
+}
+
+#[test]
+fn scan_results_query_executor_filters_results_before_paging_counts() {
+    let (mock_engine_os, engine_privileged_state) = create_test_state();
+    let region_base_address = 0x7FFF_6666_0000;
+
+    mock_engine_os.set_modules(vec![NormalizedModule::new("engine.dll", region_base_address, 0x1000)]);
+    engine_privileged_state
+        .get_process_manager()
+        .set_opened_process(create_opened_process_info());
+    seed_snapshot_with_multi_type_address_sorted_scan_results(&engine_privileged_state, region_base_address);
+
+    let scan_results_query_response = ScanResultsQueryRequest {
+        page_index: 0,
+        data_type_filters: Some(vec![DataTypeRef::new("u32")]),
+    }
+    .execute(&engine_privileged_state);
+
+    assert_eq!(scan_results_query_response.result_count, 1);
+    assert_eq!(scan_results_query_response.scan_results.len(), 1);
+    assert_eq!(scan_results_query_response.scan_results[0].get_address(), region_base_address + 0x30);
+    assert_eq!(
+        scan_results_query_response.scan_results[0]
+            .get_base_result()
+            .get_scan_result_ref()
+            .get_scan_result_global_index(),
+        1
+    );
 }
 
 #[test]

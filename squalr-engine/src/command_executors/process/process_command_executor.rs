@@ -19,6 +19,9 @@ impl PrivilegedCommandExecutor for ProcessCommand {
             ProcessCommand::List { process_list_request } => process_list_request
                 .execute(engine_privileged_state)
                 .to_engine_response(),
+            ProcessCommand::Icon { process_icon_request } => process_icon_request
+                .execute(engine_privileged_state)
+                .to_engine_response(),
             ProcessCommand::Close { process_close_request } => process_close_request
                 .execute(engine_privileged_state)
                 .to_engine_response(),

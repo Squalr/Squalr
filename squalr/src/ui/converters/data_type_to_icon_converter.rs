@@ -1,24 +1,66 @@
-use crate::ui::icon_library::IconLibrary;
+use crate::{app_context::AppContext, ui::icon_library::IconLibrary};
 use epaint::TextureHandle;
-use squalr_engine_api::structures::data_types::built_in_types::{
-    bool8::data_type_bool8::DataTypeBool8, bool32::data_type_bool32::DataTypeBool32, f32::data_type_f32::DataTypeF32, f32be::data_type_f32be::DataTypeF32be,
-    f64::data_type_f64::DataTypeF64, f64be::data_type_f64be::DataTypeF64be, i8::data_type_i8::DataTypeI8, i16::data_type_i16::DataTypeI16,
-    i16be::data_type_i16be::DataTypeI16be, i32::data_type_i32::DataTypeI32, i32be::data_type_i32be::DataTypeI32be, i64::data_type_i64::DataTypeI64,
-    i64be::data_type_i64be::DataTypeI64be, string::utf8::data_type_string_utf8::DataTypeStringUtf8, u8::data_type_u8::DataTypeU8,
-    u16::data_type_u16::DataTypeU16, u16be::data_type_u16be::DataTypeU16be, u32::data_type_u32::DataTypeU32, u32be::data_type_u32be::DataTypeU32be,
-    u64::data_type_u64::DataTypeU64, u64be::data_type_u64be::DataTypeU64be,
+use squalr_engine_api::structures::data_types::{
+    built_in_types::{
+        bool8::data_type_bool8::DataTypeBool8, bool32::data_type_bool32::DataTypeBool32, f32::data_type_f32::DataTypeF32,
+        f32be::data_type_f32be::DataTypeF32be, f64::data_type_f64::DataTypeF64, f64be::data_type_f64be::DataTypeF64be, i8::data_type_i8::DataTypeI8,
+        i16::data_type_i16::DataTypeI16, i16be::data_type_i16be::DataTypeI16be, i32::data_type_i32::DataTypeI32, i32be::data_type_i32be::DataTypeI32be,
+        i64::data_type_i64::DataTypeI64, i64be::data_type_i64be::DataTypeI64be, string::utf8::data_type_string_utf8::DataTypeStringUtf8,
+        u8::data_type_u8::DataTypeU8, u16::data_type_u16::DataTypeU16, u16be::data_type_u16be::DataTypeU16be, u32::data_type_u32::DataTypeU32,
+        u32be::data_type_u32be::DataTypeU32be, u64::data_type_u64::DataTypeU64, u64be::data_type_u64be::DataTypeU64be,
+    },
+    data_type_ref::DataTypeRef,
 };
+use squalr_engine_api::structures::structs::symbolic_field_definition::SymbolicFieldDefinition;
+use std::str::FromStr;
+
+const INSTRUCTION_DATA_TYPE_PREFIX: &str = "i_";
+const ICON_ID_BOOL: &str = "bool";
+const ICON_ID_STRING: &str = "string";
+const ICON_ID_CPU_INSTRUCTION: &str = "cpu_instruction";
 
 pub struct DataTypeToIconConverter {}
 
 impl DataTypeToIconConverter {
+    pub fn convert_symbol_layout_to_icon(icon_library: &IconLibrary) -> TextureHandle {
+        icon_library.icon_handle_data_type_struct.clone()
+    }
+
+    pub fn convert_data_type_or_symbol_layout_to_icon(
+        data_type_id: &str,
+        is_symbol_layout: bool,
+        icon_library: &IconLibrary,
+    ) -> TextureHandle {
+        if is_symbol_layout {
+            return Self::convert_symbol_layout_to_icon(icon_library);
+        }
+
+        Self::convert_data_type_to_icon(data_type_id, icon_library)
+    }
+
     pub fn convert_data_type_to_icon(
         data_type_id: &str,
         icon_library: &IconLibrary,
     ) -> TextureHandle {
-        match data_type_id {
-            DataTypeBool8::DATA_TYPE_ID => icon_library.icon_handle_data_type_bool.clone(),
-            DataTypeBool32::DATA_TYPE_ID => icon_library.icon_handle_data_type_bool.clone(),
+        let normalized_data_type_id = SymbolicFieldDefinition::from_str(data_type_id)
+            .ok()
+            .map(|symbolic_field_definition| {
+                symbolic_field_definition
+                    .get_data_type_ref()
+                    .get_data_type_id()
+                    .to_string()
+            })
+            .unwrap_or_else(|| data_type_id.to_string());
+        let base_data_type_id = DataTypeRef::new(&normalized_data_type_id)
+            .get_base_data_type_id()
+            .to_string();
+
+        if base_data_type_id.starts_with(INSTRUCTION_DATA_TYPE_PREFIX) || normalized_data_type_id == ICON_ID_CPU_INSTRUCTION {
+            return icon_library.icon_handle_project_cpu_instruction.clone();
+        }
+
+        match base_data_type_id.as_str() {
+            DataTypeBool8::DATA_TYPE_ID | DataTypeBool32::DATA_TYPE_ID | ICON_ID_BOOL => icon_library.icon_handle_data_type_bool.clone(),
             DataTypeU8::DATA_TYPE_ID => icon_library.icon_handle_data_type_purple_blocks_1.clone(),
             DataTypeU16::DATA_TYPE_ID => icon_library.icon_handle_data_type_purple_blocks_2.clone(),
             DataTypeU16be::DATA_TYPE_ID => icon_library
@@ -47,8 +89,21 @@ impl DataTypeToIconConverter {
             DataTypeF64be::DATA_TYPE_ID => icon_library
                 .icon_handle_data_type_orange_blocks_reverse_8
                 .clone(),
-            DataTypeStringUtf8::DATA_TYPE_ID => icon_library.icon_handle_data_type_string.clone(),
+            DataTypeStringUtf8::DATA_TYPE_ID | ICON_ID_STRING => icon_library.icon_handle_data_type_string.clone(),
             _ => icon_library.icon_handle_data_type_unknown.clone(),
         }
+    }
+
+    pub fn convert_registered_data_type_to_icon(
+        app_context: &AppContext,
+        data_type_ref: &DataTypeRef,
+    ) -> TextureHandle {
+        let icon_id = app_context.engine_unprivileged_state.get_icon_id(data_type_ref);
+
+        if icon_id.is_empty() {
+            return Self::convert_data_type_to_icon(data_type_ref.get_data_type_id(), &app_context.theme.icon_library);
+        }
+
+        Self::convert_data_type_to_icon(&icon_id, &app_context.theme.icon_library)
     }
 }

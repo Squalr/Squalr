@@ -12,7 +12,6 @@ use eframe::NativeOptions;
 use eframe::egui::{IconData, ViewportBuilder};
 use squalr_engine::engine_mode::EngineMode;
 use squalr_engine::squalr_engine::SqualrEngine;
-#[cfg(target_os = "android")]
 use squalr_engine_session::platform_log_hooks::initialize_platform_log_hooks_once;
 
 static ICON_APP: &[u8] = include_bytes!("../images/app/app_icon.png");
@@ -24,8 +23,6 @@ pub use android_activity::AndroidApp;
 #[cfg(target_os = "android")]
 #[unsafe(no_mangle)]
 pub fn android_main(android_app: AndroidApp) {
-    initialize_platform_log_hooks_once(APP_NAME);
-
     if let Err(error) = run_gui_android(android_app) {
         log::error!("Fatal Android GUI bootstrap failure: {error:?}");
     }
@@ -81,6 +78,8 @@ fn run_gui_with_native_options(
     engine_mode: EngineMode,
     native_options: NativeOptions,
 ) -> Result<()> {
+    initialize_platform_log_hooks_once(APP_NAME);
+
     let mut squalr_engine = SqualrEngine::new(engine_mode).context("Fatal error initializing Squalr engine.")?;
 
     eframe::run_native(

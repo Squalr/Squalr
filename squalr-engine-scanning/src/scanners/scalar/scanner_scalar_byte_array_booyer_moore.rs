@@ -16,7 +16,7 @@ impl ScannerScalarByteArrayBooyerMoore {}
 /// Boyer-Moore speeds up scans through use of pre-made shifting tables, allowing for skipping multiple elements on failed matches.
 impl Scanner for ScannerScalarByteArrayBooyerMoore {
     fn get_scanner_name(&self) -> &'static str {
-        &"Byte Array (Booyer Moore)"
+        &"Byte Array (Booyer-Moore)"
     }
 
     /// Performs a sequential iteration over a region of memory, performing the scan comparison. A run-length encoding algorithm
@@ -67,18 +67,13 @@ impl Scanner for ScannerScalarByteArrayBooyerMoore {
                 let current_byte = unsafe { *current_value_pointer.add((scan_index + inverse_pattern_index as u64) as usize) };
                 let pattern_byte = scan_pattern[inverse_pattern_index];
 
-                // JIRA: Also check masking table when we decide to support masking.
                 let is_mismatch = current_byte != pattern_byte;
 
                 if is_mismatch {
                     match_found = false;
 
-                    let bad_char_shift = boyer_moore_table.get_mismatch_shift(current_byte);
-                    let good_suffix_shift = boyer_moore_table.get_good_suffix_shift(inverse_pattern_index + 1);
-
-                    // Unlike classic Booyer-Moore we don't take the max of the shifts. Instead we prioritize a set good shift over the bad shift.
-                    // This reduces some skipping, but allows us to safely handle overlapping results.
-                    shift_value = (if good_suffix_shift > 0 { good_suffix_shift } else { bad_char_shift }).max(memory_alignment_size);
+                    // Overlap-preserving scans must choose the smallest safe shift or they can skip valid matches.
+                    shift_value = boyer_moore_table.get_safe_mismatch_shift(current_byte, inverse_pattern_index, memory_alignment_size);
                     break;
                 }
             }

@@ -2,6 +2,7 @@ use crate::models::docking::hierarchy::dock_layout::DockLayout;
 use crate::models::docking::hierarchy::dock_node::DockNode;
 use crate::models::docking::hierarchy::types::dock_split_direction::DockSplitDirection;
 use crate::models::docking::hierarchy::types::dock_splitter_drag_direction::DockSplitterDragDirection;
+use crate::ui::geometry::safe_clamp_f32;
 
 impl DockLayout {
     /// Tries to resize a window by dragging one of its edges in the given direction
@@ -173,8 +174,8 @@ impl DockLayout {
         let new_sibling_ratio = sum - new_child_ratio;
 
         // Write them back, clamped to [0, 1] (just in case)
-        children[child_index].ratio = new_child_ratio.clamp(0.0, 1.0);
-        children[sibling_idx].ratio = new_sibling_ratio.clamp(0.0, 1.0);
+        children[child_index].ratio = safe_clamp_f32(new_child_ratio, 0.0, 1.0);
+        children[sibling_idx].ratio = safe_clamp_f32(new_sibling_ratio, 0.0, 1.0);
 
         true
     }

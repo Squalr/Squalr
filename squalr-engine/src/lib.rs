@@ -5,5 +5,7 @@ pub mod engine_initialization_error;
 pub mod engine_mode;
 pub mod engine_privileged_state;
 pub mod general_settings_config;
+pub mod services;
 pub mod squalr_engine;
+pub mod startup_messages;
 pub mod vectors;

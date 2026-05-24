@@ -43,7 +43,7 @@ impl<W: Widget> DockedWindowView<W> {
         title: Rc<String>,
         identifier: Rc<String>,
     ) -> Self {
-        let docked_window_title_bar_view = DockedWindowTitleBarView::new(app_context.clone(), title.clone(), identifier.clone());
+        let docked_window_title_bar_view = DockedWindowTitleBarView::new(app_context.clone(), dock_view_data.clone(), title.clone(), identifier.clone());
         let docked_window_footer_view = DockedWindowFooterView::new(app_context.clone(), dock_view_data, identifier.clone());
 
         Self {
@@ -78,6 +78,18 @@ impl<W: Widget> Widget for DockedWindowView<W> {
                 let outer_rectangle = user_interface.available_rect_before_wrap();
                 let theme = &self.app_context.theme;
                 let docking_manager = &self.app_context.docking_manager;
+                let did_press_inside_window = user_interface.input(|input_state| {
+                    input_state
+                        .pointer
+                        .interact_pos()
+                        .is_some_and(|pointer_position| input_state.pointer.any_pressed() && outer_rectangle.contains(pointer_position))
+                });
+
+                if did_press_inside_window {
+                    self.app_context
+                        .window_focus_manager
+                        .focus_window(&self.identifier);
+                }
                 let allocate_resize_bar = |resize_rectangle: Rect, id_suffix: &str| -> Response {
                     let id = user_interface.id().with(&self.identifier).with(id_suffix);
                     let response = user_interface.interact(resize_rectangle, id, Sense::drag());
@@ -164,8 +176,13 @@ impl<W: Widget> Widget for DockedWindowView<W> {
                 };
 
                 // Reserve the entire remaining area minus footer height for content.
-                let footer_height = if has_footer { self.docked_window_footer_view.get_height() } else { 0.0 };
                 let full_rectangle = inner_user_interface.available_rect_before_wrap();
+                let footer_height = if has_footer {
+                    self.docked_window_footer_view
+                        .get_height(&inner_user_interface, full_rectangle.width())
+                } else {
+                    0.0
+                };
                 let content_rectangle = Rect::from_min_max(full_rectangle.min, full_rectangle.max - vec2(0.0, footer_height));
                 let content_response = inner_user_interface.allocate_rect(content_rectangle, Sense::empty());
                 let mut content_user_interface = inner_user_interface.new_child(
@@ -173,6 +190,7 @@ impl<W: Widget> Widget for DockedWindowView<W> {
                         .max_rect(content_response.rect)
                         .layout(Layout::left_to_right(Align::Min)),
                 );
+                content_user_interface.set_clip_rect(content_response.rect);
 
                 content_user_interface.add(self.widget);
 

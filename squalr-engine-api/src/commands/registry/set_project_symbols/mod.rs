@@ -1,0 +1,2 @@
+pub mod registry_set_project_symbols_request;
+pub mod registry_set_project_symbols_response;

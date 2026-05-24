@@ -19,7 +19,9 @@ impl ExecutableCommandPrivileged for PrivilegedCommand {
     ) -> PrivilegedCommandResponse {
         match self {
             PrivilegedCommand::Memory(command) => command.execute(engine_privileged_state),
+            PrivilegedCommand::Plugins(command) => command.execute(engine_privileged_state),
             PrivilegedCommand::Process(command) => command.execute(engine_privileged_state),
+            PrivilegedCommand::Registry(command) => command.execute(engine_privileged_state),
             PrivilegedCommand::Results(command) => command.execute(engine_privileged_state),
             PrivilegedCommand::Scan(command) => command.execute(engine_privileged_state),
             PrivilegedCommand::PointerScan(command) => command.execute(engine_privileged_state),

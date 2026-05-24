@@ -48,14 +48,16 @@ impl GetVectorFunction<64> for VectorLaneCount<64> {
 }
 
 impl ScanConstraintFinalized {
-    pub fn new(scan_constraint: ScanConstraint) -> Self {
-        let symbol_registry = SymbolRegistry::get_instance();
+    pub fn new(
+        symbol_registry: &SymbolRegistry,
+        scan_constraint: ScanConstraint,
+    ) -> Self {
         let periodicity = Self::calculate_periodicity(symbol_registry, &scan_constraint.get_data_value(), &scan_constraint.get_scan_compare_type());
         let unit_size_bytes = symbol_registry.get_unit_size_in_bytes(scan_constraint.get_data_value().get_data_type_ref());
-        let scan_function_scalar = Self::build_scan_function_scalar(&scan_constraint);
-        let scan_function_vector_16 = Self::build_scan_function_vector::<16>(&scan_constraint);
-        let scan_function_vector_32 = Self::build_scan_function_vector::<32>(&scan_constraint);
-        let scan_function_vector_64 = Self::build_scan_function_vector::<64>(&scan_constraint);
+        let scan_function_scalar = Self::build_scan_function_scalar(symbol_registry, &scan_constraint);
+        let scan_function_vector_16 = Self::build_scan_function_vector::<16>(symbol_registry, &scan_constraint);
+        let scan_function_vector_32 = Self::build_scan_function_vector::<32>(symbol_registry, &scan_constraint);
+        let scan_function_vector_64 = Self::build_scan_function_vector::<64>(symbol_registry, &scan_constraint);
 
         Self {
             scan_constraint,
@@ -141,9 +143,10 @@ impl ScanConstraintFinalized {
         period as u64
     }
 
-    fn build_scan_function_scalar(scan_constraint: &ScanConstraint) -> Option<ScanFunctionScalar> {
-        let symbol_registry = SymbolRegistry::get_instance();
-
+    fn build_scan_function_scalar(
+        symbol_registry: &SymbolRegistry,
+        scan_constraint: &ScanConstraint,
+    ) -> Option<ScanFunctionScalar> {
         match scan_constraint.get_scan_compare_type() {
             ScanCompareType::Immediate(scan_compare_type_immediate) => {
                 if let Some(compare_func) = symbol_registry.get_scalar_compare_func_immediate(&scan_compare_type_immediate, scan_constraint) {
@@ -165,12 +168,13 @@ impl ScanConstraintFinalized {
         None
     }
 
-    pub fn build_scan_function_vector<const N: usize>(scan_constraint: &ScanConstraint) -> Option<ScanFunctionVector<N>>
+    pub fn build_scan_function_vector<const N: usize>(
+        symbol_registry: &SymbolRegistry,
+        scan_constraint: &ScanConstraint,
+    ) -> Option<ScanFunctionVector<N>>
     where
         VectorLaneCount<N>: VectorComparer<N> + GetVectorFunction<N>,
     {
-        let symbol_registry = SymbolRegistry::get_instance();
-
         match scan_constraint.get_scan_compare_type() {
             ScanCompareType::Immediate(scan_compare_type_immediate) => {
                 if let Some(compare_func) = symbol_registry.get_vector_compare_func_immediate(&scan_compare_type_immediate, scan_constraint) {

@@ -25,7 +25,12 @@ impl PrivilegedCommandRequestExecutor for MemoryFreezeRequest {
 
         if !self.is_frozen {
             for freeze_target in &self.freeze_targets {
-                let pointer = Pointer::new(freeze_target.address, vec![], freeze_target.module_name.clone());
+                let pointer = Pointer::new_with_size(
+                    freeze_target.address,
+                    freeze_target.pointer_offsets.clone(),
+                    freeze_target.module_name.clone(),
+                    freeze_target.pointer_size,
+                );
                 freeze_list_registry_guard.set_address_unfrozen(&pointer);
             }
 
@@ -44,43 +49,63 @@ impl PrivilegedCommandRequestExecutor for MemoryFreezeRequest {
 
         let os_providers = engine_privileged_state.get_os_providers();
         let modules = os_providers.memory_query.get_modules(&opened_process_info);
-        let symbol_registry = engine_privileged_state.get_symbol_registry();
-        let symbol_registry_guard = match symbol_registry.read() {
-            Ok(symbol_registry_guard) => symbol_registry_guard,
-            Err(error) => {
-                log::error!("Failed to acquire symbol registry read lock for memory freeze request: {}", error);
-                return MemoryFreezeResponse {
-                    failed_freeze_target_count: self.freeze_targets.len() as u64,
-                };
-            }
-        };
-        let mut failed_freeze_target_count = 0u64;
+        let failed_freeze_target_count = engine_privileged_state.read_symbol_registry(|symbol_registry| {
+            let mut failed_freeze_target_count = 0u64;
 
-        for freeze_target in &self.freeze_targets {
-            let symbolic_struct_definition = match symbol_registry_guard.get(&freeze_target.data_type_id) {
-                Some(symbolic_struct_definition) => symbolic_struct_definition,
-                None => {
+            for freeze_target in &self.freeze_targets {
+                let symbolic_struct_definition = match symbol_registry.get(&freeze_target.data_type_id) {
+                    Some(symbolic_struct_definition) => symbolic_struct_definition,
+                    None => {
+                        failed_freeze_target_count = failed_freeze_target_count.saturating_add(1);
+                        continue;
+                    }
+                };
+
+                let mut valued_struct = symbolic_struct_definition.get_default_valued_struct(symbol_registry);
+                let pointer = Pointer::new_with_size(
+                    freeze_target.address,
+                    freeze_target.pointer_offsets.clone(),
+                    freeze_target.module_name.clone(),
+                    freeze_target.pointer_size,
+                );
+                let Some(absolute_address) = pointer.resolve_final_address(
+                    |module_name, module_offset| {
+                        os_providers
+                            .memory_query
+                            .resolve_module_address(&modules, module_name, module_offset)
+                    },
+                    |address, pointer_size| {
+                        let mut pointer_bytes = vec![0_u8; pointer_size.get_size_in_bytes() as usize];
+
+                        if !os_providers
+                            .memory_read
+                            .read_bytes(&opened_process_info, address, &mut pointer_bytes)
+                        {
+                            return None;
+                        }
+
+                        pointer_size.read_address_value(&squalr_engine_api::structures::data_values::data_value::DataValue::new(
+                            pointer_size.to_data_type_ref(),
+                            pointer_bytes,
+                        ))
+                    },
+                ) else {
+                    failed_freeze_target_count = failed_freeze_target_count.saturating_add(1);
+                    continue;
+                };
+                if !os_providers
+                    .memory_read
+                    .read_struct(&opened_process_info, absolute_address, &mut valued_struct)
+                {
                     failed_freeze_target_count = failed_freeze_target_count.saturating_add(1);
                     continue;
                 }
-            };
 
-            let mut valued_struct = symbolic_struct_definition.get_default_valued_struct(&symbol_registry);
-            let module_base_address = os_providers
-                .memory_query
-                .resolve_module(&modules, &freeze_target.module_name);
-            let absolute_address = module_base_address.saturating_add(freeze_target.address);
-            if !os_providers
-                .memory_read
-                .read_struct(&opened_process_info, absolute_address, &mut valued_struct)
-            {
-                failed_freeze_target_count = failed_freeze_target_count.saturating_add(1);
-                continue;
+                freeze_list_registry_guard.set_address_frozen(pointer, valued_struct.get_bytes());
             }
 
-            let pointer = Pointer::new(freeze_target.address, vec![], freeze_target.module_name.clone());
-            freeze_list_registry_guard.set_address_frozen(pointer, valued_struct.get_bytes());
-        }
+            failed_freeze_target_count
+        });
 
         MemoryFreezeResponse { failed_freeze_target_count }
     }

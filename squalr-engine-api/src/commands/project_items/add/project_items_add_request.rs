@@ -6,13 +6,10 @@ use crate::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use crate::structures::scan_results::scan_result_ref::ScanResultRef;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use structopt::StructOpt;
 
-#[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ProjectItemsAddRequest {
-    #[structopt(short = "s", long)]
     pub scan_result_refs: Vec<ScanResultRef>,
-    #[structopt(long)]
     pub target_directory_path: Option<PathBuf>,
 }
 

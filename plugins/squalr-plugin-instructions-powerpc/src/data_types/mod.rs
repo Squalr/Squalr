@@ -1,0 +1,3 @@
+mod data_type_instruction_power_pc32_be;
+
+pub use data_type_instruction_power_pc32_be::DataTypeInstructionPowerPc32Be;

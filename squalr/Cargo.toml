@@ -1,6 +1,6 @@
 [package]
 name = "squalr"
-version = "0.1.1"
+version = "0.3.0"
 authors = ["Zachary Canann"]
 edition = "2024"
 # build = "build.rs"
@@ -10,7 +10,7 @@ package = "com.squalr.android"
 resources = "android/res"
 
 [package.metadata.android.sdk]
-min_sdk_version = 23
+min_sdk_version = 30
 target_sdk_version = 30
 
 [package.metadata.android.application]
@@ -24,6 +24,7 @@ crate-type = ["cdylib", "rlib"]
 squalr-engine = { path = "../squalr-engine" }
 squalr-engine-api = { path = "../squalr-engine-api" }
 squalr-engine-session = { path = "../squalr-engine-session" }
+squalr-plugin-instructions-x86 = { path = "../plugins/squalr-plugin-instructions-x86" }
 anyhow = "1.0.101"
 arc-swap = "1.8.1"
 bus = "2.4.1"

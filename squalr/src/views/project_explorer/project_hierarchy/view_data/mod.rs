@@ -1,5 +1,10 @@
+pub mod project_hierarchy_clipboard;
+pub mod project_hierarchy_create_item_kind;
+pub mod project_hierarchy_drop_target;
 pub mod project_hierarchy_frame_action;
+pub mod project_hierarchy_menu_target;
 pub mod project_hierarchy_pending_operation;
 pub mod project_hierarchy_take_over_state;
 pub mod project_hierarchy_tree_entry;
+pub mod project_hierarchy_tree_model;
 pub mod project_hierarchy_view_data;

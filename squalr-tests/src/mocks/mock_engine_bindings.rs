@@ -5,8 +5,8 @@ use squalr_engine_api::commands::unprivileged_command::UnprivilegedCommand;
 use squalr_engine_api::commands::unprivileged_command_response::UnprivilegedCommandResponse;
 use squalr_engine_api::engine::engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings;
 use squalr_engine_api::engine::engine_binding_error::EngineBindingError;
+use squalr_engine_api::engine::engine_event_envelope::EngineEventEnvelope;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
-use squalr_engine_api::events::engine_event::EngineEvent;
 use std::sync::{Arc, Mutex};
 
 pub struct MockEngineBindings {
@@ -84,7 +84,7 @@ impl EngineApiUnprivilegedBindings for MockEngineBindings {
         Ok(())
     }
 
-    fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEvent>, EngineBindingError> {
+    fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEventEnvelope>, EngineBindingError> {
         let (_event_sender, event_receiver) = unbounded();
 
         Ok(event_receiver)
