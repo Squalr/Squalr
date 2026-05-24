@@ -89,22 +89,27 @@ impl SymbolTreeDetailsProjection {
         symbol_tree_node: &SymbolTreeNode,
         include_symbol_claim_metadata: bool,
         symbol_size_in_bytes: Option<u64>,
+        preferred_display_format: Option<AnonymousValueStringFormat>,
     ) -> DetailsProjection {
         let target = DetailsTarget::new(Self::TARGET_KIND_SYMBOL_TREE, symbol_tree_node.get_node_key());
         let mut fields = Self::build_metadata_fields(symbol_tree_node, include_symbol_claim_metadata, symbol_size_in_bytes);
 
-        fields.push(DetailsField::new(
-            DetailsFieldId::new(format!("{}value", Self::FIELD_ID_VALUE_PREFIX)),
-            "Value",
-            DetailsValue::Text(String::new()),
-            true,
-            DetailsEditorHint::Value,
-            Some(DataTypeRef::new(&symbol_tree_node.get_display_type_id())),
-            symbol_tree_node.get_container_type(),
-            DetailsFieldSource::ProjectSymbolRuntimeValue {
-                field_path: vec![String::from("value")],
-            },
-        ));
+        fields.push(
+            DetailsField::new(
+                DetailsFieldId::new(format!("{}value", Self::FIELD_ID_VALUE_PREFIX)),
+                "Value",
+                DetailsValue::Text(String::new()),
+                true,
+                DetailsEditorHint::Value,
+                Some(DataTypeRef::new(&symbol_tree_node.get_display_type_id())),
+                symbol_tree_node.get_container_type(),
+                DetailsFieldSource::ProjectSymbolRuntimeValue {
+                    field_path: vec![String::from("value")],
+                },
+            )
+            .with_preferred_display_format(preferred_display_format)
+            .with_allow_display_format_edit(false),
+        );
 
         DetailsProjection::new(target, symbol_tree_node.get_display_name(), fields)
     }
@@ -270,7 +275,8 @@ impl SymbolTreeDetailsProjection {
                         ContainerType::None,
                         DetailsFieldSource::ProjectSymbolRuntimeValue { field_path: vec![field_name] },
                     )
-                    .with_preferred_display_format(preferred_display_format),
+                    .with_preferred_display_format(preferred_display_format)
+                    .with_allow_display_format_edit(false),
                 )
             })
             .collect()
@@ -329,7 +335,7 @@ mod tests {
     use super::SymbolTreeDetailsProjection;
     use crate::structures::{
         data_types::built_in_types::u32::data_type_u32::DataTypeU32,
-        data_values::container_type::ContainerType,
+        data_values::{anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
         details::{DetailsEditorHint, DetailsFieldId, DetailsFieldSource, DetailsValue},
         projects::{
             project_symbol_locator::ProjectSymbolLocator,
@@ -479,7 +485,8 @@ mod tests {
             ContainerType::ArrayFixed(16),
             false,
         );
-        let details_projection = SymbolTreeDetailsProjection::build_external_value(&symbol_tree_node, true, Some(16));
+        let details_projection =
+            SymbolTreeDetailsProjection::build_external_value(&symbol_tree_node, true, Some(16), Some(AnonymousValueStringFormat::Hexadecimal));
         let value_field = details_projection
             .get_field(&DetailsFieldId::new("value.value"))
             .expect("Expected external value field.");
@@ -494,6 +501,8 @@ mod tests {
                 field_path: vec![String::from("value")]
             }
         );
+        assert_eq!(value_field.get_preferred_display_format(), Some(AnonymousValueStringFormat::Hexadecimal));
+        assert!(!value_field.get_allow_display_format_edit());
     }
 
     #[test]
@@ -515,6 +524,28 @@ mod tests {
                 field_path: vec![String::from("value")]
             }
         );
+    }
+
+    #[test]
+    fn build_marks_symbol_runtime_display_format_read_only() {
+        let symbol_tree_node = create_symbol_claim_node();
+        let runtime_value_struct = ValuedStruct::new_anonymous(vec![
+            DataTypeU32::get_value_from_primitive(100).to_named_valued_struct_field(String::from("health"), false),
+        ]);
+        let details_projection = SymbolTreeDetailsProjection::build(
+            &symbol_tree_node,
+            false,
+            None,
+            Some(&runtime_value_struct),
+            None,
+            Some(AnonymousValueStringFormat::Hexadecimal),
+        );
+        let value_field = details_projection
+            .get_field(&DetailsFieldId::new("value.health"))
+            .expect("Expected runtime value field.");
+
+        assert_eq!(value_field.get_preferred_display_format(), Some(AnonymousValueStringFormat::Hexadecimal));
+        assert!(!value_field.get_allow_display_format_edit());
     }
 
     #[test]

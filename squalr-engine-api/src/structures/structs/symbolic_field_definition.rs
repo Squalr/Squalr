@@ -1,6 +1,9 @@
 use crate::structures::{
     data_types::data_type_ref::DataTypeRef,
-    data_values::{container_type::ContainerType, data_value::DataValue, pointer_scan_pointer_size::PointerScanPointerSize},
+    data_values::{
+        anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType, data_value::DataValue,
+        pointer_scan_pointer_size::PointerScanPointerSize,
+    },
     structs::{
         symbol_resolver::SymbolResolver,
         symbolic_resolver_definition::SymbolicResolverRef,
@@ -32,6 +35,8 @@ pub struct SymbolicDefinedField {
     offset_resolution: SymbolicFieldOffsetResolution,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     active_when_resolver: Option<SymbolicResolverRef>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    display_format: Option<AnonymousValueStringFormat>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -110,6 +115,7 @@ impl SymbolicFieldDefinition {
             display_count_resolution: SymbolicFieldCountResolution::Inferred,
             offset_resolution: SymbolicFieldOffsetResolution::Sequential,
             active_when_resolver: None,
+            display_format: None,
         })
     }
 
@@ -126,6 +132,7 @@ impl SymbolicFieldDefinition {
             display_count_resolution: SymbolicFieldCountResolution::Inferred,
             offset_resolution: SymbolicFieldOffsetResolution::Sequential,
             active_when_resolver: None,
+            display_format: None,
         })
     }
 
@@ -144,6 +151,7 @@ impl SymbolicFieldDefinition {
             display_count_resolution: SymbolicFieldCountResolution::Inferred,
             offset_resolution,
             active_when_resolver: None,
+            display_format: None,
         })
     }
 
@@ -163,6 +171,7 @@ impl SymbolicFieldDefinition {
             display_count_resolution,
             offset_resolution,
             active_when_resolver: None,
+            display_format: None,
         })
     }
 
@@ -179,6 +188,17 @@ impl SymbolicFieldDefinition {
     ) -> Self {
         if let SymbolicFieldDefinition::Field(field_definition) = &mut self {
             field_definition.active_when_resolver = active_when_resolver;
+        }
+
+        self
+    }
+
+    pub fn with_display_format(
+        mut self,
+        display_format: Option<AnonymousValueStringFormat>,
+    ) -> Self {
+        if let SymbolicFieldDefinition::Field(field_definition) = &mut self {
+            field_definition.display_format = display_format;
         }
 
         self
@@ -351,6 +371,13 @@ impl SymbolicFieldDefinition {
         }
     }
 
+    pub fn get_display_format(&self) -> Option<AnonymousValueStringFormat> {
+        match self {
+            SymbolicFieldDefinition::Field(field_definition) => field_definition.display_format,
+            SymbolicFieldDefinition::Unassigned(_) => None,
+        }
+    }
+
     pub fn is_unassigned(&self) -> bool {
         matches!(self, SymbolicFieldDefinition::Unassigned(_))
     }
@@ -377,6 +404,7 @@ impl FromStr for SymbolicFieldDefinition {
         } else {
             (trimmed_string, SymbolicFieldOffsetResolution::Sequential)
         };
+        let (field_definition_string, display_format) = parse_display_format(field_definition_string)?;
         let (field_definition_string, active_when_resolver) = parse_active_when_resolver(field_definition_string)?;
         let (field_definition_string, display_count_resolution) = parse_display_count_resolution(field_definition_string)?;
         let (field_name, type_and_container_string) = if let Some((field_name, type_and_container_string)) = field_definition_string.split_once(':') {
@@ -454,6 +482,7 @@ impl FromStr for SymbolicFieldDefinition {
                 display_count_resolution,
                 offset_resolution,
                 active_when_resolver,
+                display_format,
             }))
         } else {
             Ok(SymbolicFieldDefinition::new_named_with_resolutions_and_display_count(
@@ -464,7 +493,8 @@ impl FromStr for SymbolicFieldDefinition {
                 display_count_resolution,
                 offset_resolution,
             )
-            .with_active_when_resolver(active_when_resolver))
+            .with_active_when_resolver(active_when_resolver)
+            .with_display_format(display_format))
         }
     }
 }
@@ -500,6 +530,10 @@ impl fmt::Display for SymbolicFieldDefinition {
 
         if let Some(active_when_resolver) = field_definition.active_when_resolver.as_ref() {
             field_text = format!("{} active resolver({})", field_text, active_when_resolver.get_resolver_id());
+        }
+
+        if let Some(display_format) = field_definition.display_format {
+            field_text = format!("{} format {}", field_text, display_format);
         }
 
         match &field_definition.offset_resolution {
@@ -573,6 +607,22 @@ fn parse_active_when_resolver(field_definition_string: &str) -> Result<(&str, Op
     Ok((field_definition_string.trim(), Some(active_when_resolver)))
 }
 
+fn parse_display_format(field_definition_string: &str) -> Result<(&str, Option<AnonymousValueStringFormat>), String> {
+    let trimmed_field_definition_string = field_definition_string.trim();
+    let Some((field_definition_string, display_format_string)) = trimmed_field_definition_string.rsplit_once(" format ") else {
+        return Ok((trimmed_field_definition_string, None));
+    };
+    let trimmed_display_format_string = display_format_string.trim();
+    if trimmed_display_format_string.is_empty() {
+        return Err(String::from("Display format is required."));
+    }
+
+    Ok((
+        field_definition_string.trim(),
+        Some(AnonymousValueStringFormat::from_str(trimmed_display_format_string)?),
+    ))
+}
+
 fn parse_count_resolution(length_part: &str) -> Result<SymbolicFieldCountResolution, String> {
     if let Some(resolver_id) = parse_resolver_reference(length_part) {
         return Ok(SymbolicFieldCountResolution::new_resolver(resolver_id));
@@ -640,7 +690,9 @@ mod tests {
     use crate::registries::symbols::{struct_layout_descriptor::StructLayoutDescriptor, symbol_registry::SymbolRegistry};
     use crate::structures::{
         data_types::data_type_ref::DataTypeRef,
-        data_values::{container_type::ContainerType, pointer_scan_pointer_size::PointerScanPointerSize},
+        data_values::{
+            anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType, pointer_scan_pointer_size::PointerScanPointerSize,
+        },
         structs::{symbolic_struct_definition::SymbolicStructDefinition, valued_struct_field::ValuedStructFieldData},
     };
     use serde_json::json;
@@ -825,6 +877,29 @@ mod tests {
             Some("actor.is_alive")
         );
         assert_eq!(symbolic_field_definition.to_string(), "alive:actor.state.alive active resolver(actor.is_alive)");
+    }
+
+    #[test]
+    fn parse_display_format_round_trips() {
+        let symbolic_field_definition = SymbolicFieldDefinition::from_str("health:u32 format hexadecimal").expect("Expected display format to parse.");
+
+        assert_eq!(symbolic_field_definition.get_display_format(), Some(AnonymousValueStringFormat::Hexadecimal));
+        assert_eq!(symbolic_field_definition.to_string(), "health:u32 format hexadecimal");
+    }
+
+    #[test]
+    fn parse_display_format_with_active_resolver_round_trips() {
+        let symbolic_field_definition = SymbolicFieldDefinition::from_str("alive:u8 active resolver(actor.is_alive) format binary")
+            .expect("Expected display format and active resolver to parse.");
+
+        assert_eq!(symbolic_field_definition.get_display_format(), Some(AnonymousValueStringFormat::Binary));
+        assert_eq!(
+            symbolic_field_definition
+                .get_active_when_resolver()
+                .map(|resolver_ref| resolver_ref.get_resolver_id()),
+            Some("actor.is_alive")
+        );
+        assert_eq!(symbolic_field_definition.to_string(), "alive:u8 active resolver(actor.is_alive) format binary");
     }
 
     #[test]

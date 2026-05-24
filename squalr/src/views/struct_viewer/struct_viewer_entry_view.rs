@@ -26,7 +26,7 @@ use squalr_engine_api::{
     structures::{
         data_types::built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8,
         data_types::data_type_ref::DataTypeRef,
-        data_values::anonymous_value_string::AnonymousValueString,
+        data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
         pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
         projects::{
             project_symbol_catalog::ProjectSymbolCatalog,
@@ -52,6 +52,8 @@ pub struct StructViewerEntryView<'lifetime> {
     struct_viewer_frame_action: &'lifetime mut StructViewerFrameAction,
     field_edit_value: Option<&'lifetime mut AnonymousValueString>,
     field_display_values: Option<&'lifetime [AnonymousValueString]>,
+    field_allowed_display_formats: Option<&'lifetime [AnonymousValueStringFormat]>,
+    allow_display_format_edit: bool,
     field_data_type_selection: Option<&'lifetime mut DataTypeSelection>,
     validation_data_type_ref: Option<&'lifetime DataTypeRef>,
     name_splitter_x: f32,
@@ -105,6 +107,8 @@ impl<'lifetime> StructViewerEntryView<'lifetime> {
         struct_viewer_frame_action: &'lifetime mut StructViewerFrameAction,
         field_edit_value: Option<&'lifetime mut AnonymousValueString>,
         field_display_values: Option<&'lifetime [AnonymousValueString]>,
+        field_allowed_display_formats: Option<&'lifetime [AnonymousValueStringFormat]>,
+        allow_display_format_edit: bool,
         field_data_type_selection: Option<&'lifetime mut DataTypeSelection>,
         validation_data_type_ref: Option<&'lifetime DataTypeRef>,
         name_splitter_x: f32,
@@ -119,6 +123,8 @@ impl<'lifetime> StructViewerEntryView<'lifetime> {
             struct_viewer_frame_action,
             field_edit_value,
             field_display_values,
+            field_allowed_display_formats,
+            allow_display_format_edit,
             field_data_type_selection,
             validation_data_type_ref,
             name_splitter_x,
@@ -596,28 +602,35 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                 if let (Some(field_edit_value), Some(validation_data_type_ref)) = (self.field_edit_value, self.validation_data_type_ref) {
                     let data_value_box_id = format!("struct_viewer_value_{}_{}", self.row_index, self.valued_struct_field.get_name());
                     let previous_display_format = field_edit_value.get_anonymous_value_string_format();
+                    let mut data_value_box_view = DataValueBoxView::new(
+                        self.app_context.clone(),
+                        field_edit_value,
+                        validation_data_type_ref,
+                        self.valued_struct_field.get_is_read_only(),
+                        !self.valued_struct_field.get_is_read_only(),
+                        "",
+                        &data_value_box_id,
+                    )
+                    .allow_read_only_interpretation(true)
+                    .display_values(self.field_display_values.unwrap_or(&[]))
+                    .show_format_button(self.allow_display_format_edit)
+                    .use_preview_foreground(self.valued_struct_field.get_is_read_only())
+                    .width(value_box_width);
+
+                    if let Some(field_allowed_display_formats) = self.field_allowed_display_formats {
+                        data_value_box_view = data_value_box_view.allowed_anonymous_value_string_formats(field_allowed_display_formats.to_vec());
+                    }
+
                     user_interface.put(
                         Rect::from_min_size(
                             pos2(value_box_position_x, available_size_rect.min.y),
                             vec2(value_box_width, available_size_rect.height()),
                         ),
-                        DataValueBoxView::new(
-                            self.app_context.clone(),
-                            field_edit_value,
-                            validation_data_type_ref,
-                            self.valued_struct_field.get_is_read_only(),
-                            !self.valued_struct_field.get_is_read_only(),
-                            "",
-                            &data_value_box_id,
-                        )
-                        .allow_read_only_interpretation(true)
-                        .display_values(self.field_display_values.unwrap_or(&[]))
-                        .use_preview_foreground(self.valued_struct_field.get_is_read_only())
-                        .width(value_box_width),
+                        data_value_box_view,
                     );
                     let current_display_format = field_edit_value.get_anonymous_value_string_format();
 
-                    if previous_display_format != current_display_format {
+                    if self.allow_display_format_edit && previous_display_format != current_display_format {
                         *self.struct_viewer_frame_action = StructViewerFrameAction::EditDisplayFormat {
                             field_name: self.valued_struct_field.get_name().to_string(),
                             display_format: current_display_format,
@@ -662,6 +675,54 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                             );
                         }
                     }
+                }
+            }
+            StructViewerFieldEditorKind::DisplayFormatSelector => {
+                let Some(field_allowed_display_formats) = self.field_allowed_display_formats else {
+                    return response;
+                };
+                if field_allowed_display_formats.is_empty() {
+                    return response;
+                }
+
+                let selected_display_format = self
+                    .field_edit_value
+                    .as_deref()
+                    .map(|field_edit_value| field_edit_value.get_anonymous_value_string_format())
+                    .unwrap_or(field_allowed_display_formats[0]);
+                let mut display_format_value = AnonymousValueString::new(String::new(), selected_display_format, ContainerType::None);
+                let previous_display_format = display_format_value.get_anonymous_value_string_format();
+                let validation_data_type_ref = DataTypeRef::new("u8");
+                let data_value_box_id = format!("struct_viewer_display_format_{}_{}", self.row_index, self.valued_struct_field.get_name());
+
+                user_interface.put(
+                    Rect::from_min_size(
+                        pos2(value_box_position_x, available_size_rect.min.y),
+                        vec2(value_box_width, available_size_rect.height()),
+                    ),
+                    DataValueBoxView::new(
+                        self.app_context.clone(),
+                        &mut display_format_value,
+                        &validation_data_type_ref,
+                        true,
+                        false,
+                        "",
+                        &data_value_box_id,
+                    )
+                    .allow_read_only_interpretation(true)
+                    .allowed_anonymous_value_string_formats(field_allowed_display_formats.to_vec())
+                    .normalize_value_format(false)
+                    .skip_validation()
+                    .use_format_text_colors(false)
+                    .width(value_box_width),
+                );
+
+                let current_display_format = display_format_value.get_anonymous_value_string_format();
+                if previous_display_format != current_display_format {
+                    *self.struct_viewer_frame_action = StructViewerFrameAction::EditDisplayFormat {
+                        field_name: self.valued_struct_field.get_name().to_string(),
+                        display_format: current_display_format,
+                    };
                 }
             }
             StructViewerFieldEditorKind::ProjectItemPointerOffsetsEditor => {

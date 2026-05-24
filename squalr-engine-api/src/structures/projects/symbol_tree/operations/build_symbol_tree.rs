@@ -1,7 +1,7 @@
 use crate::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
 use crate::structures::{
     data_types::data_type_ref::DataTypeRef,
-    data_values::container_type::ContainerType,
+    data_values::{anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
     memory::symbolic_pointer_chain::SymbolicPointerChain,
     projects::{
         project_symbol_catalog::ProjectSymbolCatalog,
@@ -505,18 +505,21 @@ fn append_module_root_layout_field_node<ResolvePrimitiveSize, ReadScalarField, R
     let is_expanded = can_expand && expanded_tree_node_keys.contains(&field_node_key);
     let symbol_claim_locator_key = field_locator.to_locator_key();
 
-    symbol_tree_nodes.push(SymbolTreeNode::new(
-        field_node_key.clone(),
-        SymbolTreeNodeKind::StructField,
-        1,
-        field_display_name.clone(),
-        field_display_name.clone(),
-        symbol_claim_locator_key.clone(),
-        field_locator.clone(),
-        field_definition.get_data_type_ref().to_string(),
-        field_definition.get_container_type(),
-        can_expand,
-    ));
+    symbol_tree_nodes.push(
+        SymbolTreeNode::new(
+            field_node_key.clone(),
+            SymbolTreeNodeKind::StructField,
+            1,
+            field_display_name.clone(),
+            field_display_name.clone(),
+            symbol_claim_locator_key.clone(),
+            field_locator.clone(),
+            field_definition.get_data_type_ref().to_string(),
+            field_definition.get_container_type(),
+            can_expand,
+        )
+        .with_preferred_display_format(field_definition.get_display_format()),
+    );
 
     if is_expanded {
         append_field_children(
@@ -528,6 +531,7 @@ fn append_module_root_layout_field_node<ResolvePrimitiveSize, ReadScalarField, R
             &field_locator,
             field_definition.get_data_type_ref(),
             field_definition.get_container_type(),
+            field_definition.get_display_format(),
             2,
             expanded_tree_node_keys,
             resolved_pointer_targets_by_node_key,
@@ -651,6 +655,7 @@ fn append_symbol_claim_node<ResolvePrimitiveSize, ReadScalarField, ResolveRelati
             symbol_claim.get_locator(),
             &data_type_ref,
             container_type,
+            None,
             depth + 1,
             expanded_tree_node_keys,
             resolved_pointer_targets_by_node_key,
@@ -812,7 +817,8 @@ fn append_struct_field_nodes<ResolvePrimitiveSize, ReadScalarField, ResolveRelat
             field_definition.get_data_type_ref().to_string(),
             field_container_type,
             can_expand,
-        );
+        )
+        .with_preferred_display_format(field_definition.get_display_format());
 
         symbol_tree_nodes.push(field_symbol_tree_node);
 
@@ -826,6 +832,7 @@ fn append_struct_field_nodes<ResolvePrimitiveSize, ReadScalarField, ResolveRelat
                 &field_locator,
                 field_definition.get_data_type_ref(),
                 field_container_type,
+                field_definition.get_display_format(),
                 depth + 1,
                 expanded_tree_node_keys,
                 resolved_pointer_targets_by_node_key,
@@ -848,6 +855,7 @@ fn append_field_children<ResolvePrimitiveSize, ReadScalarField, ResolveRelativeP
     parent_locator: &ProjectSymbolLocator,
     data_type_ref: &DataTypeRef,
     container_type: ContainerType,
+    preferred_display_format: Option<AnonymousValueStringFormat>,
     depth: usize,
     expanded_tree_node_keys: &HashSet<String>,
     resolved_pointer_targets_by_node_key: &HashMap<String, ResolvedPointerTarget>,
@@ -873,6 +881,7 @@ fn append_field_children<ResolvePrimitiveSize, ReadScalarField, ResolveRelativeP
             data_type_ref,
             ContainerType::None,
             array_length,
+            preferred_display_format,
             depth,
             expanded_tree_node_keys,
             resolved_pointer_targets_by_node_key,
@@ -892,6 +901,7 @@ fn append_field_children<ResolvePrimitiveSize, ReadScalarField, ResolveRelativeP
             data_type_ref,
             ContainerType::Pointer(pointer_size),
             array_length,
+            preferred_display_format,
             depth,
             expanded_tree_node_keys,
             resolved_pointer_targets_by_node_key,
@@ -965,6 +975,7 @@ fn append_field_children<ResolvePrimitiveSize, ReadScalarField, ResolveRelativeP
                     &pointer_target_locator,
                     data_type_ref,
                     ContainerType::None,
+                    None,
                     depth + 1,
                     expanded_tree_node_keys,
                     resolved_pointer_targets_by_node_key,
@@ -990,6 +1001,7 @@ fn append_fixed_array_element_nodes<ResolvePrimitiveSize, ReadScalarField, Resol
     data_type_ref: &DataTypeRef,
     element_container_type: ContainerType,
     array_length: u64,
+    preferred_display_format: Option<AnonymousValueStringFormat>,
     depth: usize,
     expanded_tree_node_keys: &HashSet<String>,
     resolved_pointer_targets_by_node_key: &HashMap<String, ResolvedPointerTarget>,
@@ -1036,7 +1048,8 @@ fn append_fixed_array_element_nodes<ResolvePrimitiveSize, ReadScalarField, Resol
             data_type_ref.to_string(),
             element_container_type,
             can_expand,
-        );
+        )
+        .with_preferred_display_format(preferred_display_format);
 
         symbol_tree_nodes.push(element_symbol_tree_node);
 
@@ -1050,6 +1063,7 @@ fn append_fixed_array_element_nodes<ResolvePrimitiveSize, ReadScalarField, Resol
                 &element_locator,
                 data_type_ref,
                 element_container_type,
+                None,
                 depth + 1,
                 expanded_tree_node_keys,
                 resolved_pointer_targets_by_node_key,
@@ -1400,7 +1414,7 @@ mod tests {
     use crate::registries::symbols::{struct_layout_descriptor::StructLayoutDescriptor, symbolic_resolver_descriptor::SymbolicResolverDescriptor};
     use crate::structures::{
         data_types::data_type_ref::DataTypeRef,
-        data_values::container_type::ContainerType,
+        data_values::{anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
         pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
         projects::{
             project_symbol_catalog::ProjectSymbolCatalog, project_symbol_claim::ProjectSymbolClaim, project_symbol_locator::ProjectSymbolLocator,
@@ -1504,6 +1518,53 @@ mod tests {
         assert_eq!(symbol_tree_nodes[6].can_expand(), false);
         assert_eq!(symbol_tree_nodes[7].get_full_path(), "Player.next");
         assert_eq!(symbol_tree_nodes[7].can_expand(), true);
+    }
+
+    #[test]
+    fn build_symbol_tree_nodes_carries_layout_display_formats_to_runtime_nodes() {
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_symbol_claims(
+            vec![StructLayoutDescriptor::new(
+                String::from("player"),
+                SymbolicStructDefinition::new(
+                    String::from("player"),
+                    vec![
+                        SymbolicFieldDefinition::from_str("health:u32 format hexadecimal").expect("Expected health field to parse."),
+                        SymbolicFieldDefinition::from_str("items:u16[2] format binary").expect("Expected items field to parse."),
+                    ],
+                ),
+            )],
+            vec![ProjectSymbolClaim::new_absolute_address(
+                String::from("Player"),
+                0x100,
+                String::from("player"),
+            )],
+        );
+        let expanded_tree_node_keys = HashSet::from([
+            String::from("module:Absolute / Unmapped"),
+            String::from("claim:absolute:100"),
+        ]);
+
+        let symbol_tree_nodes = build_symbol_tree_nodes(
+            &project_symbol_catalog,
+            &expanded_tree_node_keys,
+            &HashMap::new(),
+            |data_type_ref| match data_type_ref.get_data_type_id() {
+                "u16" => Some(2),
+                "u32" => Some(4),
+                _ => None,
+            },
+        );
+        let health_node = symbol_tree_nodes
+            .iter()
+            .find(|symbol_tree_node| symbol_tree_node.get_full_path() == "Player.health")
+            .expect("Expected health node.");
+        let items_node = symbol_tree_nodes
+            .iter()
+            .find(|symbol_tree_node| symbol_tree_node.get_full_path() == "Player.items")
+            .expect("Expected items node.");
+
+        assert_eq!(health_node.get_preferred_display_format(), Some(AnonymousValueStringFormat::Hexadecimal));
+        assert_eq!(items_node.get_preferred_display_format(), Some(AnonymousValueStringFormat::Binary));
     }
 
     #[test]

@@ -8,7 +8,6 @@ use squalr_engine_api::commands::{
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::{
-    anonymous_value_string_format::AnonymousValueStringFormat,
     container_type::ContainerType,
     data_value_preview_formatter::{DataValuePreviewFormatOptions, DataValuePreviewFormatter},
 };
@@ -195,10 +194,15 @@ impl SymbolTreeRuntimeDataController {
         let include_symbol_claim_metadata = SymbolTreeDetailsProjection::include_symbol_claim_metadata(symbol_tree_entry);
         let engine_execution_context: Arc<dyn EngineExecutionContext> = self.app_context.engine_unprivileged_state.clone();
         let symbol_size_in_bytes = Self::resolve_symbol_tree_entry_size_for_struct_viewer(&engine_execution_context, symbol_tree_entry);
-        let preferred_display_format = self.resolve_symbol_display_format(symbol_tree_entry);
+        let preferred_display_format = symbol_tree_entry.get_preferred_display_format();
 
         if Self::symbol_tree_entry_should_use_external_value_viewer(symbol_tree_entry) {
-            return SymbolTreeDetailsProjection::build_external_value(symbol_tree_entry, include_symbol_claim_metadata, symbol_size_in_bytes);
+            return SymbolTreeDetailsProjection::build_external_value(
+                symbol_tree_entry,
+                include_symbol_claim_metadata,
+                symbol_size_in_bytes,
+                preferred_display_format,
+            );
         }
 
         if let SymbolTreeNodeKind::ModuleSpace { module_name, .. } = symbol_tree_entry.get_kind() {
@@ -289,20 +293,6 @@ impl SymbolTreeRuntimeDataController {
             None,
             preferred_display_format,
         )
-    }
-
-    fn resolve_symbol_display_format(
-        &self,
-        symbol_tree_entry: &SymbolTreeNode,
-    ) -> Option<AnonymousValueStringFormat> {
-        let project_manager = self.app_context.engine_unprivileged_state.get_project_manager();
-        let opened_project_lock = project_manager.get_opened_project();
-        let opened_project_guard = opened_project_lock.read().ok()?;
-        let opened_project = opened_project_guard.as_ref()?;
-
-        opened_project
-            .get_project_manifest()
-            .get_symbol_display_format(symbol_tree_entry.get_node_key())
     }
 
     fn sync_pointer_child_virtual_snapshot(
@@ -668,8 +658,8 @@ impl SymbolTreeRuntimeDataController {
             return String::new();
         };
 
-        let default_anonymous_value_string_format = self
-            .resolve_symbol_display_format(symbol_tree_entry)
+        let default_anonymous_value_string_format = symbol_tree_entry
+            .get_preferred_display_format()
             .unwrap_or_else(|| {
                 self.app_context
                     .engine_unprivileged_state

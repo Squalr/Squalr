@@ -35,6 +35,7 @@ pub trait SymbolLayoutDescriptorFieldBuildTarget {
     fn to_display_count_resolution(&self) -> Result<SymbolicFieldCountResolution, String>;
     fn to_offset_resolution(&self) -> Result<SymbolicFieldOffsetResolution, String>;
     fn to_active_when_resolver(&self) -> Option<SymbolicResolverRef>;
+    fn to_display_format(&self) -> Option<AnonymousValueStringFormat>;
 }
 
 pub struct SymbolLayoutDescriptorBuilder;
@@ -110,6 +111,7 @@ impl SymbolLayoutDescriptorBuilder {
                 offset_resolution,
             )
             .with_active_when_resolver(field_draft.to_active_when_resolver());
+            let symbolic_field_definition = symbolic_field_definition.with_display_format(field_draft.to_display_format());
 
             let (field_offset, symbolic_field_definition) = match symbolic_field_definition.get_offset_resolution() {
                 SymbolicFieldOffsetResolution::Static(offset_in_bytes) if !draft.get_layout_kind().is_union() && *offset_in_bytes >= next_sequential_offset => {
@@ -395,6 +397,10 @@ mod tests {
         }
 
         fn to_active_when_resolver(&self) -> Option<SymbolicResolverRef> {
+            None
+        }
+
+        fn to_display_format(&self) -> Option<AnonymousValueStringFormat> {
             None
         }
     }

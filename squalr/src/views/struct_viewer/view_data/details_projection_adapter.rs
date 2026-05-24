@@ -25,6 +25,8 @@ pub struct DetailsProjectionAdapterState {
     field_validation_data_type_refs: HashMap<String, DataTypeRef>,
     field_data_type_selections: HashMap<String, DataTypeSelection>,
     field_display_format_overrides: HashMap<String, AnonymousValueStringFormat>,
+    field_allowed_display_formats: HashMap<String, Vec<AnonymousValueStringFormat>>,
+    field_display_format_editable: HashMap<String, bool>,
 }
 
 impl DetailsProjectionAdapterState {
@@ -87,6 +89,24 @@ impl DetailsProjectionAdapterState {
         }
     }
 
+    pub fn apply_field_allowed_display_formats(
+        &self,
+        field_allowed_display_formats: &mut HashMap<String, Vec<AnonymousValueStringFormat>>,
+    ) {
+        for (rendered_field_name, allowed_display_formats) in &self.field_allowed_display_formats {
+            field_allowed_display_formats.insert(rendered_field_name.clone(), allowed_display_formats.clone());
+        }
+    }
+
+    pub fn apply_field_display_format_editable(
+        &self,
+        field_display_format_editable: &mut HashMap<String, bool>,
+    ) {
+        for (rendered_field_name, allow_display_format_edit) in &self.field_display_format_editable {
+            field_display_format_editable.insert(rendered_field_name.clone(), *allow_display_format_edit);
+        }
+    }
+
     pub fn build_details_edit(
         &self,
         edited_field: &ValuedStructField,
@@ -107,6 +127,15 @@ impl DetailsProjectionAdapterState {
         field_name: &str,
         display_format: AnonymousValueStringFormat,
     ) -> Option<DetailsEdit> {
+        if !self
+            .field_display_format_editable
+            .get(field_name)
+            .copied()
+            .unwrap_or(true)
+        {
+            return None;
+        }
+
         let field_id = self.rendered_field_ids.get(field_name)?.clone();
         let source = self
             .rendered_field_sources
@@ -148,6 +177,8 @@ impl DetailsProjectionAdapter {
         let mut field_validation_data_type_refs = HashMap::new();
         let mut field_data_type_selections = HashMap::new();
         let mut field_display_format_overrides = HashMap::new();
+        let mut field_allowed_display_formats = HashMap::new();
+        let mut field_display_format_editable = HashMap::new();
         let mut rendered_field_names = HashSet::new();
 
         for (field_index, details_field) in details_projection.get_fields().iter().enumerate() {
@@ -168,6 +199,12 @@ impl DetailsProjectionAdapter {
 
             if let Some(preferred_display_format) = details_field.get_preferred_display_format() {
                 field_display_format_overrides.insert(rendered_field_name.clone(), preferred_display_format);
+            }
+            if !details_field.get_allowed_display_formats().is_empty() {
+                field_allowed_display_formats.insert(rendered_field_name.clone(), details_field.get_allowed_display_formats().to_vec());
+            }
+            if !details_field.get_allow_display_format_edit() {
+                field_display_format_editable.insert(rendered_field_name.clone(), false);
             }
 
             if matches!(
@@ -193,6 +230,8 @@ impl DetailsProjectionAdapter {
                 field_validation_data_type_refs,
                 field_data_type_selections,
                 field_display_format_overrides,
+                field_allowed_display_formats,
+                field_display_format_editable,
             },
         }
     }
@@ -327,6 +366,7 @@ impl DetailsProjectionAdapter {
         }
 
         match details_field.get_editor_hint() {
+            DetailsEditorHint::DisplayFormat => StructViewerFieldEditorKind::DisplayFormatSelector,
             DetailsEditorHint::Value | DetailsEditorHint::Address | DetailsEditorHint::Text | DetailsEditorHint::Boolean => {
                 StructViewerFieldEditorKind::ValueBox
             }

@@ -38,6 +38,7 @@ pub enum DetailsEditorHint {
     Value,
     Address,
     DataType,
+    DisplayFormat,
     PointerOffsets,
     PointerSize,
     Text,
@@ -101,6 +102,14 @@ pub struct DetailsField {
     source: DetailsFieldSource,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     preferred_display_format: Option<AnonymousValueStringFormat>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    allowed_display_formats: Vec<AnonymousValueStringFormat>,
+    #[serde(default = "default_allow_display_format_edit")]
+    allow_display_format_edit: bool,
+}
+
+fn default_allow_display_format_edit() -> bool {
+    true
 }
 
 impl DetailsField {
@@ -124,6 +133,8 @@ impl DetailsField {
             container_type,
             source,
             preferred_display_format: None,
+            allowed_display_formats: Vec::new(),
+            allow_display_format_edit: true,
         }
     }
 
@@ -132,6 +143,24 @@ impl DetailsField {
         preferred_display_format: Option<AnonymousValueStringFormat>,
     ) -> Self {
         self.preferred_display_format = preferred_display_format;
+
+        self
+    }
+
+    pub fn with_allowed_display_formats(
+        mut self,
+        allowed_display_formats: Vec<AnonymousValueStringFormat>,
+    ) -> Self {
+        self.allowed_display_formats = allowed_display_formats;
+
+        self
+    }
+
+    pub fn with_allow_display_format_edit(
+        mut self,
+        allow_display_format_edit: bool,
+    ) -> Self {
+        self.allow_display_format_edit = allow_display_format_edit;
 
         self
     }
@@ -170,5 +199,13 @@ impl DetailsField {
 
     pub fn get_preferred_display_format(&self) -> Option<AnonymousValueStringFormat> {
         self.preferred_display_format
+    }
+
+    pub fn get_allowed_display_formats(&self) -> &[AnonymousValueStringFormat] {
+        &self.allowed_display_formats
+    }
+
+    pub fn get_allow_display_format_edit(&self) -> bool {
+        self.allow_display_format_edit
     }
 }

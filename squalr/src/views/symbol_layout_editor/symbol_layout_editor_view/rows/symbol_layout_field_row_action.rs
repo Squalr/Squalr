@@ -326,7 +326,7 @@ pub(in crate::views::symbol_layout_editor::symbol_layout_editor_view) fn focus_f
         &draft.layout_id,
         field_index,
         draft.layout_kind,
-        &build_field_details(project_symbol_catalog, draft.layout_kind, field_draft),
+        &build_field_details(&symbol_layout_editor_view.app_context, project_symbol_catalog, draft.layout_kind, field_draft),
     );
     let selection_key = format!("field|{}|{}", draft.layout_id, field_index);
     let edit_callback = build_struct_viewer_field_edit_callback(
@@ -360,7 +360,12 @@ fn focus_variant_field_in_struct_viewer(
         &variant_draft.layout_id,
         field_index,
         SymbolicLayoutKind::Struct,
-        &build_field_details(project_symbol_catalog, SymbolicLayoutKind::Struct, field_draft),
+        &build_field_details(
+            &symbol_layout_editor_view.app_context,
+            project_symbol_catalog,
+            SymbolicLayoutKind::Struct,
+            field_draft,
+        ),
     );
     let selection_key = format!("field|{}|{}", variant_draft.layout_id, field_index);
     let edit_callback = build_variant_field_edit_callback(
@@ -400,6 +405,7 @@ fn build_struct_viewer_field_edit_callback(
 
             let project_symbol_catalog = SymbolLayoutEditorView::get_opened_project_symbol_catalog_from_context(&app_context).unwrap_or_default();
             apply_field_details_operation(&project_symbol_catalog, field_draft, SymbolLayoutDetails::plan_edit(&details_edit));
+            normalize_field_display_format(&app_context, &project_symbol_catalog, field_draft);
             grow_draft_size_to_fit_fields(&project_symbol_catalog, &mut draft, |data_type_ref| {
                 let size_in_bytes = app_context
                     .engine_unprivileged_state
@@ -419,7 +425,7 @@ fn build_struct_viewer_field_edit_callback(
             &updated_draft.layout_id,
             field_index,
             updated_draft.layout_kind,
-            &build_field_details(&project_symbol_catalog, updated_draft.layout_kind, updated_field_draft),
+            &build_field_details(&app_context, &project_symbol_catalog, updated_draft.layout_kind, updated_field_draft),
         );
         let selection_key = format!("field|{}|{}", updated_draft.layout_id, field_index);
         let edit_callback = build_struct_viewer_field_edit_callback(
@@ -471,6 +477,7 @@ fn build_variant_field_edit_callback(
             };
 
             apply_field_details_operation(&project_symbol_catalog, field_draft, SymbolLayoutDetails::plan_edit(&details_edit));
+            normalize_field_display_format(&app_context, &project_symbol_catalog, field_draft);
             grow_draft_size_to_fit_fields(&project_symbol_catalog, &mut variant_draft, |data_type_ref| {
                 let size_in_bytes = app_context
                     .engine_unprivileged_state
@@ -503,7 +510,7 @@ fn build_variant_field_edit_callback(
                     &updated_variant_draft.layout_id,
                     field_index,
                     SymbolicLayoutKind::Struct,
-                    &build_field_details(&updated_project_symbol_catalog, SymbolicLayoutKind::Struct, field_draft),
+                    &build_field_details(&app_context, &updated_project_symbol_catalog, SymbolicLayoutKind::Struct, field_draft),
                 )
             });
         let Some(details_projection) = details_projection else {
@@ -551,6 +558,9 @@ fn apply_field_details_operation(
         SymbolLayoutDetailsEditOperation::UpdateFieldDisplayCountResolver(display_count_resolver_id) => {
             field_draft.container_edit.display_count_resolver_id = display_count_resolver_id;
         }
+        SymbolLayoutDetailsEditOperation::UpdateFieldDisplayFormat(display_format) => {
+            field_draft.display_format = Some(display_format);
+        }
         SymbolLayoutDetailsEditOperation::UpdateFieldActiveWhenResolver(active_when_resolver_id) => {
             field_draft.active_when_resolver_id = active_when_resolver_id;
         }
@@ -564,6 +574,32 @@ fn apply_field_details_operation(
         }
         SymbolLayoutDetailsEditOperation::UpdateLayoutKind(_) | SymbolLayoutDetailsEditOperation::NoOp | SymbolLayoutDetailsEditOperation::Reject(_) => {}
     }
+}
+
+fn normalize_field_display_format(
+    app_context: &Arc<AppContext>,
+    project_symbol_catalog: &ProjectSymbolCatalog,
+    field_draft: &mut SymbolLayoutFieldEditDraft,
+) {
+    let element_type = SymbolLayoutEditorViewData::resolve_field_element_type(project_symbol_catalog, field_draft);
+
+    if element_type == SymbolLayoutFieldElementType::SymbolLayout {
+        field_draft.display_format = None;
+        return;
+    }
+
+    let supported_display_formats = app_context
+        .engine_unprivileged_state
+        .get_supported_anonymous_value_string_formats(field_draft.data_type_selection.visible_data_type());
+
+    if field_draft
+        .display_format
+        .is_some_and(|display_format| supported_display_formats.contains(&display_format))
+    {
+        return;
+    }
+
+    field_draft.display_format = None;
 }
 
 pub(in crate::views::symbol_layout_editor::symbol_layout_editor_view) fn grow_draft_size_to_fit_fields(

@@ -41,6 +41,8 @@ pub struct StructViewerViewData {
     pub selected_field_name: Arc<Option<String>>,
     pub field_edit_values: HashMap<String, AnonymousValueString>,
     pub field_display_values: HashMap<String, Vec<AnonymousValueString>>,
+    pub field_allowed_display_formats: HashMap<String, Vec<AnonymousValueStringFormat>>,
+    pub field_display_format_editable: HashMap<String, bool>,
     pub field_presentations: HashMap<String, StructViewerFieldPresentation>,
     pub field_validation_data_type_refs: HashMap<String, DataTypeRef>,
     pub field_data_type_selections: HashMap<String, DataTypeSelection>,
@@ -67,6 +69,8 @@ impl StructViewerViewData {
             selected_field_name: Arc::new(None),
             field_edit_values: HashMap::new(),
             field_display_values: HashMap::new(),
+            field_allowed_display_formats: HashMap::new(),
+            field_display_format_editable: HashMap::new(),
             field_presentations: HashMap::new(),
             field_validation_data_type_refs: HashMap::new(),
             field_data_type_selections: HashMap::new(),
@@ -284,6 +288,8 @@ impl StructViewerViewData {
         struct_viewer_view_data.field_presentations.clear();
         struct_viewer_view_data.field_edit_values.clear();
         struct_viewer_view_data.field_display_values.clear();
+        struct_viewer_view_data.field_allowed_display_formats.clear();
+        struct_viewer_view_data.field_display_format_editable.clear();
         struct_viewer_view_data.field_validation_data_type_refs.clear();
         struct_viewer_view_data.field_data_type_selections.clear();
         struct_viewer_view_data.details_projection_adapter_state = None;
@@ -366,6 +372,8 @@ impl StructViewerViewData {
             self.field_presentations.clear();
             self.field_edit_values.clear();
             self.field_display_values.clear();
+            self.field_allowed_display_formats.clear();
+            self.field_display_format_editable.clear();
             self.field_validation_data_type_refs.clear();
             self.field_data_type_selections.clear();
             self.struct_under_view = Arc::new(None);
@@ -388,6 +396,12 @@ impl StructViewerViewData {
             details_projection_adapter_state.apply_field_display_format_overrides(&mut self.field_edit_values);
         }
         self.field_display_values = Self::create_field_display_values(&struct_under_view, &field_validation_data_type_refs, engine_unprivileged_state);
+        self.field_allowed_display_formats.clear();
+        self.field_display_format_editable.clear();
+        if let Some(details_projection_adapter_state) = &self.details_projection_adapter_state {
+            details_projection_adapter_state.apply_field_allowed_display_formats(&mut self.field_allowed_display_formats);
+            details_projection_adapter_state.apply_field_display_format_editable(&mut self.field_display_format_editable);
+        }
         self.field_validation_data_type_refs = field_validation_data_type_refs;
         self.field_data_type_selections = Self::create_field_data_type_selections(&struct_under_view);
         if let Some(details_projection_adapter_state) = &self.details_projection_adapter_state {

@@ -7,6 +7,7 @@ use crate::views::symbol_layout_editor::view_data::symbol_layout_editor_view_dat
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
 use squalr_engine_api::structures::{
+    data_values::anonymous_value_string_format::AnonymousValueStringFormat,
     details::DetailsEdit,
     projects::{
         project_symbol_catalog::ProjectSymbolCatalog,
@@ -90,6 +91,7 @@ pub(in crate::views::symbol_layout_editor::symbol_layout_editor_view) fn focus_u
 }
 
 pub(in crate::views::symbol_layout_editor::symbol_layout_editor_view) fn build_field_details(
+    app_context: &Arc<AppContext>,
     project_symbol_catalog: &ProjectSymbolCatalog,
     layout_kind: SymbolicLayoutKind,
     field_draft: &SymbolLayoutFieldEditDraft,
@@ -123,6 +125,15 @@ pub(in crate::views::symbol_layout_editor::symbol_layout_editor_view) fn build_f
         field_draft.container_edit.kind,
         SymbolLayoutFieldContainerKind::Pointer | SymbolLayoutFieldContainerKind::FixedPointerArray | SymbolLayoutFieldContainerKind::DynamicPointerArray
     );
+    let supported_display_formats = resolve_supported_display_formats(app_context, project_symbol_catalog, element_type, field_draft);
+    let default_display_format = (!supported_display_formats.is_empty()).then(|| {
+        app_context
+            .engine_unprivileged_state
+            .get_default_anonymous_value_string_format(field_draft.data_type_selection.visible_data_type())
+    });
+    let display_format = field_draft
+        .display_format
+        .filter(|display_format| supported_display_formats.contains(display_format));
 
     SymbolLayoutFieldDetails {
         field_name: field_draft.field_name.clone(),
@@ -148,7 +159,35 @@ pub(in crate::views::symbol_layout_editor::symbol_layout_editor_view) fn build_f
             .then(|| field_draft.active_when_resolver_id.clone()),
         pointer_size_label: uses_pointer_size.then(|| field_draft.container_edit.pointer_size.to_string()),
         offset_resolver_id: (field_draft.offset_mode == SymbolLayoutFieldOffsetMode::Resolver).then(|| field_draft.offset_resolver_id.clone()),
+        display_format,
+        default_display_format,
+        supported_display_formats,
     }
+}
+
+fn resolve_supported_display_formats(
+    app_context: &Arc<AppContext>,
+    project_symbol_catalog: &ProjectSymbolCatalog,
+    element_type: SymbolLayoutFieldElementType,
+    field_draft: &SymbolLayoutFieldEditDraft,
+) -> Vec<AnonymousValueStringFormat> {
+    if element_type == SymbolLayoutFieldElementType::SymbolLayout {
+        return Vec::new();
+    }
+
+    let data_type_ref = field_draft.data_type_selection.visible_data_type();
+    let is_project_layout = project_symbol_catalog
+        .get_struct_layout_descriptors()
+        .iter()
+        .any(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == data_type_ref.get_data_type_id());
+
+    if is_project_layout {
+        return Vec::new();
+    }
+
+    app_context
+        .engine_unprivileged_state
+        .get_supported_anonymous_value_string_formats(data_type_ref)
 }
 
 fn symbol_layout_details_container_kind_from_edit_kind(container_kind: SymbolLayoutFieldContainerKind) -> SymbolLayoutDetailsFieldContainerKind {

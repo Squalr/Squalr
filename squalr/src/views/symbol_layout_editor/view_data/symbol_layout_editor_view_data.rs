@@ -66,6 +66,7 @@ pub struct SymbolLayoutFieldEditDraft {
     pub data_type_selection: DataTypeSelection,
     pub container_edit: SymbolLayoutFieldContainerEdit,
     pub active_when_resolver_id: String,
+    pub display_format: Option<AnonymousValueStringFormat>,
     pub offset_mode: SymbolLayoutFieldOffsetMode,
     pub static_offset_in_bytes: String,
     pub offset_resolver_id: String,
@@ -176,6 +177,10 @@ impl SymbolLayoutDescriptorFieldBuildTarget for SymbolLayoutFieldEditDraft {
 
     fn to_active_when_resolver(&self) -> Option<SymbolicResolverRef> {
         SymbolLayoutFieldEditDraft::to_active_when_resolver(self)
+    }
+
+    fn to_display_format(&self) -> Option<AnonymousValueStringFormat> {
+        self.display_format
     }
 }
 
@@ -1489,6 +1494,7 @@ impl SymbolLayoutFieldEditDraft {
             data_type_selection: DataTypeSelection::new(default_data_type_ref),
             container_edit: SymbolLayoutFieldContainerEdit::default(),
             active_when_resolver_id: String::new(),
+            display_format: None,
             offset_mode: SymbolLayoutFieldOffsetMode::Sequential,
             static_offset_in_bytes: String::new(),
             offset_resolver_id: String::new(),
@@ -1510,6 +1516,7 @@ impl SymbolLayoutFieldEditDraft {
                 .get_active_when_resolver()
                 .map(|resolver_ref| resolver_ref.get_resolver_id().to_string())
                 .unwrap_or_default(),
+            display_format: symbolic_field_definition.get_display_format(),
             offset_mode,
             static_offset_in_bytes,
             offset_resolver_id,

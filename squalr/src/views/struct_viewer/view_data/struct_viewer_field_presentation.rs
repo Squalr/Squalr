@@ -17,6 +17,7 @@ pub enum StructViewerFieldEditorKind {
     SymbolLayoutFieldResolverSelector,
     SymbolLayoutFieldContainerKindSelector,
     SymbolLayoutFieldPointerSizeSelector,
+    DisplayFormatSelector,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
