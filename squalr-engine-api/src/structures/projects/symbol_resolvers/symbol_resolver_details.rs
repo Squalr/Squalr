@@ -286,6 +286,7 @@ impl SymbolResolverDetails {
             DetailsValue::Boolean(value) => Some(value.to_string()),
             DetailsValue::UnsignedInteger(value) => Some(value.to_string()),
             DetailsValue::SignedInteger(value) => Some(value.to_string()),
+            DetailsValue::DisplayFormat(display_format) => Some(display_format.to_string()),
             DetailsValue::Empty => None,
         }
     }
@@ -295,7 +296,7 @@ impl SymbolResolverDetails {
             DetailsValue::SignedInteger(value) => Some(*value),
             DetailsValue::UnsignedInteger(value) => i64::try_from(*value).ok(),
             DetailsValue::DataValue(data_value) => Self::read_i64_data_value(data_value),
-            DetailsValue::Text(_) | DetailsValue::AnonymousValue(_) | DetailsValue::Boolean(_) | DetailsValue::Empty => None,
+            DetailsValue::Text(_) | DetailsValue::AnonymousValue(_) | DetailsValue::DisplayFormat(_) | DetailsValue::Boolean(_) | DetailsValue::Empty => None,
         }
     }
 

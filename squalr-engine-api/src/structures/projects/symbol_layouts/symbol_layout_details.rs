@@ -3,7 +3,7 @@ use crate::structures::{
         built_in_types::{string::utf8::data_type_string_utf8::DataTypeStringUtf8, u64::data_type_u64::DataTypeU64},
         data_type_ref::DataTypeRef,
     },
-    data_values::container_type::ContainerType,
+    data_values::{anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
     details::{DetailsEdit, DetailsEditorHint, DetailsField, DetailsFieldId, DetailsFieldSource, DetailsProjection, DetailsTarget, DetailsValue},
     structs::symbolic_struct_definition::SymbolicLayoutKind,
 };
@@ -113,6 +113,9 @@ pub struct SymbolLayoutFieldDetails {
     pub active_when_resolver_id: Option<String>,
     pub pointer_size_label: Option<String>,
     pub offset_resolver_id: Option<String>,
+    pub display_format: Option<AnonymousValueStringFormat>,
+    pub default_display_format: Option<AnonymousValueStringFormat>,
+    pub supported_display_formats: Vec<AnonymousValueStringFormat>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -126,6 +129,7 @@ pub enum SymbolLayoutDetailsEditOperation {
     UpdateFieldFixedArrayLength(u64),
     UpdateFieldCountResolver(String),
     UpdateFieldDisplayCountResolver(String),
+    UpdateFieldDisplayFormat(AnonymousValueStringFormat),
     UpdateFieldActiveWhenResolver(String),
     UpdateFieldPointerSize(String),
     UpdateFieldOffsetResolver(String),
@@ -150,6 +154,7 @@ impl SymbolLayoutDetails {
     pub const FIELD_ID_FIELD_FIXED_ARRAY_LENGTH: &'static str = "field.fixed_array_length";
     pub const FIELD_ID_FIELD_COUNT_RESOLVER: &'static str = "field.count_resolver";
     pub const FIELD_ID_FIELD_DISPLAY_COUNT_RESOLVER: &'static str = "field.display_count_resolver";
+    pub const FIELD_ID_FIELD_DISPLAY_FORMAT: &'static str = "field.display_format";
     pub const FIELD_ID_FIELD_ACTIVE_WHEN_RESOLVER: &'static str = "field.active_when_resolver";
     pub const FIELD_ID_FIELD_POINTER_SIZE: &'static str = "field.pointer_size";
     pub const FIELD_ID_FIELD_OFFSET_RESOLVER: &'static str = "field.offset_resolver";
@@ -270,6 +275,28 @@ impl SymbolLayoutDetails {
             ));
         }
 
+        if !field_details.supported_display_formats.is_empty() {
+            let display_format = field_details
+                .display_format
+                .or(field_details.default_display_format)
+                .unwrap_or(field_details.supported_display_formats[0]);
+
+            fields.push(
+                DetailsField::new(
+                    DetailsFieldId::new(Self::FIELD_ID_FIELD_DISPLAY_FORMAT),
+                    "Display Format",
+                    DetailsValue::DisplayFormat(display_format),
+                    false,
+                    DetailsEditorHint::DisplayFormat,
+                    None,
+                    ContainerType::None,
+                    Self::layout_metadata_source(Self::FIELD_ID_FIELD_DISPLAY_FORMAT),
+                )
+                .with_preferred_display_format(Some(display_format))
+                .with_allowed_display_formats(field_details.supported_display_formats.clone()),
+            );
+        }
+
         if let Some(pointer_size_label) = &field_details.pointer_size_label {
             fields.push(Self::layout_metadata_field(
                 Self::FIELD_ID_FIELD_POINTER_SIZE,
@@ -366,6 +393,9 @@ impl SymbolLayoutDetails {
             Self::FIELD_ID_FIELD_DISPLAY_COUNT_RESOLVER => {
                 SymbolLayoutDetailsEditOperation::UpdateFieldDisplayCountResolver(Self::text_value(details_edit).unwrap_or_default())
             }
+            Self::FIELD_ID_FIELD_DISPLAY_FORMAT => Self::display_format_value(details_edit)
+                .map(SymbolLayoutDetailsEditOperation::UpdateFieldDisplayFormat)
+                .unwrap_or_else(|| SymbolLayoutDetailsEditOperation::Reject(String::from("Unknown display format."))),
             Self::FIELD_ID_FIELD_ACTIVE_WHEN_RESOLVER => {
                 SymbolLayoutDetailsEditOperation::UpdateFieldActiveWhenResolver(Self::text_value(details_edit).unwrap_or_default())
             }
@@ -443,6 +473,7 @@ impl SymbolLayoutDetails {
             DetailsValue::Boolean(value) => Some(value.to_string()),
             DetailsValue::UnsignedInteger(value) => Some(value.to_string()),
             DetailsValue::SignedInteger(value) => Some(value.to_string()),
+            DetailsValue::DisplayFormat(display_format) => Some(display_format.to_string()),
             DetailsValue::Empty => Some(String::new()),
         }
     }
@@ -462,6 +493,16 @@ impl SymbolLayoutDetails {
             _ => None,
         }
     }
+
+    fn display_format_value(details_edit: &DetailsEdit) -> Option<AnonymousValueStringFormat> {
+        match details_edit.get_value() {
+            DetailsValue::DisplayFormat(display_format) => Some(*display_format),
+            _ => Self::text_value(details_edit)?
+                .trim()
+                .parse::<AnonymousValueStringFormat>()
+                .ok(),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -472,6 +513,7 @@ mod tests {
     };
     use crate::structures::{
         data_types::built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8,
+        data_values::anonymous_value_string_format::AnonymousValueStringFormat,
         details::{DetailsEdit, DetailsFieldId, DetailsTarget, DetailsValue},
         structs::symbolic_struct_definition::SymbolicLayoutKind,
     };
@@ -493,6 +535,12 @@ mod tests {
                 active_when_resolver_id: None,
                 pointer_size_label: None,
                 offset_resolver_id: None,
+                display_format: None,
+                default_display_format: Some(AnonymousValueStringFormat::Decimal),
+                supported_display_formats: vec![
+                    AnonymousValueStringFormat::Decimal,
+                    AnonymousValueStringFormat::Hexadecimal,
+                ],
             },
         );
 
@@ -533,6 +581,79 @@ mod tests {
         assert_eq!(
             SymbolLayoutDetails::plan_edit(&details_edit),
             SymbolLayoutDetailsEditOperation::UpdateLayoutKind(SymbolicLayoutKind::Union)
+        );
+    }
+
+    #[test]
+    fn field_projection_exposes_display_format_for_supported_data_types() {
+        let projection = SymbolLayoutDetails::build_field_projection(
+            "player.stats",
+            0,
+            SymbolicLayoutKind::Struct,
+            &SymbolLayoutFieldDetails {
+                field_name: "health".to_string(),
+                data_type_id: "u32".to_string(),
+                element_kind: SymbolLayoutDetailsFieldElementKind::BuiltInDataType,
+                container_kind: SymbolLayoutDetailsFieldContainerKind::Element,
+                fixed_array_length: None,
+                count_resolver_id: None,
+                display_count_resolver_id: None,
+                active_when_resolver_id: None,
+                pointer_size_label: None,
+                offset_resolver_id: None,
+                display_format: Some(AnonymousValueStringFormat::Hexadecimal),
+                default_display_format: Some(AnonymousValueStringFormat::Decimal),
+                supported_display_formats: vec![
+                    AnonymousValueStringFormat::Decimal,
+                    AnonymousValueStringFormat::Hexadecimal,
+                ],
+            },
+        );
+
+        let display_format_field = projection
+            .get_field(&DetailsFieldId::new(SymbolLayoutDetails::FIELD_ID_FIELD_DISPLAY_FORMAT))
+            .expect("Expected display format field.");
+
+        assert_eq!(
+            display_format_field.get_value(),
+            &DetailsValue::DisplayFormat(AnonymousValueStringFormat::Hexadecimal)
+        );
+        assert_eq!(
+            display_format_field.get_allowed_display_formats(),
+            &[
+                AnonymousValueStringFormat::Decimal,
+                AnonymousValueStringFormat::Hexadecimal
+            ]
+        );
+    }
+
+    #[test]
+    fn field_projection_hides_display_format_without_supported_formats() {
+        let projection = SymbolLayoutDetails::build_field_projection(
+            "player.stats",
+            0,
+            SymbolicLayoutKind::Struct,
+            &SymbolLayoutFieldDetails {
+                field_name: "inventory".to_string(),
+                data_type_id: "inventory_layout".to_string(),
+                element_kind: SymbolLayoutDetailsFieldElementKind::SymbolLayout,
+                container_kind: SymbolLayoutDetailsFieldContainerKind::Element,
+                fixed_array_length: None,
+                count_resolver_id: None,
+                display_count_resolver_id: None,
+                active_when_resolver_id: None,
+                pointer_size_label: None,
+                offset_resolver_id: None,
+                display_format: None,
+                default_display_format: None,
+                supported_display_formats: Vec::new(),
+            },
+        );
+
+        assert!(
+            projection
+                .get_field(&DetailsFieldId::new(SymbolLayoutDetails::FIELD_ID_FIELD_DISPLAY_FORMAT))
+                .is_none()
         );
     }
 }

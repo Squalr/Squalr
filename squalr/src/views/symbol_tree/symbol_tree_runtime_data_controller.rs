@@ -194,9 +194,15 @@ impl SymbolTreeRuntimeDataController {
         let include_symbol_claim_metadata = SymbolTreeDetailsProjection::include_symbol_claim_metadata(symbol_tree_entry);
         let engine_execution_context: Arc<dyn EngineExecutionContext> = self.app_context.engine_unprivileged_state.clone();
         let symbol_size_in_bytes = Self::resolve_symbol_tree_entry_size_for_struct_viewer(&engine_execution_context, symbol_tree_entry);
+        let preferred_display_format = symbol_tree_entry.get_preferred_display_format();
 
         if Self::symbol_tree_entry_should_use_external_value_viewer(symbol_tree_entry) {
-            return SymbolTreeDetailsProjection::build_external_value(symbol_tree_entry, include_symbol_claim_metadata, symbol_size_in_bytes);
+            return SymbolTreeDetailsProjection::build_external_value(
+                symbol_tree_entry,
+                include_symbol_claim_metadata,
+                symbol_size_in_bytes,
+                preferred_display_format,
+            );
         }
 
         if let SymbolTreeNodeKind::ModuleSpace { module_name, .. } = symbol_tree_entry.get_kind() {
@@ -213,15 +219,30 @@ impl SymbolTreeRuntimeDataController {
                 None,
                 None,
                 metadata_type_id,
+                preferred_display_format,
             );
         }
 
         if matches!(symbol_tree_entry.get_kind(), SymbolTreeNodeKind::UnassignedSegment { .. }) {
-            return SymbolTreeDetailsProjection::build(symbol_tree_entry, include_symbol_claim_metadata, symbol_size_in_bytes, None, None);
+            return SymbolTreeDetailsProjection::build(
+                symbol_tree_entry,
+                include_symbol_claim_metadata,
+                symbol_size_in_bytes,
+                None,
+                None,
+                preferred_display_format,
+            );
         }
 
         if !SymbolTreeDetailsProjection::should_include_runtime_value_fields(symbol_tree_entry) {
-            return SymbolTreeDetailsProjection::build(symbol_tree_entry, include_symbol_claim_metadata, symbol_size_in_bytes, None, None);
+            return SymbolTreeDetailsProjection::build(
+                symbol_tree_entry,
+                include_symbol_claim_metadata,
+                symbol_size_in_bytes,
+                None,
+                None,
+                preferred_display_format,
+            );
         }
 
         let Some(symbolic_struct_definition) = self.build_named_symbolic_struct_definition_for_symbol_tree_entry(project_symbol_catalog, symbol_tree_entry)
@@ -232,6 +253,7 @@ impl SymbolTreeRuntimeDataController {
                 symbol_size_in_bytes,
                 None,
                 Some("Unable to resolve a struct definition for the selected symbol."),
+                preferred_display_format,
             );
         };
 
@@ -248,6 +270,7 @@ impl SymbolTreeRuntimeDataController {
                 symbol_size_in_bytes,
                 None,
                 Some("Timed out while reading the selected symbol from memory."),
+                preferred_display_format,
             );
         };
 
@@ -258,6 +281,7 @@ impl SymbolTreeRuntimeDataController {
                 symbol_size_in_bytes,
                 None,
                 Some("The selected symbol could not be read from memory."),
+                preferred_display_format,
             );
         }
 
@@ -267,6 +291,7 @@ impl SymbolTreeRuntimeDataController {
             symbol_size_in_bytes,
             Some(&memory_read_response.valued_struct),
             None,
+            preferred_display_format,
         )
     }
 
@@ -633,10 +658,13 @@ impl SymbolTreeRuntimeDataController {
             return String::new();
         };
 
-        let default_anonymous_value_string_format = self
-            .app_context
-            .engine_unprivileged_state
-            .get_default_anonymous_value_string_format(first_read_field_data_value.get_data_type_ref());
+        let default_anonymous_value_string_format = symbol_tree_entry
+            .get_preferred_display_format()
+            .unwrap_or_else(|| {
+                self.app_context
+                    .engine_unprivileged_state
+                    .get_default_anonymous_value_string_format(first_read_field_data_value.get_data_type_ref())
+            });
 
         self.app_context
             .engine_unprivileged_state

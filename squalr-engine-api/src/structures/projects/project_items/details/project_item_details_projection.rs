@@ -1,6 +1,6 @@
 use crate::structures::{
     data_types::built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8,
-    data_values::container_type::ContainerType,
+    data_values::{anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
     details::{DetailsEditorHint, DetailsField, DetailsFieldId, DetailsFieldSource, DetailsProjection, DetailsTarget, DetailsValue},
     projects::project_items::{
         built_in_types::{project_item_type_address::ProjectItemTypeAddress, project_item_type_pointer::ProjectItemTypePointer},
@@ -88,7 +88,7 @@ impl ProjectItemDetailsProjection {
         let details_value = Self::details_value_from_field_data(&field_data);
         let is_runtime_value_field = Self::is_runtime_value_field(project_item_type_id, field_name);
 
-        DetailsField::new(
+        let details_field = DetailsField::new(
             DetailsFieldId::new(format!("{}{}", Self::FIELD_ID_PROPERTY_PREFIX, field_name)),
             Self::field_label(field_name),
             details_value,
@@ -101,7 +101,13 @@ impl ProjectItemDetailsProjection {
             Self::validation_data_type_ref_for_field(project_item, field_name, &field_data),
             ContainerType::None,
             Self::field_source_for_field(project_item_type_id, field_name),
-        )
+        );
+
+        if is_runtime_value_field {
+            details_field.with_preferred_display_format(Self::project_item_runtime_value_display_format(project_item))
+        } else {
+            details_field
+        }
     }
 
     fn details_value_from_field_data(field_data: &ValuedStructFieldData) -> DetailsValue {
@@ -173,7 +179,14 @@ impl ProjectItemDetailsProjection {
         }
 
         if project_item.get_item_type().get_project_item_type_id() == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
-            return field_name != ProjectItemTypePointer::PROPERTY_EVALUATED_POINTER_PATH;
+            return field_name != ProjectItemTypePointer::PROPERTY_EVALUATED_POINTER_PATH
+                && field_name != ProjectItemTypePointer::PROPERTY_FREEZE_DISPLAY_FORMAT;
+        }
+
+        if project_item.get_item_type().get_project_item_type_id() == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID
+            && field_name == ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_FORMAT
+        {
+            return false;
         }
 
         true
@@ -212,6 +225,18 @@ impl ProjectItemDetailsProjection {
                 ProjectItemTypePointer::PROPERTY_FREEZE_DISPLAY_VALUE
             )
         )
+    }
+
+    fn project_item_runtime_value_display_format(project_item: &ProjectItem) -> Option<AnonymousValueStringFormat> {
+        let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
+
+        if project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
+            ProjectItemTypeAddress::get_field_freeze_display_format(project_item)
+        } else if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
+            ProjectItemTypePointer::get_field_freeze_display_format(project_item)
+        } else {
+            None
+        }
     }
 
     fn read_project_item_symbolic_struct_namespace(project_item: &ProjectItem) -> Option<String> {
@@ -279,6 +304,7 @@ mod tests {
         data_types::built_in_types::{
             string::utf8::data_type_string_utf8::DataTypeStringUtf8, u16::data_type_u16::DataTypeU16, u64::data_type_u64::DataTypeU64,
         },
+        data_values::anonymous_value_string_format::AnonymousValueStringFormat,
         details::{DetailsEditorHint, DetailsFieldSource, DetailsValue},
         memory::pointer::Pointer,
         pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
@@ -397,5 +423,20 @@ mod tests {
                 field_path: vec!["value".to_string()]
             }
         );
+    }
+
+    #[test]
+    fn project_item_details_projection_uses_persisted_runtime_display_format() {
+        let mut project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU16::get_value_from_primitive(0));
+        ProjectItemTypeAddress::set_field_freeze_display_format(&mut project_item, AnonymousValueStringFormat::Binary);
+        let details_projection = ProjectItemDetailsProjection::build(&project_item, "/Health");
+        let runtime_value_field = details_projection
+            .get_field(&crate::structures::details::DetailsFieldId::new(format!(
+                "property.{}",
+                ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE
+            )))
+            .expect("Expected runtime value field.");
+
+        assert_eq!(runtime_value_field.get_preferred_display_format(), Some(AnonymousValueStringFormat::Binary));
     }
 }

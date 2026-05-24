@@ -313,6 +313,71 @@ mod tests {
         assert_eq!(load_command_field_names, vec!["SegmentCommand00", "SymtabCommand01"]);
     }
 
+    #[test]
+    fn execute_plugin_action_populates_elf_symbols() {
+        let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
+        let project_symbol_catalog =
+            ProjectSymbolCatalog::new_with_modules_and_symbol_claims(vec![ProjectSymbolModule::new(String::from("squalr"), 0x2000)], Vec::new(), Vec::new());
+        let project = create_project_with_symbol_catalog(temp_directory.path(), project_symbol_catalog);
+        let engine_unprivileged_state = create_engine_unprivileged_state(MockProjectSymbolsBindings::new_with_memory_read_response_factory(
+            create_test_elf_memory_read_response,
+        ));
+
+        *engine_unprivileged_state
+            .get_project_manager()
+            .get_opened_project()
+            .write()
+            .expect("Expected opened project write lock in test.") = Some(project);
+
+        let engine_execution_context: Arc<dyn EngineExecutionContext> = engine_unprivileged_state.clone();
+        let response = ProjectSymbolsExecutePluginActionRequest {
+            plugin_id: String::from("builtin.symbols.binary"),
+            action_id: String::from("builtin.symbols.binary.populate-binary-symbols"),
+            context: SymbolTreeActionContext::new(SymbolTreeActionSelection::ModuleRoot {
+                module_name: String::from("squalr"),
+            }),
+        }
+        .execute(&engine_execution_context);
+
+        assert!(response.success, "Expected plugin action to succeed: {:?}", response.error);
+
+        let loaded_project = Project::load_from_path(temp_directory.path()).expect("Expected plugin-updated project to load from disk.");
+        let symbol_module = loaded_project
+            .get_project_info()
+            .get_project_symbol_catalog()
+            .find_symbol_module("squalr")
+            .expect("Expected module to remain in catalog.");
+        let project_symbol_catalog = loaded_project.get_project_info().get_project_symbol_catalog();
+        let elf_headers_descriptor = project_symbol_catalog
+            .get_struct_layout_descriptors()
+            .iter()
+            .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == "linux.elf.squalr.headers")
+            .expect("Expected ELF headers layout descriptor.");
+        let program_headers_descriptor = project_symbol_catalog
+            .get_struct_layout_descriptors()
+            .iter()
+            .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == "linux.elf.squalr.program_headers")
+            .expect("Expected ELF program headers layout descriptor.");
+        let elf_header_field_names = elf_headers_descriptor
+            .get_struct_layout_definition()
+            .get_fields()
+            .iter()
+            .map(|field_definition| field_definition.get_field_name())
+            .collect::<Vec<_>>();
+        let program_header_field_names = program_headers_descriptor
+            .get_struct_layout_definition()
+            .get_fields()
+            .iter()
+            .map(|field_definition| field_definition.get_field_name())
+            .collect::<Vec<_>>();
+
+        assert_eq!(symbol_module.get_fields().len(), 1);
+        assert_eq!(symbol_module.get_fields()[0].get_display_name(), "ELF Headers");
+        assert_eq!(symbol_module.get_fields()[0].get_struct_layout_id(), "linux.elf.squalr.headers");
+        assert_eq!(elf_header_field_names, vec!["ELFHeader", "ProgramHeaders", "SectionHeaders"]);
+        assert_eq!(program_header_field_names, vec!["PT_NULL_00", "PT_NULL_01"]);
+    }
+
     fn create_test_pe_memory_read_response(memory_read_request: &MemoryReadRequest) -> MemoryReadResponse {
         let header_bytes = build_test_pe_header_bytes();
         create_memory_read_response_from_bytes(memory_read_request, &header_bytes)
@@ -320,6 +385,11 @@ mod tests {
 
     fn create_test_macho_memory_read_response(memory_read_request: &MemoryReadRequest) -> MemoryReadResponse {
         let header_bytes = build_test_macho_header_bytes();
+        create_memory_read_response_from_bytes(memory_read_request, &header_bytes)
+    }
+
+    fn create_test_elf_memory_read_response(memory_read_request: &MemoryReadRequest) -> MemoryReadResponse {
+        let header_bytes = build_test_elf_header_bytes();
         create_memory_read_response_from_bytes(memory_read_request, &header_bytes)
     }
 
@@ -379,6 +449,29 @@ mod tests {
         header_bytes[second_command_offset + 12..second_command_offset + 16].copy_from_slice(&0x10_u32.to_le_bytes());
         header_bytes[second_command_offset + 16..second_command_offset + 20].copy_from_slice(&0x2000_u32.to_le_bytes());
         header_bytes[second_command_offset + 20..second_command_offset + 24].copy_from_slice(&0x80_u32.to_le_bytes());
+
+        header_bytes
+    }
+
+    fn build_test_elf_header_bytes() -> Vec<u8> {
+        let mut header_bytes = vec![0_u8; 0x1000];
+
+        header_bytes[0..4].copy_from_slice(b"\x7FELF");
+        header_bytes[4] = 2;
+        header_bytes[5] = 1;
+        header_bytes[6] = 1;
+        header_bytes[16..18].copy_from_slice(&3_u16.to_le_bytes());
+        header_bytes[18..20].copy_from_slice(&0x3E_u16.to_le_bytes());
+        header_bytes[20..24].copy_from_slice(&1_u32.to_le_bytes());
+        header_bytes[24..32].copy_from_slice(&0x401000_u64.to_le_bytes());
+        header_bytes[32..40].copy_from_slice(&0x40_u64.to_le_bytes());
+        header_bytes[40..48].copy_from_slice(&0x200_u64.to_le_bytes());
+        header_bytes[52..54].copy_from_slice(&64_u16.to_le_bytes());
+        header_bytes[54..56].copy_from_slice(&56_u16.to_le_bytes());
+        header_bytes[56..58].copy_from_slice(&2_u16.to_le_bytes());
+        header_bytes[58..60].copy_from_slice(&64_u16.to_le_bytes());
+        header_bytes[60..62].copy_from_slice(&3_u16.to_le_bytes());
+        header_bytes[62..64].copy_from_slice(&1_u16.to_le_bytes());
 
         header_bytes
     }

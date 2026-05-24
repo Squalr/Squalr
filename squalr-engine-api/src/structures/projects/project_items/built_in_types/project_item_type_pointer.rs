@@ -9,6 +9,7 @@ use crate::structures::projects::project_items::project_item_ref::ProjectItemRef
 use crate::structures::projects::project_items::project_item_type::ProjectItemType;
 use crate::structures::{
     data_types::built_in_types::{string::utf8::data_type_string_utf8::DataTypeStringUtf8, u64::data_type_u64::DataTypeU64},
+    data_values::anonymous_value_string_format::AnonymousValueStringFormat,
     pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
     projects::project_items::{project_item::ProjectItem, project_item_type_ref::ProjectItemTypeRef},
     structs::symbolic_struct_ref::SymbolicStructRef,
@@ -30,6 +31,7 @@ impl ProjectItemTypePointer {
     pub const PROPERTY_POINTER_SIZE: &str = "pointer_size";
     pub const PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE: &str = "symbolic_struct_definition_reference";
     pub const PROPERTY_FREEZE_DISPLAY_VALUE: &str = "freeze_data_value_interpreter";
+    pub const PROPERTY_FREEZE_DISPLAY_FORMAT: &str = "freeze_display_format";
     pub const PROPERTY_EVALUATED_POINTER_PATH: &str = "evaluated_pointer_path";
 
     pub fn new_project_item(
@@ -209,6 +211,24 @@ impl ProjectItemTypePointer {
         project_item
             .get_properties_mut()
             .set_field_data(Self::PROPERTY_FREEZE_DISPLAY_VALUE, field_data, true);
+    }
+
+    pub fn get_field_freeze_display_format(project_item: &ProjectItem) -> Option<AnonymousValueStringFormat> {
+        Self::read_string_field(project_item, Self::PROPERTY_FREEZE_DISPLAY_FORMAT)
+            .parse::<AnonymousValueStringFormat>()
+            .ok()
+    }
+
+    pub fn set_field_freeze_display_format(
+        project_item: &mut ProjectItem,
+        display_format: AnonymousValueStringFormat,
+    ) {
+        let display_format_data_value = DataTypeStringUtf8::get_value_from_primitive_string(&display_format.to_string());
+        let field_data = ValuedStructFieldData::Value(display_format_data_value);
+
+        project_item
+            .get_properties_mut()
+            .set_field_data(Self::PROPERTY_FREEZE_DISPLAY_FORMAT, field_data, true);
     }
 
     pub fn get_field_evaluated_pointer_path(project_item: &ProjectItem) -> String {

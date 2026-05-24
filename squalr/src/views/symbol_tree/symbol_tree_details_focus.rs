@@ -104,7 +104,7 @@ impl SymbolTreeDetailsFocus {
         let engine_unprivileged_state = self.app_context.engine_unprivileged_state.clone();
 
         Arc::new(move |details_edit: DetailsEdit| match details_edit.get_value() {
-            DetailsValue::Empty => {}
+            DetailsValue::Empty | DetailsValue::DisplayFormat(_) => {}
             details_value => {
                 let DetailsFieldSource::ProjectSymbolRuntimeValue { field_path } = details_edit.get_source() else {
                     return;
@@ -164,6 +164,11 @@ impl SymbolTreeDetailsFocus {
             DetailsValue::SignedInteger(value) => Some(AnonymousValueString::new(
                 value.to_string(),
                 AnonymousValueStringFormat::Decimal,
+                ContainerType::None,
+            )),
+            DetailsValue::DisplayFormat(display_format) => Some(AnonymousValueString::new(
+                display_format.to_string(),
+                AnonymousValueStringFormat::String,
                 ContainerType::None,
             )),
             DetailsValue::Empty => Some(AnonymousValueString::new(

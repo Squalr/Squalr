@@ -1,7 +1,7 @@
 use crate::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
 use crate::structures::{
     data_types::data_type_ref::DataTypeRef,
-    data_values::container_type::ContainerType,
+    data_values::{anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
     memory::symbolic_pointer_chain::SymbolicPointerChain,
     projects::{
         project_symbol_catalog::ProjectSymbolCatalog,
@@ -339,6 +339,43 @@ fn append_unassigned_segment_node(
     ));
 }
 
+fn find_module_root_layout_field_claim<'a>(
+    symbol_claims: &'a [ProjectSymbolClaim],
+    module_name: &str,
+    field_display_name: &str,
+    field_offset: u64,
+) -> Option<&'a ProjectSymbolClaim> {
+    symbol_claims
+        .iter()
+        .find(|symbol_claim| {
+            matches!(
+                symbol_claim.get_locator(),
+                ProjectSymbolLocator::ModuleOffset {
+                    module_name: claim_module_name,
+                    offset
+                } if claim_module_name == module_name && *offset == field_offset
+            )
+        })
+        .or_else(|| {
+            symbol_claims.iter().find(|symbol_claim| {
+                matches!(
+                    symbol_claim.get_locator(),
+                    ProjectSymbolLocator::ModuleOffset {
+                        module_name: claim_module_name,
+                        ..
+                    } if claim_module_name == module_name && symbol_claim.get_display_name() == field_display_name
+                )
+            })
+        })
+}
+
+fn module_offset_for_symbol_claim(symbol_claim: &ProjectSymbolClaim) -> Option<u64> {
+    match symbol_claim.get_locator() {
+        ProjectSymbolLocator::ModuleOffset { offset, .. } => Some(*offset),
+        ProjectSymbolLocator::AbsoluteAddress { .. } => None,
+    }
+}
+
 fn append_module_root_layout_children<ResolvePrimitiveSize, ReadScalarField, ResolveRelativePointerChain, ResolveGlobalPointerChain>(
     symbol_tree_nodes: &mut Vec<SymbolTreeNode>,
     project_symbol_catalog: &ProjectSymbolCatalog,
@@ -359,7 +396,59 @@ fn append_module_root_layout_children<ResolvePrimitiveSize, ReadScalarField, Res
     ResolveGlobalPointerChain: Fn(&SymbolicPointerChain) -> Result<i128, SymbolicResolverEvaluationError> + Copy,
 {
     let mut next_sequential_offset = 0_u64;
-    let mut consumed_symbol_claim_offsets = HashSet::new();
+    let mut consumed_symbol_claim_keys = HashSet::new();
+    let module_root_locator = ProjectSymbolLocator::new_module_offset(module_name.to_string(), 0);
+    let global_symbol_resolver_session = SymbolicGlobalSymbolResolverSession::default();
+    let resolved_module_root_layout = resolve_symbolic_struct_definition_with_resolvers_and_symbol_fields_and_relative_pointer_chains(
+        module_root_layout_definition,
+        |data_type_ref| {
+            Some(resolve_data_type_size_in_bytes(
+                project_symbol_catalog,
+                data_type_ref,
+                resolve_primitive_size_in_bytes,
+                &mut HashSet::new(),
+            ))
+        },
+        |field_definition, field_offset, field_size_in_bytes| {
+            let field_locator = offset_locator(&module_root_locator, field_offset);
+
+            read_scalar_field(&field_locator, field_definition, field_size_in_bytes)
+        },
+        |resolver_id| {
+            project_symbol_catalog
+                .find_symbolic_resolver_descriptor(resolver_id)
+                .map(|resolver_descriptor| resolver_descriptor.get_resolver_definition().clone())
+        },
+        |data_type_ref| resolve_struct_layout_definition(project_symbol_catalog, data_type_ref.get_data_type_id()),
+        |module_name, symbol_path| {
+            resolve_global_symbol_field_value(
+                &global_symbol_resolver_session,
+                module_name,
+                symbol_path,
+                &|module_name, root_symbol_name| resolve_global_symbol_roots(project_symbol_catalog, module_name, root_symbol_name),
+                &|data_type_ref| {
+                    Some(resolve_data_type_size_in_bytes(
+                        project_symbol_catalog,
+                        data_type_ref,
+                        resolve_primitive_size_in_bytes,
+                        &mut HashSet::new(),
+                    ))
+                },
+                &|field_locator, field_definition, field_size_in_bytes| read_scalar_field(field_locator, field_definition, field_size_in_bytes),
+                &|resolver_id| {
+                    project_symbol_catalog
+                        .find_symbolic_resolver_descriptor(resolver_id)
+                        .map(|resolver_descriptor| resolver_descriptor.get_resolver_definition().clone())
+                },
+                &|data_type_ref| resolve_struct_layout_definition(project_symbol_catalog, data_type_ref.get_data_type_id()),
+                &offset_locator,
+            )
+        },
+        |pointer_chain| resolve_relative_pointer_chain(&module_root_locator, pointer_chain),
+        resolve_global_pointer_chain,
+        &SymbolicStructResolverOptions::default(),
+    );
+    let mut resolved_field_iter = resolved_module_root_layout.get_fields().iter();
 
     for (field_index, field_definition) in module_root_layout_definition.get_fields().iter().enumerate() {
         if field_definition.is_unassigned() {
@@ -371,16 +460,29 @@ fn append_module_root_layout_children<ResolvePrimitiveSize, ReadScalarField, Res
             continue;
         }
 
-        let field_offset = match field_definition.get_offset_resolution() {
-            SymbolicFieldOffsetResolution::Static(offset_in_bytes) => *offset_in_bytes,
-            SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_)
-                if module_root_layout_definition.get_layout_kind().is_union() =>
-            {
-                0
-            }
-            SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_) => next_sequential_offset,
-        };
-        if field_offset > next_sequential_offset {
+        let resolved_field = resolved_field_iter.next();
+        let resolved_field_offset = resolved_field
+            .and_then(|resolved_field| resolved_field.get_offset_in_bytes())
+            .unwrap_or_else(|| match field_definition.get_offset_resolution() {
+                SymbolicFieldOffsetResolution::Static(offset_in_bytes) => *offset_in_bytes,
+                SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_)
+                    if module_root_layout_definition.get_layout_kind().is_union() =>
+                {
+                    0
+                }
+                SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_) => next_sequential_offset,
+            });
+        let field_display_name = module_root_layout_field_display_name(field_index, field_definition);
+        let matching_symbol_claim = find_module_root_layout_field_claim(symbol_claims, module_name, &field_display_name, resolved_field_offset);
+        let field_offset = matching_symbol_claim
+            .and_then(module_offset_for_symbol_claim)
+            .unwrap_or(resolved_field_offset);
+        let matching_claim_relocated_sequential_field = matches!(field_definition.get_offset_resolution(), SymbolicFieldOffsetResolution::Sequential)
+            && matching_symbol_claim
+                .and_then(module_offset_for_symbol_claim)
+                .is_some_and(|claim_offset| claim_offset != resolved_field_offset);
+
+        if field_offset > next_sequential_offset && !matching_claim_relocated_sequential_field {
             append_unassigned_segment_node(
                 symbol_tree_nodes,
                 module_name,
@@ -389,21 +491,14 @@ fn append_module_root_layout_children<ResolvePrimitiveSize, ReadScalarField, Res
             );
         }
 
-        let field_size_in_bytes = resolve_field_size_in_bytes(project_symbol_catalog, field_definition, resolve_primitive_size_in_bytes, &mut HashSet::new());
+        let field_size_in_bytes = matching_symbol_claim
+            .map(|symbol_claim| resolve_symbol_claim_size_in_bytes(project_symbol_catalog, symbol_claim, resolve_primitive_size_in_bytes))
+            .or_else(|| resolved_field.and_then(|resolved_field| resolved_field.get_size_in_bytes()))
+            .unwrap_or_else(|| resolve_field_size_in_bytes(project_symbol_catalog, field_definition, resolve_primitive_size_in_bytes, &mut HashSet::new()));
         next_sequential_offset = next_sequential_offset.max(field_offset.saturating_add(field_size_in_bytes));
 
-        let matching_symbol_claim = symbol_claims.iter().find(|symbol_claim| {
-            matches!(
-                symbol_claim.get_locator(),
-                ProjectSymbolLocator::ModuleOffset {
-                    module_name: claim_module_name,
-                    offset
-                } if claim_module_name == module_name && *offset == field_offset
-            )
-        });
-
         if let Some(symbol_claim) = matching_symbol_claim {
-            consumed_symbol_claim_offsets.insert(field_offset);
+            consumed_symbol_claim_keys.insert(symbol_claim.get_symbol_locator_key());
             append_symbol_claim_node(
                 symbol_tree_nodes,
                 project_symbol_catalog,
@@ -436,10 +531,10 @@ fn append_module_root_layout_children<ResolvePrimitiveSize, ReadScalarField, Res
     }
 
     for symbol_claim in symbol_claims {
-        let ProjectSymbolLocator::ModuleOffset { offset, .. } = symbol_claim.get_locator() else {
+        let ProjectSymbolLocator::ModuleOffset { .. } = symbol_claim.get_locator() else {
             continue;
         };
-        if consumed_symbol_claim_offsets.contains(offset) {
+        if consumed_symbol_claim_keys.contains(&symbol_claim.get_symbol_locator_key()) {
             continue;
         }
         append_symbol_claim_node(
@@ -489,11 +584,7 @@ fn append_module_root_layout_field_node<ResolvePrimitiveSize, ReadScalarField, R
         return;
     }
 
-    let field_display_name = if field_definition.get_field_name().is_empty() {
-        format!("field_{}", field_index)
-    } else {
-        field_definition.get_field_name().to_string()
-    };
+    let field_display_name = module_root_layout_field_display_name(field_index, field_definition);
     let field_node_key = format!("module_layout:{}:{:X}:{}", module_name, field_offset, field_display_name);
     let field_locator = ProjectSymbolLocator::new_module_offset(module_name.to_string(), field_offset);
     let can_expand = data_type_ref_can_expand(
@@ -505,18 +596,21 @@ fn append_module_root_layout_field_node<ResolvePrimitiveSize, ReadScalarField, R
     let is_expanded = can_expand && expanded_tree_node_keys.contains(&field_node_key);
     let symbol_claim_locator_key = field_locator.to_locator_key();
 
-    symbol_tree_nodes.push(SymbolTreeNode::new(
-        field_node_key.clone(),
-        SymbolTreeNodeKind::StructField,
-        1,
-        field_display_name.clone(),
-        field_display_name.clone(),
-        symbol_claim_locator_key.clone(),
-        field_locator.clone(),
-        field_definition.get_data_type_ref().to_string(),
-        field_definition.get_container_type(),
-        can_expand,
-    ));
+    symbol_tree_nodes.push(
+        SymbolTreeNode::new(
+            field_node_key.clone(),
+            SymbolTreeNodeKind::StructField,
+            1,
+            field_display_name.clone(),
+            field_display_name.clone(),
+            symbol_claim_locator_key.clone(),
+            field_locator.clone(),
+            field_definition.get_data_type_ref().to_string(),
+            field_definition.get_container_type(),
+            can_expand,
+        )
+        .with_preferred_display_format(field_definition.get_display_format()),
+    );
 
     if is_expanded {
         append_field_children(
@@ -528,6 +622,7 @@ fn append_module_root_layout_field_node<ResolvePrimitiveSize, ReadScalarField, R
             &field_locator,
             field_definition.get_data_type_ref(),
             field_definition.get_container_type(),
+            field_definition.get_display_format(),
             2,
             expanded_tree_node_keys,
             resolved_pointer_targets_by_node_key,
@@ -537,6 +632,17 @@ fn append_module_root_layout_field_node<ResolvePrimitiveSize, ReadScalarField, R
             resolve_global_pointer_chain,
             &mut HashSet::new(),
         );
+    }
+}
+
+fn module_root_layout_field_display_name(
+    field_index: usize,
+    field_definition: &SymbolicFieldDefinition,
+) -> String {
+    if field_definition.get_field_name().is_empty() {
+        format!("field_{}", field_index)
+    } else {
+        field_definition.get_field_name().to_string()
     }
 }
 
@@ -651,6 +757,7 @@ fn append_symbol_claim_node<ResolvePrimitiveSize, ReadScalarField, ResolveRelati
             symbol_claim.get_locator(),
             &data_type_ref,
             container_type,
+            None,
             depth + 1,
             expanded_tree_node_keys,
             resolved_pointer_targets_by_node_key,
@@ -812,7 +919,8 @@ fn append_struct_field_nodes<ResolvePrimitiveSize, ReadScalarField, ResolveRelat
             field_definition.get_data_type_ref().to_string(),
             field_container_type,
             can_expand,
-        );
+        )
+        .with_preferred_display_format(field_definition.get_display_format());
 
         symbol_tree_nodes.push(field_symbol_tree_node);
 
@@ -826,6 +934,7 @@ fn append_struct_field_nodes<ResolvePrimitiveSize, ReadScalarField, ResolveRelat
                 &field_locator,
                 field_definition.get_data_type_ref(),
                 field_container_type,
+                field_definition.get_display_format(),
                 depth + 1,
                 expanded_tree_node_keys,
                 resolved_pointer_targets_by_node_key,
@@ -848,6 +957,7 @@ fn append_field_children<ResolvePrimitiveSize, ReadScalarField, ResolveRelativeP
     parent_locator: &ProjectSymbolLocator,
     data_type_ref: &DataTypeRef,
     container_type: ContainerType,
+    preferred_display_format: Option<AnonymousValueStringFormat>,
     depth: usize,
     expanded_tree_node_keys: &HashSet<String>,
     resolved_pointer_targets_by_node_key: &HashMap<String, ResolvedPointerTarget>,
@@ -873,6 +983,7 @@ fn append_field_children<ResolvePrimitiveSize, ReadScalarField, ResolveRelativeP
             data_type_ref,
             ContainerType::None,
             array_length,
+            preferred_display_format,
             depth,
             expanded_tree_node_keys,
             resolved_pointer_targets_by_node_key,
@@ -892,6 +1003,7 @@ fn append_field_children<ResolvePrimitiveSize, ReadScalarField, ResolveRelativeP
             data_type_ref,
             ContainerType::Pointer(pointer_size),
             array_length,
+            preferred_display_format,
             depth,
             expanded_tree_node_keys,
             resolved_pointer_targets_by_node_key,
@@ -965,6 +1077,7 @@ fn append_field_children<ResolvePrimitiveSize, ReadScalarField, ResolveRelativeP
                     &pointer_target_locator,
                     data_type_ref,
                     ContainerType::None,
+                    None,
                     depth + 1,
                     expanded_tree_node_keys,
                     resolved_pointer_targets_by_node_key,
@@ -990,6 +1103,7 @@ fn append_fixed_array_element_nodes<ResolvePrimitiveSize, ReadScalarField, Resol
     data_type_ref: &DataTypeRef,
     element_container_type: ContainerType,
     array_length: u64,
+    preferred_display_format: Option<AnonymousValueStringFormat>,
     depth: usize,
     expanded_tree_node_keys: &HashSet<String>,
     resolved_pointer_targets_by_node_key: &HashMap<String, ResolvedPointerTarget>,
@@ -1036,7 +1150,8 @@ fn append_fixed_array_element_nodes<ResolvePrimitiveSize, ReadScalarField, Resol
             data_type_ref.to_string(),
             element_container_type,
             can_expand,
-        );
+        )
+        .with_preferred_display_format(preferred_display_format);
 
         symbol_tree_nodes.push(element_symbol_tree_node);
 
@@ -1050,6 +1165,7 @@ fn append_fixed_array_element_nodes<ResolvePrimitiveSize, ReadScalarField, Resol
                 &element_locator,
                 data_type_ref,
                 element_container_type,
+                None,
                 depth + 1,
                 expanded_tree_node_keys,
                 resolved_pointer_targets_by_node_key,
@@ -1400,11 +1516,12 @@ mod tests {
     use crate::registries::symbols::{struct_layout_descriptor::StructLayoutDescriptor, symbolic_resolver_descriptor::SymbolicResolverDescriptor};
     use crate::structures::{
         data_types::data_type_ref::DataTypeRef,
-        data_values::container_type::ContainerType,
+        data_values::{anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
         pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
         projects::{
             project_symbol_catalog::ProjectSymbolCatalog, project_symbol_claim::ProjectSymbolClaim, project_symbol_locator::ProjectSymbolLocator,
-            project_symbol_module::ProjectSymbolModule, symbol_tree::symbol_tree_node::SymbolTreeNodeKind,
+            project_symbol_module::ProjectSymbolModule, project_symbol_module_field::ProjectSymbolModuleField,
+            symbol_tree::symbol_tree_node::SymbolTreeNodeKind,
         },
         structs::{
             symbolic_field_definition::SymbolicFieldDefinition,
@@ -1504,6 +1621,53 @@ mod tests {
         assert_eq!(symbol_tree_nodes[6].can_expand(), false);
         assert_eq!(symbol_tree_nodes[7].get_full_path(), "Player.next");
         assert_eq!(symbol_tree_nodes[7].can_expand(), true);
+    }
+
+    #[test]
+    fn build_symbol_tree_nodes_carries_layout_display_formats_to_runtime_nodes() {
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_symbol_claims(
+            vec![StructLayoutDescriptor::new(
+                String::from("player"),
+                SymbolicStructDefinition::new(
+                    String::from("player"),
+                    vec![
+                        SymbolicFieldDefinition::from_str("health:u32 format hexadecimal").expect("Expected health field to parse."),
+                        SymbolicFieldDefinition::from_str("items:u16[2] format binary").expect("Expected items field to parse."),
+                    ],
+                ),
+            )],
+            vec![ProjectSymbolClaim::new_absolute_address(
+                String::from("Player"),
+                0x100,
+                String::from("player"),
+            )],
+        );
+        let expanded_tree_node_keys = HashSet::from([
+            String::from("module:Absolute / Unmapped"),
+            String::from("claim:absolute:100"),
+        ]);
+
+        let symbol_tree_nodes = build_symbol_tree_nodes(
+            &project_symbol_catalog,
+            &expanded_tree_node_keys,
+            &HashMap::new(),
+            |data_type_ref| match data_type_ref.get_data_type_id() {
+                "u16" => Some(2),
+                "u32" => Some(4),
+                _ => None,
+            },
+        );
+        let health_node = symbol_tree_nodes
+            .iter()
+            .find(|symbol_tree_node| symbol_tree_node.get_full_path() == "Player.health")
+            .expect("Expected health node.");
+        let items_node = symbol_tree_nodes
+            .iter()
+            .find(|symbol_tree_node| symbol_tree_node.get_full_path() == "Player.items")
+            .expect("Expected items node.");
+
+        assert_eq!(health_node.get_preferred_display_format(), Some(AnonymousValueStringFormat::Hexadecimal));
+        assert_eq!(items_node.get_preferred_display_format(), Some(AnonymousValueStringFormat::Binary));
     }
 
     #[test]
@@ -2544,6 +2708,263 @@ mod tests {
                 offset: 20,
                 length: 12,
             }
+        );
+    }
+
+    #[test]
+    fn build_symbol_tree_nodes_matches_module_root_claims_after_dynamic_field_sizes() {
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_resolvers_and_symbol_claims(
+            vec![ProjectSymbolModule::new(String::from("game.exe"), 0x20)],
+            vec![StructLayoutDescriptor::new(
+                String::from("game.exe"),
+                SymbolicStructDefinition::new(
+                    String::from("game.exe"),
+                    vec![
+                        SymbolicFieldDefinition::from_str("header:u8[resolver(header_size)]").expect("Expected dynamic header field to parse."),
+                        SymbolicFieldDefinition::new_unassigned(4),
+                        SymbolicFieldDefinition::new_named(String::from("health"), DataTypeRef::new("i32"), ContainerType::None),
+                    ],
+                )
+                .with_declared_size_in_bytes(Some(0x20)),
+            )],
+            vec![SymbolicResolverDescriptor::new(
+                String::from("header_size"),
+                SymbolicResolverDefinition::new(SymbolicResolverNode::new_literal(8)),
+            )],
+            vec![ProjectSymbolClaim::new_module_offset(
+                String::from("health"),
+                String::from("game.exe"),
+                12,
+                String::from("i32"),
+            )],
+        );
+
+        let symbol_tree_nodes = build_symbol_tree_nodes(
+            &project_symbol_catalog,
+            &HashSet::from([String::from("module:game.exe")]),
+            &HashMap::new(),
+            |data_type_ref| match data_type_ref.get_data_type_id() {
+                "i32" => Some(4),
+                "u8" => Some(1),
+                _ => None,
+            },
+        );
+        let health_nodes = symbol_tree_nodes
+            .iter()
+            .filter(|symbol_tree_node| symbol_tree_node.get_display_name() == "health")
+            .collect::<Vec<_>>();
+
+        assert_eq!(health_nodes.len(), 1);
+        assert_eq!(
+            health_nodes[0].get_kind(),
+            &SymbolTreeNodeKind::SymbolClaim {
+                symbol_locator_key: String::from("module:game.exe:C"),
+            }
+        );
+        assert_eq!(
+            health_nodes[0].get_locator(),
+            &ProjectSymbolLocator::new_module_offset(String::from("game.exe"), 12)
+        );
+    }
+
+    #[test]
+    fn build_symbol_tree_nodes_matches_module_root_claims_by_name_when_nested_dynamic_size_is_stale() {
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_resolvers_and_symbol_claims(
+            vec![ProjectSymbolModule::new(String::from("game.exe"), 0x20)],
+            vec![
+                StructLayoutDescriptor::new(
+                    String::from("dynamic_header"),
+                    SymbolicStructDefinition::new(
+                        String::from("dynamic_header"),
+                        vec![SymbolicFieldDefinition::from_str("bytes:u8[resolver(header_size)]").expect("Expected dynamic nested header field to parse.")],
+                    ),
+                ),
+                StructLayoutDescriptor::new(
+                    String::from("game.exe"),
+                    SymbolicStructDefinition::new(
+                        String::from("game.exe"),
+                        vec![
+                            SymbolicFieldDefinition::new_named(String::from("header"), DataTypeRef::new("dynamic_header"), ContainerType::None),
+                            SymbolicFieldDefinition::new_unassigned(4),
+                            SymbolicFieldDefinition::new_named(String::from("health"), DataTypeRef::new("i32"), ContainerType::None),
+                        ],
+                    )
+                    .with_declared_size_in_bytes(Some(0x20)),
+                ),
+            ],
+            vec![SymbolicResolverDescriptor::new(
+                String::from("header_size"),
+                SymbolicResolverDefinition::new(SymbolicResolverNode::new_literal(8)),
+            )],
+            vec![ProjectSymbolClaim::new_module_offset(
+                String::from("health"),
+                String::from("game.exe"),
+                12,
+                String::from("i32"),
+            )],
+        );
+
+        let symbol_tree_nodes = build_symbol_tree_nodes(
+            &project_symbol_catalog,
+            &HashSet::from([String::from("module:game.exe")]),
+            &HashMap::new(),
+            |data_type_ref| match data_type_ref.get_data_type_id() {
+                "i32" => Some(4),
+                "u8" => Some(1),
+                _ => None,
+            },
+        );
+        let health_nodes = symbol_tree_nodes
+            .iter()
+            .filter(|symbol_tree_node| symbol_tree_node.get_display_name() == "health")
+            .collect::<Vec<_>>();
+
+        assert_eq!(health_nodes.len(), 1);
+        assert_eq!(
+            health_nodes[0].get_kind(),
+            &SymbolTreeNodeKind::SymbolClaim {
+                symbol_locator_key: String::from("module:game.exe:C"),
+            }
+        );
+        assert_eq!(
+            health_nodes[0].get_locator(),
+            &ProjectSymbolLocator::new_module_offset(String::from("game.exe"), 12)
+        );
+    }
+
+    #[test]
+    fn build_symbol_tree_nodes_does_not_split_layout_unassigned_when_claim_relocates_layout_field() {
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_and_symbol_claims(
+            vec![ProjectSymbolModule::new(String::from("game.exe"), 0x20)],
+            vec![StructLayoutDescriptor::new(
+                String::from("game.exe"),
+                SymbolicStructDefinition::new(
+                    String::from("game.exe"),
+                    vec![
+                        SymbolicFieldDefinition::new_named(String::from("PE header"), DataTypeRef::new("u8"), ContainerType::ArrayFixed(4)),
+                        SymbolicFieldDefinition::new_unassigned(4),
+                        SymbolicFieldDefinition::new_named(String::from("Ptr"), DataTypeRef::new("i32"), ContainerType::None),
+                    ],
+                )
+                .with_declared_size_in_bytes(Some(0x20)),
+            )],
+            vec![ProjectSymbolClaim::new_module_offset(
+                String::from("Ptr"),
+                String::from("game.exe"),
+                12,
+                String::from("i32"),
+            )],
+        );
+
+        let symbol_tree_nodes = build_symbol_tree_nodes(
+            &project_symbol_catalog,
+            &HashSet::from([String::from("module:game.exe")]),
+            &HashMap::new(),
+            |data_type_ref| match data_type_ref.get_data_type_id() {
+                "i32" | "u32" => Some(4),
+                "u8" => Some(1),
+                _ => None,
+            },
+        );
+        let direct_child_display_names = symbol_tree_nodes
+            .iter()
+            .filter(|symbol_tree_node| symbol_tree_node.get_depth() == 1)
+            .map(|symbol_tree_node| symbol_tree_node.get_display_name().to_string())
+            .collect::<Vec<_>>();
+        let unassigned_node_count = symbol_tree_nodes
+            .iter()
+            .filter(|symbol_tree_node| matches!(symbol_tree_node.get_kind(), SymbolTreeNodeKind::UnassignedSegment { .. }))
+            .count();
+
+        assert_eq!(
+            direct_child_display_names,
+            vec![
+                String::from("PE header"),
+                String::from("UNASSIGNED_00000004"),
+                String::from("Ptr"),
+                String::from("UNASSIGNED_00000010"),
+            ]
+        );
+        assert_eq!(unassigned_node_count, 2);
+        assert_eq!(
+            symbol_tree_nodes[3].get_locator(),
+            &ProjectSymbolLocator::new_module_offset(String::from("game.exe"), 12)
+        );
+    }
+
+    #[test]
+    fn build_symbol_tree_nodes_matches_winmine_module_root_layout_order() {
+        let mut symbol_module = ProjectSymbolModule::new(String::from("winmine.exe"), 131072);
+        symbol_module
+            .get_fields_mut()
+            .push(ProjectSymbolModuleField::new(
+                String::from("PE Headers"),
+                0,
+                String::from("win.pe.PE_HEADERS32"),
+            ));
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_and_symbol_claims(
+            vec![symbol_module],
+            vec![
+                StructLayoutDescriptor::new(
+                    String::from("win.pe.PE_HEADERS32"),
+                    SymbolicStructDefinition::new(String::from("win.pe.PE_HEADERS32"), vec![SymbolicFieldDefinition::new_unassigned(353)])
+                        .with_declared_size_in_bytes(Some(353)),
+                ),
+                StructLayoutDescriptor::new(
+                    String::from("winmine.exe"),
+                    SymbolicStructDefinition::new(
+                        String::from("winmine.exe"),
+                        vec![
+                            SymbolicFieldDefinition::new_named(String::from("PE Headers"), DataTypeRef::new("win.pe.PE_HEADERS32"), ContainerType::None),
+                            SymbolicFieldDefinition::new_unassigned(21844),
+                            SymbolicFieldDefinition::new_named(String::from("winmine_exe_0x579C"), DataTypeRef::new("i32"), ContainerType::None),
+                            SymbolicFieldDefinition::new_unassigned(108640),
+                        ],
+                    )
+                    .with_declared_size_in_bytes(Some(131072)),
+                ),
+            ],
+            vec![ProjectSymbolClaim::new_module_offset(
+                String::from("winmine_exe_0x579C"),
+                String::from("winmine.exe"),
+                22428,
+                String::from("i32"),
+            )],
+        );
+
+        let symbol_tree_nodes = build_symbol_tree_nodes(
+            &project_symbol_catalog,
+            &HashSet::from([String::from("module:winmine.exe")]),
+            &HashMap::new(),
+            |data_type_ref| match data_type_ref.get_data_type_id() {
+                "i32" => Some(4),
+                "u8" => Some(1),
+                _ => None,
+            },
+        );
+        let direct_child_display_names = symbol_tree_nodes
+            .iter()
+            .filter(|symbol_tree_node| symbol_tree_node.get_depth() == 1)
+            .map(|symbol_tree_node| symbol_tree_node.get_display_name().to_string())
+            .collect::<Vec<_>>();
+        let unassigned_node_count = symbol_tree_nodes
+            .iter()
+            .filter(|symbol_tree_node| matches!(symbol_tree_node.get_kind(), SymbolTreeNodeKind::UnassignedSegment { .. }))
+            .count();
+
+        assert_eq!(
+            direct_child_display_names,
+            vec![
+                String::from("PE Headers"),
+                String::from("UNASSIGNED_00000161"),
+                String::from("winmine_exe_0x579C"),
+                String::from("UNASSIGNED_000057A0"),
+            ]
+        );
+        assert_eq!(unassigned_node_count, 2);
+        assert_eq!(
+            symbol_tree_nodes[3].get_locator(),
+            &ProjectSymbolLocator::new_module_offset(String::from("winmine.exe"), 22428)
         );
     }
 

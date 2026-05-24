@@ -36,7 +36,7 @@ fn summarize_prompt_command_error(message: &str) -> String {
     }
 
     if let Some(usage_line) = prompt_command_usage_line(message) {
-        summary_lines.push(format!("Usage: {}", usage_line.trim()));
+        summary_lines.push(format!("Usage: {}", format_prompt_command_usage_line(usage_line)));
     }
 
     summary_lines.join("\n")
@@ -112,7 +112,7 @@ fn format_prompt_command_help(message: &str) -> String {
     let mut output_lines = Vec::new();
 
     if let Some(usage_line) = usage_line {
-        output_lines.push(format!("Usage: {}", usage_line));
+        output_lines.push(format!("Usage: {}", format_prompt_command_usage_line(&usage_line)));
     }
 
     push_prompt_help_section(&mut output_lines, "Commands", &subcommand_items);
@@ -134,6 +134,33 @@ fn format_prompt_command_version(message: &str) -> String {
         .map(str::trim)
         .unwrap_or("Version unavailable")
         .to_string()
+}
+
+fn format_prompt_command_usage_line(usage_line: &str) -> String {
+    let trimmed_usage_line = usage_line.trim();
+    let mut usage_parts = trimmed_usage_line.split_whitespace();
+    let Some(first_usage_part) = usage_parts.next() else {
+        return String::new();
+    };
+    let remaining_usage_parts = usage_parts.collect::<Vec<_>>();
+
+    if remaining_usage_parts.len() == 1 && remaining_usage_parts[0] == "<SUBCOMMAND>" && is_program_name_usage_part(first_usage_part) {
+        return String::from("<COMMAND>");
+    }
+
+    if is_program_name_usage_part(first_usage_part) && !remaining_usage_parts.is_empty() {
+        return remaining_usage_parts.join(" ");
+    }
+
+    trimmed_usage_line.to_string()
+}
+
+fn is_program_name_usage_part(usage_part: &str) -> bool {
+    let normalized_usage_part = usage_part.trim_end_matches(".exe");
+
+    matches!(normalized_usage_part, "squalr" | "squalr-cli" | "squalr-engine-api")
+        || normalized_usage_part.contains('\\')
+        || normalized_usage_part.contains('/')
 }
 
 fn prompt_command_help_section(line: &str) -> Option<PromptCommandHelpSection> {

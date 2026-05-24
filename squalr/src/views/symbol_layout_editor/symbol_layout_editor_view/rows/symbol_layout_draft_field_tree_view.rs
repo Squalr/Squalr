@@ -555,7 +555,7 @@ impl<'view, 'draft> SymbolLayoutDraftFieldTreeView<'view, 'draft> {
                 self.draft.layout_kind,
                 &field_context_menu_target,
                 field_count,
-                false,
+                !self.draft.layout_kind.is_union(),
             )
         {
             pending_field_row_action = Some((field_context_menu_target.get_field_index(), field_row_action));

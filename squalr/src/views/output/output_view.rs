@@ -5,7 +5,7 @@ use crate::views::output::output_context_menu_state::OutputContextMenuState;
 use crate::views::output::output_context_menu_view::OutputContextMenuView;
 use eframe::egui::text::CCursorRange;
 use eframe::egui::{Align, Id, Key, Layout, Response, RichText, ScrollArea, Sense, TextEdit, Ui, UiBuilder, Widget};
-use epaint::{CornerRadius, Margin, Rect, Stroke, Vec2, pos2};
+use epaint::{CornerRadius, Margin, Rect, Stroke, StrokeKind, Vec2, pos2};
 use log::Level;
 use squalr_engine_api::structures::logging::log_event::LogEvent;
 use std::collections::VecDeque;
@@ -26,6 +26,8 @@ struct OutputCommandLineResponse {
 
 impl OutputView {
     pub const WINDOW_ID: &'static str = "window_output";
+    const COMMAND_LINE_HEIGHT: f32 = 28.0;
+    const COMMAND_LINE_TOP_PADDING: f32 = 4.0;
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
         Self {
@@ -75,12 +77,11 @@ impl OutputView {
         user_interface
             .painter()
             .rect_filled(command_line_rectangle, CornerRadius::ZERO, theme.background_primary);
-        user_interface.painter().line_segment(
-            [
-                command_line_rectangle.left_top(),
-                command_line_rectangle.right_top(),
-            ],
+        user_interface.painter().rect_stroke(
+            command_line_rectangle,
+            CornerRadius::ZERO,
             Stroke::new(1.0, theme.submenu_border),
+            StrokeKind::Inside,
         );
 
         let mut command_line_user_interface = user_interface.new_child(
@@ -154,9 +155,9 @@ impl Widget for OutputView {
                 let outer_rectangle = user_interface.available_rect_before_wrap();
                 let inset_amount = Vec2::new(8.0, 4.0);
                 let inner_rectangle = outer_rectangle.shrink2(inset_amount);
-                let command_line_height = 36.0;
-                let command_line_top = (outer_rectangle.max.y - command_line_height).max(outer_rectangle.min.y);
-                let log_rectangle = Rect::from_min_max(inner_rectangle.min, pos2(inner_rectangle.max.x, command_line_top.max(inner_rectangle.min.y)));
+                let command_line_top = (outer_rectangle.max.y - Self::COMMAND_LINE_HEIGHT).max(outer_rectangle.min.y);
+                let log_bottom = (command_line_top - Self::COMMAND_LINE_TOP_PADDING).max(inner_rectangle.min.y);
+                let log_rectangle = Rect::from_min_max(inner_rectangle.min, pos2(inner_rectangle.max.x, log_bottom));
                 let command_line_rectangle = Rect::from_min_max(pos2(outer_rectangle.min.x, command_line_top), outer_rectangle.max);
                 let log_builder = UiBuilder::new()
                     .max_rect(log_rectangle)

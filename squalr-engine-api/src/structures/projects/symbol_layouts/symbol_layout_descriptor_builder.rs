@@ -35,6 +35,7 @@ pub trait SymbolLayoutDescriptorFieldBuildTarget {
     fn to_display_count_resolution(&self) -> Result<SymbolicFieldCountResolution, String>;
     fn to_offset_resolution(&self) -> Result<SymbolicFieldOffsetResolution, String>;
     fn to_active_when_resolver(&self) -> Option<SymbolicResolverRef>;
+    fn to_display_format(&self) -> Option<AnonymousValueStringFormat>;
 }
 
 pub struct SymbolLayoutDescriptorBuilder;
@@ -110,6 +111,7 @@ impl SymbolLayoutDescriptorBuilder {
                 offset_resolution,
             )
             .with_active_when_resolver(field_draft.to_active_when_resolver());
+            let symbolic_field_definition = symbolic_field_definition.with_display_format(field_draft.to_display_format());
 
             let (field_offset, symbolic_field_definition) = match symbolic_field_definition.get_offset_resolution() {
                 SymbolicFieldOffsetResolution::Static(offset_in_bytes) if !draft.get_layout_kind().is_union() && *offset_in_bytes >= next_sequential_offset => {
@@ -150,7 +152,7 @@ impl SymbolLayoutDescriptorBuilder {
                 next_sequential_offset,
                 declared_size_in_bytes,
                 unassigned_split_offsets,
-                draft.get_field_count() > 0 || !unassigned_split_offsets.is_empty(),
+                true,
             );
         }
 
@@ -397,6 +399,10 @@ mod tests {
         fn to_active_when_resolver(&self) -> Option<SymbolicResolverRef> {
             None
         }
+
+        fn to_display_format(&self) -> Option<AnonymousValueStringFormat> {
+            None
+        }
     }
 
     #[test]
@@ -423,5 +429,23 @@ mod tests {
         assert_eq!(fields[0].to_string(), "unassigned[4]");
         assert_eq!(fields[1].to_string(), "health:u32");
         assert_eq!(fields[2].to_string(), "unassigned[4]");
+    }
+
+    #[test]
+    fn descriptor_builder_materializes_empty_struct_layout_as_unassigned() {
+        let draft = TestDraft {
+            original_layout_id: None,
+            layout_id: String::from("reserved"),
+            layout_kind: SymbolicLayoutKind::Struct,
+            size_text: String::from("8"),
+            fields: Vec::new(),
+        };
+
+        let descriptor = SymbolLayoutDescriptorBuilder::build_symbol_layout_descriptor(&ProjectSymbolCatalog::default(), &draft, |_data_type_ref| None)
+            .expect("Expected descriptor to build.");
+        let fields = descriptor.get_struct_layout_definition().get_fields();
+
+        assert_eq!(fields.len(), 1);
+        assert_eq!(fields[0].to_string(), "unassigned[8]");
     }
 }

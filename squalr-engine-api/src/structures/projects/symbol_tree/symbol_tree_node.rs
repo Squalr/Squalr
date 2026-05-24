@@ -1,4 +1,7 @@
-use crate::structures::{data_values::container_type::ContainerType, projects::project_symbol_locator::ProjectSymbolLocator};
+use crate::structures::{
+    data_values::{anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
+    projects::project_symbol_locator::ProjectSymbolLocator,
+};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SymbolTreeNodeKind {
@@ -20,6 +23,7 @@ pub struct SymbolTreeNode {
     locator: ProjectSymbolLocator,
     symbol_type_id: String,
     container_type: ContainerType,
+    preferred_display_format: Option<AnonymousValueStringFormat>,
     can_expand: bool,
 }
 
@@ -46,8 +50,17 @@ impl SymbolTreeNode {
             locator,
             symbol_type_id,
             container_type,
+            preferred_display_format: None,
             can_expand,
         }
+    }
+
+    pub fn with_preferred_display_format(
+        mut self,
+        preferred_display_format: Option<AnonymousValueStringFormat>,
+    ) -> Self {
+        self.preferred_display_format = preferred_display_format;
+        self
     }
 
     pub fn get_node_key(&self) -> &str {
@@ -88,6 +101,10 @@ impl SymbolTreeNode {
 
     pub fn get_container_type(&self) -> ContainerType {
         self.container_type
+    }
+
+    pub fn get_preferred_display_format(&self) -> Option<AnonymousValueStringFormat> {
+        self.preferred_display_format
     }
 
     pub fn can_expand(&self) -> bool {

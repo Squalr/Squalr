@@ -6,7 +6,7 @@ use crate::structures::projects::project_items::project_item_ref::ProjectItemRef
 use crate::structures::structs::symbolic_struct_ref::SymbolicStructRef;
 use crate::structures::{
     data_types::built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8,
-    data_values::data_value::DataValue,
+    data_values::{anonymous_value_string_format::AnonymousValueStringFormat, data_value::DataValue},
     projects::project_items::{project_item::ProjectItem, project_item_type::ProjectItemType, project_item_type_ref::ProjectItemTypeRef},
     structs::valued_struct_field::ValuedStructFieldData,
 };
@@ -92,6 +92,7 @@ impl ProjectItemTypeAddress {
     pub const PROPERTY_TARGET: &str = "target_data";
     pub const PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE: &str = "symbolic_struct_definition_reference";
     pub const PROPERTY_FREEZE_DISPLAY_VALUE: &str = "freeze_data_value_interpreter";
+    pub const PROPERTY_FREEZE_DISPLAY_FORMAT: &str = "freeze_display_format";
 
     pub fn new_project_item(
         name: &str,
@@ -205,6 +206,24 @@ impl ProjectItemTypeAddress {
         project_item
             .get_properties_mut()
             .set_field_data(Self::PROPERTY_FREEZE_DISPLAY_VALUE, field_data, true);
+    }
+
+    pub fn get_field_freeze_display_format(project_item: &ProjectItem) -> Option<AnonymousValueStringFormat> {
+        Self::read_string_field(project_item, Self::PROPERTY_FREEZE_DISPLAY_FORMAT)
+            .parse::<AnonymousValueStringFormat>()
+            .ok()
+    }
+
+    pub fn set_field_freeze_display_format(
+        project_item: &mut ProjectItem,
+        display_format: AnonymousValueStringFormat,
+    ) {
+        let display_format_data_value = DataTypeStringUtf8::get_value_from_primitive_string(&display_format.to_string());
+        let field_data = ValuedStructFieldData::Value(display_format_data_value);
+
+        project_item
+            .get_properties_mut()
+            .set_field_data(Self::PROPERTY_FREEZE_DISPLAY_FORMAT, field_data, true);
     }
 
     pub fn get_field_symbolic_struct_definition_reference(project_item: &mut ProjectItem) -> Option<SymbolicStructRef> {

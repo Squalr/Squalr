@@ -4,17 +4,21 @@ use squalr_engine_api::structures::projects::project_items::{project_item::Proje
 use squalr_engine_api::utils::file_system::file_system_utils::FileSystemUtils;
 use std::collections::HashMap;
 use std::fs::{self, File};
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 pub fn resolve_project_item_path(
     project_directory_path: &Path,
     project_item_path: &Path,
 ) -> PathBuf {
     if FileSystemUtils::is_cross_platform_absolute_path(project_item_path) {
-        project_item_path.to_path_buf()
-    } else {
-        project_directory_path.join(project_item_path)
+        return project_item_path.to_path_buf();
     }
+
+    if let Some(project_relative_item_path) = strip_project_directory_prefix(project_directory_path, project_item_path) {
+        return project_directory_path.join(project_relative_item_path);
+    }
+
+    project_directory_path.join(project_item_path)
 }
 
 pub fn resolve_project_file_parent_directory_path(
@@ -162,15 +166,61 @@ fn is_directory_path(
         .unwrap_or(project_item_path.extension().is_none())
 }
 
+fn strip_project_directory_prefix(
+    project_directory_path: &Path,
+    project_item_path: &Path,
+) -> Option<PathBuf> {
+    let normalized_project_directory_path = normalize_project_item_path(project_directory_path);
+    let normalized_project_item_path = normalize_project_item_path(project_item_path);
+
+    if !normalized_project_item_path.starts_with(&normalized_project_directory_path) {
+        return None;
+    }
+
+    normalized_project_item_path
+        .strip_prefix(normalized_project_directory_path)
+        .ok()
+        .map(Path::to_path_buf)
+}
+
+fn normalize_project_item_path(path: &Path) -> PathBuf {
+    let mut normalized_path = PathBuf::new();
+
+    for component in path.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                let has_normalizable_parent = normalized_path
+                    .components()
+                    .next_back()
+                    .map(|last_component| !matches!(last_component, Component::ParentDir | Component::RootDir | Component::Prefix(_)))
+                    .unwrap_or(false);
+
+                if has_normalizable_parent {
+                    normalized_path.pop();
+                } else {
+                    normalized_path.push(component.as_os_str());
+                }
+            }
+            _ => normalized_path.push(component.as_os_str()),
+        }
+    }
+
+    normalized_path
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{generate_unique_project_item_file_path, generate_unique_project_item_file_path_allowing, sanitize_file_name_component};
+    use super::{
+        generate_unique_project_item_file_path, generate_unique_project_item_file_path_allowing, normalize_project_item_path, resolve_project_item_path,
+        sanitize_file_name_component,
+    };
     use squalr_engine_api::structures::projects::project_items::{
         built_in_types::project_item_type_directory::ProjectItemTypeDirectory, project_item_ref::ProjectItemRef,
     };
     use std::collections::HashMap;
     use std::fs;
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
 
     #[test]
     fn sanitize_file_name_component_collapses_invalid_runs_and_uses_fallback() {
@@ -217,5 +267,42 @@ mod tests {
             generate_unique_project_item_file_path_allowing(temp_directory.path(), &project_items, "health", Some(&existing_project_item_path));
 
         assert_eq!(generated_path, existing_project_item_path);
+    }
+
+    #[test]
+    fn resolve_project_item_path_joins_project_relative_path() {
+        let resolved_project_item_path = resolve_project_item_path(Path::new("./Squalr/ok"), Path::new("project_items/squalr_0x36744D.json"));
+
+        assert_eq!(resolved_project_item_path, PathBuf::from("./Squalr/ok/project_items/squalr_0x36744D.json"));
+    }
+
+    #[test]
+    fn resolve_project_item_path_keeps_project_rooted_relative_path() {
+        let requested_project_item_path = Path::new("./Squalr/ok/project_items/squalr_0x36744D.json");
+        let resolved_project_item_path = resolve_project_item_path(Path::new("./Squalr/ok"), requested_project_item_path);
+
+        assert_eq!(resolved_project_item_path, PathBuf::from("./Squalr/ok/project_items/squalr_0x36744D.json"));
+    }
+
+    #[test]
+    fn resolve_project_item_path_rebases_normalized_project_rooted_relative_path() {
+        let resolved_project_item_path = resolve_project_item_path(Path::new("./Squalr/ok"), Path::new("Squalr/ok/project_items/squalr_0x36744D.json"));
+
+        assert_eq!(resolved_project_item_path, PathBuf::from("./Squalr/ok/project_items/squalr_0x36744D.json"));
+    }
+
+    #[test]
+    fn resolve_project_item_path_keeps_absolute_path() {
+        let requested_project_item_path = Path::new("C:/Projects/Squalr/ok/project_items/squalr_0x36744D.json");
+        let resolved_project_item_path = resolve_project_item_path(Path::new("./Squalr/ok"), requested_project_item_path);
+
+        assert_eq!(resolved_project_item_path, normalize_project_item_path(requested_project_item_path));
+    }
+
+    #[test]
+    fn normalize_project_item_path_collapses_relative_segments() {
+        let normalized_path = normalize_project_item_path(Path::new("./Squalr/ok/project_items/Child/.."));
+
+        assert_eq!(normalized_path, PathBuf::from("Squalr/ok/project_items"));
     }
 }

@@ -783,6 +783,8 @@ impl Widget for StructViewerView {
                             let struct_fields = struct_under_view.get_fields().to_vec();
                             let selected_field_name = struct_viewer_view_data.selected_field_name.as_ref().clone();
                             let field_display_values_map = struct_viewer_view_data.field_display_values.clone();
+                            let field_allowed_display_formats_map = struct_viewer_view_data.field_allowed_display_formats.clone();
+                            let field_display_format_editable_map = struct_viewer_view_data.field_display_format_editable.clone();
                             let field_presentations_map = struct_viewer_view_data.field_presentations.clone();
 
                             for (field_row_index, field) in struct_fields.into_iter().enumerate() {
@@ -794,6 +796,13 @@ impl Widget for StructViewerView {
                                 let field_display_values = field_display_values_map
                                     .get(field.get_name())
                                     .map(Vec::as_slice);
+                                let field_allowed_display_formats = field_allowed_display_formats_map
+                                    .get(field.get_name())
+                                    .map(Vec::as_slice);
+                                let allow_display_format_edit = field_display_format_editable_map
+                                    .get(field.get_name())
+                                    .copied()
+                                    .unwrap_or(true);
                                 let field_presentation = field_presentations_map
                                     .get(field.get_name())
                                     .cloned()
@@ -814,6 +823,8 @@ impl Widget for StructViewerView {
                                             &mut frame_action,
                                             field_edit_value,
                                             field_display_values,
+                                            field_allowed_display_formats,
+                                            allow_display_format_edit,
                                             None,
                                             validation_data_type_ref.as_ref(),
                                             ICON_COLUMN_WIDTH + BAR_THICKNESS,
@@ -830,6 +841,8 @@ impl Widget for StructViewerView {
                                             &mut frame_action,
                                             None,
                                             field_display_values,
+                                            field_allowed_display_formats,
+                                            allow_display_format_edit,
                                             None,
                                             validation_data_type_ref.as_ref(),
                                             ICON_COLUMN_WIDTH + BAR_THICKNESS,
@@ -852,6 +865,8 @@ impl Widget for StructViewerView {
                                             &mut frame_action,
                                             None,
                                             field_display_values,
+                                            field_allowed_display_formats,
+                                            allow_display_format_edit,
                                             field_data_type_selection,
                                             validation_data_type_ref.as_ref(),
                                             ICON_COLUMN_WIDTH + BAR_THICKNESS,
@@ -877,6 +892,30 @@ impl Widget for StructViewerView {
                                             &mut frame_action,
                                             None,
                                             field_display_values,
+                                            field_allowed_display_formats,
+                                            allow_display_format_edit,
+                                            None,
+                                            validation_data_type_ref.as_ref(),
+                                            ICON_COLUMN_WIDTH + BAR_THICKNESS,
+                                            value_splitter_x + BAR_THICKNESS,
+                                        ));
+                                    }
+                                    StructViewerFieldEditorKind::DisplayFormatSelector => {
+                                        let field_edit_value = struct_viewer_view_data
+                                            .field_edit_values
+                                            .get_mut(field.get_name());
+
+                                        inner_ui.add(StructViewerEntryView::new(
+                                            self.app_context.clone(),
+                                            &field,
+                                            &field_presentation,
+                                            field_row_index,
+                                            is_selected,
+                                            &mut frame_action,
+                                            field_edit_value,
+                                            field_display_values,
+                                            field_allowed_display_formats,
+                                            allow_display_format_edit,
                                             None,
                                             validation_data_type_ref.as_ref(),
                                             ICON_COLUMN_WIDTH + BAR_THICKNESS,
@@ -897,6 +936,8 @@ impl Widget for StructViewerView {
                                             &mut frame_action,
                                             field_edit_value,
                                             field_display_values,
+                                            field_allowed_display_formats,
+                                            allow_display_format_edit,
                                             None,
                                             validation_data_type_ref.as_ref(),
                                             ICON_COLUMN_WIDTH + BAR_THICKNESS,
@@ -1034,6 +1075,24 @@ impl Widget for StructViewerView {
 
                 if let (Some(struct_field_modified_callback), Some(modified_field)) = (modified_field_callback, modified_field) {
                     struct_field_modified_callback(modified_field);
+                }
+            }
+            StructViewerFrameAction::EditDisplayFormat { field_name, display_format } => {
+                let details_edit_callback = self
+                    .struct_viewer_view_data
+                    .read("Struct viewer display format edit")
+                    .and_then(|struct_viewer_view_data| {
+                        let details_edit = struct_viewer_view_data
+                            .details_projection_adapter_state
+                            .as_ref()?
+                            .build_display_format_edit(&field_name, display_format)?;
+                        let details_edit_callback = struct_viewer_view_data.details_edit_callback.clone()?;
+
+                        Some((details_edit_callback, details_edit))
+                    });
+
+                if let Some((details_edit_callback, details_edit)) = details_edit_callback {
+                    details_edit_callback(details_edit);
                 }
             }
             StructViewerFrameAction::RequestFieldEditor(requested_field) => {

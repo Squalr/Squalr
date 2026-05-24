@@ -26,15 +26,6 @@ impl BinaryFormat {
 
         Self::Unknown
     }
-
-    pub(crate) fn display_name(&self) -> &'static str {
-        match self {
-            Self::Pe => pe::DISPLAY_NAME,
-            Self::Elf => elf::DISPLAY_NAME,
-            Self::MachO => macho::DISPLAY_NAME,
-            Self::Unknown => "unknown",
-        }
-    }
 }
 
 #[cfg(test)]

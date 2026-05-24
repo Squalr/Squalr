@@ -35,6 +35,10 @@ impl<'a> ScanConstraintBuilder<'a> {
         data_type_ref: &DataTypeRef,
     ) -> Result<Option<ScanConstraint>, ScanConstraintBuilderError> {
         let Some(anonymous_value_string) = anonymous_scan_constraint.get_anonymous_value_string() else {
+            if let Some(scan_constraint) = self.build_valueless_constraint(anonymous_scan_constraint, data_type_ref)? {
+                return Ok(Some(scan_constraint));
+            }
+
             return Ok(None);
         };
 
@@ -55,6 +59,27 @@ impl<'a> ScanConstraintBuilder<'a> {
         scan_constraint.set_result_container_type(anonymous_value_string.get_container_type());
 
         Ok(Some(scan_constraint))
+    }
+
+    fn build_valueless_constraint(
+        &self,
+        anonymous_scan_constraint: &AnonymousScanConstraint,
+        data_type_ref: &DataTypeRef,
+    ) -> Result<Option<ScanConstraint>, ScanConstraintBuilderError> {
+        if !matches!(anonymous_scan_constraint.get_scan_compare_type(), ScanCompareType::Relative(_)) {
+            return Ok(None);
+        }
+
+        let data_value = self
+            .symbol_registry
+            .get_default_value(data_type_ref)
+            .ok_or_else(|| ScanConstraintBuilderError::build_failed("data type does not provide a default value"))?;
+
+        Ok(Some(ScanConstraint::new(
+            anonymous_scan_constraint.get_scan_compare_type(),
+            data_value,
+            self.floating_point_tolerance,
+        )))
     }
 
     fn build_hex_pattern_constraint(
@@ -399,6 +424,25 @@ mod tests {
         let result = builder.build(&anonymous_scan_constraint, &data_type_ref);
 
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn build_creates_valueless_relative_constraint() {
+        let symbol_registry = SymbolRegistry::new();
+        let builder = ScanConstraintBuilder::new(&symbol_registry, FloatingPointTolerance::default());
+        let data_type_ref = DataTypeRef::new("u8");
+        let anonymous_scan_constraint = AnonymousScanConstraint::new(ScanCompareType::Relative(ScanCompareTypeRelative::Increased), None);
+
+        let scan_constraint = builder
+            .build(&anonymous_scan_constraint, &data_type_ref)
+            .expect("scan constraint creation should succeed")
+            .expect("relative scan constraint should be produced");
+
+        assert_eq!(
+            scan_constraint.get_scan_compare_type(),
+            ScanCompareType::Relative(ScanCompareTypeRelative::Increased)
+        );
+        assert_eq!(scan_constraint.get_data_value().get_value_bytes(), &[0u8]);
     }
 
     #[test]

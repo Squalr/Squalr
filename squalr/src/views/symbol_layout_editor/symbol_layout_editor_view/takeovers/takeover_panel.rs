@@ -57,6 +57,14 @@ impl SymbolLayoutEditorView {
         &self,
         user_interface: &mut Ui,
     ) -> (Response, Response) {
+        self.render_danger_take_over_action_buttons(user_interface, "Delete")
+    }
+
+    pub(in crate::views::symbol_layout_editor::symbol_layout_editor_view) fn render_danger_take_over_action_buttons(
+        &self,
+        user_interface: &mut Ui,
+        danger_label: &str,
+    ) -> (Response, Response) {
         let theme = &self.app_context.theme;
         let button_size = vec2(Self::TAKE_OVER_ACTION_BUTTON_WIDTH, Self::FIELD_ROW_HEIGHT);
         let total_button_width = button_size.x * 2.0 + Self::TAKE_OVER_ACTION_BUTTON_SPACING;
@@ -69,7 +77,7 @@ impl SymbolLayoutEditorView {
 
                 let delete_response = user_interface.add_sized(
                     button_size,
-                    EguiButton::new(RichText::new("Delete").color(theme.foreground))
+                    EguiButton::new(RichText::new(danger_label).color(theme.foreground))
                         .fill(theme.background_control_danger)
                         .stroke(Stroke::new(1.0, theme.background_control_danger_dark)),
                 );

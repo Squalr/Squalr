@@ -37,6 +37,7 @@ const IMAGE_DATA_DIRECTORY_ID: &str = "win.pe.IMAGE_DATA_DIRECTORY";
 const IMAGE_OPTIONAL_HEADER32_ID: &str = "win.pe.IMAGE_OPTIONAL_HEADER32";
 const IMAGE_OPTIONAL_HEADER64_ID: &str = "win.pe.IMAGE_OPTIONAL_HEADER64";
 const IMAGE_SECTION_HEADER_ID: &str = "win.pe.IMAGE_SECTION_HEADER";
+const STRING_UTF8_NULL_TERMINATED_DATA_TYPE_ID: &str = "string_utf8{null_terminated}";
 const PE_RESOLVER_DOS_HEADER_OFFSET_ID: &str = "win.pe.resolver.dos_header_offset";
 const PE_RESOLVER_DOS_STUB_COUNT_ID: &str = "win.pe.resolver.dos_stub_count";
 const PE_RESOLVER_DOS_STUB_OFFSET_ID: &str = "win.pe.resolver.dos_stub_offset";
@@ -824,7 +825,7 @@ fn image_section_header_descriptor() -> StructLayoutDescriptor {
     struct_layout_descriptor(
         IMAGE_SECTION_HEADER_ID,
         vec![
-            array_field("Name", "u8", 8),
+            array_field("Name", STRING_UTF8_NULL_TERMINATED_DATA_TYPE_ID, 8),
             field("VirtualSize", "u32"),
             field("VirtualAddress", "u32"),
             field("SizeOfRawData", "u32"),
@@ -1044,7 +1045,8 @@ fn sort_module_fields(module_fields: &mut [ProjectSymbolModuleField]) {
 mod tests {
     use super::{
         IMAGE_SECTION_HEADER_ID, PE_HEADERS32_ID, PE_RESOLVER_NT_HEADERS_OFFSET_ID, PE_RESOLVER_NUMBER_OF_SECTIONS_ID, PE_RESOLVER_SECTION_HEADERS_OFFSET_ID,
-        PeHeaderLayout, PeOptionalHeaderKind, PopulatePeSymbolsAction, SymbolicResolverRelativeSymbolPath, populate_pe_symbols,
+        PeHeaderLayout, PeOptionalHeaderKind, PopulatePeSymbolsAction, STRING_UTF8_NULL_TERMINATED_DATA_TYPE_ID, SymbolicResolverRelativeSymbolPath,
+        populate_pe_symbols,
     };
     use squalr_engine_api::{
         plugins::symbol_tree::symbol_tree_action::{
@@ -1279,6 +1281,23 @@ mod tests {
                 .iter()
                 .any(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == IMAGE_SECTION_HEADER_ID)
         );
+        let image_section_header_descriptor = project_symbol_catalog
+            .get_struct_layout_descriptors()
+            .iter()
+            .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == IMAGE_SECTION_HEADER_ID)
+            .expect("Expected IMAGE_SECTION_HEADER descriptor.");
+        let section_name_field = image_section_header_descriptor
+            .get_struct_layout_definition()
+            .get_fields()
+            .iter()
+            .find(|field_definition| field_definition.get_field_name() == "Name")
+            .expect("Expected IMAGE_SECTION_HEADER.Name field.");
+
+        assert_eq!(
+            section_name_field.get_data_type_ref(),
+            &DataTypeRef::new(STRING_UTF8_NULL_TERMINATED_DATA_TYPE_ID)
+        );
+        assert_eq!(section_name_field.get_container_type(), ContainerType::ArrayFixed(8));
     }
 
     #[test]

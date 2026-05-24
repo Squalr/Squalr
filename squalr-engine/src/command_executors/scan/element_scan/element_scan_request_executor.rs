@@ -155,6 +155,7 @@ mod tests {
     use super::{ElementScanner, ScanControl, SnapshotValueCollector};
     use crate::command_executors::privileged_request_executor::PrivilegedCommandRequestExecutor;
     use crate::engine_privileged_state::EnginePrivilegedState;
+    use squalr_engine_api::commands::scan::collect_values::scan_collect_values_request::ScanCollectValuesRequest;
     use squalr_engine_api::commands::scan::element_scan::element_scan_request::ElementScanRequest;
     use squalr_engine_api::commands::scan::new::scan_new_request::ScanNewRequest;
     use squalr_engine_api::engine::{
@@ -708,6 +709,57 @@ mod tests {
             1
         );
         assert_eq!(get_first_result_address(&engine_privileged_state), Some(TEST_MATCH_ADDRESS));
+    }
+
+    #[test]
+    fn element_scan_request_increased_after_collect_values_filters_against_collected_baseline() {
+        let memory_bytes = Arc::new(RwLock::new(vec![0u8; TEST_REGION_SIZE as usize]));
+        let engine_privileged_state = create_test_engine_privileged_state(memory_bytes.clone());
+        let data_type_ref = DataTypeRef::new("u8");
+        let collect_values_request = ScanCollectValuesRequest {
+            data_type_refs: vec![data_type_ref.clone()],
+        };
+        let element_scan_request = ElementScanRequest {
+            scan_constraints: vec![AnonymousScanConstraint::new(
+                ScanCompareType::Relative(ScanCompareTypeRelative::Increased),
+                None,
+            )],
+            data_type_refs: vec![data_type_ref],
+        };
+
+        write_region_bytes(&memory_bytes, &[0u8, 1u8, 7u8, 9u8]);
+        let collect_values_response = collect_values_request.execute(&engine_privileged_state);
+        assert!(collect_values_response.success);
+
+        write_region_bytes(&memory_bytes, &[0u8, 2u8, 7u8, 8u8]);
+        let element_scan_response = element_scan_request.execute(&engine_privileged_state);
+        assert!(element_scan_response.success);
+
+        let snapshot = engine_privileged_state.get_snapshot();
+        let snapshot_guard = snapshot.read().expect("Expected snapshot read lock.");
+
+        assert_eq!(snapshot_guard.get_number_of_results(), 1);
+        engine_privileged_state.read_symbol_registry(|symbol_registry| {
+            let scan_result = snapshot_guard
+                .get_scan_result(symbol_registry, 0)
+                .expect("Expected increased scan result.");
+
+            assert_eq!(scan_result.get_address(), TEST_REGION_BASE_ADDRESS + 1);
+            assert_eq!(
+                scan_result
+                    .get_current_value()
+                    .as_ref()
+                    .map(|data_value| data_value.get_value_bytes().as_slice()),
+                Some(&[2u8][..])
+            );
+            assert_eq!(
+                scan_result
+                    .get_previous_value()
+                    .as_ref()
+                    .map(|data_value| data_value.get_value_bytes().as_slice()),
+                Some(&[1u8][..])
+            );
+        });
     }
 
     #[test]

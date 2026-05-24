@@ -10,8 +10,9 @@ use squalr_engine_api::structures::data_values::{
     anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType,
     data_value::DataValue,
 };
-use squalr_engine_api::structures::details::{DetailsEdit, DetailsEditOperation, DetailsEditPlan, DetailsValue};
+use squalr_engine_api::structures::details::{DetailsEdit, DetailsEditOperation, DetailsEditPlan, DetailsFieldSource, DetailsValue};
 use squalr_engine_api::structures::projects::project_items::{
+    built_in_types::{project_item_type_address::ProjectItemTypeAddress, project_item_type_pointer::ProjectItemTypePointer},
     details::{ProjectItemDetailsEditPlanner, ProjectItemDetailsProjection},
     project_item::ProjectItem,
     project_item_ref::ProjectItemRef,
@@ -181,6 +182,11 @@ impl ProjectHierarchyDetailsFocus {
         let details_focus = self.clone();
 
         Arc::new(move |details_edit: DetailsEdit| {
+            if let DetailsValue::DisplayFormat(display_format) = details_edit.get_value() {
+                details_focus.persist_project_item_display_format(&project_item_paths, *display_format);
+                return;
+            }
+
             let Some(edit_plan) = details_focus.plan_project_item_details_edit(&project_item_paths, &details_edit) else {
                 return;
             };
@@ -239,6 +245,44 @@ impl ProjectHierarchyDetailsFocus {
         })
     }
 
+    fn persist_project_item_display_format(
+        &self,
+        project_item_paths: &[PathBuf],
+        display_format: AnonymousValueStringFormat,
+    ) {
+        let details_field_source = match self.resolve_project_item_display_format_property(project_item_paths) {
+            Some(property_name) => DetailsFieldSource::ProjectItemProperty { property_name },
+            None => return,
+        };
+        let details_value = DetailsValue::DisplayFormat(display_format);
+
+        self.command_dispatcher()
+            .update_project_item_details_stored_field(project_item_paths, &details_field_source, &details_value, None);
+    }
+
+    fn resolve_project_item_display_format_property(
+        &self,
+        project_item_paths: &[PathBuf],
+    ) -> Option<String> {
+        let project_item_path = project_item_paths.first()?;
+        let project_manager = self.app_context.engine_unprivileged_state.get_project_manager();
+        let opened_project_lock = project_manager.get_opened_project();
+        let opened_project_guard = opened_project_lock.read().ok()?;
+        let opened_project = opened_project_guard.as_ref()?;
+        let project_item = opened_project
+            .get_project_items()
+            .get(&ProjectItemRef::new(project_item_path.clone()))?;
+        let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
+
+        if project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
+            Some(ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_FORMAT.to_string())
+        } else if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
+            Some(ProjectItemTypePointer::PROPERTY_FREEZE_DISPLAY_FORMAT.to_string())
+        } else {
+            None
+        }
+    }
+
     fn plan_project_item_details_edit(
         &self,
         project_item_paths: &[PathBuf],
@@ -294,6 +338,11 @@ impl ProjectHierarchyDetailsFocus {
             DetailsValue::SignedInteger(value) => Some(AnonymousValueString::new(
                 value.to_string(),
                 AnonymousValueStringFormat::Decimal,
+                ContainerType::None,
+            )),
+            DetailsValue::DisplayFormat(display_format) => Some(AnonymousValueString::new(
+                display_format.to_string(),
+                AnonymousValueStringFormat::String,
                 ContainerType::None,
             )),
             DetailsValue::Empty => Some(AnonymousValueString::new(
