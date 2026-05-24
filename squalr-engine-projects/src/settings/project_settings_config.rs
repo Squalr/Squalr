@@ -1,8 +1,9 @@
+#[cfg(not(target_os = "android"))]
 use directories::UserDirs;
 use serde_json::to_string_pretty;
 use squalr_engine_api::structures::settings::project_settings::ProjectSettings;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::{Arc, OnceLock, RwLock};
 
 pub struct ProjectSettingsConfig {
@@ -47,6 +48,14 @@ impl ProjectSettingsConfig {
         }
     }
 
+    #[cfg(target_os = "android")]
+    fn default_projects_root() -> PathBuf {
+        Self::default_android_app_files_root()
+            .join("projects")
+            .join("Squalr")
+    }
+
+    #[cfg(not(target_os = "android"))]
     fn default_projects_root() -> PathBuf {
         UserDirs::new()
             .and_then(|dirs| {
@@ -56,18 +65,51 @@ impl ProjectSettingsConfig {
             .unwrap_or_else(|| PathBuf::from("./Squalr"))
     }
 
+    #[cfg(target_os = "android")]
+    fn default_config_path() -> PathBuf {
+        Self::default_android_app_files_root().join("project_settings.json")
+    }
+
+    #[cfg(not(target_os = "android"))]
     fn default_config_path() -> PathBuf {
         std::env::current_exe()
             .unwrap_or_default()
             .parent()
-            .unwrap_or(&Path::new(""))
+            .unwrap_or(std::path::Path::new(""))
             .join("project_settings.json")
     }
 
+    #[cfg(target_os = "android")]
+    fn default_android_app_files_root() -> PathBuf {
+        std::env::var_os("SQUALR_ANDROID_APP_FILES_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("/data/data/com.squalr.android/files"))
+    }
+
     fn save_config() {
-        if let Ok(config) = Self::get_instance().config.read() {
+        let config_instance = Self::get_instance();
+
+        if let Ok(config) = config_instance.config.read() {
             if let Ok(json) = to_string_pretty(&*config) {
-                let _ = fs::write(&Self::get_instance().config_file, json);
+                if let Some(config_directory_path) = config_instance.config_file.parent() {
+                    if let Err(error) = fs::create_dir_all(config_directory_path) {
+                        log::warn!(
+                            "Failed to create project settings config directory '{}': {}.",
+                            config_directory_path.display(),
+                            error
+                        );
+
+                        return;
+                    }
+                }
+
+                if let Err(error) = fs::write(&config_instance.config_file, json) {
+                    log::warn!(
+                        "Failed to write project settings config '{}': {}.",
+                        config_instance.config_file.display(),
+                        error
+                    );
+                }
             }
         }
     }

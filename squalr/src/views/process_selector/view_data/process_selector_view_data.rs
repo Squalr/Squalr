@@ -131,6 +131,13 @@ impl ProcessSelectorViewData {
         app_context.context.request_repaint();
     }
 
+    fn begin_open_process(&mut self) {
+        self.is_opening_process = true;
+        self.open_process_request_started_at = Some(Instant::now());
+        self.opened_process = None;
+        self.cached_icon = None;
+    }
+
     pub fn refresh_windowed_process_list(
         process_selector_view_data: Dependency<ProcessSelectorViewData>,
         app_context: Arc<AppContext>,
@@ -309,11 +316,12 @@ impl ProcessSelectorViewData {
                         return;
                     }
 
-                    process_selector_view_data.is_opening_process = true;
-                    process_selector_view_data.open_process_request_started_at = Some(Instant::now());
+                    process_selector_view_data.begin_open_process();
                 }
                 None => return,
             };
+
+            Self::request_repaint(&app_context);
 
             let process_selector_view_data_for_response = process_selector_view_data.clone();
             let app_context_for_response = app_context.clone();
@@ -758,5 +766,28 @@ mod tests {
             .collect::<Vec<_>>();
 
         assert_eq!(shortcut_dropdown_process_ids, vec![20, 30]);
+    }
+
+    #[test]
+    fn begin_open_process_clears_current_process_display_state() {
+        let mut process_selector_view_data = ProcessSelectorViewData::new();
+        process_selector_view_data.opened_process = Some(OpenedProcessInfo::new(
+            10,
+            "old-process".to_string(),
+            100,
+            squalr_engine_api::structures::memory::bitness::Bitness::Bit64,
+            None,
+        ));
+
+        process_selector_view_data.begin_open_process();
+
+        assert!(process_selector_view_data.is_opening_process);
+        assert!(
+            process_selector_view_data
+                .open_process_request_started_at
+                .is_some()
+        );
+        assert!(process_selector_view_data.opened_process.is_none());
+        assert!(process_selector_view_data.cached_icon.is_none());
     }
 }
