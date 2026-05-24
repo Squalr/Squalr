@@ -15,8 +15,9 @@ Our current task, from `README.md`, is:
 - Completed: Removed the Symbol Tree per-node manifest display-format persistence path.
 - Completed: Symbol layout fields can now store an optional preferred display format, exposed only when the field data type reports supported display formats.
 - Completed: Symbol Tree runtime/preview values consume the layout-owned preferred display format but do not allow display-format edits from the Symbol Tree details view.
+- Completed: Symbol Tree module-root layout presentation now consumes promoted symbol claims that correspond to module-root layout fields, including cases where dynamic or stale nested field sizing shifts the computed sequential offset.
 
 ## Important Information
 
-- Validation: `cargo fmt --all` completed with existing rustfmt deprecation warnings for `fn_args_layout`; `cargo test -p squalr-engine-api` passed 297 tests; `cargo test -p squalr` passed 29 tests; `cargo test -p squalr-engine` passed 147 tests.
-- Human verification: In the Symbol Layout Editor, select a primitive field and confirm the Display Format dropdown appears with the supported dec/hex/bin/etc. options, then switch the field to a symbol layout and confirm the field is hidden. Save/reopen and confirm the Symbol Tree value/preview uses the layout-owned format while the Symbol Tree details view does not allow editing it. Also re-check project item display format persistence and the Output dock command input border.
+- Validation: `cargo fmt --all` completed with existing rustfmt deprecation warnings for `fn_args_layout`; `cargo test -p squalr-engine-api` passed 299 tests; `cargo test -p squalr-engine` passed 147 tests; `cargo test -p squalr` passed 29 tests.
+- Human verification: Reopen the winmine project and confirm the Symbol Tree shows only one `winmine_exe_0x579C` entry under `winmine.exe`, while right-click edit layout still shows the single layout field. Also confirm the previous display-format and Output dock checks still behave as expected.
