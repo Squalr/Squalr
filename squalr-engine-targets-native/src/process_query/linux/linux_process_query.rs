@@ -15,6 +15,12 @@ use sysinfo::{ProcessRefreshKind, RefreshKind, System};
 
 pub struct LinuxProcessQuery;
 
+#[derive(Default)]
+struct LinuxUnixSocketSnapshot {
+    display_server_socket_inodes: HashSet<u64>,
+    connected_stream_socket_inodes: HashSet<u64>,
+}
+
 #[derive(Clone)]
 struct LinuxDesktopEntry {
     executable_name: Option<String>,
@@ -127,47 +133,93 @@ impl LinuxProcessQuery {
         socket_path.contains("/wayland-") || socket_path.contains("/tmp/.X11-unix/")
     }
 
-    fn parse_display_server_socket_inodes(proc_net_unix_contents: &str) -> HashSet<u64> {
-        let mut display_server_socket_inodes = HashSet::new();
+    fn parse_proc_net_unix_socket_snapshot(proc_net_unix_contents: &str) -> LinuxUnixSocketSnapshot {
+        const SOCKET_TYPE_COLUMN_INDEX: usize = 4;
+        const SOCKET_STATE_COLUMN_INDEX: usize = 5;
+        const SOCKET_INODE_COLUMN_INDEX: usize = 6;
+        const SOCKET_PATH_COLUMN_INDEX: usize = 7;
+        const UNIX_STREAM_SOCKET_TYPE: &str = "0001";
+        const UNIX_CONNECTED_SOCKET_STATE: &str = "03";
+
+        let mut unix_socket_snapshot = LinuxUnixSocketSnapshot::default();
 
         for proc_net_unix_line in proc_net_unix_contents.lines() {
             let column_values: Vec<&str> = proc_net_unix_line.split_whitespace().collect();
 
-            if column_values.len() < 8 {
+            if column_values.len() <= SOCKET_INODE_COLUMN_INDEX {
                 continue;
             }
 
-            let socket_path = column_values[7];
-
-            if !Self::is_display_server_socket_path(socket_path) {
+            let Ok(socket_inode) = column_values[SOCKET_INODE_COLUMN_INDEX].parse::<u64>() else {
                 continue;
+            };
+
+            if column_values
+                .get(SOCKET_TYPE_COLUMN_INDEX)
+                .is_some_and(|socket_type| *socket_type == UNIX_STREAM_SOCKET_TYPE)
+                && column_values
+                    .get(SOCKET_STATE_COLUMN_INDEX)
+                    .is_some_and(|socket_state| *socket_state == UNIX_CONNECTED_SOCKET_STATE)
+            {
+                unix_socket_snapshot
+                    .connected_stream_socket_inodes
+                    .insert(socket_inode);
             }
 
-            if let Ok(socket_inode) = column_values[6].parse::<u64>() {
-                display_server_socket_inodes.insert(socket_inode);
+            if let Some(socket_path) = column_values.get(SOCKET_PATH_COLUMN_INDEX) {
+                if Self::is_display_server_socket_path(socket_path) {
+                    unix_socket_snapshot
+                        .display_server_socket_inodes
+                        .insert(socket_inode);
+                }
             }
         }
 
-        display_server_socket_inodes
+        unix_socket_snapshot
     }
 
-    fn collect_display_server_socket_inodes() -> HashSet<u64> {
+    fn collect_unix_socket_snapshot() -> LinuxUnixSocketSnapshot {
         let proc_net_unix_contents = match fs::read_to_string("/proc/net/unix") {
             Ok(proc_net_unix_contents) => proc_net_unix_contents,
-            Err(_) => return HashSet::new(),
+            Err(_) => return LinuxUnixSocketSnapshot::default(),
         };
 
-        Self::parse_display_server_socket_inodes(&proc_net_unix_contents)
+        Self::parse_proc_net_unix_socket_snapshot(&proc_net_unix_contents)
+    }
+
+    fn process_has_display_environment(process_id: u32) -> bool {
+        let process_environment_path = PathBuf::from(format!("/proc/{process_id}/environ"));
+        let process_environment_bytes = match fs::read(process_environment_path) {
+            Ok(process_environment_bytes) => process_environment_bytes,
+            Err(_) => return false,
+        };
+
+        process_environment_bytes
+            .split(|environment_byte| *environment_byte == 0)
+            .any(|environment_entry| {
+                let Some(environment_separator_index) = environment_entry
+                    .iter()
+                    .position(|environment_byte| *environment_byte == b'=')
+                else {
+                    return false;
+                };
+
+                let environment_key = &environment_entry[..environment_separator_index];
+                let environment_value = &environment_entry[environment_separator_index.saturating_add(1)..];
+
+                !environment_value.is_empty() && (environment_key == b"DISPLAY" || environment_key == b"WAYLAND_DISPLAY")
+            })
     }
 
     fn is_process_windowed(
         process_id: u32,
-        display_server_socket_inodes: &HashSet<u64>,
+        unix_socket_snapshot: &LinuxUnixSocketSnapshot,
     ) -> bool {
-        if display_server_socket_inodes.is_empty() {
+        if unix_socket_snapshot.display_server_socket_inodes.is_empty() && unix_socket_snapshot.connected_stream_socket_inodes.is_empty() {
             return false;
         }
 
+        let process_has_display_environment = Self::process_has_display_environment(process_id);
         let process_fd_directory_path = Self::build_process_fd_directory_path(process_id);
         let file_descriptor_entries = match fs::read_dir(process_fd_directory_path) {
             Ok(file_descriptor_entries) => file_descriptor_entries,
@@ -188,7 +240,18 @@ impl LinuxProcessQuery {
             let file_descriptor_target_string = file_descriptor_target_path.to_string_lossy();
 
             if let Some(socket_inode) = Self::parse_socket_inode_from_fd_target(&file_descriptor_target_string) {
-                if display_server_socket_inodes.contains(&socket_inode) {
+                if unix_socket_snapshot
+                    .display_server_socket_inodes
+                    .contains(&socket_inode)
+                {
+                    return true;
+                }
+
+                if process_has_display_environment
+                    && unix_socket_snapshot
+                        .connected_stream_socket_inodes
+                        .contains(&socket_inode)
+                {
                     return true;
                 }
             }
@@ -719,7 +782,7 @@ impl ProcessQueryer for LinuxProcessQuery {
 
     fn get_processes(process_query_options: ProcessQueryOptions) -> Vec<ProcessInfo> {
         let system = System::new_with_specifics(RefreshKind::nothing().with_processes(ProcessRefreshKind::nothing().without_tasks()));
-        let display_server_socket_inodes = Self::collect_display_server_socket_inodes();
+        let unix_socket_snapshot = Self::collect_unix_socket_snapshot();
         let desktop_entry_icon_lookup = if process_query_options.fetch_icons {
             Self::build_desktop_entry_icon_lookup()
         } else {
@@ -750,7 +813,7 @@ impl ProcessQueryer for LinuxProcessQuery {
                     return None;
                 }
 
-                let process_is_windowed = Self::is_process_windowed(process_id_raw, &display_server_socket_inodes);
+                let process_is_windowed = Self::is_process_windowed(process_id_raw, &unix_socket_snapshot);
 
                 if process_query_options.require_windowed && !process_is_windowed {
                     return None;
@@ -813,17 +876,23 @@ mod tests {
     }
 
     #[test]
-    fn parse_display_server_socket_inodes_filters_wayland_and_x11_sockets() {
+    fn parse_proc_net_unix_socket_snapshot_filters_wayland_and_x11_sockets() {
         let proc_net_unix_contents = "\
 Num RefCount Protocol Flags Type St Inode Path
 0000000000000000: 00000002 00000000 00010000 0001 01 11111 /run/user/1000/wayland-0
 0000000000000000: 00000002 00000000 00010000 0001 01 22222 /tmp/.X11-unix/X0
+0000000000000000: 00000003 00000000 00000000 0001 03 44444
 0000000000000000: 00000002 00000000 00010000 0001 01 33333 /tmp/non-display-socket
 ";
 
-        let display_server_socket_inodes = LinuxProcessQuery::parse_display_server_socket_inodes(proc_net_unix_contents);
+        let unix_socket_snapshot = LinuxProcessQuery::parse_proc_net_unix_socket_snapshot(proc_net_unix_contents);
 
-        assert_eq!(display_server_socket_inodes, HashSet::from([11111_u64, 22222_u64]));
+        assert_eq!(unix_socket_snapshot.display_server_socket_inodes, HashSet::from([11111_u64, 22222_u64]));
+        assert!(
+            unix_socket_snapshot
+                .connected_stream_socket_inodes
+                .contains(&44444_u64)
+        );
     }
 
     #[test]
