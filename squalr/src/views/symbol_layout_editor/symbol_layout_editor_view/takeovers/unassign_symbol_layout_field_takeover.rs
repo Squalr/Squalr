@@ -7,7 +7,10 @@ use crate::views::symbol_layout_editor::view_data::symbol_layout_editor_view_dat
     SymbolLayoutDefineFieldReturnState, SymbolLayoutEditDraft, SymbolLayoutEditorViewData,
 };
 use eframe::egui::{Key, RichText, Ui};
-use squalr_engine_api::structures::projects::{project_symbol_catalog::ProjectSymbolCatalog, symbol_layouts::symbol_layout_draft_ops::SymbolLayoutDraftOps};
+use squalr_engine_api::structures::projects::{
+    project_symbol_catalog::ProjectSymbolCatalog,
+    symbol_layouts::symbol_layout_draft_ops::{SymbolLayoutDraftMutationTarget, SymbolLayoutDraftOps},
+};
 
 impl SymbolLayoutEditorView {
     pub(in crate::views::symbol_layout_editor::symbol_layout_editor_view) fn render_field_unassign_confirmation_take_over(
@@ -87,7 +90,7 @@ impl SymbolLayoutEditorView {
         }
 
         if should_unassign_field {
-            let unassigned_field_span = (!draft.layout_kind.is_union())
+            let unassign_context = (!draft.layout_kind.is_union())
                 .then(|| {
                     SymbolLayoutDraftAnalyzer::resolve_draft_field_spans(project_symbol_catalog, draft, |data_type_ref| {
                         self.resolve_data_type_size_in_bytes(data_type_ref)
@@ -95,13 +98,22 @@ impl SymbolLayoutEditorView {
                 })
                 .flatten()
                 .and_then(|(layout_size_in_bytes, field_spans)| {
-                    SymbolLayoutDraftOps::resolve_field_span_by_position(&field_spans, field_index).map(|field_span| (layout_size_in_bytes, field_span))
+                    SymbolLayoutDraftOps::resolve_field_span_by_position(&field_spans, field_index).map(|field_span| {
+                        (
+                            layout_size_in_bytes,
+                            field_span,
+                            SymbolLayoutDraftOps::field_offset_to_preserve_after_unassign(&field_spans, field_index),
+                        )
+                    })
                 });
             let mut edited_draft = draft.clone();
             if SymbolLayoutEditorViewData::unassign_field_from_draft(&mut edited_draft, field_index) {
+                if let Some((_layout_size_in_bytes, _field_span, Some((preserved_field_index, preserved_offset_in_bytes)))) = unassign_context {
+                    edited_draft.set_field_static_offset(preserved_field_index, preserved_offset_in_bytes);
+                }
                 SymbolLayoutEditorViewData::update_draft(self.symbol_layout_editor_view_data.clone(), edited_draft.clone());
                 SymbolLayoutEditorViewData::return_to_define_field_source(self.symbol_layout_editor_view_data.clone(), return_state.clone());
-                if let Some((layout_size_in_bytes, field_span)) = unassigned_field_span {
+                if let Some((layout_size_in_bytes, field_span, _preserved_field_offset)) = unassign_context {
                     for split_offset_in_bytes in SymbolLayoutDraftOps::split_offsets_to_preserve_unassigned_field(field_span, layout_size_in_bytes) {
                         SymbolLayoutEditorViewData::insert_unassigned_split_offset_for_layout(
                             self.symbol_layout_editor_view_data.clone(),

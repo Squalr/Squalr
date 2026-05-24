@@ -466,6 +466,21 @@ impl SymbolLayoutDraftOps {
         split_offsets
     }
 
+    pub fn field_offset_to_preserve_after_unassign(
+        field_spans: &[SymbolLayoutFieldSpan],
+        field_index: usize,
+    ) -> Option<(usize, u64)> {
+        let current_field_span = Self::resolve_field_span_by_position(field_spans, field_index)?;
+        let next_field_span = Self::resolve_adjacent_field_span(field_spans, current_field_span, SymbolLayoutMoveDirection::Down)?;
+        let preserved_field_index = if next_field_span.field_position > field_index {
+            next_field_span.field_position.saturating_sub(1)
+        } else {
+            next_field_span.field_position
+        };
+
+        Some((preserved_field_index, next_field_span.offset_in_bytes))
+    }
+
     pub fn build_unassigned_row_contexts(
         offset_in_bytes: u64,
         size_in_bytes: u64,
@@ -658,5 +673,46 @@ mod tests {
             SymbolLayoutDraftOps::split_offsets_to_preserve_unassigned_field(field_span, 4),
             Vec::<u64>::new()
         );
+    }
+
+    #[test]
+    fn field_offset_to_preserve_after_unassign_keeps_next_field_in_place() {
+        let field_spans = vec![
+            SymbolLayoutFieldSpan {
+                field_position: 0,
+                offset_in_bytes: 0,
+                size_in_bytes: 4,
+            },
+            SymbolLayoutFieldSpan {
+                field_position: 1,
+                offset_in_bytes: 4,
+                size_in_bytes: 4,
+            },
+            SymbolLayoutFieldSpan {
+                field_position: 2,
+                offset_in_bytes: 8,
+                size_in_bytes: 4,
+            },
+        ];
+
+        assert_eq!(SymbolLayoutDraftOps::field_offset_to_preserve_after_unassign(&field_spans, 1), Some((1, 8)));
+    }
+
+    #[test]
+    fn field_offset_to_preserve_after_unassign_handles_render_order_different_from_draft_order() {
+        let field_spans = vec![
+            SymbolLayoutFieldSpan {
+                field_position: 0,
+                offset_in_bytes: 8,
+                size_in_bytes: 4,
+            },
+            SymbolLayoutFieldSpan {
+                field_position: 1,
+                offset_in_bytes: 0,
+                size_in_bytes: 4,
+            },
+        ];
+
+        assert_eq!(SymbolLayoutDraftOps::field_offset_to_preserve_after_unassign(&field_spans, 1), Some((0, 8)));
     }
 }
