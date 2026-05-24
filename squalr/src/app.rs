@@ -40,6 +40,16 @@ impl App {
             corner_radius,
         }
     }
+
+    #[cfg(target_os = "android")]
+    fn sync_android_soft_keyboard(context: &Context) {
+        let allow_ime = context.wants_keyboard_input();
+        context.send_viewport_cmd(eframe::egui::ViewportCommand::IMEAllowed(allow_ime));
+
+        if allow_ime {
+            context.send_viewport_cmd(eframe::egui::ViewportCommand::IMEPurpose(eframe::egui::viewport::IMEPurpose::Normal));
+        }
+    }
 }
 
 impl eframe::App for App {
@@ -92,5 +102,8 @@ impl eframe::App for App {
                 user_interface.style_mut().spacing.item_spacing = vec2(0.0, 0.0);
                 user_interface.add(self.main_window_view.clone());
             });
+
+        #[cfg(target_os = "android")]
+        Self::sync_android_soft_keyboard(context);
     }
 }
