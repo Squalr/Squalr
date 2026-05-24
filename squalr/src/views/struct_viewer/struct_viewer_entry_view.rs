@@ -595,6 +595,7 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
             StructViewerFieldEditorKind::ValueBox => {
                 if let (Some(field_edit_value), Some(validation_data_type_ref)) = (self.field_edit_value, self.validation_data_type_ref) {
                     let data_value_box_id = format!("struct_viewer_value_{}_{}", self.row_index, self.valued_struct_field.get_name());
+                    let previous_display_format = field_edit_value.get_anonymous_value_string_format();
                     user_interface.put(
                         Rect::from_min_size(
                             pos2(value_box_position_x, available_size_rect.min.y),
@@ -614,6 +615,14 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                         .use_preview_foreground(self.valued_struct_field.get_is_read_only())
                         .width(value_box_width),
                     );
+                    let current_display_format = field_edit_value.get_anonymous_value_string_format();
+
+                    if previous_display_format != current_display_format {
+                        *self.struct_viewer_frame_action = StructViewerFrameAction::EditDisplayFormat {
+                            field_name: self.valued_struct_field.get_name().to_string(),
+                            display_format: current_display_format,
+                        };
+                    }
 
                     let commit_on_enter_pressed = DataValueBoxView::consume_commit_on_enter(user_interface, &data_value_box_id);
 

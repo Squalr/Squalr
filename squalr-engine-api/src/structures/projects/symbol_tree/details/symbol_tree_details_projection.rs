@@ -3,6 +3,7 @@ use crate::structures::{
         built_in_types::{bool8::data_type_bool8::DataTypeBool8, string::utf8::data_type_string_utf8::DataTypeStringUtf8, u64::data_type_u64::DataTypeU64},
         data_type_ref::DataTypeRef,
     },
+    data_values::anonymous_value_string_format::AnonymousValueStringFormat,
     data_values::container_type::ContainerType,
     details::{DetailsEditorHint, DetailsField, DetailsFieldId, DetailsFieldSource, DetailsProjection, DetailsTarget, DetailsValue},
     projects::symbol_tree::symbol_tree_node::{SymbolTreeNode, SymbolTreeNodeKind},
@@ -32,6 +33,7 @@ impl SymbolTreeDetailsProjection {
         symbol_size_in_bytes: Option<u64>,
         runtime_value_struct: Option<&ValuedStruct>,
         status_text: Option<&str>,
+        preferred_display_format: Option<AnonymousValueStringFormat>,
     ) -> DetailsProjection {
         Self::build_with_metadata_type_id(
             symbol_tree_node,
@@ -40,6 +42,7 @@ impl SymbolTreeDetailsProjection {
             runtime_value_struct,
             status_text,
             None,
+            preferred_display_format,
         )
     }
 
@@ -50,6 +53,7 @@ impl SymbolTreeDetailsProjection {
         runtime_value_struct: Option<&ValuedStruct>,
         status_text: Option<&str>,
         metadata_type_id: Option<&str>,
+        preferred_display_format: Option<AnonymousValueStringFormat>,
     ) -> DetailsProjection {
         let target = DetailsTarget::new(Self::TARGET_KIND_SYMBOL_TREE, symbol_tree_node.get_node_key());
         let mut fields = Self::build_metadata_fields_with_type_id(symbol_tree_node, include_symbol_claim_metadata, symbol_size_in_bytes, metadata_type_id);
@@ -57,7 +61,7 @@ impl SymbolTreeDetailsProjection {
         if let Some(runtime_value_struct) = runtime_value_struct
             && Self::should_include_runtime_value_fields(symbol_tree_node)
         {
-            fields.extend(Self::build_runtime_value_fields(runtime_value_struct));
+            fields.extend(Self::build_runtime_value_fields(runtime_value_struct, preferred_display_format));
         }
 
         if let Some(status_text) = status_text {
@@ -241,7 +245,10 @@ impl SymbolTreeDetailsProjection {
         location_fields
     }
 
-    fn build_runtime_value_fields(runtime_value_struct: &ValuedStruct) -> Vec<DetailsField> {
+    fn build_runtime_value_fields(
+        runtime_value_struct: &ValuedStruct,
+        preferred_display_format: Option<AnonymousValueStringFormat>,
+    ) -> Vec<DetailsField> {
         runtime_value_struct
             .get_fields()
             .iter()
@@ -252,16 +259,19 @@ impl SymbolTreeDetailsProjection {
                     return None;
                 };
 
-                Some(DetailsField::new(
-                    DetailsFieldId::new(format!("{}{}", Self::FIELD_ID_VALUE_PREFIX, field_name)),
-                    field_name.clone(),
-                    DetailsValue::DataValue(data_value.clone()),
-                    false,
-                    DetailsEditorHint::Value,
-                    Some(data_value.get_data_type_ref().clone()),
-                    ContainerType::None,
-                    DetailsFieldSource::ProjectSymbolRuntimeValue { field_path: vec![field_name] },
-                ))
+                Some(
+                    DetailsField::new(
+                        DetailsFieldId::new(format!("{}{}", Self::FIELD_ID_VALUE_PREFIX, field_name)),
+                        field_name.clone(),
+                        DetailsValue::DataValue(data_value.clone()),
+                        false,
+                        DetailsEditorHint::Value,
+                        Some(data_value.get_data_type_ref().clone()),
+                        ContainerType::None,
+                        DetailsFieldSource::ProjectSymbolRuntimeValue { field_path: vec![field_name] },
+                    )
+                    .with_preferred_display_format(preferred_display_format),
+                )
             })
             .collect()
     }
@@ -387,7 +397,7 @@ mod tests {
     #[test]
     fn build_includes_symbol_claim_metadata_and_location_fields() {
         let symbol_tree_node = create_symbol_claim_node();
-        let details_projection = SymbolTreeDetailsProjection::build(&symbol_tree_node, true, Some(4), None, None);
+        let details_projection = SymbolTreeDetailsProjection::build(&symbol_tree_node, true, Some(4), None, None, None);
 
         assert_eq!(
             details_projection.get_target().get_target_kind(),
@@ -442,7 +452,7 @@ mod tests {
             false,
         );
         let details_projection =
-            SymbolTreeDetailsProjection::build_with_metadata_type_id(&symbol_tree_node, false, Some(0x2000), None, None, Some("winmine.exe"));
+            SymbolTreeDetailsProjection::build_with_metadata_type_id(&symbol_tree_node, false, Some(0x2000), None, None, Some("winmine.exe"), None);
 
         assert_eq!(
             details_projection
@@ -492,7 +502,7 @@ mod tests {
         let runtime_value_struct = ValuedStruct::new_anonymous(vec![
             DataTypeU32::get_value_from_primitive(100).to_named_valued_struct_field(String::new(), false),
         ]);
-        let details_projection = SymbolTreeDetailsProjection::build(&symbol_tree_node, false, None, Some(&runtime_value_struct), None);
+        let details_projection = SymbolTreeDetailsProjection::build(&symbol_tree_node, false, None, Some(&runtime_value_struct), None, None);
         let value_field = details_projection
             .get_field(&DetailsFieldId::new("value.value"))
             .expect("Expected normalized value field.");
@@ -513,7 +523,7 @@ mod tests {
         let runtime_value_struct = ValuedStruct::new_anonymous(vec![
             DataTypeU32::get_value_from_primitive(100).to_named_valued_struct_field(String::from("value"), false),
         ]);
-        let details_projection = SymbolTreeDetailsProjection::build(&symbol_tree_node, false, Some(0x20), Some(&runtime_value_struct), None);
+        let details_projection = SymbolTreeDetailsProjection::build(&symbol_tree_node, false, Some(0x20), Some(&runtime_value_struct), None, None);
 
         assert!(
             details_projection
@@ -534,7 +544,7 @@ mod tests {
             DataTypeU32::get_value_from_primitive(100).to_named_valued_struct_field(String::from("health"), false),
             DataTypeU32::get_value_from_primitive(200).to_named_valued_struct_field(String::from("mana"), false),
         ]);
-        let details_projection = SymbolTreeDetailsProjection::build(&symbol_tree_node, true, Some(8), Some(&runtime_value_struct), None);
+        let details_projection = SymbolTreeDetailsProjection::build(&symbol_tree_node, true, Some(8), Some(&runtime_value_struct), None, None);
 
         assert!(
             details_projection
@@ -556,7 +566,7 @@ mod tests {
     #[test]
     fn build_adds_status_fields_for_fallback_projection() {
         let symbol_tree_node = create_symbol_claim_node();
-        let details_projection = SymbolTreeDetailsProjection::build(&symbol_tree_node, true, None, None, Some("Unable to read symbol."));
+        let details_projection = SymbolTreeDetailsProjection::build(&symbol_tree_node, true, None, None, Some("Unable to read symbol."), None);
 
         assert_eq!(
             details_projection
@@ -581,7 +591,7 @@ mod tests {
             ),
             DataTypeU32::get_value_from_primitive(200).to_named_valued_struct_field(String::from("leaf"), false),
         ]);
-        let details_projection = SymbolTreeDetailsProjection::build(&symbol_tree_node, false, None, Some(&runtime_value_struct), None);
+        let details_projection = SymbolTreeDetailsProjection::build(&symbol_tree_node, false, None, Some(&runtime_value_struct), None, None);
 
         assert!(
             details_projection

@@ -1,6 +1,9 @@
 use crate::structures::{
     data_types::data_type_ref::DataTypeRef,
-    data_values::{anonymous_value_string::AnonymousValueString, container_type::ContainerType, data_value::DataValue},
+    data_values::{
+        anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType,
+        data_value::DataValue,
+    },
 };
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -71,6 +74,7 @@ pub enum DetailsFieldSource {
 pub enum DetailsValue {
     Empty,
     AnonymousValue(AnonymousValueString),
+    DisplayFormat(AnonymousValueStringFormat),
     DataValue(DataValue),
     Text(String),
     Boolean(bool),
@@ -95,6 +99,8 @@ pub struct DetailsField {
     validation_data_type_ref: Option<DataTypeRef>,
     container_type: ContainerType,
     source: DetailsFieldSource,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    preferred_display_format: Option<AnonymousValueStringFormat>,
 }
 
 impl DetailsField {
@@ -117,7 +123,17 @@ impl DetailsField {
             validation_data_type_ref,
             container_type,
             source,
+            preferred_display_format: None,
         }
+    }
+
+    pub fn with_preferred_display_format(
+        mut self,
+        preferred_display_format: Option<AnonymousValueStringFormat>,
+    ) -> Self {
+        self.preferred_display_format = preferred_display_format;
+
+        self
     }
 
     pub fn get_id(&self) -> &DetailsFieldId {
@@ -150,5 +166,9 @@ impl DetailsField {
 
     pub fn get_source(&self) -> &DetailsFieldSource {
         &self.source
+    }
+
+    pub fn get_preferred_display_format(&self) -> Option<AnonymousValueStringFormat> {
+        self.preferred_display_format
     }
 }

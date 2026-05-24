@@ -1036,6 +1036,24 @@ impl Widget for StructViewerView {
                     struct_field_modified_callback(modified_field);
                 }
             }
+            StructViewerFrameAction::EditDisplayFormat { field_name, display_format } => {
+                let details_edit_callback = self
+                    .struct_viewer_view_data
+                    .read("Struct viewer display format edit")
+                    .and_then(|struct_viewer_view_data| {
+                        let details_edit = struct_viewer_view_data
+                            .details_projection_adapter_state
+                            .as_ref()?
+                            .build_display_format_edit(&field_name, display_format)?;
+                        let details_edit_callback = struct_viewer_view_data.details_edit_callback.clone()?;
+
+                        Some((details_edit_callback, details_edit))
+                    });
+
+                if let Some((details_edit_callback, details_edit)) = details_edit_callback {
+                    details_edit_callback(details_edit);
+                }
+            }
             StructViewerFrameAction::RequestFieldEditor(requested_field) => {
                 StructViewerViewData::request_pointer_offsets_editor(self.struct_viewer_view_data.clone(), requested_field);
             }

@@ -10,9 +10,11 @@ Our current task, from `README.md`, is:
 
 ## Current Tasklist
 
-- Completed: Revisited PE symbol generation for the new `string_utf8{null_terminated}` support. `IMAGE_SECTION_HEADER.Name` now uses an 8-byte fixed null-terminated UTF-8 field instead of `u8[8]`.
+- Completed: Project item runtime value display formats are now persisted separately from the preview value, and Project Explorer refresh/detail focus preserves the chosen format.
+- Completed: Symbol Tree runtime value display formats are now persisted in the project manifest by symbol node key and auto-save after format changes.
+- Completed: Output dock command input now draws a 1px border.
 
 ## Important Information
 
-- Validation: `cargo fmt --all` completed with existing rustfmt deprecation warnings for `fn_args_layout`; `cargo test -p squalr-plugin-binary-symbols` passed 18 tests.
-- Human verification: PE section names should now display as normal C-style short names while retaining the full 8-byte header field size.
+- Validation: `cargo fmt --all` completed with existing rustfmt deprecation warnings for `fn_args_layout`; `cargo test -p squalr-engine-api` passed 292 tests; `cargo test -p squalr` passed 29 tests; `cargo test -p squalr-engine` passed 147 tests.
+- Human verification: Update a project item value display format and a Symbol Tree value display format, then confirm the selected dec/hex/bin/etc. format stays selected after refresh/reopen. Visually confirm the Output dock command input border.

@@ -5,7 +5,7 @@ use crate::views::output::output_context_menu_state::OutputContextMenuState;
 use crate::views::output::output_context_menu_view::OutputContextMenuView;
 use eframe::egui::text::CCursorRange;
 use eframe::egui::{Align, Id, Key, Layout, Response, RichText, ScrollArea, Sense, TextEdit, Ui, UiBuilder, Widget};
-use epaint::{CornerRadius, Margin, Rect, Stroke, Vec2, pos2};
+use epaint::{CornerRadius, Margin, Rect, Stroke, StrokeKind, Vec2, pos2};
 use log::Level;
 use squalr_engine_api::structures::logging::log_event::LogEvent;
 use std::collections::VecDeque;
@@ -75,12 +75,11 @@ impl OutputView {
         user_interface
             .painter()
             .rect_filled(command_line_rectangle, CornerRadius::ZERO, theme.background_primary);
-        user_interface.painter().line_segment(
-            [
-                command_line_rectangle.left_top(),
-                command_line_rectangle.right_top(),
-            ],
+        user_interface.painter().rect_stroke(
+            command_line_rectangle,
+            CornerRadius::ZERO,
             Stroke::new(1.0, theme.submenu_border),
+            StrokeKind::Inside,
         );
 
         let mut command_line_user_interface = user_interface.new_child(

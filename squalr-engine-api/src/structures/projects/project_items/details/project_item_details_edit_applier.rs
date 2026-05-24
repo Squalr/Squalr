@@ -1,5 +1,6 @@
 use crate::structures::{
     data_types::built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8,
+    data_values::anonymous_value_string_format::AnonymousValueStringFormat,
     details::{DetailsFieldSource, DetailsValue},
     memory::pointer_chain_segment::PointerChainSegment,
     pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
@@ -66,6 +67,22 @@ impl ProjectItemDetailsEditApplier {
             return Ok(true);
         }
 
+        if project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID && property_name == ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_FORMAT {
+            let display_format = Self::details_value_to_display_format(details_value)?;
+
+            ProjectItemTypeAddress::set_field_freeze_display_format(project_item, display_format);
+
+            return Ok(true);
+        }
+
+        if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID && property_name == ProjectItemTypePointer::PROPERTY_FREEZE_DISPLAY_FORMAT {
+            let display_format = Self::details_value_to_display_format(details_value)?;
+
+            ProjectItemTypePointer::set_field_freeze_display_format(project_item, display_format);
+
+            return Ok(true);
+        }
+
         project_item
             .get_properties_mut()
             .set_field_data(property_name, Self::details_value_to_field_data(details_value), false);
@@ -113,6 +130,9 @@ impl ProjectItemDetailsEditApplier {
             DetailsValue::AnonymousValue(anonymous_value_string) => ValuedStructFieldData::Value(DataTypeStringUtf8::get_value_from_primitive_string(
                 anonymous_value_string.get_anonymous_value_string(),
             )),
+            DetailsValue::DisplayFormat(display_format) => {
+                ValuedStructFieldData::Value(DataTypeStringUtf8::get_value_from_primitive_string(&display_format.to_string()))
+            }
             DetailsValue::Empty => ValuedStructFieldData::Value(DataTypeStringUtf8::get_value_from_primitive_string("")),
         }
     }
@@ -124,10 +144,20 @@ impl ProjectItemDetailsEditApplier {
                 String::from_utf8(data_value.get_value_bytes().clone()).map_err(|error| format!("Details value is not valid UTF-8 text: {}.", error))
             }
             DetailsValue::AnonymousValue(anonymous_value_string) => Ok(anonymous_value_string.get_anonymous_value_string().to_string()),
+            DetailsValue::DisplayFormat(display_format) => Ok(display_format.to_string()),
             DetailsValue::Boolean(value) => Ok(value.to_string()),
             DetailsValue::UnsignedInteger(value) => Ok(value.to_string()),
             DetailsValue::SignedInteger(value) => Ok(value.to_string()),
             DetailsValue::Empty => Ok(String::new()),
+        }
+    }
+
+    fn details_value_to_display_format(details_value: &DetailsValue) -> Result<AnonymousValueStringFormat, String> {
+        match details_value {
+            DetailsValue::DisplayFormat(display_format) => Ok(*display_format),
+            _ => Self::details_value_to_text(details_value)?
+                .parse::<AnonymousValueStringFormat>()
+                .map_err(|error| format!("Invalid display format: {}.", error)),
         }
     }
 
@@ -156,6 +186,7 @@ mod tests {
     use super::ProjectItemDetailsEditApplier;
     use crate::structures::{
         data_types::built_in_types::{string::utf8::data_type_string_utf8::DataTypeStringUtf8, u64::data_type_u64::DataTypeU64},
+        data_values::anonymous_value_string_format::AnonymousValueStringFormat,
         details::{DetailsFieldSource, DetailsValue},
         memory::pointer_chain_segment::PointerChainSegment,
         pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
@@ -182,6 +213,26 @@ mod tests {
 
         assert!(did_apply);
         assert_eq!(project_item.get_field_icon_id(), "u64");
+    }
+
+    #[test]
+    fn apply_update_persists_address_runtime_display_format() {
+        let mut project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU64::get_value_from_primitive(0));
+
+        let did_apply = ProjectItemDetailsEditApplier::apply_update(
+            &mut project_item,
+            &DetailsFieldSource::ProjectItemProperty {
+                property_name: ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_FORMAT.to_string(),
+            },
+            &DetailsValue::DisplayFormat(AnonymousValueStringFormat::Hexadecimal),
+        )
+        .expect("Expected display format update to apply.");
+
+        assert!(did_apply);
+        assert_eq!(
+            ProjectItemTypeAddress::get_field_freeze_display_format(&project_item),
+            Some(AnonymousValueStringFormat::Hexadecimal)
+        );
     }
 
     #[test]

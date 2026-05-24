@@ -443,6 +443,7 @@ impl SymbolLayoutDetails {
             DetailsValue::Boolean(value) => Some(value.to_string()),
             DetailsValue::UnsignedInteger(value) => Some(value.to_string()),
             DetailsValue::SignedInteger(value) => Some(value.to_string()),
+            DetailsValue::DisplayFormat(display_format) => Some(display_format.to_string()),
             DetailsValue::Empty => Some(String::new()),
         }
     }

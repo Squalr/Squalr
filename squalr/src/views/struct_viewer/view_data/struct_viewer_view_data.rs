@@ -36,6 +36,7 @@ pub struct StructViewerViewData {
     pub source_struct_under_view: Arc<Option<ValuedStruct>>,
     pub struct_under_view: Arc<Option<ValuedStruct>>,
     pub struct_field_modified_callback: Option<Arc<dyn Fn(ValuedStructField) + Send + Sync>>,
+    pub details_edit_callback: Option<Arc<dyn Fn(DetailsEdit) + Send + Sync>>,
     pub focus_target: Arc<Option<StructViewerFocusTarget>>,
     pub selected_field_name: Arc<Option<String>>,
     pub field_edit_values: HashMap<String, AnonymousValueString>,
@@ -61,6 +62,7 @@ impl StructViewerViewData {
             source_struct_under_view: Arc::new(None),
             struct_under_view: Arc::new(None),
             struct_field_modified_callback: None,
+            details_edit_callback: None,
             focus_target: Arc::new(None),
             selected_field_name: Arc::new(None),
             field_edit_values: HashMap::new(),
@@ -154,6 +156,7 @@ impl StructViewerViewData {
             engine_unprivileged_state,
             Some(valued_struct),
             Some(valued_struct_field_edited_callback),
+            None,
             focus_target,
             None,
         );
@@ -191,6 +194,7 @@ impl StructViewerViewData {
             engine_unprivileged_state,
             Some(valued_struct),
             Some(valued_struct_field_edited_callback),
+            None,
             focus_target,
             None,
         );
@@ -206,9 +210,10 @@ impl StructViewerViewData {
         let details_projection_adapter = DetailsProjectionAdapter::adapt_projection(&engine_unprivileged_state, &details_projection);
         let (valued_struct, details_projection_adapter_state) = details_projection_adapter.into_parts();
         let details_projection_adapter_state_for_callback = details_projection_adapter_state.clone();
+        let details_edit_callback_for_field_edit = details_edit_callback.clone();
         let valued_struct_field_edited_callback = Arc::new(move |edited_field: ValuedStructField| {
             if let Some(details_edit) = details_projection_adapter_state_for_callback.build_details_edit(&edited_field) {
-                details_edit_callback(details_edit);
+                details_edit_callback_for_field_edit(details_edit);
             }
         });
         let mut struct_viewer_view_data = match struct_viewer_view_data.write("Focus details projection") {
@@ -220,6 +225,7 @@ impl StructViewerViewData {
             engine_unprivileged_state,
             Some(valued_struct),
             Some(valued_struct_field_edited_callback),
+            Some(details_edit_callback),
             focus_target,
             Some(details_projection_adapter_state),
         );
@@ -248,9 +254,10 @@ impl StructViewerViewData {
             return;
         };
         let details_projection_adapter_state_for_callback = details_projection_adapter_state.clone();
+        let details_edit_callback_for_field_edit = details_edit_callback.clone();
         let valued_struct_field_edited_callback = Arc::new(move |edited_field: ValuedStructField| {
             if let Some(details_edit) = details_projection_adapter_state_for_callback.build_details_edit(&edited_field) {
-                details_edit_callback(details_edit);
+                details_edit_callback_for_field_edit(details_edit);
             }
         });
         let mut struct_viewer_view_data = match struct_viewer_view_data.write("Focus details projections") {
@@ -263,6 +270,7 @@ impl StructViewerViewData {
             engine_unprivileged_state,
             Some(valued_struct),
             Some(valued_struct_field_edited_callback),
+            Some(details_edit_callback),
             focus_target,
             Some(details_projection_adapter_state),
         );
@@ -283,6 +291,7 @@ impl StructViewerViewData {
         struct_viewer_view_data.source_struct_under_view = Arc::new(None);
         struct_viewer_view_data.struct_under_view = Arc::new(None);
         struct_viewer_view_data.struct_field_modified_callback = None;
+        struct_viewer_view_data.details_edit_callback = None;
         struct_viewer_view_data.focus_target = Arc::new(None);
         struct_viewer_view_data.take_over_state = None;
     }
@@ -334,6 +343,7 @@ impl StructViewerViewData {
         engine_unprivileged_state: Arc<EngineUnprivilegedState>,
         valued_struct: Option<ValuedStruct>,
         valued_struct_field_edited_callback: Option<Arc<dyn Fn(ValuedStructField) + Send + Sync>>,
+        details_edit_callback: Option<Arc<dyn Fn(DetailsEdit) + Send + Sync>>,
         focus_target: Option<StructViewerFocusTarget>,
         details_projection_adapter_state: Option<DetailsProjectionAdapterState>,
     ) {
@@ -341,6 +351,7 @@ impl StructViewerViewData {
         self.take_over_state = None;
         self.source_struct_under_view = Arc::new(valued_struct);
         self.struct_field_modified_callback = valued_struct_field_edited_callback;
+        self.details_edit_callback = details_edit_callback;
         self.focus_target = Arc::new(focus_target);
         self.details_projection_adapter_state = details_projection_adapter_state;
         self.refresh_cached_field_state(&engine_unprivileged_state);
@@ -373,6 +384,9 @@ impl StructViewerViewData {
             details_projection_adapter_state.apply_field_presentations(&mut self.field_presentations);
         }
         self.field_edit_values = Self::create_field_edit_values(&struct_under_view, &field_validation_data_type_refs, engine_unprivileged_state);
+        if let Some(details_projection_adapter_state) = &self.details_projection_adapter_state {
+            details_projection_adapter_state.apply_field_display_format_overrides(&mut self.field_edit_values);
+        }
         self.field_display_values = Self::create_field_display_values(&struct_under_view, &field_validation_data_type_refs, engine_unprivileged_state);
         self.field_validation_data_type_refs = field_validation_data_type_refs;
         self.field_data_type_selections = Self::create_field_data_type_selections(&struct_under_view);

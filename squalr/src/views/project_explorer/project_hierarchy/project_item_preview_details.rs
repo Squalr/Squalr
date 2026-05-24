@@ -3,6 +3,7 @@ use squalr_engine::services::projects::project_item_symbol_resolution::{
 };
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::structures::data_values::{
+    anonymous_value_string_format::AnonymousValueStringFormat,
     container_type::ContainerType,
     data_value_preview_formatter::{DataValuePreviewFormatOptions, DataValuePreviewFormatter},
 };
@@ -31,12 +32,19 @@ impl ProjectItemPreviewDetails {
         target_project_item: &mut ProjectItem,
     ) {
         let preview_value = Self::read_project_item_preview_value(source_project_item);
+        let preview_display_format = Self::read_project_item_preview_display_format(source_project_item);
         let project_item_type_id = target_project_item.get_item_type().get_project_item_type_id();
 
         if project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
             ProjectItemTypeAddress::set_field_freeze_data_value_interpreter(target_project_item, &preview_value);
+            if let Some(preview_display_format) = preview_display_format {
+                ProjectItemTypeAddress::set_field_freeze_display_format(target_project_item, preview_display_format);
+            }
         } else if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
             ProjectItemTypePointer::set_field_freeze_data_value_interpreter(target_project_item, &preview_value);
+            if let Some(preview_display_format) = preview_display_format {
+                ProjectItemTypePointer::set_field_freeze_display_format(target_project_item, preview_display_format);
+            }
         }
     }
 
@@ -108,8 +116,8 @@ impl ProjectItemPreviewDetails {
             return String::new();
         };
 
-        let default_anonymous_value_string_format =
-            engine_unprivileged_state.get_default_anonymous_value_string_format(first_read_field_data_value.get_data_type_ref());
+        let default_anonymous_value_string_format = Self::read_project_item_preview_display_format(project_item)
+            .unwrap_or_else(|| engine_unprivileged_state.get_default_anonymous_value_string_format(first_read_field_data_value.get_data_type_ref()));
         let symbolic_field_container_type = Self::resolve_project_item_symbolic_container_type(project_item);
         let preview_was_truncated = Self::project_item_preview_was_truncated(project_item);
 
@@ -137,6 +145,18 @@ impl ProjectItemPreviewDetails {
             ProjectItemTypePointer::get_field_freeze_data_value_interpreter(project_item)
         } else {
             String::new()
+        }
+    }
+
+    fn read_project_item_preview_display_format(project_item: &ProjectItem) -> Option<AnonymousValueStringFormat> {
+        let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
+
+        if project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
+            ProjectItemTypeAddress::get_field_freeze_display_format(project_item)
+        } else if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
+            ProjectItemTypePointer::get_field_freeze_display_format(project_item)
+        } else {
+            None
         }
     }
 

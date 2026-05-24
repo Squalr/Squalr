@@ -14,6 +14,7 @@ use eframe::egui::Pos2;
 use squalr_engine_api::commands::project_items::list::project_items_list_request::ProjectItemsListRequest;
 use squalr_engine_api::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
+use squalr_engine_api::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
 use squalr_engine_api::structures::projects::project_info::ProjectInfo;
 use squalr_engine_api::structures::projects::project_items::built_in_types::{
     project_item_type_address::ProjectItemTypeAddress, project_item_type_pointer::ProjectItemTypePointer,
@@ -443,13 +444,20 @@ impl ProjectHierarchyViewData {
     ) {
         let project_item_type_id = target_project_item.get_item_type().get_project_item_type_id();
         let preview_value = Self::read_project_item_preview_value(source_project_item);
+        let preview_display_format = Self::read_project_item_preview_display_format(source_project_item);
 
         if project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
             ProjectItemTypeAddress::set_field_freeze_data_value_interpreter(target_project_item, &preview_value);
+            if let Some(preview_display_format) = preview_display_format {
+                ProjectItemTypeAddress::set_field_freeze_display_format(target_project_item, preview_display_format);
+            }
         } else if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
             let preview_path = ProjectItemTypePointer::get_field_evaluated_pointer_path(source_project_item);
 
             ProjectItemTypePointer::set_field_freeze_data_value_interpreter(target_project_item, &preview_value);
+            if let Some(preview_display_format) = preview_display_format {
+                ProjectItemTypePointer::set_field_freeze_display_format(target_project_item, preview_display_format);
+            }
             ProjectItemTypePointer::set_field_evaluated_pointer_path(target_project_item, &preview_path);
         }
     }
@@ -465,6 +473,18 @@ impl ProjectHierarchyViewData {
             ProjectItemTypePointer::get_field_freeze_data_value_interpreter(project_item)
         } else {
             String::new()
+        }
+    }
+
+    fn read_project_item_preview_display_format(project_item: &ProjectItem) -> Option<AnonymousValueStringFormat> {
+        let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
+
+        if project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
+            ProjectItemTypeAddress::get_field_freeze_display_format(project_item)
+        } else if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
+            ProjectItemTypePointer::get_field_freeze_display_format(project_item)
+        } else {
+            None
         }
     }
 

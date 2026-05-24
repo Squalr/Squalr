@@ -4,6 +4,7 @@ use crate::views::{
     symbol_tree::symbol_tree_runtime_data_controller::SymbolTreeRuntimeDataController,
 };
 use squalr_engine_api::commands::{
+    project::save::project_save_request::ProjectSaveRequest,
     project_symbols::write_value::project_symbols_write_value_request::ProjectSymbolsWriteValueRequest,
     unprivileged_command_request::UnprivilegedCommandRequest,
 };
@@ -105,6 +106,34 @@ impl SymbolTreeDetailsFocus {
 
         Arc::new(move |details_edit: DetailsEdit| match details_edit.get_value() {
             DetailsValue::Empty => {}
+            DetailsValue::DisplayFormat(display_format) => {
+                let project_manager = engine_unprivileged_state.get_project_manager();
+                let opened_project_lock = project_manager.get_opened_project();
+                let mut opened_project_guard = match opened_project_lock.write() {
+                    Ok(opened_project_guard) => opened_project_guard,
+                    Err(error) => {
+                        log::error!("Failed to acquire opened project lock while saving symbol display format: {}", error);
+                        return;
+                    }
+                };
+                let Some(opened_project) = opened_project_guard.as_mut() else {
+                    return;
+                };
+
+                opened_project
+                    .get_project_manifest_mut()
+                    .set_symbol_display_format(selected_symbol_tree_entry.get_node_key().to_string(), *display_format);
+                opened_project
+                    .get_project_info_mut()
+                    .set_has_unsaved_changes(true);
+                drop(opened_project_guard);
+
+                ProjectSaveRequest {}.send(&engine_unprivileged_state, |project_save_response| {
+                    if !project_save_response.success {
+                        log::warn!("Failed to save project after Symbol Tree display format update.");
+                    }
+                });
+            }
             details_value => {
                 let DetailsFieldSource::ProjectSymbolRuntimeValue { field_path } = details_edit.get_source() else {
                     return;
@@ -164,6 +193,11 @@ impl SymbolTreeDetailsFocus {
             DetailsValue::SignedInteger(value) => Some(AnonymousValueString::new(
                 value.to_string(),
                 AnonymousValueStringFormat::Decimal,
+                ContainerType::None,
+            )),
+            DetailsValue::DisplayFormat(display_format) => Some(AnonymousValueString::new(
+                display_format.to_string(),
+                AnonymousValueStringFormat::String,
                 ContainerType::None,
             )),
             DetailsValue::Empty => Some(AnonymousValueString::new(
