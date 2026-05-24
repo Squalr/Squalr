@@ -4,6 +4,7 @@ use squalr_engine::engine_privileged_state::{EnginePrivilegedState, create_engin
 use squalr_engine_api::commands::memory::read::memory_read_request::MemoryReadRequest;
 use squalr_engine_api::commands::memory::write::memory_write_request::MemoryWriteRequest;
 use squalr_engine_api::commands::process::close::process_close_request::ProcessCloseRequest;
+use squalr_engine_api::commands::process::icon::process_icon_request::ProcessIconRequest;
 use squalr_engine_api::commands::process::list::process_list_request::ProcessListRequest;
 use squalr_engine_api::commands::process::open::process_open_request::ProcessOpenRequest;
 use squalr_engine_api::commands::scan::new::scan_new_request::ScanNewRequest;
@@ -297,9 +298,37 @@ fn process_executors_use_injected_process_provider() {
     assert_eq!(state_guard.process_query_requests[0].limit, Some(5));
     assert!(!state_guard.process_query_requests[0].fetch_icons);
     assert_eq!(state_guard.process_query_requests[1].required_process_id, Some(process_identifier));
-    assert!(state_guard.process_query_requests[1].fetch_icons);
+    assert!(!state_guard.process_query_requests[1].fetch_icons);
     assert_eq!(state_guard.open_process_requests, vec![process_identifier]);
     assert_eq!(state_guard.close_process_handles, vec![0xBEEF]);
+}
+
+#[test]
+fn process_icon_executor_requests_icons_from_injected_process_provider() {
+    let (mock_engine_os, engine_privileged_state) = create_test_state();
+    let process_identifier = std::process::id();
+    let process_info = ProcessInfo::new(process_identifier, "calc.exe".to_string(), true, None);
+
+    mock_engine_os.set_processes(vec![process_info]);
+
+    let process_icon_request = ProcessIconRequest {
+        process_ids: vec![process_identifier],
+    };
+    let process_icon_response = process_icon_request.execute(&engine_privileged_state);
+
+    assert_eq!(process_icon_response.process_icons.len(), 1);
+    assert_eq!(process_icon_response.process_icons[0].process_id, process_identifier);
+
+    let mock_os_state = mock_engine_os.get_state();
+    let state_guard = match mock_os_state.lock() {
+        Ok(state_guard) => state_guard,
+        Err(error) => panic!("failed to lock mock state: {}", error),
+    };
+
+    assert_eq!(state_guard.process_query_requests.len(), 1);
+    assert_eq!(state_guard.process_query_requests[0].required_process_id, Some(process_identifier));
+    assert!(state_guard.process_query_requests[0].fetch_icons);
+    assert_eq!(state_guard.process_query_requests[0].limit, Some(1));
 }
 
 #[test]

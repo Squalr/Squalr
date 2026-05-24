@@ -1,4 +1,4 @@
-use rayon::iter::{IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
+use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
 use squalr_engine_api::conversions::storage_size_conversions::StorageSizeConversions;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
@@ -91,6 +91,12 @@ impl SnapshotValueCollector {
             return;
         }
 
+        // Fast path: most merged regions remain fully readable, so prefer one large read and
+        // only fall back to page-split reads if a boundary-crossing read actually fails.
+        if memory_read_provider.read_bytes(process_info, base_address, &mut snapshot_region.current_values) {
+            return;
+        }
+
         let mut read_ranges = Vec::with_capacity(snapshot_region.page_boundaries.len().saturating_add(1));
         let mut next_range_start_address = base_address;
         let mut current_slice = snapshot_region.current_values.as_mut_slice();
@@ -112,7 +118,7 @@ impl SnapshotValueCollector {
         }
 
         let read_failures = read_ranges
-            .into_par_iter()
+            .into_iter()
             .filter_map(|(address, buffer)| {
                 if memory_read_provider.read_bytes(process_info, address, buffer) {
                     None

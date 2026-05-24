@@ -15,6 +15,9 @@ use squalr_engine_api::structures::structs::symbolic_field_definition::SymbolicF
 use std::str::FromStr;
 
 const INSTRUCTION_DATA_TYPE_PREFIX: &str = "i_";
+const ICON_ID_BOOL: &str = "bool";
+const ICON_ID_STRING: &str = "string";
+const ICON_ID_CPU_INSTRUCTION: &str = "cpu_instruction";
 
 pub struct DataTypeToIconConverter {}
 
@@ -48,14 +51,16 @@ impl DataTypeToIconConverter {
                     .to_string()
             })
             .unwrap_or_else(|| data_type_id.to_string());
+        let base_data_type_id = DataTypeRef::new(&normalized_data_type_id)
+            .get_base_data_type_id()
+            .to_string();
 
-        if normalized_data_type_id.starts_with(INSTRUCTION_DATA_TYPE_PREFIX) {
+        if base_data_type_id.starts_with(INSTRUCTION_DATA_TYPE_PREFIX) || normalized_data_type_id == ICON_ID_CPU_INSTRUCTION {
             return icon_library.icon_handle_project_cpu_instruction.clone();
         }
 
-        match normalized_data_type_id.as_str() {
-            DataTypeBool8::DATA_TYPE_ID => icon_library.icon_handle_data_type_bool.clone(),
-            DataTypeBool32::DATA_TYPE_ID => icon_library.icon_handle_data_type_bool.clone(),
+        match base_data_type_id.as_str() {
+            DataTypeBool8::DATA_TYPE_ID | DataTypeBool32::DATA_TYPE_ID | ICON_ID_BOOL => icon_library.icon_handle_data_type_bool.clone(),
             DataTypeU8::DATA_TYPE_ID => icon_library.icon_handle_data_type_purple_blocks_1.clone(),
             DataTypeU16::DATA_TYPE_ID => icon_library.icon_handle_data_type_purple_blocks_2.clone(),
             DataTypeU16be::DATA_TYPE_ID => icon_library
@@ -84,7 +89,7 @@ impl DataTypeToIconConverter {
             DataTypeF64be::DATA_TYPE_ID => icon_library
                 .icon_handle_data_type_orange_blocks_reverse_8
                 .clone(),
-            DataTypeStringUtf8::DATA_TYPE_ID => icon_library.icon_handle_data_type_string.clone(),
+            DataTypeStringUtf8::DATA_TYPE_ID | ICON_ID_STRING => icon_library.icon_handle_data_type_string.clone(),
             _ => icon_library.icon_handle_data_type_unknown.clone(),
         }
     }

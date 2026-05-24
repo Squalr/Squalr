@@ -56,7 +56,7 @@ impl Snapshot {
             .retain(|region| region.get_region_size() > 0);
     }
 
-    /// Sorts all snapshot regions by base address ascending.
+    /// Sorts all snapshot regions by descending region size for memory-read prioritization.
     pub fn sort_regions_for_read(&mut self) {
         self.snapshot_regions
             .sort_by_key(|region| cmp::Reverse(region.get_region_size()));

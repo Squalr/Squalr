@@ -1,10 +1,11 @@
-use super::{anonymous_value_string::AnonymousValueString, container_type::ContainerType};
+use super::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType};
 
 /// Options for compact anonymous value previews.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct DataValuePreviewFormatOptions {
     max_array_preview_display_element_count: usize,
     max_array_preview_character_count: usize,
+    max_string_preview_character_count: usize,
 }
 
 impl DataValuePreviewFormatOptions {
@@ -12,10 +13,12 @@ impl DataValuePreviewFormatOptions {
     pub const fn new(
         max_array_preview_display_element_count: usize,
         max_array_preview_character_count: usize,
+        max_string_preview_character_count: usize,
     ) -> Self {
         Self {
             max_array_preview_display_element_count,
             max_array_preview_character_count,
+            max_string_preview_character_count,
         }
     }
 }
@@ -57,6 +60,11 @@ impl DataValuePreviewFormatter {
             contextual_container_type
         };
         let display_value = anonymous_value_string.get_anonymous_value_string();
+        let anonymous_value_string_format = anonymous_value_string.get_anonymous_value_string_format();
+
+        if anonymous_value_string_format == AnonymousValueStringFormat::String {
+            return Self::truncate_string_preview_value(display_value, format_options);
+        }
 
         if matches!(effective_container_type, ContainerType::Array | ContainerType::ArrayFixed(_)) && !display_value.is_empty() {
             let preview_value = if preview_was_truncated {
@@ -69,6 +77,26 @@ impl DataValuePreviewFormatter {
         } else {
             display_value.to_string()
         }
+    }
+
+    fn truncate_string_preview_value(
+        display_value: &str,
+        format_options: DataValuePreviewFormatOptions,
+    ) -> String {
+        let display_value_character_count = display_value.chars().count();
+
+        if display_value_character_count <= format_options.max_string_preview_character_count {
+            return display_value.to_string();
+        }
+
+        let truncated_prefix: String = display_value
+            .chars()
+            .take(format_options.max_string_preview_character_count)
+            .collect::<String>()
+            .trim_end_matches(char::is_whitespace)
+            .to_string();
+
+        format!("{}...", truncated_prefix)
     }
 
     fn append_preview_ellipsis(
@@ -156,8 +184,8 @@ mod tests {
         anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType,
     };
 
-    const COMPACT_FORMAT_OPTIONS: DataValuePreviewFormatOptions = DataValuePreviewFormatOptions::new(3, 24);
-    const WIDE_FORMAT_OPTIONS: DataValuePreviewFormatOptions = DataValuePreviewFormatOptions::new(4, 96);
+    const COMPACT_FORMAT_OPTIONS: DataValuePreviewFormatOptions = DataValuePreviewFormatOptions::new(3, 24, 48);
+    const WIDE_FORMAT_OPTIONS: DataValuePreviewFormatOptions = DataValuePreviewFormatOptions::new(4, 96, 96);
 
     #[test]
     fn scalar_preview_uses_display_value_directly() {
@@ -204,6 +232,34 @@ mod tests {
         assert_eq!(
             DataValuePreviewFormatter::limit_array_container_type(ContainerType::ArrayFixed(8)),
             ContainerType::ArrayFixed(DataValuePreviewFormatter::DEFAULT_MAX_ARRAY_PREVIEW_ELEMENT_COUNT)
+        );
+    }
+
+    #[test]
+    fn string_preview_does_not_use_array_brackets_for_fixed_buffers() {
+        let anonymous_value_string = AnonymousValueString::new(
+            String::from("/System/Library/Frameworks"),
+            AnonymousValueStringFormat::String,
+            ContainerType::ArrayFixed(16),
+        );
+
+        assert_eq!(
+            DataValuePreviewFormatter::format_anonymous_value_preview(&anonymous_value_string, ContainerType::ArrayFixed(16), false, COMPACT_FORMAT_OPTIONS),
+            "/System/Library/Frameworks"
+        );
+    }
+
+    #[test]
+    fn string_preview_uses_wider_string_truncation_budget() {
+        let anonymous_value_string = AnonymousValueString::new(
+            String::from("/System/Library/Frameworks/AppKit.framework/Versions/C/AppKit"),
+            AnonymousValueStringFormat::String,
+            ContainerType::ArrayFixed(64),
+        );
+
+        assert_eq!(
+            DataValuePreviewFormatter::format_anonymous_value_preview(&anonymous_value_string, ContainerType::ArrayFixed(64), false, COMPACT_FORMAT_OPTIONS),
+            "/System/Library/Frameworks/AppKit.framework/Vers..."
         );
     }
 }

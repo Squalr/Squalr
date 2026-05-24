@@ -80,4 +80,12 @@ impl DataTypeDescriptor {
     pub fn get_is_signed(&self) -> bool {
         self.is_signed
     }
+
+    pub fn with_data_type_id(
+        mut self,
+        data_type_id: String,
+    ) -> Self {
+        self.data_type_id = data_type_id;
+        self
+    }
 }

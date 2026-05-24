@@ -1,3 +1,5 @@
+#[cfg(target_family = "unix")]
+use libc::{ESRCH, kill};
 use squalr_engine_api::{
     events::{
         engine_event::{EngineEvent, EngineEventRequest},
@@ -10,7 +12,9 @@ use std::{
     thread,
     time::Duration,
 };
-use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System};
+use sysinfo::System;
+#[cfg(not(target_family = "unix"))]
+use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate};
 
 const OPEN_PROCESS_DEATH_POLL_INTERVAL: Duration = Duration::from_millis(250);
 
@@ -115,13 +119,30 @@ impl ProcessManager {
         system: &mut System,
         process_id: u32,
     ) -> bool {
-        let pid = Pid::from_u32(process_id);
-        let monitored_processes = [pid];
-        let refresh_kind = ProcessRefreshKind::nothing().without_tasks();
+        #[cfg(target_family = "unix")]
+        {
+            let _ = system;
+            let kill_result = unsafe { kill(process_id as i32, 0) };
 
-        system.refresh_processes_specifics(ProcessesToUpdate::Some(&monitored_processes), true, refresh_kind);
+            if kill_result == 0 {
+                return true;
+            }
 
-        system.process(pid).is_some()
+            let error_kind = std::io::Error::last_os_error().raw_os_error();
+
+            return error_kind != Some(ESRCH);
+        }
+
+        #[cfg(not(target_family = "unix"))]
+        {
+            let pid = Pid::from_u32(process_id);
+            let monitored_processes = [pid];
+            let refresh_kind = ProcessRefreshKind::nothing().without_tasks();
+
+            system.refresh_processes_specifics(ProcessesToUpdate::Some(&monitored_processes), true, refresh_kind);
+
+            system.process(pid).is_some()
+        }
     }
 }
 

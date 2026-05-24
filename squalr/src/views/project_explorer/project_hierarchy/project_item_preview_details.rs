@@ -24,7 +24,7 @@ use std::sync::Arc;
 pub struct ProjectItemPreviewDetails;
 
 impl ProjectItemPreviewDetails {
-    const PROJECT_ITEM_PREVIEW_FORMAT_OPTIONS: DataValuePreviewFormatOptions = DataValuePreviewFormatOptions::new(4, 96);
+    const PROJECT_ITEM_PREVIEW_FORMAT_OPTIONS: DataValuePreviewFormatOptions = DataValuePreviewFormatOptions::new(4, 96, 96);
 
     pub fn copy_project_item_preview_fields(
         source_project_item: &ProjectItem,

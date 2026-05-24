@@ -72,7 +72,7 @@ struct PointerPreviewEvaluation {
     evaluated_path: String,
 }
 
-const PROJECT_ITEM_PREVIEW_FORMAT_OPTIONS: DataValuePreviewFormatOptions = DataValuePreviewFormatOptions::new(4, 96);
+const PROJECT_ITEM_PREVIEW_FORMAT_OPTIONS: DataValuePreviewFormatOptions = DataValuePreviewFormatOptions::new(4, 96, 96);
 
 pub fn refresh_project_item_display_values(
     engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,

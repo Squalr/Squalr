@@ -12,6 +12,7 @@ pub struct DataTypeStringUtf8 {}
 
 impl DataTypeStringUtf8 {
     pub const DATA_TYPE_ID: &str = "string_utf8";
+    pub const FLAG_NULL_TERMINATED: &str = "null_terminated";
 
     pub fn get_data_type_id() -> &'static str {
         Self::DATA_TYPE_ID
@@ -27,6 +28,10 @@ impl DataTypeStringUtf8 {
 
     pub fn get_value_from_primitive_string(string: &str) -> DataValue {
         Self::get_value_from_primitive_array(string.as_bytes().to_vec())
+    }
+
+    fn is_null_terminated(data_type_ref: &DataTypeRef) -> bool {
+        data_type_ref.has_flag(Self::FLAG_NULL_TERMINATED)
     }
 }
 
@@ -53,6 +58,17 @@ impl DataType for DataTypeStringUtf8 {
         }
     }
 
+    fn validate_value_string_with_data_type_ref(
+        &self,
+        data_type_ref: &DataTypeRef,
+        anonymous_value_string: &AnonymousValueString,
+    ) -> bool {
+        match self.deanonymize_value_string_with_data_type_ref(data_type_ref, anonymous_value_string) {
+            Ok(_) => true,
+            Err(_) => false,
+        }
+    }
+
     fn deanonymize_value_string(
         &self,
         anonymous_value_string: &AnonymousValueString,
@@ -61,6 +77,16 @@ impl DataType for DataTypeStringUtf8 {
         let decoded_bytes = PrimitiveDataTypeString::deanonymize_string(anonymous_value_string, |value_string| value_string.as_bytes().to_vec())?;
 
         Ok(DataValue::new(data_type_ref, decoded_bytes))
+    }
+
+    fn deanonymize_value_string_with_data_type_ref(
+        &self,
+        data_type_ref: &DataTypeRef,
+        anonymous_value_string: &AnonymousValueString,
+    ) -> Result<DataValue, DataTypeError> {
+        let decoded_bytes = PrimitiveDataTypeString::deanonymize_string(anonymous_value_string, |value_string| value_string.as_bytes().to_vec())?;
+
+        Ok(DataValue::new(data_type_ref.clone(), decoded_bytes))
     }
 
     fn anonymize_value_bytes(
@@ -73,6 +99,35 @@ impl DataType for DataTypeStringUtf8 {
         }
 
         let decoded_string = String::from_utf8_lossy(value_bytes).to_string();
+
+        Ok(AnonymousValueString::new(
+            decoded_string,
+            AnonymousValueStringFormat::String,
+            crate::structures::data_values::container_type::ContainerType::None,
+        ))
+    }
+
+    fn anonymize_value_bytes_with_data_type_ref(
+        &self,
+        data_type_ref: &DataTypeRef,
+        value_bytes: &[u8],
+        anonymous_value_string_format: AnonymousValueStringFormat,
+    ) -> Result<AnonymousValueString, DataTypeError> {
+        if anonymous_value_string_format != AnonymousValueStringFormat::String {
+            return Err(DataTypeError::ParseError("Unsupported data value format".to_string()));
+        }
+
+        let display_bytes = if Self::is_null_terminated(data_type_ref) {
+            let terminator_index = value_bytes
+                .iter()
+                .position(|string_byte| *string_byte == 0)
+                .unwrap_or(value_bytes.len());
+
+            &value_bytes[..terminator_index]
+        } else {
+            value_bytes
+        };
+        let decoded_string = String::from_utf8_lossy(display_bytes).to_string();
 
         Ok(AnonymousValueString::new(
             decoded_string,
@@ -105,7 +160,7 @@ impl DataType for DataTypeStringUtf8 {
         &self,
         data_type_ref: DataTypeRef,
     ) -> DataValue {
-        DataValue::new(data_type_ref.clone(), vec![])
+        DataValue::new(data_type_ref.clone(), vec![0])
     }
 }
 
@@ -124,6 +179,26 @@ mod tests {
             .unwrap_or_else(|error| panic!("Expected UTF-8 anonymization to succeed: {}", error));
 
         assert_eq!(anonymous_value_string.get_anonymous_value_string(), "PlayerHealth");
+    }
+
+    #[test]
+    fn anonymize_value_bytes_with_null_terminated_flag_stops_at_first_zero() {
+        let data_type = DataTypeStringUtf8 {};
+        let data_type_ref = crate::structures::data_types::data_type_ref::DataTypeRef::new("string_utf8{null_terminated}");
+        let value_bytes = b"Finder\0RuntimeGarbage";
+        let anonymous_value_string = data_type
+            .anonymize_value_bytes_with_data_type_ref(&data_type_ref, value_bytes, AnonymousValueStringFormat::String)
+            .unwrap_or_else(|error| panic!("Expected null-terminated UTF-8 anonymization to succeed: {}", error));
+
+        assert_eq!(anonymous_value_string.get_anonymous_value_string(), "Finder");
+    }
+
+    #[test]
+    fn default_value_has_single_zero_byte() {
+        let data_type = DataTypeStringUtf8 {};
+        let data_value = data_type.get_default_value(crate::structures::data_types::data_type_ref::DataTypeRef::new(DataTypeStringUtf8::DATA_TYPE_ID));
+
+        assert_eq!(data_value.get_value_bytes(), &[0]);
     }
 
     #[test]

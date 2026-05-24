@@ -51,7 +51,7 @@ impl SymbolTreeRuntimeDataController {
     const POINTER_CHILDREN_VIRTUAL_SNAPSHOT_ID: &'static str = "symbol_tree_pointer_children";
     const SCALAR_VALUES_VIRTUAL_SNAPSHOT_ID: &'static str = "symbol_tree_scalar_values";
     const PREVIEW_VALUES_VIRTUAL_SNAPSHOT_ID: &'static str = "symbol_tree_preview_values";
-    const PREVIEW_FORMAT_OPTIONS: DataValuePreviewFormatOptions = DataValuePreviewFormatOptions::new(3, 24);
+    const PREVIEW_FORMAT_OPTIONS: DataValuePreviewFormatOptions = DataValuePreviewFormatOptions::new(3, 24, 48);
     const POINTER_CHILDREN_REFRESH_INTERVAL: Duration = Duration::from_millis(250);
     const SCALAR_VALUES_REFRESH_INTERVAL: Duration = Duration::from_millis(250);
     const PREVIEW_VALUES_REFRESH_INTERVAL: Duration = Duration::from_millis(250);

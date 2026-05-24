@@ -655,6 +655,28 @@ mod tests {
     }
 
     #[test]
+    fn get_size_in_bytes_scales_fixed_null_terminated_utf8_strings_by_buffer_length() {
+        let symbol_registry = SymbolRegistry::new();
+        let symbolic_field_definition = SymbolicFieldDefinition::new(DataTypeRef::new("string_utf8{null_terminated}"), ContainerType::ArrayFixed(16));
+
+        assert_eq!(symbolic_field_definition.get_size_in_bytes(&symbol_registry), 16);
+    }
+
+    #[test]
+    fn fixed_null_terminated_utf8_string_default_value_is_zero_filled() {
+        let symbol_registry = SymbolRegistry::new();
+        let symbolic_field_definition = SymbolicFieldDefinition::new(DataTypeRef::new("string_utf8{null_terminated}"), ContainerType::ArrayFixed(16));
+        let valued_struct_field = symbolic_field_definition.get_valued_struct_field(&symbol_registry, true);
+        let value_bytes = valued_struct_field
+            .get_data_value()
+            .expect("Expected data value for fixed string field.")
+            .get_value_bytes();
+
+        assert_eq!(value_bytes.len(), 16);
+        assert!(value_bytes.iter().all(|string_byte| *string_byte == 0));
+    }
+
+    #[test]
     fn display_round_trips_base_type_and_container() {
         let symbolic_field_definition = SymbolicFieldDefinition::new(DataTypeRef::new("u8"), ContainerType::ArrayFixed(4));
 

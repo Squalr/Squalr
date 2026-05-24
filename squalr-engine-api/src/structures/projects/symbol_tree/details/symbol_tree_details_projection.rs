@@ -1,6 +1,7 @@
 use crate::structures::{
     data_types::{
-        built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8, built_in_types::u64::data_type_u64::DataTypeU64, data_type_ref::DataTypeRef,
+        built_in_types::{bool8::data_type_bool8::DataTypeBool8, string::utf8::data_type_string_utf8::DataTypeStringUtf8, u64::data_type_u64::DataTypeU64},
+        data_type_ref::DataTypeRef,
     },
     data_values::container_type::ContainerType,
     details::{DetailsEditorHint, DetailsField, DetailsFieldId, DetailsFieldSource, DetailsProjection, DetailsTarget, DetailsValue},
@@ -22,6 +23,8 @@ impl SymbolTreeDetailsProjection {
     pub const METADATA_PATH: &'static str = "path";
     pub const METADATA_LOCATOR: &'static str = "locator";
     pub const METADATA_STATUS: &'static str = "status";
+    pub const METADATA_STRING_BUFFER_SIZE: &'static str = "string_buffer_size";
+    pub const METADATA_NULL_TERMINATED: &'static str = "null_terminated";
 
     pub fn build(
         symbol_tree_node: &SymbolTreeNode,
@@ -109,6 +112,10 @@ impl SymbolTreeDetailsProjection {
         metadata_type_id: Option<&str>,
     ) -> Vec<DetailsField> {
         let mut metadata_fields = Vec::new();
+        let metadata_data_type_id = metadata_type_id
+            .map(str::to_string)
+            .unwrap_or_else(|| symbol_tree_node.get_display_type_id());
+        let metadata_data_type_ref = DataTypeRef::new(&metadata_data_type_id);
 
         if include_symbol_claim_metadata {
             metadata_fields.push(Self::build_text_metadata_field(
@@ -122,11 +129,7 @@ impl SymbolTreeDetailsProjection {
         metadata_fields.push(DetailsField::new(
             DetailsFieldId::new(format!("{}{}", Self::FIELD_ID_METADATA_PREFIX, Self::METADATA_TYPE)),
             "Data Type",
-            DetailsValue::Text(
-                metadata_type_id
-                    .map(str::to_string)
-                    .unwrap_or_else(|| symbol_tree_node.get_display_type_id()),
-            ),
+            DetailsValue::Text(metadata_data_type_ref.get_base_data_type_id().to_string()),
             true,
             DetailsEditorHint::DataType,
             Some(DataTypeRef::new(DataTypeStringUtf8::DATA_TYPE_ID)),
@@ -135,7 +138,52 @@ impl SymbolTreeDetailsProjection {
                 metadata_name: Self::METADATA_TYPE.to_string(),
             },
         ));
+        metadata_fields.extend(Self::build_string_metadata_fields(
+            &metadata_data_type_ref,
+            symbol_tree_node.get_container_type(),
+        ));
         metadata_fields.extend(Self::build_location_fields(symbol_tree_node, symbol_size_in_bytes));
+
+        metadata_fields
+    }
+
+    fn build_string_metadata_fields(
+        data_type_ref: &DataTypeRef,
+        container_type: ContainerType,
+    ) -> Vec<DetailsField> {
+        if data_type_ref.get_base_data_type_id() != DataTypeStringUtf8::DATA_TYPE_ID {
+            return Vec::new();
+        }
+
+        let mut metadata_fields = Vec::new();
+
+        if let ContainerType::ArrayFixed(string_buffer_size) = container_type {
+            metadata_fields.push(DetailsField::new(
+                DetailsFieldId::new(format!("{}{}", Self::FIELD_ID_METADATA_PREFIX, Self::METADATA_STRING_BUFFER_SIZE)),
+                "String Size",
+                DetailsValue::UnsignedInteger(string_buffer_size),
+                true,
+                DetailsEditorHint::Value,
+                Some(DataTypeRef::new(DataTypeU64::DATA_TYPE_ID)),
+                ContainerType::None,
+                DetailsFieldSource::SymbolLayoutMetadata {
+                    metadata_name: Self::METADATA_STRING_BUFFER_SIZE.to_string(),
+                },
+            ));
+        }
+
+        metadata_fields.push(DetailsField::new(
+            DetailsFieldId::new(format!("{}{}", Self::FIELD_ID_METADATA_PREFIX, Self::METADATA_NULL_TERMINATED)),
+            "Null Terminated",
+            DetailsValue::Boolean(data_type_ref.has_flag(DataTypeStringUtf8::FLAG_NULL_TERMINATED)),
+            true,
+            DetailsEditorHint::Boolean,
+            Some(DataTypeRef::new(DataTypeBool8::DATA_TYPE_ID)),
+            ContainerType::None,
+            DetailsFieldSource::SymbolLayoutMetadata {
+                metadata_name: Self::METADATA_NULL_TERMINATED.to_string(),
+            },
+        ));
 
         metadata_fields
     }

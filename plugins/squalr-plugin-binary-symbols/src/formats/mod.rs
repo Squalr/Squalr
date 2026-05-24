@@ -55,5 +55,6 @@ mod tests {
     fn detects_macho_headers() {
         assert_eq!(BinaryFormat::detect(&[0xCF, 0xFA, 0xED, 0xFE]), BinaryFormat::MachO);
         assert_eq!(BinaryFormat::detect(&[0xCA, 0xFE, 0xBA, 0xBE]), BinaryFormat::MachO);
+        assert_eq!(BinaryFormat::detect(&[0xCA, 0xFE, 0xBA, 0xBF]), BinaryFormat::MachO);
     }
 }

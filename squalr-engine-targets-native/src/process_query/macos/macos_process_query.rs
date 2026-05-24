@@ -1,7 +1,6 @@
 use crate::process_query::process_query_error::ProcessQueryError;
 use crate::process_query::process_query_options::ProcessQueryOptions;
 use crate::process_query::process_queryer::ProcessQueryer;
-use image::ImageReader;
 use libc::{PROC_PIDPATHINFO_MAXSIZE, c_void, proc_pidpath};
 use mach2::kern_return::KERN_SUCCESS;
 use mach2::mach_port::mach_port_deallocate;
@@ -13,14 +12,12 @@ use squalr_engine_api::structures::memory::bitness::Bitness;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::processes::process_icon::ProcessIcon;
 use squalr_engine_api::structures::processes::process_info::ProcessInfo;
-use std::collections::{HashMap, HashSet};
-use std::io::Cursor;
+use std::collections::HashSet;
 use std::os::raw::c_int;
-use std::sync::{LazyLock, RwLock};
+use std::path::{Path, PathBuf};
 use sysinfo::{Pid, ProcessRefreshKind, RefreshKind, System};
 
 pub struct MacOsProcessQuery {}
-static PROCESS_ICON_CACHE: LazyLock<RwLock<HashMap<String, Option<ProcessIcon>>>> = LazyLock::new(|| RwLock::new(HashMap::new()));
 
 type CFArrayRef = *const c_void;
 type CFDictionaryRef = *const c_void;
@@ -28,11 +25,40 @@ type CFNumberRef = *const c_void;
 type CFStringRef = *const c_void;
 type CFTypeRef = *const c_void;
 type CFIndex = isize;
+type CGContextRef = *mut c_void;
+type CGColorSpaceRef = *mut c_void;
+type CGImageRef = *const c_void;
+type DispatchQueue = *const c_void;
+
+#[repr(C)]
+struct CGPoint {
+    x: f64,
+    y: f64,
+}
+
+#[repr(C)]
+struct CGSize {
+    width: f64,
+    height: f64,
+}
+
+#[repr(C)]
+struct CGRect {
+    origin: CGPoint,
+    size: CGSize,
+}
 
 const CG_WINDOW_LIST_OPTION_ON_SCREEN_ONLY: u32 = 1 << 0;
 const CG_NULL_WINDOW_ID: u32 = 0;
 const CF_NUMBER_SINT32_TYPE: i32 = 3;
 const NS_UTF8_STRING_ENCODING: usize = 4;
+const MAX_PROCESS_ICON_EDGE_PX: u32 = 24;
+const CG_IMAGE_ALPHA_PREMULTIPLIED_LAST: u32 = 1;
+const CG_BITMAP_BYTE_ORDER_32_BIG: u32 = 4 << 12;
+const CG_BITMAP_INFO_RGBA8_PREMULTIPLIED_LAST: u32 = CG_IMAGE_ALPHA_PREMULTIPLIED_LAST | CG_BITMAP_BYTE_ORDER_32_BIG;
+
+#[link(name = "AppKit", kind = "framework")]
+unsafe extern "C" {}
 
 #[link(name = "CoreGraphics", kind = "framework")]
 unsafe extern "C" {
@@ -42,6 +68,25 @@ unsafe extern "C" {
         option: u32,
         relative_to_window: u32,
     ) -> CFArrayRef;
+    fn CGImageGetWidth(image: CGImageRef) -> usize;
+    fn CGImageGetHeight(image: CGImageRef) -> usize;
+    fn CGColorSpaceCreateDeviceRGB() -> CGColorSpaceRef;
+    fn CGColorSpaceRelease(color_space: CGColorSpaceRef);
+    fn CGBitmapContextCreate(
+        data: *mut c_void,
+        width: usize,
+        height: usize,
+        bits_per_component: usize,
+        bytes_per_row: usize,
+        color_space: CGColorSpaceRef,
+        bitmap_info: u32,
+    ) -> CGContextRef;
+    fn CGContextDrawImage(
+        context: CGContextRef,
+        rect: CGRect,
+        image: CGImageRef,
+    );
+    fn CGContextRelease(context: CGContextRef);
 }
 
 #[link(name = "CoreFoundation", kind = "framework")]
@@ -61,6 +106,26 @@ unsafe extern "C" {
         value_ptr: *mut c_void,
     ) -> u8;
     fn CFRelease(cf: CFTypeRef);
+}
+
+#[link(name = "System")]
+unsafe extern "C" {
+    static _dispatch_main_q: c_void;
+    fn dispatch_sync_f(
+        queue: DispatchQueue,
+        context: *mut c_void,
+        work: extern "C" fn(*mut c_void),
+    );
+}
+
+enum MainThreadIconLookupKind {
+    RunningApplication { process_id: i32 },
+    FilePath { path: String },
+}
+
+struct MainThreadIconLookupRequest {
+    kind: MainThreadIconLookupKind,
+    result: Option<ProcessIcon>,
 }
 
 impl MacOsProcessQuery {
@@ -158,28 +223,161 @@ impl MacOsProcessQuery {
         if path_string.is_empty() { None } else { Some(path_string) }
     }
 
+    fn resolve_icon_lookup_paths(executable_path: &str) -> Vec<PathBuf> {
+        let executable_path = Path::new(executable_path);
+        let mut icon_lookup_paths = executable_path
+            .ancestors()
+            .filter(|ancestor_path| {
+                ancestor_path
+                    .extension()
+                    .is_some_and(|extension| extension.eq_ignore_ascii_case("app"))
+            })
+            .map(Path::to_path_buf)
+            .collect::<Vec<_>>();
+
+        icon_lookup_paths.reverse();
+
+        icon_lookup_paths
+    }
+
     fn get_icon(process_id: &Pid) -> Option<ProcessIcon> {
-        let process_id_raw = process_id.as_u32();
-        let process_icon_cache_key = format!("pid:{process_id_raw}");
-
-        if let Ok(icon_cache) = PROCESS_ICON_CACHE.read() {
-            if let Some(cached_process_icon) = icon_cache.get(&process_icon_cache_key) {
-                return cached_process_icon.clone();
-            }
-        }
-
-        let process_icon = Self::get_running_application_icon(process_id)
-            .or_else(|| Self::get_process_executable_path(process_id).and_then(|executable_path| Self::get_icon_for_executable_path(&executable_path)));
-
-        if let Ok(mut icon_cache) = PROCESS_ICON_CACHE.write() {
-            icon_cache.insert(process_icon_cache_key, process_icon.clone());
-        }
-
-        process_icon
+        Self::get_running_application_icon(process_id)
+            .or_else(|| Self::get_process_executable_path(process_id).and_then(|executable_path| Self::get_icon_for_executable_path(&executable_path)))
     }
 
     fn get_running_application_icon(process_id: &Pid) -> Option<ProcessIcon> {
-        let process_id_value = process_id.as_u32() as i32;
+        Self::run_icon_lookup_on_main_thread(MainThreadIconLookupKind::RunningApplication {
+            process_id: process_id.as_u32() as i32,
+        })
+    }
+
+    fn decode_ns_image_to_process_icon(icon_image: *mut Object) -> Option<ProcessIcon> {
+        if icon_image.is_null() {
+            return None;
+        }
+
+        let cg_image: CGImageRef = unsafe {
+            msg_send![
+                icon_image,
+                CGImageForProposedRect: std::ptr::null_mut::<CGRect>()
+                context: std::ptr::null_mut::<Object>()
+                hints: std::ptr::null_mut::<Object>()
+            ]
+        };
+        if cg_image.is_null() {
+            return None;
+        }
+
+        Self::render_cg_image_to_process_icon(cg_image)
+    }
+
+    fn render_cg_image_to_process_icon(cg_image: CGImageRef) -> Option<ProcessIcon> {
+        if cg_image.is_null() {
+            return None;
+        }
+
+        let source_width = unsafe { CGImageGetWidth(cg_image) } as u32;
+        let source_height = unsafe { CGImageGetHeight(cg_image) } as u32;
+        if source_width == 0 || source_height == 0 {
+            return None;
+        }
+
+        let scale_numerator = MAX_PROCESS_ICON_EDGE_PX as f64;
+        let scale_denominator = (source_width.max(source_height)) as f64;
+        let scale_factor = (scale_numerator / scale_denominator).min(1.0);
+        let icon_width = ((source_width as f64) * scale_factor).round().max(1.0) as usize;
+        let icon_height = ((source_height as f64) * scale_factor).round().max(1.0) as usize;
+        let bytes_per_row = icon_width * 4;
+        let mut icon_rgba_bytes = vec![0u8; bytes_per_row * icon_height];
+        let color_space = unsafe { CGColorSpaceCreateDeviceRGB() };
+        if color_space.is_null() {
+            return None;
+        }
+
+        let bitmap_context = unsafe {
+            CGBitmapContextCreate(
+                icon_rgba_bytes.as_mut_ptr() as *mut c_void,
+                icon_width,
+                icon_height,
+                8,
+                bytes_per_row,
+                color_space,
+                CG_BITMAP_INFO_RGBA8_PREMULTIPLIED_LAST,
+            )
+        };
+        unsafe { CGColorSpaceRelease(color_space) };
+
+        if bitmap_context.is_null() {
+            return None;
+        }
+
+        unsafe {
+            CGContextDrawImage(
+                bitmap_context,
+                CGRect {
+                    origin: CGPoint { x: 0.0, y: 0.0 },
+                    size: CGSize {
+                        width: icon_width as f64,
+                        height: icon_height as f64,
+                    },
+                },
+                cg_image,
+            );
+            CGContextRelease(bitmap_context);
+        }
+
+        Some(ProcessIcon::new(icon_rgba_bytes, icon_width as u32, icon_height as u32))
+    }
+
+    fn get_icon_for_executable_path(executable_path: &str) -> Option<ProcessIcon> {
+        Self::resolve_icon_lookup_paths(executable_path)
+            .into_iter()
+            .find_map(|icon_lookup_path| {
+                Self::run_icon_lookup_on_main_thread(MainThreadIconLookupKind::FilePath {
+                    path: icon_lookup_path.to_string_lossy().to_string(),
+                })
+            })
+    }
+
+    fn run_icon_lookup_on_main_thread(icon_lookup_kind: MainThreadIconLookupKind) -> Option<ProcessIcon> {
+        let mut icon_lookup_request = MainThreadIconLookupRequest {
+            kind: icon_lookup_kind,
+            result: None,
+        };
+        let is_main_thread: bool = unsafe { msg_send![class!(NSThread), isMainThread] };
+
+        if is_main_thread {
+            Self::execute_main_thread_icon_lookup(&mut icon_lookup_request);
+        } else {
+            unsafe {
+                dispatch_sync_f(
+                    &_dispatch_main_q,
+                    &mut icon_lookup_request as *mut MainThreadIconLookupRequest as *mut c_void,
+                    Self::dispatch_main_thread_icon_lookup,
+                );
+            }
+        }
+
+        icon_lookup_request.result
+    }
+
+    extern "C" fn dispatch_main_thread_icon_lookup(context: *mut c_void) {
+        if context.is_null() {
+            return;
+        }
+
+        let icon_lookup_request = unsafe { &mut *(context as *mut MainThreadIconLookupRequest) };
+        Self::execute_main_thread_icon_lookup(icon_lookup_request);
+    }
+
+    fn execute_main_thread_icon_lookup(icon_lookup_request: &mut MainThreadIconLookupRequest) {
+        icon_lookup_request.result = match &icon_lookup_request.kind {
+            MainThreadIconLookupKind::RunningApplication { process_id } => Self::get_running_application_icon_on_main_thread(*process_id),
+            MainThreadIconLookupKind::FilePath { path } => Self::get_icon_for_lookup_path_on_main_thread(path),
+        };
+    }
+
+    fn get_running_application_icon_on_main_thread(process_id: i32) -> Option<ProcessIcon> {
         let autorelease_pool: *mut Object = unsafe { msg_send![class!(NSAutoreleasePool), new] };
         if autorelease_pool.is_null() {
             return None;
@@ -189,7 +387,7 @@ impl MacOsProcessQuery {
             let running_application: *mut Object = unsafe {
                 msg_send![
                     class!(NSRunningApplication),
-                    runningApplicationWithProcessIdentifier: process_id_value
+                    runningApplicationWithProcessIdentifier: process_id
                 ]
             };
             if running_application.is_null() {
@@ -204,37 +402,8 @@ impl MacOsProcessQuery {
         process_icon
     }
 
-    fn decode_ns_image_to_process_icon(icon_image: *mut Object) -> Option<ProcessIcon> {
-        if icon_image.is_null() {
-            return None;
-        }
-
-        let tiff_data: *mut Object = unsafe { msg_send![icon_image, TIFFRepresentation] };
-        if tiff_data.is_null() {
-            return None;
-        }
-
-        let image_bytes_ptr: *const u8 = unsafe { msg_send![tiff_data, bytes] };
-        let image_bytes_len: usize = unsafe { msg_send![tiff_data, length] };
-        if image_bytes_ptr.is_null() || image_bytes_len == 0 {
-            return None;
-        }
-
-        let image_bytes = unsafe { std::slice::from_raw_parts(image_bytes_ptr, image_bytes_len) };
-        let image_reader = ImageReader::new(Cursor::new(image_bytes))
-            .with_guessed_format()
-            .ok()?;
-        let decoded_image = image_reader.decode().ok()?;
-        let rgba_image = decoded_image.to_rgba8();
-        let (icon_width, icon_height) = rgba_image.dimensions();
-        let icon_rgba_bytes = rgba_image.into_raw();
-
-        Some(ProcessIcon::new(icon_rgba_bytes, icon_width, icon_height))
-    }
-
-    fn get_icon_for_executable_path(executable_path: &str) -> Option<ProcessIcon> {
-        let executable_path_bytes = executable_path.as_bytes();
-
+    fn get_icon_for_lookup_path_on_main_thread(icon_lookup_path: &str) -> Option<ProcessIcon> {
+        let icon_lookup_path_bytes = icon_lookup_path.as_bytes();
         let autorelease_pool: *mut Object = unsafe { msg_send![class!(NSAutoreleasePool), new] };
         if autorelease_pool.is_null() {
             return None;
@@ -249,8 +418,8 @@ impl MacOsProcessQuery {
             let ns_executable_path: *mut Object = unsafe {
                 msg_send![
                     class!(NSString),
-                    stringWithBytes: executable_path_bytes.as_ptr()
-                    length: executable_path_bytes.len()
+                    stringWithBytes: icon_lookup_path_bytes.as_ptr()
+                    length: icon_lookup_path_bytes.len()
                     encoding: NS_UTF8_STRING_ENCODING
                 ]
             };
