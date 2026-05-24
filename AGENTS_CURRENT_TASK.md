@@ -11,7 +11,7 @@ Our current task, from `README.md`, is:
 ## Current Tasklist
 
 - Completed: Project item runtime value display formats are now persisted separately from the preview value, and Project Explorer refresh/detail focus preserves the chosen format.
-- Completed: Output dock command input now draws a 1px border.
+- Completed: Output dock command input now draws a 1px border and uses a compact 28px height with 4px spacing above it.
 - Completed: Removed the Symbol Tree per-node manifest display-format persistence path.
 - Completed: Symbol layout fields can now store an optional preferred display format, exposed only when the field data type reports supported display formats.
 - Completed: Symbol Tree runtime/preview values consume the layout-owned preferred display format but do not allow display-format edits from the Symbol Tree details view.
@@ -19,5 +19,5 @@ Our current task, from `README.md`, is:
 
 ## Important Information
 
-- Validation: `cargo fmt --all` completed with existing rustfmt deprecation warnings for `fn_args_layout`; `cargo test -p squalr-engine-api` passed 301 tests; `cargo test -p squalr-engine` passed 147 tests; `cargo test -p squalr` passed 29 tests.
+- Validation: `cargo fmt --all` completed with existing rustfmt deprecation warnings for `fn_args_layout`; `cargo test -p squalr output` passed 6 targeted tests. Prior broader validation: `cargo test -p squalr-engine-api` passed 301 tests; `cargo test -p squalr-engine` passed 147 tests; `cargo test -p squalr` passed 29 tests.
 - Human verification: Reopen the winmine project and confirm the Symbol Tree shows `PE Headers`, one undefined segment, `winmine_exe_0x579C`, and one trailing undefined segment under `winmine.exe`, matching the single layout field shown by right-click edit layout. Also confirm the previous display-format and Output dock checks still behave as expected.
