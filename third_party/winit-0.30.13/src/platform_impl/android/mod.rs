@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use android_activity::input::{InputEvent, KeyAction, Keycode, MotionAction};
+use android_activity::input::{InputEvent, KeyAction, Keycode, MotionAction, TextInputState, TextSpan};
 use android_activity::{AndroidApp, AndroidAppWaker, ConfigurationRef, InputStatus, MainEvent, Rect};
 use tracing::{debug, trace, warn};
 
@@ -16,6 +16,7 @@ use crate::error;
 use crate::error::EventLoopError;
 use crate::event::{self, Force, InnerSizeWriter, StartCause};
 use crate::event_loop::{self, ActiveEventLoop as RootAEL, ControlFlow, DeviceEvents};
+use crate::keyboard::{Key, KeyCode, KeyLocation, NamedKey, NativeKey, NativeKeyCode, PhysicalKey, SmolStr};
 use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::Fullscreen;
 use crate::window::{self, CursorGrabMode, CustomCursor, CustomCursorSource, ImePurpose, ResizeDirection, Theme, WindowButtons, WindowLevel};
@@ -26,6 +27,71 @@ pub(crate) use crate::cursor::{NoCustomCursor as PlatformCustomCursor, NoCustomC
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 
 static HAS_FOCUS: AtomicBool = AtomicBool::new(true);
+static ANDROID_IME_ALLOWED: AtomicBool = AtomicBool::new(false);
+
+fn empty_text_input_state() -> TextInputState {
+    TextInputState {
+        text: String::new(),
+        selection: TextSpan { start: 0, end: 0 },
+        compose_region: None,
+    }
+}
+
+fn normalize_game_activity_text_commit(raw_text_commit: &str) -> String {
+    let mut normalized_text_commit = String::new();
+    let mut text_commit_characters = raw_text_commit.chars();
+
+    while let Some(first_character) = text_commit_characters.next() {
+        match text_commit_characters.next() {
+            Some(second_character) if second_character == first_character => {
+                normalized_text_commit.push(first_character);
+            }
+            _ => {
+                return raw_text_commit.to_owned();
+            }
+        }
+    }
+
+    normalized_text_commit
+}
+
+fn should_suppress_soft_keyboard_text_key(logical_key: &Key) -> bool {
+    if !ANDROID_IME_ALLOWED.load(Ordering::Relaxed) {
+        return false;
+    }
+
+    logical_key
+        .to_text()
+        .map(|text| !text.is_empty() && text.chars().all(|character| !character.is_control()))
+        .unwrap_or(false)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::keyboard::NamedKey;
+
+    #[test]
+    fn normalize_game_activity_text_commit_collapses_duplicate_pairs() {
+        assert_eq!(normalize_game_activity_text_commit("88"), "8");
+        assert_eq!(normalize_game_activity_text_commit("aabb"), "ab");
+        assert_eq!(normalize_game_activity_text_commit("abc"), "abc");
+        assert_eq!(normalize_game_activity_text_commit("aaa"), "aaa");
+    }
+
+    #[test]
+    fn ime_key_suppression_only_applies_to_printable_text() {
+        ANDROID_IME_ALLOWED.store(true, Ordering::Relaxed);
+
+        assert!(should_suppress_soft_keyboard_text_key(&Key::Character("a".into())));
+        assert!(should_suppress_soft_keyboard_text_key(&Key::Character(" ".into())));
+        assert!(!should_suppress_soft_keyboard_text_key(&Key::Named(NamedKey::Backspace)));
+        assert!(!should_suppress_soft_keyboard_text_key(&Key::Named(NamedKey::Enter)));
+
+        ANDROID_IME_ALLOWED.store(false, Ordering::Relaxed);
+        assert!(!should_suppress_soft_keyboard_text_key(&Key::Character("a".into())));
+    }
+}
 
 /// Returns the minimum `Option<Duration>`, taking into account that `None`
 /// equates to an infinite timeout, not a zero timeout (so can't just use
@@ -146,6 +212,7 @@ pub struct EventLoop<T: 'static> {
     cause: StartCause,
     ignore_volume_keys: bool,
     combining_accent: Option<char>,
+    ignore_next_empty_text_event: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -193,7 +260,36 @@ impl<T: 'static> EventLoop<T> {
             cause: StartCause::Init,
             ignore_volume_keys: attributes.ignore_volume_keys,
             combining_accent: None,
+            ignore_next_empty_text_event: false,
         })
+    }
+
+    fn emit_synthetic_key<F>(
+        &self,
+        callback: &mut F,
+        named_key: NamedKey,
+        key_code: KeyCode,
+        state: event::ElementState,
+    ) where
+        F: FnMut(event::Event<T>, &RootAEL),
+    {
+        let event = event::Event::WindowEvent {
+            window_id: window::WindowId(WindowId),
+            event: event::WindowEvent::KeyboardInput {
+                device_id: event::DeviceId(DeviceId(0)),
+                event: event::KeyEvent {
+                    state,
+                    physical_key: PhysicalKey::Code(key_code),
+                    logical_key: Key::Named(named_key),
+                    location: KeyLocation::Standard,
+                    repeat: false,
+                    text: None,
+                    platform_specific: KeyEventExtra {},
+                },
+                is_synthetic: false,
+            },
+        };
+        callback(event, self.window_target());
     }
 
     fn single_iteration<F>(
@@ -433,6 +529,14 @@ impl<T: 'static> EventLoop<T> {
                         let key_char = keycodes::character_map_and_combine_key(android_app, key, &mut self.combining_accent);
 
                         let logical_key = keycodes::to_logical(key_char, keycode);
+                        if state == event::ElementState::Pressed && should_suppress_soft_keyboard_text_key(&logical_key) {
+                            trace!(
+                                target: "winit::platform_impl::android::text_input",
+                                "Suppressing printable Android key event while GameActivity text input is active."
+                            );
+                            return input_status;
+                        }
+
                         let event = event::Event::WindowEvent {
                             window_id: window::WindowId(WindowId),
                             event: event::WindowEvent::KeyboardInput {
@@ -453,7 +557,45 @@ impl<T: 'static> EventLoop<T> {
                     }
                 }
             }
-            InputEvent::TextEvent(_) => {}
+            InputEvent::TextEvent(text_input_state) => {
+                let committed_text = normalize_game_activity_text_commit(&text_input_state.text);
+
+                if !committed_text.is_empty() {
+                    debug!(
+                        target: "winit::platform_impl::android::text_input",
+                        "Committing GameActivity text input: {committed_text:?}."
+                    );
+
+                    let event = event::Event::WindowEvent {
+                        window_id: window::WindowId(WindowId),
+                        event: event::WindowEvent::KeyboardInput {
+                            device_id: event::DeviceId(DeviceId(0)),
+                            event: event::KeyEvent {
+                                state: event::ElementState::Pressed,
+                                physical_key: PhysicalKey::Unidentified(NativeKeyCode::Unidentified),
+                                logical_key: Key::Unidentified(NativeKey::Unidentified),
+                                location: KeyLocation::Standard,
+                                repeat: false,
+                                text: Some(SmolStr::new(committed_text)),
+                                platform_specific: KeyEventExtra {},
+                            },
+                            is_synthetic: false,
+                        },
+                    };
+                    callback(event, self.window_target());
+                    android_app.set_text_input_state(empty_text_input_state());
+                    self.ignore_next_empty_text_event = true;
+                } else if self.ignore_next_empty_text_event {
+                    self.ignore_next_empty_text_event = false;
+                } else if ANDROID_IME_ALLOWED.load(Ordering::Relaxed) {
+                    debug!(
+                        target: "winit::platform_impl::android::text_input",
+                        "Treating empty GameActivity text input as Backspace."
+                    );
+                    self.emit_synthetic_key(callback, NamedKey::Backspace, KeyCode::Backspace, event::ElementState::Pressed);
+                    self.emit_synthetic_key(callback, NamedKey::Backspace, KeyCode::Backspace, event::ElementState::Released);
+                }
+            }
             _ => {
                 warn!("Unknown android_activity input event {event:?}")
             }
@@ -1004,6 +1146,8 @@ impl Window {
         &self,
         allowed: bool,
     ) {
+        ANDROID_IME_ALLOWED.store(allowed, Ordering::Relaxed);
+
         if allowed {
             self.app.show_soft_input(true);
         } else {
