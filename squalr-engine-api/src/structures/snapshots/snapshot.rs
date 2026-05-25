@@ -81,6 +81,14 @@ impl Snapshot {
             .sum()
     }
 
+    /// Gets the number of bytes successfully collected into current snapshot values.
+    pub fn get_collected_byte_count(&self) -> u64 {
+        self.snapshot_regions
+            .iter()
+            .map(|region| region.get_collected_byte_count())
+            .sum()
+    }
+
     /// Seeks to the scan result at the specified index. First this performs a linear scan to locate the snapshot region
     /// containing the index, followed by a binary search to find the exact filter, and finally the scan result.
     pub fn get_scan_result(
@@ -475,6 +483,27 @@ mod tests {
                 ScanResultDataTypeCount::new(DataTypeRef::new("u16"), 2),
             ]
         );
+    }
+
+    #[test]
+    fn get_collected_byte_count_excludes_tombstoned_page_ranges() {
+        let mut snapshot_region = SnapshotRegion::new(NormalizedRegion::new(0x1000, 0x3000), vec![0x2000, 0x3000]);
+        snapshot_region.current_values = vec![0_u8; 0x3000];
+        snapshot_region.page_boundary_tombstones.insert(0x2000);
+        let snapshot = Snapshot::from_regions(vec![snapshot_region]);
+
+        assert_eq!(snapshot.get_byte_count(), 0x3000);
+        assert_eq!(snapshot.get_collected_byte_count(), 0x2000);
+    }
+
+    #[test]
+    fn get_collected_byte_count_returns_zero_for_fully_tombstoned_region() {
+        let mut snapshot_region = SnapshotRegion::new(NormalizedRegion::new(0x4000, 0x1000), Vec::new());
+        snapshot_region.current_values = vec![0_u8; 0x1000];
+        snapshot_region.page_boundary_tombstones.insert(0x4000);
+        let snapshot = Snapshot::from_regions(vec![snapshot_region]);
+
+        assert_eq!(snapshot.get_collected_byte_count(), 0);
     }
 
     #[test]

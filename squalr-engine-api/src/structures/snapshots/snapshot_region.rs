@@ -175,6 +175,44 @@ impl SnapshotRegion {
         self.normalized_region.get_region_size()
     }
 
+    /// Gets the number of bytes that were successfully collected for the current values.
+    pub fn get_collected_byte_count(&self) -> u64 {
+        if self.current_values.is_empty() {
+            return 0;
+        }
+
+        let current_value_size = (self.current_values.len() as u64).min(self.get_region_size());
+
+        if self.page_boundary_tombstones.is_empty() {
+            return current_value_size;
+        }
+
+        if self.page_boundaries.is_empty() {
+            return if self.page_boundary_tombstones.contains(&self.get_base_address()) {
+                0
+            } else {
+                current_value_size
+            };
+        }
+
+        let mut collected_byte_count = 0_u64;
+        let mut range_start_address = self.get_base_address();
+
+        for &next_boundary_address in &self.page_boundaries {
+            if !self.page_boundary_tombstones.contains(&range_start_address) {
+                collected_byte_count = collected_byte_count.saturating_add(next_boundary_address.saturating_sub(range_start_address));
+            }
+
+            range_start_address = next_boundary_address;
+        }
+
+        if !self.page_boundary_tombstones.contains(&range_start_address) {
+            collected_byte_count = collected_byte_count.saturating_add(self.get_end_address().saturating_sub(range_start_address));
+        }
+
+        collected_byte_count.min(current_value_size)
+    }
+
     pub fn has_current_values(&self) -> bool {
         !self.current_values.is_empty()
     }

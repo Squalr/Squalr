@@ -166,7 +166,7 @@ impl<'lifetime> Widget for ProjectEntryView<'lifetime> {
                             .text_color(theme.foreground)
                             .desired_width(f32::INFINITY);
                         let mut output = text_edit.show(user_interface);
-                        let text_edit_response = output.response;
+                        let text_edit_response = output.response.clone();
 
                         if *should_highlight_text {
                             let len_chars = rename_project_text.chars().count();
@@ -176,7 +176,10 @@ impl<'lifetime> Widget for ProjectEntryView<'lifetime> {
                                 .state
                                 .cursor
                                 .set_char_range(Some(CCursorRange::two(CCursor::new(0), CCursor::new(len_chars))));
-                            output.state.store(user_interface.ctx(), text_edit_response.id);
+                            output
+                                .state
+                                .clone()
+                                .store(user_interface.ctx(), text_edit_response.id);
                             *should_highlight_text = false;
                         }
 

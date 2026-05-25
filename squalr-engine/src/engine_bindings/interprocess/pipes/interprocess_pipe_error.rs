@@ -21,12 +21,12 @@ pub enum InterprocessPipeError {
     #[error("Failed to serialize IPC payload: {source}.")]
     PayloadSerializationFailed {
         #[source]
-        source: bincode::error::EncodeError,
+        source: serde_json::Error,
     },
     #[error("Failed to deserialize IPC payload: {source}.")]
     PayloadDeserializationFailed {
         #[source]
-        source: bincode::error::DecodeError,
+        source: serde_json::Error,
     },
     #[error("Failed to acquire IPC stream lock: {details}.")]
     StreamLockFailed { details: String },

@@ -1,3 +1,4 @@
+use crate::events::logging::logging_event::LoggingEvent;
 use crate::events::plugins::plugins_event::PluginsEvent;
 use crate::events::process::process_event::ProcessEvent;
 use crate::events::project::project_event::ProjectEvent;
@@ -9,6 +10,7 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum EngineEvent {
+    Logging(LoggingEvent),
     Plugins(PluginsEvent),
     Process(ProcessEvent),
     Project(ProjectEvent),

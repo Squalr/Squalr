@@ -8,8 +8,10 @@ pub trait PlatformLogHooks: Send + Sync {
     );
 }
 
+#[cfg(not(target_os = "android"))]
 struct NoOpPlatformLogHooks;
 
+#[cfg(not(target_os = "android"))]
 impl PlatformLogHooks for NoOpPlatformLogHooks {
     fn initialize_platform_log_hooks_once(
         &self,

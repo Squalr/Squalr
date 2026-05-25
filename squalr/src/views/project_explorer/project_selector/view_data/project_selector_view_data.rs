@@ -41,11 +41,16 @@ impl ProjectSelectorViewData {
         }
     }
 
+    fn request_repaint(app_context: &Arc<AppContext>) {
+        app_context.context.request_repaint();
+    }
+
     pub fn refresh_project_list(
         project_selector_view_data: Dependency<ProjectSelectorViewData>,
         app_context: Arc<AppContext>,
     ) {
         let project_list_request = ProjectListRequest {};
+        let app_context_for_response = app_context.clone();
 
         project_list_request.send(&app_context.engine_unprivileged_state, move |project_list_response| {
             let mut project_selector_view_data = match project_selector_view_data.write("Project selector view data refresh process list response") {
@@ -54,6 +59,8 @@ impl ProjectSelectorViewData {
             };
 
             project_selector_view_data.project_list = project_list_response.projects_info;
+            drop(project_selector_view_data);
+            Self::request_repaint(&app_context_for_response);
         });
     }
 
@@ -96,7 +103,11 @@ impl ProjectSelectorViewData {
 
         project_create_request.send(&app_context.engine_unprivileged_state, move |project_create_response| {
             if !project_create_response.success {
-                log::error!("Failed to create new project!")
+                log::error!("Failed to create new project.");
+                Self::refresh_project_list(project_selector_view_data, app_context_clone.clone());
+                Self::request_repaint(&app_context_clone);
+
+                return;
             }
 
             let project_file_path = project_create_response
@@ -110,9 +121,10 @@ impl ProjectSelectorViewData {
                 .to_string();
 
             Self::cancel_editing_project(project_selector_view_data.clone());
-            Self::refresh_project_list(project_selector_view_data.clone(), app_context_clone);
+            Self::refresh_project_list(project_selector_view_data.clone(), app_context_clone.clone());
             Self::select_project(project_selector_view_data.clone(), project_file_path.clone());
             Self::start_renaming_project(project_selector_view_data, project_file_path, project_name);
+            Self::request_repaint(&app_context_clone);
         });
     }
 

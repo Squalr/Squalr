@@ -1,20 +1,27 @@
+#[cfg(target_os = "android")]
+use crate::logging::android_logcat_appender::AndroidLogcatAppender;
 use crate::logging::log_history_appender::LogHistoryAppender;
+use crate::logging::remote_log_event_appender::RemoteLogEventAppender;
 use log::LevelFilter;
+use log4rs::config::{Appender, Config, Logger, Root};
+#[cfg(not(target_os = "android"))]
 use log4rs::{
     append::{console::ConsoleAppender, file::FileAppender},
-    config::{Appender, Config, Logger, Root},
     encode::pattern::PatternEncoder,
 };
 use squalr_engine_api::structures::logging::log_event::LogEvent;
+#[cfg(not(target_os = "android"))]
+use std::fs;
+#[cfg(not(target_os = "android"))]
+use std::path::PathBuf;
 use std::{
     collections::VecDeque,
-    fs,
-    path::PathBuf,
     sync::{Arc, LazyLock, Mutex, OnceLock, RwLock},
 };
 
 pub struct LogDispatcher {
     log_history: Arc<RwLock<VecDeque<LogEvent>>>,
+    #[cfg_attr(target_os = "android", allow(dead_code))]
     options: LogDispatcherOptions,
 }
 
@@ -81,44 +88,62 @@ impl LogDispatcher {
 
     fn build_config(
         &self,
-        should_rotate_log_file: bool,
+        _should_rotate_log_file: bool,
     ) -> Result<Config, Box<dyn std::error::Error>> {
-        let log_root_dir = Self::get_log_root_path();
-
-        if !log_root_dir.exists() {
-            std::fs::create_dir_all(&log_root_dir)?;
-        }
-
-        let log_file = Self::get_log_path();
-        let backup_file = Self::get_log_backup_path();
-
-        if should_rotate_log_file && log_file.exists() {
-            fs::rename(&log_file, &backup_file)?;
-        }
-
-        let file_appender = FileAppender::builder()
-            .encoder(Box::new(PatternEncoder::new("{d(%Y-%m-%d %H:%M:%S)} - {l} - {t} - {m}\n")))
-            .build(log_file)?;
-
         let log_history_appender = LogHistoryAppender::new(self.log_history.clone());
+        let remote_log_event_appender = RemoteLogEventAppender::new();
 
         let mut config_builder = Config::builder()
-            .appender(Appender::builder().build("file", Box::new(file_appender)))
-            .appender(Appender::builder().build("log_events", Box::new(log_history_appender)));
-        let mut root_builder = Root::builder().appender("file").appender("log_events");
+            .appender(Appender::builder().build("log_events", Box::new(log_history_appender)))
+            .appender(Appender::builder().build("remote_log_events", Box::new(remote_log_event_appender)));
+        let mut root_builder = Root::builder()
+            .appender("log_events")
+            .appender("remote_log_events");
 
-        if self.options.enable_console_output {
-            let stdout_appender = ConsoleAppender::builder()
+        #[cfg(not(target_os = "android"))]
+        {
+            let log_root_dir = Self::get_log_root_path();
+
+            if !log_root_dir.exists() {
+                std::fs::create_dir_all(&log_root_dir)?;
+            }
+
+            let log_file = Self::get_log_path();
+            let backup_file = Self::get_log_backup_path();
+
+            if _should_rotate_log_file && log_file.exists() {
+                fs::rename(&log_file, &backup_file)?;
+            }
+
+            let file_appender = FileAppender::builder()
                 .encoder(Box::new(PatternEncoder::new("{d(%Y-%m-%d %H:%M:%S)} - {l} - {t} - {m}\n")))
-                .build();
+                .build(log_file)?;
 
-            config_builder = config_builder.appender(Appender::builder().build("stdout", Box::new(stdout_appender)));
-            root_builder = root_builder.appender("stdout");
+            config_builder = config_builder.appender(Appender::builder().build("file", Box::new(file_appender)));
+            root_builder = root_builder.appender("file");
+
+            if self.options.enable_console_output {
+                let stdout_appender = ConsoleAppender::builder()
+                    .encoder(Box::new(PatternEncoder::new("{d(%Y-%m-%d %H:%M:%S)} - {l} - {t} - {m}\n")))
+                    .build();
+
+                config_builder = config_builder.appender(Appender::builder().build("stdout", Box::new(stdout_appender)));
+                root_builder = root_builder.appender("stdout");
+            }
+        }
+
+        #[cfg(target_os = "android")]
+        {
+            let logcat_appender = AndroidLogcatAppender::new("Squalr");
+            config_builder = config_builder.appender(Appender::builder().build("logcat", Box::new(logcat_appender)));
+            root_builder = root_builder.appender("logcat");
         }
 
         config_builder
             .logger(Logger::builder().build("eframe", LevelFilter::Info))
             .logger(Logger::builder().build("glutin", LevelFilter::Info))
+            .logger(Logger::builder().build("android_activity", LevelFilter::Warn))
+            .logger(Logger::builder().build("android_activity::game_activity", LevelFilter::Warn))
             .logger(Logger::builder().build("sctk", LevelFilter::Info))
             .logger(Logger::builder().build("tracing::span", LevelFilter::Info))
             .logger(Logger::builder().build("winit", LevelFilter::Info))
@@ -127,6 +152,7 @@ impl LogDispatcher {
             .map_err(Into::into)
     }
 
+    #[cfg(not(target_os = "android"))]
     fn get_log_root_path() -> PathBuf {
         match dirs::data_local_dir() {
             Some(mut path) => {
@@ -144,6 +170,7 @@ impl LogDispatcher {
         }
     }
 
+    #[cfg(not(target_os = "android"))]
     fn get_log_path() -> PathBuf {
         let mut log_path = Self::get_log_root_path();
         log_path.push("application.log");
@@ -151,6 +178,7 @@ impl LogDispatcher {
         log_path
     }
 
+    #[cfg(not(target_os = "android"))]
     fn get_log_backup_path() -> PathBuf {
         let mut log_path = Self::get_log_root_path();
         log_path.push("application.log.bak");

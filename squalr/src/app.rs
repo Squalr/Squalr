@@ -14,6 +14,10 @@ pub struct App {
     app_context: Arc<AppContext>,
     main_window_view: MainWindowView,
     corner_radius: CornerRadius,
+    #[cfg(target_os = "android")]
+    android_soft_keyboard_was_allowed: bool,
+    #[cfg(target_os = "android")]
+    android_focused_widget: Option<eframe::egui::Id>,
 }
 
 impl App {
@@ -38,7 +42,31 @@ impl App {
             app_context,
             main_window_view,
             corner_radius,
+            #[cfg(target_os = "android")]
+            android_soft_keyboard_was_allowed: false,
+            #[cfg(target_os = "android")]
+            android_focused_widget: None,
         }
+    }
+
+    #[cfg(target_os = "android")]
+    fn sync_android_soft_keyboard(
+        &mut self,
+        context: &Context,
+    ) {
+        let allow_ime = context.wants_keyboard_input();
+        let focused_widget = context.memory(|memory| memory.focused());
+        let focused_widget_changed = focused_widget != self.android_focused_widget;
+
+        if allow_ime != self.android_soft_keyboard_was_allowed || (allow_ime && focused_widget_changed) {
+            context.send_viewport_cmd(eframe::egui::ViewportCommand::IMEAllowed(allow_ime));
+            if allow_ime {
+                context.send_viewport_cmd(eframe::egui::ViewportCommand::IMEPurpose(eframe::egui::viewport::IMEPurpose::Normal));
+            }
+        }
+
+        self.android_soft_keyboard_was_allowed = allow_ime;
+        self.android_focused_widget = focused_widget;
     }
 }
 
@@ -85,12 +113,16 @@ impl eframe::App for App {
             .corner_radius(self.corner_radius)
             .stroke(context.style().visuals.widgets.noninteractive.fg_stroke)
             .outer_margin(2.0);
+        let main_window_view = self.main_window_view.clone();
 
         CentralPanel::default()
             .frame(app_frame)
             .show(context, move |user_interface| {
                 user_interface.style_mut().spacing.item_spacing = vec2(0.0, 0.0);
-                user_interface.add(self.main_window_view.clone());
+                user_interface.add(main_window_view.clone());
             });
+
+        #[cfg(target_os = "android")]
+        self.sync_android_soft_keyboard(context);
     }
 }

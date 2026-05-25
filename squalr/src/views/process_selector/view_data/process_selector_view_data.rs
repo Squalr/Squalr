@@ -46,7 +46,6 @@ pub struct ProcessSelectorViewData {
 impl ProcessSelectorViewData {
     const REQUEST_STALE_TIMEOUT: Duration = Duration::from_secs(3);
     const PROCESS_ICON_RETRY_COOLDOWN: Duration = Duration::from_secs(5);
-    const IS_ANDROID_TARGET: bool = cfg!(target_os = "android");
     const ENABLE_LAZY_PROCESS_ICONS: bool = true;
     const PROCESS_ICON_REQUEST_BATCH_SIZE: usize = 16;
 
@@ -54,7 +53,7 @@ impl ProcessSelectorViewData {
         Self {
             opened_process: None,
             cached_icon: None,
-            show_windowed_processes_only: cfg!(target_os = "android"),
+            show_windowed_processes_only: false,
             windowed_process_list: Vec::new(),
             full_process_list: Vec::new(),
             icon_cache: HashMap::new(),
@@ -130,6 +129,13 @@ impl ProcessSelectorViewData {
 
     fn request_repaint(app_context: &Arc<AppContext>) {
         app_context.context.request_repaint();
+    }
+
+    fn begin_open_process(&mut self) {
+        self.is_opening_process = true;
+        self.open_process_request_started_at = Some(Instant::now());
+        self.opened_process = None;
+        self.cached_icon = None;
     }
 
     pub fn refresh_windowed_process_list(
@@ -310,11 +316,12 @@ impl ProcessSelectorViewData {
                         return;
                     }
 
-                    process_selector_view_data.is_opening_process = true;
-                    process_selector_view_data.open_process_request_started_at = Some(Instant::now());
+                    process_selector_view_data.begin_open_process();
                 }
                 None => return,
             };
+
+            Self::request_repaint(&app_context);
 
             let process_selector_view_data_for_response = process_selector_view_data.clone();
             let app_context_for_response = app_context.clone();
@@ -683,64 +690,10 @@ impl ProcessSelectorViewData {
     }
 
     fn refresh_shortcut_dropdown_process_list(&mut self) {
-        let next_shortcut_dropdown_process_list = if !Self::IS_ANDROID_TARGET {
-            // Desktop shortcut dropdowns stay windowed-only.
-            Self::sort_processes_case_insensitive_then_process_id(self.windowed_process_list.clone())
-        } else if self.show_windowed_processes_only {
-            Self::choose_shortcut_dropdown_windowed_candidates(&self.windowed_process_list, &self.full_process_list)
-        } else {
-            Self::sort_processes_case_insensitive_then_process_id(self.full_process_list.clone())
-        };
+        let next_shortcut_dropdown_process_list = Self::sort_processes_case_insensitive_then_process_id(self.windowed_process_list.clone());
 
         self.shortcut_dropdown_process_list = next_shortcut_dropdown_process_list;
         self.shortcut_dropdown_refresh_nonce = self.shortcut_dropdown_refresh_nonce.saturating_add(1);
-    }
-
-    fn choose_shortcut_dropdown_windowed_candidates(
-        windowed_processes: &[ProcessInfo],
-        full_processes: &[ProcessInfo],
-    ) -> Vec<ProcessInfo> {
-        if !windowed_processes.is_empty() {
-            return windowed_processes.to_vec();
-        }
-
-        if !Self::IS_ANDROID_TARGET {
-            return Vec::new();
-        }
-
-        if full_processes.is_empty() {
-            return windowed_processes.to_vec();
-        }
-
-        let primary_package_processes = Self::extract_primary_package_processes(full_processes);
-        if !primary_package_processes.is_empty() {
-            log::warn!(
-                "Shortcut dropdown fallback activated: using {} primary package processes because windowed results are empty.",
-                primary_package_processes.len(),
-            );
-
-            return primary_package_processes;
-        }
-
-        log::warn!("Shortcut dropdown fallback skipped: no primary package candidates and windowed list is empty.");
-        Vec::new()
-    }
-
-    fn extract_primary_package_processes(full_processes: &[ProcessInfo]) -> Vec<ProcessInfo> {
-        let mut sorted_full_processes = Self::sort_processes_case_insensitive_then_process_id(full_processes.to_vec());
-        let mut seen_process_names = HashSet::new();
-
-        sorted_full_processes.retain(|process_info| {
-            let process_name = process_info.get_name();
-            let is_primary_package_name = process_name.contains('.') && !process_name.contains(':');
-            if !is_primary_package_name {
-                return false;
-            }
-
-            seen_process_names.insert(process_name.to_ascii_lowercase())
-        });
-
-        sorted_full_processes
     }
 
     fn clear_stale_request_state_for_now(
@@ -770,5 +723,71 @@ impl ProcessSelectorViewData {
                 .unwrap_or(false),
             None => true,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn create_process_info(
+        process_id: u32,
+        name: &str,
+        is_windowed: bool,
+    ) -> ProcessInfo {
+        ProcessInfo::new(process_id, name.to_string(), is_windowed, None)
+    }
+
+    #[test]
+    fn new_defaults_to_full_process_mode() {
+        let process_selector_view_data = ProcessSelectorViewData::new();
+
+        assert!(!process_selector_view_data.show_windowed_processes_only);
+    }
+
+    #[test]
+    fn shortcut_dropdown_uses_windowed_processes_only() {
+        let mut process_selector_view_data = ProcessSelectorViewData::new();
+        process_selector_view_data.show_windowed_processes_only = false;
+        process_selector_view_data.full_process_list = vec![
+            create_process_info(10, "zeta.service", false),
+            create_process_info(30, "beta.window", true),
+            create_process_info(20, "alpha.window", true),
+        ];
+        process_selector_view_data.windowed_process_list =
+            ProcessSelectorViewData::collect_windowed_processes_from_full_list(&process_selector_view_data.full_process_list);
+
+        process_selector_view_data.refresh_shortcut_dropdown_process_list();
+
+        let shortcut_dropdown_process_ids = process_selector_view_data
+            .shortcut_dropdown_process_list
+            .iter()
+            .map(|process_info| process_info.get_process_id_raw())
+            .collect::<Vec<_>>();
+
+        assert_eq!(shortcut_dropdown_process_ids, vec![20, 30]);
+    }
+
+    #[test]
+    fn begin_open_process_clears_current_process_display_state() {
+        let mut process_selector_view_data = ProcessSelectorViewData::new();
+        process_selector_view_data.opened_process = Some(OpenedProcessInfo::new(
+            10,
+            "old-process".to_string(),
+            100,
+            squalr_engine_api::structures::memory::bitness::Bitness::Bit64,
+            None,
+        ));
+
+        process_selector_view_data.begin_open_process();
+
+        assert!(process_selector_view_data.is_opening_process);
+        assert!(
+            process_selector_view_data
+                .open_process_request_started_at
+                .is_some()
+        );
+        assert!(process_selector_view_data.opened_process.is_none());
+        assert!(process_selector_view_data.cached_icon.is_none());
     }
 }

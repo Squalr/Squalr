@@ -21,6 +21,14 @@ static APP_NAME: &str = "Squalr";
 pub use android_activity::AndroidApp;
 
 #[cfg(target_os = "android")]
+static ANDROID_APP_HANDLE: std::sync::OnceLock<AndroidApp> = std::sync::OnceLock::new();
+
+#[cfg(target_os = "android")]
+pub fn get_android_app_handle() -> Option<AndroidApp> {
+    ANDROID_APP_HANDLE.get().cloned()
+}
+
+#[cfg(target_os = "android")]
 #[unsafe(no_mangle)]
 pub fn android_main(android_app: AndroidApp) {
     if let Err(error) = run_gui_android(android_app) {
@@ -37,6 +45,7 @@ pub fn run_gui(engine_mode: EngineMode) -> Result<()> {
 #[cfg(target_os = "android")]
 /// Runs the Squalr GUI on Android using a platform-provided app handle.
 pub fn run_gui_android(android_app: AndroidApp) -> Result<()> {
+    let _ = ANDROID_APP_HANDLE.set(android_app.clone());
     let native_options = create_android_native_options(android_app);
     run_gui_with_native_options(EngineMode::UnprivilegedHost, native_options)
 }

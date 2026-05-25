@@ -175,13 +175,18 @@ impl ElementScannerViewData {
         let scan_new_request = ScanNewRequest {};
 
         // Start a new scan, and recurse to start the scan once the new scan is made.
-        scan_new_request.send(&engine_unprivileged_state, move |scan_new_response| {
+        let did_dispatch = scan_new_request.send(&engine_unprivileged_state, move |scan_new_response| {
             if !scan_new_response.success {
+                log::warn!("New scan request completed unsuccessfully.");
                 return;
             }
 
             Self::start_next_scan(element_scanner_view_data, engine_unprivileged_state_clone);
         });
+
+        if !did_dispatch {
+            log::warn!("New scan request failed to dispatch.");
+        }
     }
 
     fn start_next_scan(
@@ -221,9 +226,11 @@ impl ElementScannerViewData {
 
         drop(element_scanner_view_data);
 
-        element_scan_request.send(&engine_unprivileged_state, move |scan_execute_response| {
+        let element_scanner_view_data_for_response = element_scanner_view_data_clone.clone();
+        let did_dispatch = element_scan_request.send(&engine_unprivileged_state, move |scan_execute_response| {
             if !scan_execute_response.success {
-                if let Some(mut element_scanner_view_data) = element_scanner_view_data_clone.write("Element scanner view data start next scan failure response")
+                if let Some(mut element_scanner_view_data) =
+                    element_scanner_view_data_for_response.write("Element scanner view data start next scan failure response")
                 {
                     element_scanner_view_data.view_state = previous_view_state;
                 }
@@ -234,13 +241,21 @@ impl ElementScannerViewData {
             // JIRA: We actually need to wait for the task to complete, which can be tricky with our request/response architecture.
             // For now we just set it immediately to avoid being stuck in in progress state.
             // JIRA: Use scan_execute_response.scan_results_metadata.
-            match element_scanner_view_data_clone.write("Element scanner view data start next scan response") {
+            match element_scanner_view_data_for_response.write("Element scanner view data start next scan response") {
                 Some(mut element_scanner_view_data) => {
                     element_scanner_view_data.view_state = ElementScannerViewState::HasResults;
                 }
                 None => {}
             }
         });
+
+        if !did_dispatch {
+            log::warn!("Element scan request failed to dispatch.");
+
+            if let Some(mut element_scanner_view_data) = element_scanner_view_data_clone.write("Element scanner view data start next scan dispatch failure") {
+                element_scanner_view_data.view_state = previous_view_state;
+            }
+        }
     }
 
     fn build_scan_constraints(

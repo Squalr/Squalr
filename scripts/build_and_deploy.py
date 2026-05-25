@@ -4,14 +4,20 @@ import shutil
 import subprocess
 import sys
 import time
+import urllib.request
+import zipfile
 from pathlib import Path
 
 
 TARGET_TRIPLE = "aarch64-linux-android"
 CLI_DEVICE_PATH = "/data/local/tmp/squalr-cli"
 PACKAGE_NAME = "com.squalr.android"
-MAIN_ACTIVITY_NAME = "android.app.NativeActivity"
+MAIN_ACTIVITY_NAME = "com.google.androidgamesdk.GameActivity"
 ANDROID_MANIFEST_CRATE_NAME = "squalr"
+GRADLE_VERSION = "7.5.1"
+ANDROID_GRADLE_PLUGIN_VERSION = "7.4.2"
+GAME_ACTIVITY_VERSION = "2.0.2"
+GRADLE_EXECUTABLE_ENV_VAR = "SQUALR_ANDROID_GRADLE"
 SU_INVOCATION_ATTEMPTS = [
     ("su -c", ["su", "-c"]),
     ("su 0 sh -c", ["su", "0", "sh", "-c"]),
@@ -19,13 +25,14 @@ SU_INVOCATION_ATTEMPTS = [
 ]
 
 
-def run_command(command_segments, working_directory):
+def run_command(command_segments, working_directory, environment=None):
     """Run a command and stream output to stdout/stderr."""
     command_display = " ".join(command_segments)
     print(f"\n> {command_display}")
     process = subprocess.Popen(
         command_segments,
         cwd=working_directory,
+        env=environment,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
@@ -173,11 +180,6 @@ def ensure_host_preflight(workspace_directory, require_adb):
     if exit_code != 0:
         fail("Failed to run `cargo ndk --version`. Install with: cargo install cargo-ndk")
 
-    cargo_apk_probe_command = ["cargo", "apk", "--help"]
-    exit_code, _ = run_command(cargo_apk_probe_command, workspace_directory)
-    if exit_code != 0:
-        fail("Failed to run `cargo apk --help`. Install with: cargo install cargo-apk")
-
 
 def ensure_adb_device_connected(workspace_directory):
     exit_code, output_text = run_command(["adb", "devices"], workspace_directory)
@@ -209,52 +211,279 @@ def build_cli_binary(workspace_directory, is_release):
         fail("Failed to build Android privileged worker binary.")
 
 
-def build_apk_with_fallback(android_manifest_directory, prefer_release):
-    if prefer_release:
-        release_apk_build_command = [
-            "cargo",
-            "apk",
-            "build",
-            "--target",
-            TARGET_TRIPLE,
-            "--release",
-            "--lib",
-        ]
-        exit_code, release_output = run_command(release_apk_build_command, android_manifest_directory)
-        if exit_code == 0:
-            return "release"
-
-        if "Configure a release keystore" not in release_output:
-            fail("Failed to build release APK for a reason other than signing configuration.")
-
-        print("\nRelease signing is not configured. Falling back to debug APK build.")
-
-    debug_apk_build_command = [
+def build_gui_native_library(workspace_directory, is_release):
+    gui_build_command = [
         "cargo",
-        "apk",
-        "build",
+        "ndk",
         "--target",
         TARGET_TRIPLE,
-        "--lib",
+        "build",
+        "-p",
+        ANDROID_MANIFEST_CRATE_NAME,
+        "-v",
     ]
-    exit_code, _ = run_command(debug_apk_build_command, android_manifest_directory)
+    if is_release:
+        gui_build_command.append("--release")
+
+    exit_code, _ = run_command(gui_build_command, workspace_directory)
     if exit_code != 0:
-        fail("Failed to build debug APK.")
+        fail("Failed to build Android GUI native library.")
 
-    return "debug"
+    gui_profile = "release" if is_release else "debug"
+    gui_library_path = workspace_directory / "target" / TARGET_TRIPLE / gui_profile / "libsqualr.so"
+    if not gui_library_path.exists():
+        fail(f"Built GUI native library not found at expected path: {gui_library_path}")
+
+    return gui_library_path
 
 
-def install_apk(workspace_directory, apk_profile):
-    apk_candidate_paths = [
-        workspace_directory / "target" / TARGET_TRIPLE / apk_profile / "apk" / f"{ANDROID_MANIFEST_CRATE_NAME}.apk",
-        workspace_directory / "target" / apk_profile / "apk" / f"{ANDROID_MANIFEST_CRATE_NAME}.apk",
-    ]
-    apk_path = next((candidate_path for candidate_path in apk_candidate_paths if candidate_path.exists()), None)
-    if apk_path is None:
-        print("Built APK not found in expected locations:")
-        for candidate_path in apk_candidate_paths:
-            print(f"  - {candidate_path}")
-        fail("Cannot continue without an APK.")
+def get_android_home_path():
+    android_home = os.environ.get("ANDROID_HOME")
+    if not android_home:
+        fail("ANDROID_HOME is not set.")
+
+    android_home_path = Path(android_home)
+    if not android_home_path.exists():
+        fail(f"ANDROID_HOME path does not exist: {android_home_path}")
+
+    return android_home_path
+
+
+def detect_compile_sdk_version(android_home_path):
+    platform_directory = android_home_path / "platforms"
+    platform_versions = []
+    for platform_path in platform_directory.glob("android-*"):
+        version_text = platform_path.name.removeprefix("android-")
+        if version_text.isdigit():
+            platform_versions.append(int(version_text))
+
+    if not platform_versions:
+        fail(f"No Android SDK platforms were found under: {platform_directory}")
+
+    if 30 not in platform_versions:
+        fail("Android SDK platform 30 is required for the generated GameActivity APK.")
+
+    return 30
+
+
+def ensure_gradle_runtime(workspace_directory):
+    gradle_override = os.environ.get(GRADLE_EXECUTABLE_ENV_VAR)
+    if gradle_override:
+        gradle_override_path = Path(gradle_override)
+        if not gradle_override_path.exists():
+            fail(f"{GRADLE_EXECUTABLE_ENV_VAR} points to a missing Gradle executable: {gradle_override_path}")
+
+        return [str(gradle_override_path)]
+
+    gradle_root_directory = workspace_directory / "target" / "android-gradle"
+    gradle_distribution_directory = gradle_root_directory / f"gradle-{GRADLE_VERSION}"
+    gradle_executable_name = "gradle.bat" if os.name == "nt" else "gradle"
+    gradle_executable_path = gradle_distribution_directory / "bin" / gradle_executable_name
+    if gradle_executable_path.exists():
+        return [str(gradle_executable_path)]
+
+    gradle_root_directory.mkdir(parents=True, exist_ok=True)
+    gradle_zip_path = gradle_root_directory / f"gradle-{GRADLE_VERSION}-bin.zip"
+    gradle_download_url = f"https://services.gradle.org/distributions/gradle-{GRADLE_VERSION}-bin.zip"
+    if not gradle_zip_path.exists():
+        print(f"\nDownloading Gradle {GRADLE_VERSION} for GameActivity packaging...")
+        urllib.request.urlretrieve(gradle_download_url, gradle_zip_path)
+
+    print(f"\nExtracting Gradle {GRADLE_VERSION}...")
+    with zipfile.ZipFile(gradle_zip_path) as gradle_zip:
+        gradle_zip.extractall(gradle_root_directory)
+
+    if not gradle_executable_path.exists():
+        fail(f"Gradle executable was not found after extraction: {gradle_executable_path}")
+
+    if os.name != "nt":
+        gradle_executable_path.chmod(0o755)
+
+    return [str(gradle_executable_path)]
+
+
+def write_text_file(file_path, contents):
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    file_path.write_text(contents, encoding="utf-8", newline="\n")
+
+
+def prepare_game_activity_gradle_project(workspace_directory, gui_library_path):
+    android_home_path = get_android_home_path()
+    compile_sdk_version = detect_compile_sdk_version(android_home_path)
+    gradle_project_directory = workspace_directory / "target" / "android-gameactivity-gradle"
+    app_directory = gradle_project_directory / "app"
+    source_main_directory = app_directory / "src" / "main"
+    resources_source_directory = workspace_directory / ANDROID_MANIFEST_CRATE_NAME / "android" / "res"
+    resources_target_directory = source_main_directory / "res"
+    jni_libs_directory = source_main_directory / "jniLibs" / "arm64-v8a"
+
+    if gradle_project_directory.exists():
+        shutil.rmtree(gradle_project_directory)
+
+    shutil.copytree(resources_source_directory, resources_target_directory)
+    jni_libs_directory.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(gui_library_path, jni_libs_directory / "libsqualr.so")
+
+    write_text_file(
+        gradle_project_directory / "settings.gradle",
+        """pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.name = "SqualrAndroidGameActivity"
+include ":app"
+""",
+    )
+
+    write_text_file(
+        gradle_project_directory / "build.gradle",
+        f"""plugins {{
+    id "com.android.application" version "{ANDROID_GRADLE_PLUGIN_VERSION}" apply false
+}}
+""",
+    )
+
+    write_text_file(
+        gradle_project_directory / "gradle.properties",
+        """android.suppressUnsupportedCompileSdk=30
+android.useAndroidX=true
+org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+""",
+    )
+
+    write_text_file(
+        app_directory / "build.gradle",
+        f"""plugins {{
+    id "com.android.application"
+}}
+
+android {{
+    namespace "{PACKAGE_NAME}"
+    compileSdk {compile_sdk_version}
+
+    defaultConfig {{
+        applicationId "{PACKAGE_NAME}"
+        minSdk 30
+        targetSdk 30
+        versionCode 20000000
+        versionName "0.3.0"
+
+        ndk {{
+            abiFilters "arm64-v8a"
+        }}
+    }}
+}}
+
+dependencies {{
+    implementation "androidx.games:games-activity:{GAME_ACTIVITY_VERSION}"
+    implementation "androidx.appcompat:appcompat:1.3.1"
+    implementation "androidx.core:core:1.6.0"
+}}
+""",
+    )
+
+    write_text_file(
+        source_main_directory / "AndroidManifest.xml",
+        f"""<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application
+        android:allowBackup="false"
+        android:hasCode="true"
+        android:icon="@drawable/app_icon"
+        android:label="Squalr"
+        android:theme="@style/SqualrTheme">
+        <activity
+            android:name="{MAIN_ACTIVITY_NAME}"
+            android:configChanges="orientation|keyboard|keyboardHidden|screenSize|screenLayout|smallestScreenSize|uiMode"
+            android:exported="true">
+            <meta-data
+                android:name="android.app.lib_name"
+                android:value="squalr" />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
+""",
+    )
+
+    write_text_file(
+        resources_target_directory / "values" / "styles.xml",
+        """<resources>
+    <style name="SqualrTheme" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowFullscreen">false</item>
+    </style>
+</resources>
+""",
+    )
+
+    return gradle_project_directory
+
+
+def build_game_activity_apk(workspace_directory, gui_library_path, prefer_release):
+    gradle_command = ensure_gradle_runtime(workspace_directory)
+    gradle_project_directory = prepare_game_activity_gradle_project(workspace_directory, gui_library_path)
+    gradle_task_name = "assembleRelease" if prefer_release else "assembleDebug"
+    gradle_environment = os.environ.copy()
+    gradle_environment.pop("JAVA_HOME", None)
+    exit_code, build_output = run_command(
+        [*gradle_command, "--no-daemon", gradle_task_name],
+        gradle_project_directory,
+        environment=gradle_environment,
+    )
+    if exit_code != 0 and prefer_release:
+        print("\nRelease APK assembly failed. Falling back to debug APK assembly.")
+        gradle_task_name = "assembleDebug"
+        exit_code, build_output = run_command(
+            [*gradle_command, "--no-daemon", gradle_task_name],
+            gradle_project_directory,
+            environment=gradle_environment,
+        )
+
+    if exit_code != 0:
+        fail("Failed to build GameActivity APK.")
+
+    apk_profile = "release" if gradle_task_name == "assembleRelease" else "debug"
+    apk_path = gradle_project_directory / "app" / "build" / "outputs" / "apk" / apk_profile / f"app-{apk_profile}.apk"
+    if prefer_release and not apk_path.exists():
+        print("\nSigned release APK was not produced. Falling back to debug APK assembly.")
+        gradle_task_name = "assembleDebug"
+        exit_code, build_output = run_command(
+            [*gradle_command, "--no-daemon", gradle_task_name],
+            gradle_project_directory,
+            environment=gradle_environment,
+        )
+        if exit_code != 0:
+            fail("Failed to build fallback debug GameActivity APK.")
+
+        apk_profile = "debug"
+        apk_path = gradle_project_directory / "app" / "build" / "outputs" / "apk" / apk_profile / f"app-{apk_profile}.apk"
+
+    if not apk_path.exists():
+        print(build_output)
+        fail(f"Built GameActivity APK was not found at expected path: {apk_path}")
+
+    return apk_path
+
+
+def install_apk(workspace_directory, apk_path):
+    if not apk_path.exists():
+        fail(f"APK not found: {apk_path}")
 
     install_command = ["adb", "install", "-r", str(apk_path)]
     exit_code, _ = run_command(install_command, workspace_directory)
@@ -281,6 +510,22 @@ def deploy_privileged_worker(workspace_directory, worker_profile):
         workspace_directory,
         f"{CLI_DEVICE_PATH} --help",
         "verify privileged worker launch",
+    )
+
+
+def kill_existing_privileged_worker(workspace_directory):
+    run_su_command_with_fallback(
+        workspace_directory,
+        (
+            "worker_pids=$(pidof squalr-cli 2>/dev/null); "
+            "if [ -n \"$worker_pids\" ]; then "
+            "kill $worker_pids 2>/dev/null; "
+            "sleep 0.2; "
+            "worker_pids=$(pidof squalr-cli 2>/dev/null); "
+            "if [ -n \"$worker_pids\" ]; then kill -9 $worker_pids 2>/dev/null; fi; "
+            "fi"
+        ),
+        "terminate stale privileged worker processes",
     )
 
 
@@ -496,7 +741,6 @@ def main():
     parsed_arguments = argument_parser.parse_args()
 
     workspace_directory = Path(__file__).resolve().parent.parent
-    android_manifest_directory = workspace_directory / ANDROID_MANIFEST_CRATE_NAME
 
     if parsed_arguments.release:
         prefer_release_mode = True
@@ -510,14 +754,16 @@ def main():
 
     ensure_host_preflight(workspace_directory, require_adb=not parsed_arguments.compile_check)
     build_cli_binary(workspace_directory, prefer_release_mode)
-    apk_profile = build_apk_with_fallback(android_manifest_directory, prefer_release_mode)
+    gui_library_path = build_gui_native_library(workspace_directory, prefer_release_mode)
+    apk_path = build_game_activity_apk(workspace_directory, gui_library_path, prefer_release_mode)
 
     if parsed_arguments.compile_check:
         print("\nCompile check complete.")
         return
 
     ensure_adb_device_connected(workspace_directory)
-    install_apk(workspace_directory, apk_profile)
+    kill_existing_privileged_worker(workspace_directory)
+    install_apk(workspace_directory, apk_path)
     verify_launcher_identity(workspace_directory)
     if not parsed_arguments.skip_worker:
         deploy_privileged_worker(workspace_directory, "release" if prefer_release_mode else "debug")

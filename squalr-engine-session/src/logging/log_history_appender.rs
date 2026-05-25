@@ -1,3 +1,4 @@
+use crate::logging::log_record_filter::should_suppress_record;
 use log::Record;
 use log4rs::append::Append;
 use squalr_engine_api::structures::logging::log_event::LogEvent;
@@ -44,6 +45,10 @@ impl Append for LogHistoryAppender {
         &self,
         record: &Record,
     ) -> anyhow::Result<()> {
+        if should_suppress_record(record) {
+            return Ok(());
+        }
+
         match self.log_history.write() {
             Ok(mut log_history) => {
                 let level = record.level();

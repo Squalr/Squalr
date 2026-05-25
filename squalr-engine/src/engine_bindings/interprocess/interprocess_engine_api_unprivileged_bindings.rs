@@ -68,9 +68,7 @@ impl EngineApiUnprivilegedBindings for InterprocessEngineApiUnprivilegedBindings
     ) -> Result<(), EngineBindingError> {
         let request_id = Uuid::new_v4();
 
-        if let Ok(mut request_handles) = self.request_handles.lock() {
-            request_handles.insert(request_id, Box::new(callback));
-        }
+        Self::insert_request_handle(&self.request_handles, request_id, callback)?;
 
         let ipc_connection_guard = self
             .ipc_connection
@@ -78,12 +76,16 @@ impl EngineApiUnprivilegedBindings for InterprocessEngineApiUnprivilegedBindings
             .map_err(|error| EngineBindingError::lock_failure("dispatching privileged command to IPC", error.to_string()))?;
 
         if let Some(ipc_connection) = ipc_connection_guard.as_ref() {
-            ipc_connection
-                .send(EngineIngress::PrivilegedCommand(privileged_command), request_id)
-                .map_err(|error| EngineBindingError::operation_failed("sending privileged command over IPC", error))?;
+            if let Err(error) = ipc_connection.send(EngineIngress::PrivilegedCommand(privileged_command), request_id) {
+                Self::remove_request_handle(&self.request_handles, &request_id);
+
+                return Err(EngineBindingError::operation_failed("sending privileged command over IPC", error));
+            }
 
             return Ok(());
         }
+
+        Self::remove_request_handle(&self.request_handles, &request_id);
 
         Err(EngineBindingError::unavailable("dispatching privileged command over IPC"))
     }
@@ -156,9 +158,33 @@ impl InterprocessEngineApiUnprivilegedBindings {
         privileged_command_result: PrivilegedCommandResult,
         request_id: Uuid,
     ) {
-        if let Ok(mut request_handles) = request_handles.lock() {
-            if let Some(callback) = request_handles.remove(&request_id) {
-                callback(privileged_command_result.into_privileged_command_response());
+        if let Some(callback) = Self::remove_request_handle(request_handles, &request_id) {
+            callback(privileged_command_result.into_privileged_command_response());
+        }
+    }
+
+    fn insert_request_handle(
+        request_handles: &Arc<Mutex<HashMap<Uuid, Box<dyn FnOnce(PrivilegedCommandResponse) + Send + Sync>>>>,
+        request_id: Uuid,
+        callback: Box<dyn FnOnce(PrivilegedCommandResponse) + Send + Sync + 'static>,
+    ) -> Result<(), EngineBindingError> {
+        let mut request_handles = request_handles
+            .lock()
+            .map_err(|error| EngineBindingError::lock_failure("tracking IPC request callback", error.to_string()))?;
+        request_handles.insert(request_id, callback);
+
+        Ok(())
+    }
+
+    fn remove_request_handle(
+        request_handles: &Arc<Mutex<HashMap<Uuid, Box<dyn FnOnce(PrivilegedCommandResponse) + Send + Sync>>>>,
+        request_id: &Uuid,
+    ) -> Option<Box<dyn FnOnce(PrivilegedCommandResponse) + Send + Sync>> {
+        match request_handles.lock() {
+            Ok(mut request_handles) => request_handles.remove(request_id),
+            Err(error) => {
+                log::error!("Failed to acquire IPC request callback lock: {}", error);
+                None
             }
         }
     }
@@ -422,4 +448,48 @@ impl InterprocessEngineApiUnprivilegedBindings {
 struct AndroidSuSpawnAttempt {
     attempt_label: &'static str,
     command_arguments: Vec<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::InterprocessEngineApiUnprivilegedBindings;
+    use squalr_engine_api::commands::privileged_command_response::TypedPrivilegedCommandResponse;
+    use squalr_engine_api::commands::privileged_command_result::PrivilegedCommandResult;
+    use squalr_engine_api::commands::scan::new::scan_new_response::ScanNewResponse;
+    use std::collections::HashMap;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::{Arc, Mutex};
+    use uuid::Uuid;
+
+    #[test]
+    fn response_callback_runs_after_request_handle_lock_is_released() {
+        let request_handles = Arc::new(Mutex::new(HashMap::new()));
+        let request_id = Uuid::new_v4();
+        let callback_observed_unlocked_map = Arc::new(AtomicBool::new(false));
+        let request_handles_for_callback = request_handles.clone();
+        let callback_observed_unlocked_map_for_callback = callback_observed_unlocked_map.clone();
+
+        InterprocessEngineApiUnprivilegedBindings::insert_request_handle(
+            &request_handles,
+            request_id,
+            Box::new(move |_response| {
+                callback_observed_unlocked_map_for_callback.store(request_handles_for_callback.try_lock().is_ok(), Ordering::SeqCst);
+            }),
+        )
+        .expect("Expected test request handle insertion to succeed.");
+
+        InterprocessEngineApiUnprivilegedBindings::handle_engine_response(
+            &request_handles,
+            PrivilegedCommandResult::new(ScanNewResponse { success: true }.to_engine_response(), None),
+            request_id,
+        );
+
+        assert!(callback_observed_unlocked_map.load(Ordering::SeqCst));
+        assert!(
+            request_handles
+                .lock()
+                .expect("Expected request handle map lock to succeed.")
+                .is_empty()
+        );
+    }
 }

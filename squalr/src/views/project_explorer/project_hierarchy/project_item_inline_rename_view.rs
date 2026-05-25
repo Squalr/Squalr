@@ -160,7 +160,10 @@ impl<'lifetime> ProjectItemInlineRenameView<'lifetime> {
                 .state
                 .cursor
                 .set_char_range(Some(CCursorRange::two(CCursor::new(0), CCursor::new(rename_text_length))));
-            output.state.store(user_interface.ctx(), text_edit_response.id);
+            output
+                .state
+                .clone()
+                .store(user_interface.ctx(), text_edit_response.id);
             *self.should_highlight_text = false;
         }
 

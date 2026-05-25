@@ -345,6 +345,7 @@ impl EnginePrivilegedState {
                     EngineEvent::Process(ProcessEvent::ProcessChanged { .. }) => {
                         engine_privileged_state.invalidate_memory_view_runtime_state();
                     }
+                    EngineEvent::Logging(_) => {}
                     _ => {}
                 }
             }

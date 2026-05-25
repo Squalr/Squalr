@@ -12,6 +12,9 @@ use squalr_engine_api::engine::engine_api_priviliged_bindings::EngineApiPrivileg
 use squalr_engine_api::engine::engine_binding_error::EngineBindingError;
 use squalr_engine_api::engine::engine_event_envelope::EngineEventEnvelope;
 use squalr_engine_api::events::engine_event::EngineEvent;
+use squalr_engine_api::events::logging::log_recorded_event::LogRecordedEvent;
+use squalr_engine_api::events::logging::logging_event::LoggingEvent;
+use squalr_engine_session::RemoteLogEventAppender;
 use std::collections::HashMap;
 use std::sync::Mutex;
 use std::sync::{Arc, RwLock};
@@ -113,9 +116,32 @@ impl InterprocessEngineApiPrivilegedBindings {
         let new_connection =
             InterprocessPipeBidirectional::create().map_err(|error| EngineBindingError::operation_failed("creating bidirectional IPC connection", error))?;
         *ipc_connection_guard = Some(new_connection);
+        drop(ipc_connection_guard);
+        Self::install_privileged_log_forwarder(self.ipc_connection.clone());
         self.listen_for_host_requests(&engine_privileged_state);
 
         Ok(())
+    }
+
+    fn install_privileged_log_forwarder(ipc_connection: Arc<RwLock<Option<InterprocessPipeBidirectional>>>) {
+        const REMOTE_LOG_QUEUE_CAPACITY: usize = 256;
+        let (log_event_sender, log_event_receiver) = crossbeam_channel::bounded::<LogRecordedEvent>(REMOTE_LOG_QUEUE_CAPACITY);
+
+        RemoteLogEventAppender::set_sender(Some(Arc::new(move |log_recorded_event| {
+            let _ = log_event_sender.try_send(log_recorded_event);
+        })));
+
+        thread::spawn(move || {
+            while let Ok(log_recorded_event) = log_event_receiver.recv() {
+                let engine_event_envelope = EngineEventEnvelope::new(0, EngineEvent::Logging(LoggingEvent::LogRecorded { log_recorded_event }));
+
+                if let Ok(ipc_connection_guard) = ipc_connection.read() {
+                    if let Some(ipc_connection_pipe) = ipc_connection_guard.as_ref() {
+                        let _ = ipc_connection_pipe.send(EngineEgress::EngineEvent(engine_event_envelope), Uuid::nil());
+                    }
+                }
+            }
+        });
     }
 
     pub fn dispatch_response(

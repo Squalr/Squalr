@@ -20,6 +20,7 @@ members = [
     "squalr-installer",
     "squalr",
 ]
+exclude = ["third_party/winit-0.30.13"]
 resolver = "3"
 
 [profile.release]
@@ -27,3 +28,6 @@ resolver = "3"
 [profile.release-with-debug]
 inherits = "release"
 debug = true
+
+[patch.crates-io]
+winit = { path = "third_party/winit-0.30.13" }
