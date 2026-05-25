@@ -331,7 +331,35 @@ impl<T: 'static> EventLoop<T> {
         }
 
         if !text_input_delta.inserted_text.is_empty() {
-            self.emit_synthetic_text(callback, &text_input_delta.inserted_text);
+            self.emit_synthetic_text_input(callback, &text_input_delta.inserted_text);
+        }
+    }
+
+    fn emit_synthetic_text_input<F>(
+        &self,
+        callback: &mut F,
+        text: &str,
+    ) where
+        F: FnMut(event::Event<T>, &RootAEL),
+    {
+        let mut pending_text = String::new();
+
+        for text_character in text.chars() {
+            if text_character == '\n' || text_character == '\r' {
+                if !pending_text.is_empty() {
+                    self.emit_synthetic_text(callback, &pending_text);
+                    pending_text.clear();
+                }
+
+                self.emit_synthetic_key(callback, NamedKey::Enter, KeyCode::Enter, event::ElementState::Pressed);
+                self.emit_synthetic_key(callback, NamedKey::Enter, KeyCode::Enter, event::ElementState::Released);
+            } else {
+                pending_text.push(text_character);
+            }
+        }
+
+        if !pending_text.is_empty() {
+            self.emit_synthetic_text(callback, &pending_text);
         }
     }
 

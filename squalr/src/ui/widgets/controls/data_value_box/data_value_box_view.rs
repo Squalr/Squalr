@@ -455,11 +455,14 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
         let commit_on_enter_pressed = if self.is_multiline {
             text_edit_response.has_focus() && user_interface.input(|input_state| input_state.modifiers.ctrl && input_state.key_pressed(Key::Enter))
         } else {
-            text_edit_response.lost_focus() && user_interface.input(|input_state| input_state.key_pressed(Key::Enter))
+            text_edit_response.has_focus() && user_interface.input(|input_state| input_state.key_pressed(Key::Enter))
         };
 
         if commit_on_enter_pressed {
             user_interface.memory_mut(|memory| memory.data.insert_temp(Self::commit_on_enter_id(self.id), true));
+            if !self.is_multiline {
+                text_edit_response.surrender_focus();
+            }
         }
 
         // Popup logic.

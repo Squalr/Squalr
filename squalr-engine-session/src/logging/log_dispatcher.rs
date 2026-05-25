@@ -136,6 +136,7 @@ impl LogDispatcher {
         config_builder
             .logger(Logger::builder().build("eframe", LevelFilter::Info))
             .logger(Logger::builder().build("glutin", LevelFilter::Info))
+            .logger(Logger::builder().build("android_activity::game_activity", LevelFilter::Info))
             .logger(Logger::builder().build("sctk", LevelFilter::Info))
             .logger(Logger::builder().build("tracing::span", LevelFilter::Info))
             .logger(Logger::builder().build("winit", LevelFilter::Info))
