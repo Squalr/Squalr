@@ -7,7 +7,7 @@ from pathlib import Path
 
 PACKAGE_CANDIDATES = ["com.squalr.android"]
 LEGACY_PACKAGE = "rust.squalr_android"
-MAIN_ACTIVITY_NAME = "android.app.NativeActivity"
+MAIN_ACTIVITY_NAME = "com.google.androidgamesdk.GameActivity"
 
 
 def run_command(command_segments):

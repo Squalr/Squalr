@@ -136,19 +136,20 @@ Prerequisites:
 - Rust Android target installed: `rustup target add aarch64-linux-android`.
 - Cargo helpers installed:
   - `cargo install cargo-ndk`
-  - `cargo install cargo-apk`
 - Rooted device connected over `adb`.
 
 Then run one of these from the workspace root:
-- `python ./build_and_deploy.py` (full smoke validation: preflight + build + install + launch + IPC worker check)
-- `python ./build_and_deploy.py --compile-check` (automated compile-only path: preflight + `cargo ndk` + `cargo apk`, no device required)
-- To launch an already-installed APK without rebuilding: `python ./run_apk.py`
-- To manually run the privileged worker shell for debugging: `python ./debug_run_privileged_shell.py`
+- `python ./scripts/build_and_deploy.py` (full smoke validation: preflight + build + install + launch + IPC worker check)
+- `python ./scripts/build_and_deploy.py --compile-check` (automated compile-only path: preflight + Android Rust builds + GameActivity APK packaging, no device required)
+- To launch an already-installed APK without rebuilding: `python ./scripts/run_apk.py`
+- To manually run the privileged worker shell for debugging: `python ./scripts/debug_run_privileged_shell.py`
 
 Notes:
 - The deploy script runs host preflight checks (`ANDROID_HOME`, `ANDROID_NDK_ROOT`, target installation, and `aarch64-linux-android-clang` visibility), then runs:
   - `cargo ndk --target aarch64-linux-android build -p squalr-cli`
-  - `cargo apk build --target aarch64-linux-android --lib`
+  - `cargo ndk --target aarch64-linux-android build -p squalr`
+- The GUI APK is packaged as a generated Gradle project under `target/android-gameactivity-gradle`, using `androidx.games:games-activity` so Android soft-input state is handled by GameActivity instead of NativeActivity.
+- If Gradle is not installed, the deploy script downloads a local Gradle distribution under `target/android-gradle`.
 - In full smoke mode, the script installs the APK, pushes `/data/local/tmp/squalr-cli`, runs `su -c chmod +x`, launches the app, and validates privileged worker startup.
 - Running without flags prompts: `Build in release mode? (y/n [default])`.
 - Non-interactive environments should pass `--release` or `--debug` to avoid the prompt.

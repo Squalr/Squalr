@@ -25,7 +25,6 @@ pub struct App {
 #[cfg(target_os = "android")]
 pub fn request_android_soft_keyboard() {
     if let Some(android_app) = crate::get_android_app_handle() {
-        android_app.show_soft_input(false);
         android_app.show_soft_input(true);
     }
 }

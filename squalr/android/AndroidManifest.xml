@@ -2,7 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application android:label="Squalr">
         <activity
-            android:name="android.app.NativeActivity"
+            android:name="com.google.androidgamesdk.GameActivity"
             android:exported="true">
             <meta-data
                 android:name="android.app.lib_name"
