@@ -149,7 +149,7 @@ Notes:
   - `cargo ndk --target aarch64-linux-android build -p squalr-cli`
   - `cargo ndk --target aarch64-linux-android build -p squalr`
 - The GUI APK is packaged as a generated Gradle project under `target/android-gameactivity-gradle`, using `androidx.games:games-activity` so Android soft-input state is handled by GameActivity instead of NativeActivity.
-- The workspace patches `winit 0.30.12` under `third_party/winit-0.30.12` because the upstream Android backend drops GameActivity text input events before `egui` can consume them.
+- The GUI uses `winit 0.30.13` or newer through `eframe`, because that release populates Android key-event text so `egui-winit` can feed focused text widgets through its normal `Event::Text` path.
 - If Gradle is not installed, the deploy script downloads a local Gradle distribution under `target/android-gradle`.
 - In full smoke mode, the script installs the APK, pushes `/data/local/tmp/squalr-cli`, runs `su -c chmod +x`, launches the app, and validates privileged worker startup.
 - Running without flags prompts: `Build in release mode? (y/n [default])`.
