@@ -17,3 +17,15 @@ pub struct GitHubReleaseAsset {
     pub name: String,
     pub browser_download_url: String,
 }
+
+impl GitHubReleaseInfo {
+    pub fn find_asset_by_name(
+        &self,
+        asset_name: &str,
+    ) -> Option<&GitHubReleaseAsset> {
+        self.assets
+            .as_ref()?
+            .iter()
+            .find(|release_asset| release_asset.name.eq_ignore_ascii_case(asset_name))
+    }
+}

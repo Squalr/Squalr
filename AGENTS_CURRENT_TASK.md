@@ -1,6 +1,6 @@
 # Agentic Current Task
 Our current task, from `README.md`, is:
-`pr/android-fixes-v2 PR cleanup`
+`release updater transient missing asset handling`
 
 # Notes from Owner
 - Assume any unstaged/uncommitted file changes are from a previous iteration, or from the human author giving guidance. Keep them if they look good; do not ask about them by default.
@@ -9,19 +9,11 @@ Our current task, from `README.md`, is:
 - Alpha-stage data compatibility is not required for this refactor. Prefer a clean model over preserving old address/pointer/symbol-ref project item properties.
 
 ## Current Tasklist
-- Completed: Android privileged IPC keeps the worker alive without stdin, uses Serde-compatible JSON command/event payloads, and the deploy script clears stale workers before launch.
-- Completed: Android privileged-worker logs forward through structured logging events; the unprivileged host re-logs them with a `[privileged]` prefix for the Output dock.
-- Completed: Android logging suppresses repeated `Notifying Input Available` records and does not forward debug/trace scan progress logs over privileged IPC.
-- Completed: Android privileged IPC response callbacks run outside the request-handle lock, preventing scan response callbacks from deadlocking follow-up element scans.
-- Completed: Android process selection, process switching, project creation, and editable widgets use Android-specific paths for the rooted GUI workflow.
-- Completed: Android GUI packaging uses the `eframe`/`android-activity` GameActivity backend and a generated Gradle APK under `target/android-gameactivity-gradle`.
-- Completed: Android scan region collection keeps the two-phase query/read model while pruning unreadable ranges, obvious device-backed mappings, zero-RSS smaps entries, and `io`/`pf` smaps mappings before value collection.
-- Completed: Android process-memory read failures tombstone failed ranges without per-read log spam, and scan metadata reports collected bytes rather than virtual snapshot span.
-- Completed: Android soft-keyboard input is handled in the local `winit 0.30.13` patch by forwarding GameActivity text commits through synthetic text-bearing key events, suppressing duplicate printable key events while IME is active, clearing the hidden text buffer after commits, and treating subsequent empty text events as Backspace.
-- Completed: PR cleanup removed obsolete input-iteration notes from this task file, removed text-content debug logging from the winit bridge, and clarified the README Android patch note.
-- Completed: Android GameActivity APK packaging now uses the pinned repo-managed Gradle distribution by default instead of whatever `gradle` appears on `PATH`, preventing CI from selecting an incompatible Gradle 9.x runtime for Android Gradle Plugin 7.4.2.
+- Completed: The current Rust updater treats a latest GitHub release that is visible before its required platform bundle asset as a transient skip instead of a hard update failure.
+- Completed: Release asset lookup is shared through `GitHubReleaseInfo::find_asset_by_name`, and the installer download fallback uses the same case-insensitive matching.
+- Completed: Added tests for missing latest-release assets and normal platform bundle resolution.
 
 ## Important Information
-- Latest validation after PR cleanup: `cargo fmt --all` and `cargo fmt --manifest-path third_party/winit-0.30.13/Cargo.toml` completed with existing `fn_args_layout` warnings; `cargo check -p squalr` passed; `cargo ndk --target aarch64-linux-android test --manifest-path third_party/winit-0.30.13/Cargo.toml --no-run --no-default-features --features android-game-activity,rwh_06` compiled the Android winit test harness; `python -m py_compile .\scripts\build_and_deploy.py` passed; `git diff --check` passed with line-ending warnings only. `python .\scripts\build_and_deploy.py --release --launch-log-seconds 8 --launch-log-file .\target\android-launch-logcat-pr-cleanup-release.txt` built and deployed the release Android CLI/APK path to the attached device, launched the app, detected privileged worker PID `3449`, and completed smoke validation. The saved logcat had no matches for `Failed to read process memory`, `Notifying Input Available`, `PayloadDeserializationFailed`, `Broken pipe`, `TextEvent`, `Unknown android_activity input event`, `Committing GameActivity`, or `Treating empty GameActivity`.
-- Latest CI packaging validation: `python -m py_compile .\scripts\build_and_deploy.py` passed. `python .\scripts\build_and_deploy.py --debug --compile-check` passed and invoked `target\android-gradle\gradle-7.5.1\bin\gradle.bat --no-daemon assembleDebug` for GameActivity APK packaging, matching the pinned Gradle behavior expected on CI.
-- Human verification needed: On Android release builds, confirm insert/delete behavior in project rename, project item rename, Output command input, and data value boxes; confirm repeated Backspace works on existing text; confirm element scans start, complete, clear the result spinner, and do not flood logs or collect obvious device/kernel mappings. This needs human verification.
+- The reported stack trace is from the legacy Squirrel updater path, where GitHub exposed `Squalr v0.4.0` before the `RELEASES` asset was visible. In the current Rust updater, the analogous case is a latest release without `squalr-<version>-<os>-<arch>.zip`.
+- Validation: `cargo fmt --all` completed with existing `fn_args_layout` warnings; `cargo test -p squalr-engine update_asset_download_url -- --nocapture` passed 2 targeted tests; `cargo check -p squalr-engine` passed; `cargo test -p squalr-engine app_provisioner -- --nocapture` passed 11 app-provisioner tests. One attempted command, `cargo test -p squalr-engine latest_release_url_targets_live_squalr_repository release_bundle_asset_name_uses_current_target -- --nocapture`, failed because Cargo accepts only one test filter.
+- Human verification needed: Publish or simulate a latest release that lacks the current platform bundle and confirm the updater logs a warning and leaves the existing install running without surfacing a failed update. This needs human verification.

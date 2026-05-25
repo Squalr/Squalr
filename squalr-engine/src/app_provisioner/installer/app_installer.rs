@@ -46,14 +46,7 @@ impl AppInstaller {
                     return;
                 };
 
-                let maybe_bundle_asset = latest_version_info.assets.as_ref().and_then(|assets| {
-                    assets.iter().find(|release_asset| {
-                        release_asset
-                            .name
-                            .eq_ignore_ascii_case(&expected_bundle_asset_name)
-                    })
-                });
-                let Some(zip_asset) = maybe_bundle_asset else {
+                let Some(zip_asset) = latest_version_info.find_asset_by_name(&expected_bundle_asset_name) else {
                     log::error!(
                         "Could not find required platform bundle asset {} in release assets, installation failed.",
                         expected_bundle_asset_name

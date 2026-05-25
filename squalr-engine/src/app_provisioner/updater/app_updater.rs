@@ -3,6 +3,7 @@ use crate::app_provisioner::installer::install_phase::InstallPhase;
 use crate::app_provisioner::installer::install_progress::InstallProgress;
 use crate::app_provisioner::operations::download::update_operation_download::UpdateOperationDownload;
 use crate::app_provisioner::operations::extract::update_operation_extract::UpdateOperationExtract;
+use crate::app_provisioner::operations::version_check::github_release_info::GitHubReleaseInfo;
 use crate::app_provisioner::operations::version_check::version_checker_status::VersionCheckerStatus;
 use crate::app_provisioner::operations::version_check::version_checker_task::VersionCheckerTask;
 use crate::app_provisioner::progress_tracker::ProgressTracker;
@@ -43,27 +44,9 @@ impl AppUpdater {
                     return;
                 }
 
-                // Find the .zip asset metadata for the latest GitHub release.
-                let Some(expected_bundle_asset_name) = AppProvisionerConfig::get_release_bundle_asset_name(&latest_version_info.tag_name) else {
-                    log::error!("Could not resolve platform bundle asset name, update failed.");
+                let Some(download_url) = Self::resolve_update_asset_download_url(&latest_version_info) else {
                     return;
                 };
-
-                let maybe_bundle_asset = latest_version_info.assets.as_ref().and_then(|assets| {
-                    assets.iter().find(|release_asset| {
-                        release_asset
-                            .name
-                            .eq_ignore_ascii_case(&expected_bundle_asset_name)
-                    })
-                });
-                let Some(zip_asset) = maybe_bundle_asset else {
-                    log::error!(
-                        "Could not find required platform bundle asset {} in release assets, update failed.",
-                        expected_bundle_asset_name
-                    );
-                    return;
-                };
-                let download_url = &zip_asset.browser_download_url;
 
                 log::info!("Starting update...");
 
@@ -183,6 +166,24 @@ impl AppUpdater {
         });
     }
 
+    fn resolve_update_asset_download_url(latest_version_info: &GitHubReleaseInfo) -> Option<String> {
+        let Some(expected_bundle_asset_name) = AppProvisionerConfig::get_release_bundle_asset_name(&latest_version_info.tag_name) else {
+            log::error!("Could not resolve platform bundle asset name, update failed.");
+            return None;
+        };
+
+        let Some(zip_asset) = latest_version_info.find_asset_by_name(&expected_bundle_asset_name) else {
+            log::warn!(
+                "Latest release {} does not include required platform bundle asset {} yet. Skipping update this run.",
+                latest_version_info.tag_name,
+                expected_bundle_asset_name
+            );
+            return None;
+        };
+
+        Some(zip_asset.browser_download_url.clone())
+    }
+
     fn update_installation_directory(
         source_directory: &Path,
         destination_directory: &Path,
@@ -278,5 +279,53 @@ impl AppUpdater {
         }
 
         false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AppUpdater;
+    use crate::app_provisioner::app_provisioner_config::AppProvisionerConfig;
+    use crate::app_provisioner::operations::version_check::github_release_info::{GitHubReleaseAsset, GitHubReleaseInfo};
+
+    fn release_with_assets(
+        tag_name: &str,
+        assets: Vec<GitHubReleaseAsset>,
+    ) -> GitHubReleaseInfo {
+        GitHubReleaseInfo {
+            tag_name: tag_name.to_string(),
+            name: None,
+            body: None,
+            draft: Some(false),
+            prerelease: Some(false),
+            created_at: None,
+            published_at: None,
+            assets: Some(assets),
+        }
+    }
+
+    #[test]
+    fn update_asset_download_url_is_missing_when_latest_release_asset_is_not_visible_yet() {
+        let latest_version_info = release_with_assets("v0.4.0", Vec::new());
+
+        assert!(AppUpdater::resolve_update_asset_download_url(&latest_version_info).is_none());
+    }
+
+    #[test]
+    fn update_asset_download_url_resolves_expected_platform_bundle() {
+        let expected_bundle_asset_name =
+            AppProvisionerConfig::get_release_bundle_asset_name("v0.4.0").expect("test target must resolve a release bundle asset name");
+        let latest_version_info = release_with_assets(
+            "v0.4.0",
+            vec![GitHubReleaseAsset {
+                name: expected_bundle_asset_name,
+                browser_download_url: String::from("https://example.invalid/squalr.zip"),
+            }],
+        );
+
+        assert_eq!(
+            AppUpdater::resolve_update_asset_download_url(&latest_version_info).as_deref(),
+            Some("https://example.invalid/squalr.zip")
+        );
     }
 }
