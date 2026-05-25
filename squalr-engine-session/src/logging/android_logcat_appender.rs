@@ -1,3 +1,4 @@
+use crate::logging::log_record_filter::should_suppress_record;
 use android_log_sys::{__android_log_write, LogPriority};
 use log::{Level, Record};
 use log4rs::append::Append;
@@ -43,6 +44,10 @@ impl Append for AndroidLogcatAppender {
         &self,
         record: &Record,
     ) -> anyhow::Result<()> {
+        if should_suppress_record(record) {
+            return Ok(());
+        }
+
         let priority = Self::priority_for_level(record.level());
         let message = Self::sanitize_c_string(&format!("{}", record.args()));
 

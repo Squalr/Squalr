@@ -19,6 +19,7 @@ use squalr_engine_api::engine::engine_api_unprivileged_bindings::EngineApiUnpriv
 use squalr_engine_api::engine::engine_event_envelope::EngineEventEnvelope;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::events::engine_event::{EngineEvent, EngineEventRequest};
+use squalr_engine_api::events::logging::logging_event::LoggingEvent;
 use squalr_engine_api::events::plugins::plugins_event::PluginsEvent;
 use squalr_engine_api::events::process::process_event::ProcessEvent;
 use squalr_engine_api::events::project::project_event::ProjectEvent;
@@ -913,6 +914,17 @@ impl EngineUnprivilegedState {
         engine_event: EngineEvent,
     ) {
         match engine_event {
+            EngineEvent::Logging(logging_event) => match logging_event {
+                LoggingEvent::LogRecorded { log_recorded_event } => {
+                    log::log!(
+                        target: "squalr::privileged",
+                        log_recorded_event.level,
+                        "[privileged] {}",
+                        log_recorded_event.message
+                    );
+                    Self::dispatch_engine_event(event_listeners, log_recorded_event);
+                }
+            },
             EngineEvent::Plugins(plugins_event) => match plugins_event {
                 PluginsEvent::PluginsChanged { plugins_changed_event } => {
                     Self::dispatch_engine_event(event_listeners, plugins_changed_event);

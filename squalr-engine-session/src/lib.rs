@@ -9,3 +9,4 @@ pub mod settings;
 pub mod tasks;
 pub mod virtual_snapshots;
 pub use logging::platform::platform_log_hooks;
+pub use logging::remote_log_event_appender::RemoteLogEventAppender;

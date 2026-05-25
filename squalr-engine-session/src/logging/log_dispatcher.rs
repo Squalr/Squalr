@@ -1,6 +1,7 @@
 #[cfg(target_os = "android")]
 use crate::logging::android_logcat_appender::AndroidLogcatAppender;
 use crate::logging::log_history_appender::LogHistoryAppender;
+use crate::logging::remote_log_event_appender::RemoteLogEventAppender;
 use log::LevelFilter;
 use log4rs::config::{Appender, Config, Logger, Root};
 #[cfg(not(target_os = "android"))]
@@ -90,9 +91,14 @@ impl LogDispatcher {
         _should_rotate_log_file: bool,
     ) -> Result<Config, Box<dyn std::error::Error>> {
         let log_history_appender = LogHistoryAppender::new(self.log_history.clone());
+        let remote_log_event_appender = RemoteLogEventAppender::new();
 
-        let mut config_builder = Config::builder().appender(Appender::builder().build("log_events", Box::new(log_history_appender)));
-        let mut root_builder = Root::builder().appender("log_events");
+        let mut config_builder = Config::builder()
+            .appender(Appender::builder().build("log_events", Box::new(log_history_appender)))
+            .appender(Appender::builder().build("remote_log_events", Box::new(remote_log_event_appender)));
+        let mut root_builder = Root::builder()
+            .appender("log_events")
+            .appender("remote_log_events");
 
         #[cfg(not(target_os = "android"))]
         {
@@ -136,7 +142,8 @@ impl LogDispatcher {
         config_builder
             .logger(Logger::builder().build("eframe", LevelFilter::Info))
             .logger(Logger::builder().build("glutin", LevelFilter::Info))
-            .logger(Logger::builder().build("android_activity::game_activity", LevelFilter::Info))
+            .logger(Logger::builder().build("android_activity", LevelFilter::Warn))
+            .logger(Logger::builder().build("android_activity::game_activity", LevelFilter::Warn))
             .logger(Logger::builder().build("sctk", LevelFilter::Info))
             .logger(Logger::builder().build("tracing::span", LevelFilter::Info))
             .logger(Logger::builder().build("winit", LevelFilter::Info))

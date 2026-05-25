@@ -290,6 +290,10 @@ mod tests {
         privileged_command_response::PrivilegedCommandResponse, privileged_command_result::PrivilegedCommandResult,
         registry::get_metadata::registry_get_metadata_response::RegistryGetMetadataResponse, registry::registry_response::RegistryResponse,
     };
+    use squalr_engine_api::engine::engine_event_envelope::EngineEventEnvelope;
+    use squalr_engine_api::events::engine_event::EngineEvent;
+    use squalr_engine_api::events::logging::log_recorded_event::LogRecordedEvent;
+    use squalr_engine_api::events::logging::logging_event::LoggingEvent;
     use squalr_engine_api::registries::symbols::{privileged_registry_catalog::PrivilegedRegistryCatalog, struct_layout_descriptor::StructLayoutDescriptor};
     use squalr_engine_api::structures::{
         data_types::data_type_ref::DataTypeRef,
@@ -327,5 +331,32 @@ mod tests {
             InterprocessPipeUnidirectional::deserialize_payload::<EngineEgress>(&serialized_payload).expect("Expected IPC payload deserialization to succeed.");
 
         assert!(matches!(decoded_payload, EngineEgress::PrivilegedCommandResponse(_)));
+    }
+
+    #[test]
+    fn ipc_payload_codec_round_trips_privileged_log_event() {
+        let log_recorded_event = LogRecordedEvent::new(
+            log::Level::Warn,
+            "squalr_engine::privileged".to_string(),
+            "Privileged worker warning.".to_string(),
+        );
+        let engine_egress = EngineEgress::EngineEvent(EngineEventEnvelope::new(
+            0,
+            EngineEvent::Logging(LoggingEvent::LogRecorded { log_recorded_event }),
+        ));
+
+        let serialized_payload = InterprocessPipeUnidirectional::serialize_payload(&engine_egress).expect("Expected IPC payload serialization to succeed.");
+        let decoded_payload =
+            InterprocessPipeUnidirectional::deserialize_payload::<EngineEgress>(&serialized_payload).expect("Expected IPC payload deserialization to succeed.");
+
+        let EngineEgress::EngineEvent(engine_event_envelope) = decoded_payload else {
+            panic!("Expected decoded IPC payload to contain an engine event.");
+        };
+
+        assert!(matches!(
+            engine_event_envelope.into_engine_event(),
+            EngineEvent::Logging(LoggingEvent::LogRecorded { log_recorded_event })
+                if log_recorded_event.message == "Privileged worker warning."
+        ));
     }
 }
