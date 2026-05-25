@@ -60,8 +60,11 @@ fn normalize_game_activity_text_delta(raw_text_delta: &str) -> String {
     normalized_text_delta
 }
 
-fn should_suppress_text_event_backed_key_event(is_soft_keyboard_event: bool) -> bool {
-    is_soft_keyboard_event
+fn should_suppress_text_event_backed_key_event(
+    is_soft_keyboard_event: bool,
+    device_id: i32,
+) -> bool {
+    is_soft_keyboard_event || device_id == -1
 }
 
 #[cfg(test)]
@@ -89,8 +92,9 @@ mod tests {
 
     #[test]
     fn soft_keyboard_key_events_are_suppressed_for_text_event_bridge() {
-        assert!(should_suppress_text_event_backed_key_event(true));
-        assert!(!should_suppress_text_event_backed_key_event(false));
+        assert!(should_suppress_text_event_backed_key_event(true, 7));
+        assert!(should_suppress_text_event_backed_key_event(false, -1));
+        assert!(!should_suppress_text_event_backed_key_event(false, 7));
     }
 
     #[test]
@@ -655,7 +659,7 @@ impl<T: 'static> EventLoop<T> {
                     // can be configured.
                     Keycode::VolumeUp | Keycode::VolumeDown | Keycode::VolumeMute if self.ignore_volume_keys => input_status = InputStatus::Unhandled,
                     keycode => {
-                        if should_suppress_text_event_backed_key_event(key.flags().soft_keyboard()) {
+                        if should_suppress_text_event_backed_key_event(key.flags().soft_keyboard(), key.device_id()) {
                             trace!(
                                 target: "winit::platform_impl::android::text_input",
                                 "Suppressing soft-keyboard key event because GameActivity TextEvent is authoritative."

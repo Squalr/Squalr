@@ -20,6 +20,12 @@ struct ProcMapsRegion {
     pathname: String,
 }
 
+#[derive(Default)]
+struct SmapsRegionInfo {
+    rss_bytes: u64,
+    vm_flags: HashSet<String>,
+}
+
 impl LinuxMemoryQueryer {
     pub fn new() -> Self {
         LinuxMemoryQueryer
@@ -40,6 +46,44 @@ impl LinuxMemoryQueryer {
         }
 
         Ok(parsed_regions)
+    }
+
+    fn parse_proc_smaps(process_id: u32) -> std::io::Result<HashMap<u64, SmapsRegionInfo>> {
+        let process_smaps_path = format!("/proc/{process_id}/smaps");
+        let smaps_file = File::open(process_smaps_path)?;
+        let smaps_reader = BufReader::new(smaps_file);
+        let mut smaps_region_info_by_start_address = HashMap::new();
+        let mut current_region_start_address = None;
+        let mut current_region_info = SmapsRegionInfo::default();
+
+        for smaps_line_result in smaps_reader.lines() {
+            let smaps_line = smaps_line_result?;
+
+            if let Some(parsed_region) = Self::parse_maps_line(&smaps_line) {
+                if let Some(region_start_address) = current_region_start_address {
+                    smaps_region_info_by_start_address.insert(region_start_address, current_region_info);
+                }
+
+                current_region_start_address = Some(parsed_region.start_address);
+                current_region_info = SmapsRegionInfo::default();
+                continue;
+            }
+
+            if let Some(rss_bytes) = Self::parse_smaps_kilobyte_field(&smaps_line, "Rss:") {
+                current_region_info.rss_bytes = rss_bytes;
+                continue;
+            }
+
+            if let Some(vm_flags) = Self::parse_smaps_vm_flags(&smaps_line) {
+                current_region_info.vm_flags = vm_flags;
+            }
+        }
+
+        if let Some(region_start_address) = current_region_start_address {
+            smaps_region_info_by_start_address.insert(region_start_address, current_region_info);
+        }
+
+        Ok(smaps_region_info_by_start_address)
     }
 
     fn parse_maps_line(maps_line: &str) -> Option<ProcMapsRegion> {
@@ -67,6 +111,23 @@ impl LinuxMemoryQueryer {
             permissions: permissions_token.to_string(),
             pathname,
         })
+    }
+
+    fn parse_smaps_kilobyte_field(
+        smaps_line: &str,
+        field_name: &str,
+    ) -> Option<u64> {
+        let field_value = smaps_line.trim().strip_prefix(field_name)?.trim();
+        let kilobytes_token = field_value.split_whitespace().next()?;
+        let kilobytes = kilobytes_token.parse::<u64>().ok()?;
+
+        Some(kilobytes.saturating_mul(1024))
+    }
+
+    fn parse_smaps_vm_flags(smaps_line: &str) -> Option<HashSet<String>> {
+        let flags_value = smaps_line.trim().strip_prefix("VmFlags:")?.trim();
+
+        Some(flags_value.split_whitespace().map(str::to_string).collect())
     }
 
     fn parse_protection_flags(permissions: &str) -> MemoryProtectionEnum {
@@ -167,6 +228,46 @@ impl LinuxMemoryQueryer {
         #[cfg(not(target_os = "android"))]
         {
             let _ = region;
+            true
+        }
+    }
+
+    fn get_platform_smaps_region_info_by_start_address(process_id: u32) -> Option<HashMap<u64, SmapsRegionInfo>> {
+        #[cfg(target_os = "android")]
+        {
+            Self::parse_proc_smaps(process_id).ok()
+        }
+
+        #[cfg(not(target_os = "android"))]
+        {
+            let _ = process_id;
+            None
+        }
+    }
+
+    fn matches_platform_smaps_filters(
+        region: &ProcMapsRegion,
+        smaps_region_info_by_start_address: Option<&HashMap<u64, SmapsRegionInfo>>,
+    ) -> bool {
+        #[cfg(target_os = "android")]
+        {
+            let Some(smaps_region_info) =
+                smaps_region_info_by_start_address.and_then(|region_info_by_start_address| region_info_by_start_address.get(&region.start_address))
+            else {
+                return true;
+            };
+
+            if smaps_region_info.rss_bytes == 0 {
+                return false;
+            }
+
+            !smaps_region_info.vm_flags.contains("io") && !smaps_region_info.vm_flags.contains("pf")
+        }
+
+        #[cfg(not(target_os = "android"))]
+        {
+            let _ = region;
+            let _ = smaps_region_info_by_start_address;
             true
         }
     }
@@ -301,6 +402,7 @@ impl MemoryQueryerTrait for LinuxMemoryQueryer {
         let required_protection_bits = required_protection.bits();
         let excluded_protection_bits = excluded_protection.bits();
         let allowed_type_bits = allowed_types.bits();
+        let smaps_region_info_by_start_address = Self::get_platform_smaps_region_info_by_start_address(process_info.get_process_id_raw());
 
         parsed_regions
             .iter()
@@ -316,6 +418,10 @@ impl MemoryQueryerTrait for LinuxMemoryQueryer {
                 }
 
                 if !Self::is_platform_scan_candidate(parsed_region) {
+                    return None;
+                }
+
+                if !Self::matches_platform_smaps_filters(parsed_region, smaps_region_info_by_start_address.as_ref()) {
                     return None;
                 }
 
@@ -489,6 +595,19 @@ mod tests {
         assert!(!LinuxMemoryQueryer::is_android_device_mapping("[anon:dalvik-LinearAlloc]"));
         assert!(!LinuxMemoryQueryer::is_android_device_mapping("/memfd:jit-cache (deleted)"));
         assert!(!LinuxMemoryQueryer::is_android_device_mapping("[anon:scudo:primary]"));
+    }
+
+    #[test]
+    fn parse_smaps_fields_extracts_residency_and_vm_flags() {
+        let rss_bytes = LinuxMemoryQueryer::parse_smaps_kilobyte_field("Rss:                123 kB", "Rss:");
+        let vm_flags = LinuxMemoryQueryer::parse_smaps_vm_flags("VmFlags: rd wr mr mw me io pf");
+
+        assert_eq!(rss_bytes, Some(123 * 1024));
+        assert!(
+            vm_flags
+                .as_ref()
+                .is_some_and(|vm_flags| vm_flags.contains("io") && vm_flags.contains("pf"))
+        );
     }
 
     #[test]
