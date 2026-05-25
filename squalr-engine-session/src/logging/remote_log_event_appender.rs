@@ -1,5 +1,5 @@
 use crate::logging::log_record_filter::should_suppress_record;
-use log::Record;
+use log::{Level, Record};
 use log4rs::append::Append;
 use squalr_engine_api::events::logging::log_recorded_event::LogRecordedEvent;
 use std::{
@@ -23,6 +23,10 @@ impl RemoteLogEventAppender {
             *remote_log_event_sender = sender;
         }
     }
+
+    fn should_forward_record(record: &Record) -> bool {
+        !matches!(record.level(), Level::Debug | Level::Trace) && !should_suppress_record(record)
+    }
 }
 
 impl fmt::Debug for RemoteLogEventAppender {
@@ -39,7 +43,7 @@ impl Append for RemoteLogEventAppender {
         &self,
         record: &Record,
     ) -> anyhow::Result<()> {
-        if should_suppress_record(record) {
+        if !Self::should_forward_record(record) {
             return Ok(());
         }
 
@@ -56,4 +60,27 @@ impl Append for RemoteLogEventAppender {
     }
 
     fn flush(&self) {}
+}
+
+#[cfg(test)]
+mod tests {
+    use super::RemoteLogEventAppender;
+    use log::{Level, Record};
+
+    #[test]
+    fn remote_forwarding_skips_debug_progress_logs() {
+        let debug_record = Record::builder()
+            .level(Level::Debug)
+            .target("squalr_engine_scanning")
+            .args(format_args!("Element scan progress: 10.0%."))
+            .build();
+        let info_record = Record::builder()
+            .level(Level::Info)
+            .target("squalr_engine_scanning")
+            .args(format_args!("Scan complete."))
+            .build();
+
+        assert!(!RemoteLogEventAppender::should_forward_record(&debug_record));
+        assert!(RemoteLogEventAppender::should_forward_record(&info_record));
+    }
 }
