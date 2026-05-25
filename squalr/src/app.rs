@@ -16,6 +16,8 @@ pub struct App {
     corner_radius: CornerRadius,
     #[cfg(target_os = "android")]
     android_soft_keyboard_was_allowed: bool,
+    #[cfg(target_os = "android")]
+    android_focused_widget: Option<eframe::egui::Id>,
 }
 
 impl App {
@@ -42,6 +44,8 @@ impl App {
             corner_radius,
             #[cfg(target_os = "android")]
             android_soft_keyboard_was_allowed: false,
+            #[cfg(target_os = "android")]
+            android_focused_widget: None,
         }
     }
 
@@ -51,15 +55,18 @@ impl App {
         context: &Context,
     ) {
         let allow_ime = context.wants_keyboard_input();
+        let focused_widget = context.memory(|memory| memory.focused());
+        let focused_widget_changed = focused_widget != self.android_focused_widget;
 
-        if allow_ime != self.android_soft_keyboard_was_allowed {
+        if allow_ime != self.android_soft_keyboard_was_allowed || (allow_ime && focused_widget_changed) {
             context.send_viewport_cmd(eframe::egui::ViewportCommand::IMEAllowed(allow_ime));
-            if !self.android_soft_keyboard_was_allowed {
+            if allow_ime {
                 context.send_viewport_cmd(eframe::egui::ViewportCommand::IMEPurpose(eframe::egui::viewport::IMEPurpose::Normal));
             }
         }
 
         self.android_soft_keyboard_was_allowed = allow_ime;
+        self.android_focused_widget = focused_widget;
     }
 }
 
