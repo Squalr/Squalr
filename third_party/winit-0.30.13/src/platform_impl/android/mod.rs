@@ -60,6 +60,10 @@ fn normalize_game_activity_text_delta(raw_text_delta: &str) -> String {
     normalized_text_delta
 }
 
+fn should_suppress_text_event_backed_key_event(is_soft_keyboard_event: bool) -> bool {
+    is_soft_keyboard_event
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -81,6 +85,12 @@ mod tests {
         assert_eq!(normalize_game_activity_text_delta("aabb"), "ab");
         assert_eq!(normalize_game_activity_text_delta("abc"), "abc");
         assert_eq!(normalize_game_activity_text_delta("aaa"), "aaa");
+    }
+
+    #[test]
+    fn soft_keyboard_key_events_are_suppressed_for_text_event_bridge() {
+        assert!(should_suppress_text_event_backed_key_event(true));
+        assert!(!should_suppress_text_event_backed_key_event(false));
     }
 
     #[test]
@@ -645,6 +655,14 @@ impl<T: 'static> EventLoop<T> {
                     // can be configured.
                     Keycode::VolumeUp | Keycode::VolumeDown | Keycode::VolumeMute if self.ignore_volume_keys => input_status = InputStatus::Unhandled,
                     keycode => {
+                        if should_suppress_text_event_backed_key_event(key.flags().soft_keyboard()) {
+                            trace!(
+                                target: "winit::platform_impl::android::text_input",
+                                "Suppressing soft-keyboard key event because GameActivity TextEvent is authoritative."
+                            );
+                            return input_status;
+                        }
+
                         let state = match key.action() {
                             KeyAction::Down => event::ElementState::Pressed,
                             KeyAction::Up => event::ElementState::Released,

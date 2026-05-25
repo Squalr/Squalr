@@ -53,11 +53,11 @@ impl SnapshotValueCollector {
 
         if with_logging {
             let duration = start_time.elapsed();
-            let byte_count = snapshot_guard.get_byte_count();
+            let byte_count = snapshot_guard.get_collected_byte_count();
 
             log::info!("Values collected in: {:?}", duration);
             log::info!(
-                "{} bytes read ({})",
+                "{} bytes collected ({})",
                 byte_count,
                 StorageSizeConversions::value_to_metric_size(byte_count as u128)
             );
@@ -71,6 +71,7 @@ impl SnapshotValueCollector {
     ) {
         let region_size = snapshot_region.get_region_size() as usize;
         let base_address = snapshot_region.get_base_address();
+        snapshot_region.page_boundary_tombstones.clear();
 
         if region_size == 0 {
             snapshot_region.page_boundary_tombstones.insert(base_address);

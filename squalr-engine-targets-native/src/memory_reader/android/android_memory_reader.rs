@@ -24,10 +24,7 @@ impl AndroidMemoryReader {
         let process_memory_path = format!("/proc/{process_id}/mem");
         let process_memory_file = match File::open(process_memory_path) {
             Ok(process_memory_file) => process_memory_file,
-            Err(error) => {
-                log::error!("Failed to open process memory for read: {}", error);
-                return false;
-            }
+            Err(_) => return false,
         };
 
         let mut total_bytes_read: usize = 0;
@@ -36,10 +33,7 @@ impl AndroidMemoryReader {
             match process_memory_file.read_at(&mut destination_buffer[total_bytes_read..], next_read_offset) {
                 Ok(0) => return false,
                 Ok(bytes_read) => total_bytes_read += bytes_read,
-                Err(error) => {
-                    log::error!("Failed to read process memory: {}", error);
-                    return false;
-                }
+                Err(_) => return false,
             }
         }
 

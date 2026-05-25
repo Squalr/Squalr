@@ -5,7 +5,7 @@ pub fn collect_scan_results_metadata(engine_privileged_state: &EnginePrivilegedS
     match engine_privileged_state.get_snapshot().read() {
         Ok(snapshot) => ScanResultsMetadata {
             result_count: snapshot.get_number_of_results(),
-            total_size_in_bytes: snapshot.get_byte_count(),
+            total_size_in_bytes: snapshot.get_collected_byte_count(),
         },
         Err(error) => {
             log::error!("Failed to acquire snapshot for scan metadata collection: {}", error);

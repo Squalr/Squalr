@@ -507,7 +507,15 @@ def deploy_privileged_worker(workspace_directory, worker_profile):
 def kill_existing_privileged_worker(workspace_directory):
     run_su_command_with_fallback(
         workspace_directory,
-        "worker_pids=$(pidof squalr-cli 2>/dev/null); if [ -n \"$worker_pids\" ]; then kill $worker_pids; fi",
+        (
+            "worker_pids=$(pidof squalr-cli 2>/dev/null); "
+            "if [ -n \"$worker_pids\" ]; then "
+            "kill $worker_pids 2>/dev/null; "
+            "sleep 0.2; "
+            "worker_pids=$(pidof squalr-cli 2>/dev/null); "
+            "if [ -n \"$worker_pids\" ]; then kill -9 $worker_pids 2>/dev/null; fi; "
+            "fi"
+        ),
         "terminate stale privileged worker processes",
     )
 

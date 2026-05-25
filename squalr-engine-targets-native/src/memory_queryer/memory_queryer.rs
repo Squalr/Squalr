@@ -74,14 +74,30 @@ impl MemoryQueryer {
     }
 
     fn query_pages_from_settings(process_info: &OpenedProcessInfo) -> Vec<NormalizedRegion> {
+        #[cfg(not(target_os = "android"))]
         let required_page_flags = MemoryQueryer::get_required_protection_settings();
+
+        #[cfg(target_os = "android")]
+        let required_page_flags = {
+            let mut required_page_flags = MemoryQueryer::get_required_protection_settings();
+
+            if required_page_flags.is_empty() {
+                required_page_flags |= MemoryProtectionEnum::WRITE;
+            }
+
+            required_page_flags
+        };
         let excluded_page_flags = MemoryQueryer::get_excluded_protection_settings();
         let allowed_type_flags = MemoryQueryer::get_allowed_type_settings();
 
+        let maximum_usermode_address = MemoryQueryer::get_instance().get_max_usermode_address(process_info);
         let (start_address, end_address) = if MemorySettingsConfig::get_only_query_usermode() {
-            (0, MemoryQueryer::get_instance().get_max_usermode_address(process_info))
+            (0, maximum_usermode_address)
         } else {
-            (MemorySettingsConfig::get_start_address(), MemorySettingsConfig::get_end_address())
+            (
+                MemorySettingsConfig::get_start_address().min(maximum_usermode_address),
+                MemorySettingsConfig::get_end_address().min(maximum_usermode_address),
+            )
         };
 
         let normalized_regions = MemoryQueryer::get_instance().get_virtual_pages(

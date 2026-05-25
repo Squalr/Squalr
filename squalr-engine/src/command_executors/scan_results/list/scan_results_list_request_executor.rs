@@ -56,7 +56,7 @@ impl PrivilegedCommandRequestExecutor for ScanResultsListRequest {
                 data_type_result_counts = snapshot.get_result_counts_by_data_type(symbol_registry);
                 result_count = snapshot.get_number_of_results_for_data_types(symbol_registry, self.data_type_filters.as_deref());
                 last_page_index = result_count.saturating_sub(1) / results_page_size;
-                total_size_in_bytes = snapshot.get_byte_count();
+                total_size_in_bytes = snapshot.get_collected_byte_count();
                 let (resolved_page_index, scan_results_page) =
                     snapshot.get_scan_results_page(symbol_registry, self.data_type_filters.as_deref(), self.page_index, results_page_size);
                 effective_page_index = resolved_page_index;

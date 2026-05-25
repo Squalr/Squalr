@@ -126,6 +126,10 @@ impl LinuxMemoryQueryer {
     ) -> bool {
         let protection_bits = protection_flags.bits();
 
+        if !protection_flags.contains(MemoryProtectionEnum::READ) {
+            return false;
+        }
+
         if required_protection_bits != 0 && (protection_bits & required_protection_bits) == 0 {
             return false;
         }
@@ -146,6 +150,25 @@ impl LinuxMemoryQueryer {
         }
 
         (type_flags.bits() & allowed_type_bits) != 0
+    }
+
+    fn is_android_device_mapping(pathname: &str) -> bool {
+        let pathname = pathname.trim();
+
+        pathname.starts_with("/dev/") || pathname.starts_with("/dmabuf:")
+    }
+
+    fn is_platform_scan_candidate(region: &ProcMapsRegion) -> bool {
+        #[cfg(target_os = "android")]
+        {
+            !Self::is_android_device_mapping(&region.pathname)
+        }
+
+        #[cfg(not(target_os = "android"))]
+        {
+            let _ = region;
+            true
+        }
     }
 
     fn clamp_region_to_bounds(
@@ -289,6 +312,10 @@ impl MemoryQueryerTrait for LinuxMemoryQueryer {
 
                 let type_flags = Self::parse_memory_type_flags(parsed_region);
                 if !Self::matches_type_filters(type_flags, allowed_type_bits) {
+                    return None;
+                }
+
+                if !Self::is_platform_scan_candidate(parsed_region) {
                     return None;
                 }
 
@@ -439,6 +466,29 @@ mod tests {
         assert!(protection_flags.contains(MemoryProtectionEnum::WRITE));
         assert!(protection_flags.contains(MemoryProtectionEnum::EXECUTE));
         assert!(protection_flags.contains(MemoryProtectionEnum::COPY_ON_WRITE));
+    }
+
+    #[test]
+    fn matches_protection_filters_rejects_unreadable_regions() {
+        let protection_flags = MemoryProtectionEnum::WRITE | MemoryProtectionEnum::COPY_ON_WRITE;
+
+        assert!(!LinuxMemoryQueryer::matches_protection_filters(
+            protection_flags,
+            MemoryProtectionEnum::empty().bits(),
+            MemoryProtectionEnum::empty().bits(),
+        ));
+    }
+
+    #[test]
+    fn android_device_mapping_filter_rejects_device_paths_only() {
+        assert!(LinuxMemoryQueryer::is_android_device_mapping("/dev/mali0"));
+        assert!(LinuxMemoryQueryer::is_android_device_mapping("/dmabuf:VRI[CaravanActivity]#4(BLAST Consumer)"));
+
+        assert!(!LinuxMemoryQueryer::is_android_device_mapping(""));
+        assert!(!LinuxMemoryQueryer::is_android_device_mapping("[heap]"));
+        assert!(!LinuxMemoryQueryer::is_android_device_mapping("[anon:dalvik-LinearAlloc]"));
+        assert!(!LinuxMemoryQueryer::is_android_device_mapping("/memfd:jit-cache (deleted)"));
+        assert!(!LinuxMemoryQueryer::is_android_device_mapping("[anon:scudo:primary]"));
     }
 
     #[test]
