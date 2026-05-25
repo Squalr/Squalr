@@ -1,6 +1,6 @@
 # Agentic Current Task
 Our current task, from `README.md`, is:
-`release updater transient missing asset handling`
+`pointer reachability graph to inferred symbol layouts investigation`
 
 # Notes from Owner
 - Assume any unstaged/uncommitted file changes are from a previous iteration, or from the human author giving guidance. Keep them if they look good; do not ask about them by default.
@@ -9,11 +9,17 @@ Our current task, from `README.md`, is:
 - Alpha-stage data compatibility is not required for this refactor. Prefer a clean model over preserving old address/pointer/symbol-ref project item properties.
 
 ## Current Tasklist
-- Completed: The current Rust updater treats a latest GitHub release that is visible before its required platform bundle asset as a transient skip instead of a hard update failure.
-- Completed: Release asset lookup is shared through `GitHubReleaseInfo::find_asset_by_name`, and the installer download fallback uses the same case-insensitive matching.
-- Completed: Added tests for missing latest-release assets and normal platform bundle resolution.
+- Completed: Investigated how current pointer scanning discovers N-deep reverse pointer reachability from static roots and heap intermediates.
+- Completed: Confirmed snapshot regions keep `page_boundaries`, so merged scan regions do not need to be treated as object-size evidence.
+- Completed: Confirmed current Symbol Tree plugin memory service only supports module-relative reads, so heap reachability/layout inference needs a broader analysis service or core command.
+- Pending: Decide whether the first implementation should expose a core `PointerReachabilityGraph` artifact, a plugin-facing analysis service, or both.
 
 ## Important Information
-- The reported stack trace is from the legacy Squirrel updater path, where GitHub exposed `Squalr v0.4.0` before the `RELEASES` asset was visible. In the current Rust updater, the analogous case is a latest release without `squalr-<version>-<os>-<arch>.zip`.
-- Validation: `cargo fmt --all` completed with existing `fn_args_layout` warnings; `cargo test -p squalr-engine update_asset_download_url -- --nocapture` passed 2 targeted tests; `cargo check -p squalr-engine` passed; `cargo test -p squalr-engine app_provisioner -- --nocapture` passed 11 app-provisioner tests. One attempted command, `cargo test -p squalr-engine latest_release_url_targets_live_squalr_repository release_bundle_asset_name_uses_current_target -- --nocapture`, failed because Cargo accepts only one test filter.
-- Human verification needed: Publish or simulate a latest release that lacks the current platform bundle and confirm the updater logs a warning and leaves the existing install running without surfacing a failed update. This needs human verification.
+- Current pointer scanning is target-driven: it starts from target addresses/ranges, scans snapshot regions for pointer values into the frontier, keeps static candidates as roots, and keeps heap candidates for non-terminal levels.
+- Layout inference wants a broader graph view: source pointer slot, destination block/range, destination offset, owner counts, fan-in/fan-out, page/VMA bounds, and module/static root metadata.
+- `SnapshotRegion` stores merged byte ranges plus OS page boundaries and tombstoned page starts. Inference should clamp candidate block bounds to page/VMA segments, not merged snapshot region sizes.
+- Existing binary-symbol population is a good Symbol Tree plugin precedent, but it only needs `read_module_bytes`. Heap layout inference likely needs arbitrary memory reads, memory-map/page metadata, current pointer scan results, and possibly snapshots.
+- Recommended MVP: build graph extraction in engine/scanning, keep heuristic inference/application as a Symbol Tree plugin or plugin-backed command, and apply inferred layouts through the existing project symbol catalog.
+
+## Validation
+- Investigation only. No source implementation was changed, so no code tests were run.
