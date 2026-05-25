@@ -2,6 +2,7 @@ use crate::{
     app_context::AppContext,
     ui::{
         draw::icon_draw::IconDraw,
+        platform::android_text_input_sync,
         widgets::controls::{button::Button, state_layer::StateLayer},
     },
     views::project_explorer::project_selector::view_data::project_selector_frame_action::ProjectSelectorFrameAction,
@@ -166,7 +167,7 @@ impl<'lifetime> Widget for ProjectEntryView<'lifetime> {
                             .text_color(theme.foreground)
                             .desired_width(f32::INFINITY);
                         let mut output = text_edit.show(user_interface);
-                        let text_edit_response = output.response;
+                        let text_edit_response = output.response.clone();
 
                         if *should_highlight_text {
                             let len_chars = rename_project_text.chars().count();
@@ -176,9 +177,18 @@ impl<'lifetime> Widget for ProjectEntryView<'lifetime> {
                                 .state
                                 .cursor
                                 .set_char_range(Some(CCursorRange::two(CCursor::new(0), CCursor::new(len_chars))));
-                            output.state.store(user_interface.ctx(), text_edit_response.id);
+                            output
+                                .state
+                                .clone()
+                                .store(user_interface.ctx(), text_edit_response.id);
                             *should_highlight_text = false;
                         }
+
+                        android_text_input_sync::sync_text_edit(
+                            &text_edit_response,
+                            output.state.cursor.char_range().or(output.cursor_range),
+                            rename_project_text,
+                        );
 
                         if text_edit_response.lost_focus() && user_interface.input(|input_state| input_state.key_pressed(Key::Enter)) {
                             *self.project_selector_frame_action = ProjectSelectorFrameAction::CommitRename(

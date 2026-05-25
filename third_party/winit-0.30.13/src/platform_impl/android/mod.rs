@@ -16,7 +16,7 @@ use crate::error;
 use crate::error::EventLoopError;
 use crate::event::{self, Force, InnerSizeWriter, StartCause};
 use crate::event_loop::{self, ActiveEventLoop as RootAEL, ControlFlow, DeviceEvents};
-use crate::keyboard::{Key, KeyCode, KeyLocation, NamedKey, NativeKeyCode, PhysicalKey};
+use crate::keyboard::{Key, KeyCode, KeyLocation, NamedKey, PhysicalKey};
 use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::Fullscreen;
 use crate::window::{self, CursorGrabMode, CustomCursor, CustomCursorSource, ImePurpose, ResizeDirection, Theme, WindowButtons, WindowLevel};
@@ -27,7 +27,8 @@ pub(crate) use crate::cursor::{NoCustomCursor as PlatformCustomCursor, NoCustomC
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 
 static HAS_FOCUS: AtomicBool = AtomicBool::new(true);
-static TEXT_INPUT_STATE_RESET_REQUESTED: AtomicBool = AtomicBool::new(false);
+static ANDROID_IME_ALLOWED: AtomicBool = AtomicBool::new(false);
+static TEXT_INPUT_STATE_BASELINE: Mutex<Option<TextInputState>> = Mutex::new(None);
 
 #[derive(Clone)]
 struct TextInputDelta {
@@ -61,12 +62,34 @@ fn normalize_game_activity_text_delta(raw_text_delta: &str) -> String {
     normalized_text_delta
 }
 
-fn should_suppress_text_event_backed_key_event(
+pub(crate) fn set_text_input_state_baseline(text_input_state: TextInputState) {
+    match TEXT_INPUT_STATE_BASELINE.lock() {
+        Ok(mut pending_text_input_state) => {
+            *pending_text_input_state = Some(text_input_state);
+        }
+        Err(error) => {
+            warn!("Failed to set Android text input baseline: {error}");
+        }
+    }
+}
+
+fn take_text_input_state_baseline() -> Option<TextInputState> {
+    match TEXT_INPUT_STATE_BASELINE.lock() {
+        Ok(mut pending_text_input_state) => pending_text_input_state.take(),
+        Err(error) => {
+            warn!("Failed to take Android text input baseline: {error}");
+            None
+        }
+    }
+}
+
+fn should_suppress_android_text_key_event(
+    is_ime_allowed: bool,
     is_text_event_backed: bool,
     keycode: Keycode,
     logical_key: &Key,
 ) -> bool {
-    if !is_text_event_backed {
+    if !is_text_event_backed && !is_ime_allowed {
         return false;
     }
 
@@ -98,15 +121,35 @@ mod tests {
 
     #[test]
     fn soft_keyboard_key_events_are_suppressed_for_text_event_bridge() {
-        assert!(should_suppress_text_event_backed_key_event(true, Keycode::A, &Key::Character("a".into())));
-        assert!(should_suppress_text_event_backed_key_event(
+        assert!(should_suppress_android_text_key_event(true, false, Keycode::A, &Key::Character("a".into())));
+        assert!(should_suppress_android_text_key_event(false, true, Keycode::A, &Key::Character("a".into())));
+        assert!(should_suppress_android_text_key_event(
+            true,
+            false,
+            Keycode::Del,
+            &Key::Named(NamedKey::Backspace)
+        ));
+        assert!(should_suppress_android_text_key_event(
+            false,
             true,
             Keycode::Del,
             &Key::Named(NamedKey::Backspace)
         ));
-        assert!(should_suppress_text_event_backed_key_event(true, Keycode::Enter, &Key::Named(NamedKey::Enter)));
-        assert!(!should_suppress_text_event_backed_key_event(false, Keycode::A, &Key::Character("a".into())));
-        assert!(!should_suppress_text_event_backed_key_event(
+        assert!(should_suppress_android_text_key_event(
+            true,
+            false,
+            Keycode::Enter,
+            &Key::Named(NamedKey::Enter)
+        ));
+        assert!(!should_suppress_android_text_key_event(false, false, Keycode::A, &Key::Character("a".into())));
+        assert!(!should_suppress_android_text_key_event(
+            true,
+            false,
+            Keycode::DpadLeft,
+            &Key::Named(NamedKey::ArrowLeft)
+        ));
+        assert!(!should_suppress_android_text_key_event(
+            false,
             true,
             Keycode::DpadLeft,
             &Key::Named(NamedKey::ArrowLeft)
@@ -377,7 +420,7 @@ impl<T: 'static> EventLoop<T> {
         for text_character in text.chars() {
             if text_character == '\n' || text_character == '\r' {
                 if !pending_text.is_empty() {
-                    self.emit_synthetic_text(callback, &pending_text);
+                    self.emit_synthetic_ime_commit(callback, &pending_text);
                     pending_text.clear();
                 }
 
@@ -389,11 +432,11 @@ impl<T: 'static> EventLoop<T> {
         }
 
         if !pending_text.is_empty() {
-            self.emit_synthetic_text(callback, &pending_text);
+            self.emit_synthetic_ime_commit(callback, &pending_text);
         }
     }
 
-    fn emit_synthetic_text<F>(
+    fn emit_synthetic_ime_commit<F>(
         &self,
         callback: &mut F,
         text: &str,
@@ -402,19 +445,7 @@ impl<T: 'static> EventLoop<T> {
     {
         let event = event::Event::WindowEvent {
             window_id: window::WindowId(WindowId),
-            event: event::WindowEvent::KeyboardInput {
-                device_id: event::DeviceId(DeviceId(0)),
-                event: event::KeyEvent {
-                    state: event::ElementState::Pressed,
-                    physical_key: PhysicalKey::Unidentified(NativeKeyCode::Unidentified),
-                    logical_key: Key::Character(smol_str::SmolStr::new(text)),
-                    location: KeyLocation::Standard,
-                    repeat: false,
-                    text: Some(smol_str::SmolStr::new(text)),
-                    platform_specific: KeyEventExtra {},
-                },
-                is_synthetic: false,
-            },
+            event: event::WindowEvent::Ime(event::Ime::Commit(text.to_owned())),
         };
         callback(event, self.window_target());
     }
@@ -685,10 +716,12 @@ impl<T: 'static> EventLoop<T> {
 
                         let logical_key = keycodes::to_logical(key_char, keycode);
                         let is_text_event_backed = key.flags().soft_keyboard() || key.device_id() == -1;
-                        if state == event::ElementState::Pressed && should_suppress_text_event_backed_key_event(is_text_event_backed, keycode, &logical_key) {
+                        if state == event::ElementState::Pressed
+                            && should_suppress_android_text_key_event(ANDROID_IME_ALLOWED.load(Ordering::Relaxed), is_text_event_backed, keycode, &logical_key)
+                        {
                             trace!(
                                 target: "winit::platform_impl::android::text_input",
-                                "Suppressing text-backed key event because GameActivity TextEvent is authoritative."
+                                "Suppressing Android text key event because GameActivity TextEvent is authoritative."
                             );
                             return input_status;
                         }
@@ -714,8 +747,8 @@ impl<T: 'static> EventLoop<T> {
                 }
             }
             InputEvent::TextEvent(text_input_state) => {
-                if TEXT_INPUT_STATE_RESET_REQUESTED.swap(false, Ordering::Relaxed) {
-                    self.android_text_input_state = empty_text_input_state();
+                if let Some(text_input_state_baseline) = take_text_input_state_baseline() {
+                    self.android_text_input_state = text_input_state_baseline;
                 }
 
                 let text_input_delta = Self::calculate_text_input_delta(&self.android_text_input_state, text_input_state);
@@ -1272,9 +1305,9 @@ impl Window {
         &self,
         allowed: bool,
     ) {
+        ANDROID_IME_ALLOWED.store(allowed, Ordering::Relaxed);
+
         if allowed {
-            self.app.set_text_input_state(empty_text_input_state());
-            TEXT_INPUT_STATE_RESET_REQUESTED.store(true, Ordering::Relaxed);
             self.app.show_soft_input(true);
         } else {
             self.app.hide_soft_input(true);

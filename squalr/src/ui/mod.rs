@@ -5,6 +5,7 @@ pub mod geometry;
 pub mod icon_library;
 pub mod keyboard_shortcuts;
 pub mod list_navigation;
+pub mod platform;
 pub mod text;
 pub mod theme;
 pub mod widgets;

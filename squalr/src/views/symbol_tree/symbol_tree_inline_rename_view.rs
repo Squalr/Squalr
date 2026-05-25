@@ -1,6 +1,6 @@
 use crate::{
     app_context::AppContext,
-    ui::{draw::icon_draw::IconDraw, widgets::controls::state_layer::StateLayer},
+    ui::{draw::icon_draw::IconDraw, platform::android_text_input_sync, widgets::controls::state_layer::StateLayer},
 };
 use eframe::egui::{
     Id, Key, Rect, Response, Sense, TextEdit, Ui, UiBuilder, Widget, pos2,
@@ -133,9 +133,14 @@ impl<'lifetime> SymbolTreeInlineRenameView<'lifetime> {
                 .state
                 .cursor
                 .set_char_range(Some(CCursorRange::two(CCursor::new(0), CCursor::new(rename_text_length))));
-            output.state.store(user_interface.ctx(), text_edit_response.id);
+            output
+                .state
+                .clone()
+                .store(user_interface.ctx(), text_edit_response.id);
             *self.should_highlight_text = false;
         }
+
+        android_text_input_sync::sync_text_edit(&text_edit_response, output.state.cursor.char_range().or(output.cursor_range), self.rename_text);
 
         SymbolTreeInlineRenameViewResponse {
             row_response,

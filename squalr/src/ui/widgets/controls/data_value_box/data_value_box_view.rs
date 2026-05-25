@@ -1,3 +1,4 @@
+use crate::ui::platform::android_text_input_sync;
 use crate::ui::widgets::controls::state_layer::StateLayer;
 use crate::{app_context::AppContext, ui::widgets::controls::data_value_box::data_value_box_convert_item_view::DataValueBoxConvertItemView};
 use eframe::egui::{Align, Area, Frame, Id, Key, Layout, Order, Response, Sense, TextEdit, Ui, UiBuilder, Widget};
@@ -411,31 +412,39 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
             theme.font_library.font_noto_sans.font_normal.clone()
         };
         let text_edit_id = Id::new(format!("{}_text_edit", self.id));
-        let text_edit_response = if self.is_multiline {
-            text_edit_user_interface.add(
-                TextEdit::multiline(&mut text_value)
-                    .id(text_edit_id)
-                    .font(font_id.clone())
-                    .text_color(text_color)
-                    .hint_text(self.preview_text)
-                    .interactive(!self.is_read_only)
-                    .desired_rows(self.multiline_rows)
-                    .desired_width(text_edit_rectangle_inner.width())
-                    .frame(false),
-            )
+        let text_edit_output = if self.is_multiline {
+            TextEdit::multiline(&mut text_value)
+                .id(text_edit_id)
+                .font(font_id.clone())
+                .text_color(text_color)
+                .hint_text(self.preview_text)
+                .interactive(!self.is_read_only)
+                .desired_rows(self.multiline_rows)
+                .desired_width(text_edit_rectangle_inner.width())
+                .frame(false)
+                .show(&mut text_edit_user_interface)
         } else {
-            text_edit_user_interface.add(
-                TextEdit::singleline(&mut text_value)
-                    .id(text_edit_id)
-                    .vertical_align(eframe::egui::Align::Center)
-                    .font(font_id.clone())
-                    .text_color(text_color)
-                    .hint_text(self.preview_text)
-                    .interactive(!self.is_read_only)
-                    .desired_width(text_edit_rectangle_inner.width())
-                    .frame(false),
-            )
+            TextEdit::singleline(&mut text_value)
+                .id(text_edit_id)
+                .vertical_align(eframe::egui::Align::Center)
+                .font(font_id.clone())
+                .text_color(text_color)
+                .hint_text(self.preview_text)
+                .interactive(!self.is_read_only)
+                .desired_width(text_edit_rectangle_inner.width())
+                .frame(false)
+                .show(&mut text_edit_user_interface)
         };
+        let text_edit_response = text_edit_output.response.clone();
+        android_text_input_sync::sync_text_edit(
+            &text_edit_response,
+            text_edit_output
+                .state
+                .cursor
+                .char_range()
+                .or(text_edit_output.cursor_range),
+            &text_value,
+        );
 
         if self.border_width > 0.0 {
             user_interface.painter().rect_stroke(
