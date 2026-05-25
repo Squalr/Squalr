@@ -17,6 +17,7 @@ ANDROID_MANIFEST_CRATE_NAME = "squalr"
 GRADLE_VERSION = "7.5.1"
 ANDROID_GRADLE_PLUGIN_VERSION = "7.4.2"
 GAME_ACTIVITY_VERSION = "2.0.2"
+GRADLE_EXECUTABLE_ENV_VAR = "SQUALR_ANDROID_GRADLE"
 SU_INVOCATION_ATTEMPTS = [
     ("su -c", ["su", "-c"]),
     ("su 0 sh -c", ["su", "0", "sh", "-c"]),
@@ -266,13 +267,18 @@ def detect_compile_sdk_version(android_home_path):
 
 
 def ensure_gradle_runtime(workspace_directory):
-    gradle_from_path = shutil.which("gradle")
-    if gradle_from_path:
-        return [gradle_from_path]
+    gradle_override = os.environ.get(GRADLE_EXECUTABLE_ENV_VAR)
+    if gradle_override:
+        gradle_override_path = Path(gradle_override)
+        if not gradle_override_path.exists():
+            fail(f"{GRADLE_EXECUTABLE_ENV_VAR} points to a missing Gradle executable: {gradle_override_path}")
+
+        return [str(gradle_override_path)]
 
     gradle_root_directory = workspace_directory / "target" / "android-gradle"
     gradle_distribution_directory = gradle_root_directory / f"gradle-{GRADLE_VERSION}"
-    gradle_executable_path = gradle_distribution_directory / "bin" / "gradle.bat"
+    gradle_executable_name = "gradle.bat" if os.name == "nt" else "gradle"
+    gradle_executable_path = gradle_distribution_directory / "bin" / gradle_executable_name
     if gradle_executable_path.exists():
         return [str(gradle_executable_path)]
 
@@ -289,6 +295,9 @@ def ensure_gradle_runtime(workspace_directory):
 
     if not gradle_executable_path.exists():
         fail(f"Gradle executable was not found after extraction: {gradle_executable_path}")
+
+    if os.name != "nt":
+        gradle_executable_path.chmod(0o755)
 
     return [str(gradle_executable_path)]
 
