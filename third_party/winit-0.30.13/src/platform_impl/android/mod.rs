@@ -37,6 +37,7 @@ fn empty_text_input_state() -> TextInputState {
     }
 }
 
+// Some GameActivity IME paths report duplicated character pairs for one text commit.
 fn normalize_game_activity_text_commit(raw_text_commit: &str) -> String {
     let mut normalized_text_commit = String::new();
     let mut text_commit_characters = raw_text_commit.chars();
@@ -212,7 +213,7 @@ pub struct EventLoop<T: 'static> {
     cause: StartCause,
     ignore_volume_keys: bool,
     combining_accent: Option<char>,
-    ignore_next_empty_text_event: bool,
+    ignore_next_empty_text_event_after_text_reset: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -260,7 +261,7 @@ impl<T: 'static> EventLoop<T> {
             cause: StartCause::Init,
             ignore_volume_keys: attributes.ignore_volume_keys,
             combining_accent: None,
-            ignore_next_empty_text_event: false,
+            ignore_next_empty_text_event_after_text_reset: false,
         })
     }
 
@@ -561,11 +562,6 @@ impl<T: 'static> EventLoop<T> {
                 let committed_text = normalize_game_activity_text_commit(&text_input_state.text);
 
                 if !committed_text.is_empty() {
-                    debug!(
-                        target: "winit::platform_impl::android::text_input",
-                        "Committing GameActivity text input: {committed_text:?}."
-                    );
-
                     let event = event::Event::WindowEvent {
                         window_id: window::WindowId(WindowId),
                         event: event::WindowEvent::KeyboardInput {
@@ -584,14 +580,10 @@ impl<T: 'static> EventLoop<T> {
                     };
                     callback(event, self.window_target());
                     android_app.set_text_input_state(empty_text_input_state());
-                    self.ignore_next_empty_text_event = true;
-                } else if self.ignore_next_empty_text_event {
-                    self.ignore_next_empty_text_event = false;
+                    self.ignore_next_empty_text_event_after_text_reset = true;
+                } else if self.ignore_next_empty_text_event_after_text_reset {
+                    self.ignore_next_empty_text_event_after_text_reset = false;
                 } else if ANDROID_IME_ALLOWED.load(Ordering::Relaxed) {
-                    debug!(
-                        target: "winit::platform_impl::android::text_input",
-                        "Treating empty GameActivity text input as Backspace."
-                    );
                     self.emit_synthetic_key(callback, NamedKey::Backspace, KeyCode::Backspace, event::ElementState::Pressed);
                     self.emit_synthetic_key(callback, NamedKey::Backspace, KeyCode::Backspace, event::ElementState::Released);
                 }
