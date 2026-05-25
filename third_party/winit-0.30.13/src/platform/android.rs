@@ -121,12 +121,6 @@ pub trait WindowAttributesExtAndroid {}
 
 impl WindowAttributesExtAndroid for WindowAttributes {}
 
-/// Sets the Android GameActivity text-input baseline consumed by winit's text event bridge.
-#[cfg(android_platform)]
-pub fn set_text_input_state_baseline(text_input_state: activity::input::TextInputState) {
-    crate::platform_impl::set_text_input_state_baseline(text_input_state);
-}
-
 pub trait EventLoopBuilderExtAndroid {
     /// Associates the [`AndroidApp`] that was passed to `android_main()` with the event loop
     ///

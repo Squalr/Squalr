@@ -1,5 +1,4 @@
 use crate::app_context::AppContext;
-use crate::ui::platform::android_text_input_sync;
 use crate::views::output::output_command_dispatcher::OutputCommandDispatcher;
 use crate::views::output::output_command_state::OutputCommandState;
 use crate::views::output::output_context_menu_state::OutputContextMenuState;
@@ -107,15 +106,6 @@ impl OutputView {
                 let text_edit_response = text_edit_output.response;
                 cursor_range = text_edit_output.cursor_range;
                 text_edit_id = Some(text_edit_response.id);
-                android_text_input_sync::sync_text_edit(
-                    &text_edit_response,
-                    text_edit_output
-                        .state
-                        .cursor
-                        .char_range()
-                        .or(text_edit_output.cursor_range),
-                    command_state.command_text(),
-                );
 
                 self.show_context_menu_for_response(&text_edit_response, OutputContextMenuState::show_command_input_menu);
 

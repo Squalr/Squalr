@@ -2,7 +2,6 @@ use crate::{
     app_context::AppContext,
     ui::{
         draw::icon_draw::IconDraw,
-        platform::android_text_input_sync,
         widgets::controls::{checkbox::Checkbox, state_layer::StateLayer},
     },
 };
@@ -167,8 +166,6 @@ impl<'lifetime> ProjectItemInlineRenameView<'lifetime> {
                 .store(user_interface.ctx(), text_edit_response.id);
             *self.should_highlight_text = false;
         }
-
-        android_text_input_sync::sync_text_edit(&text_edit_response, output.state.cursor.char_range().or(output.cursor_range), self.rename_text);
 
         ProjectItemInlineRenameViewResponse {
             row_response,

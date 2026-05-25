@@ -5121,7 +5121,6 @@ dependencies = [
  "squalr-engine-session",
  "squalr-plugin-instructions-x86",
  "wasm-bindgen",
- "winit",
  "winresource",
 ]
 

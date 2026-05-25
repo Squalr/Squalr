@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use android_activity::input::{InputEvent, KeyAction, Keycode, MotionAction, TextInputState, TextSpan};
+use android_activity::input::{InputEvent, KeyAction, Keycode, MotionAction};
 use android_activity::{AndroidApp, AndroidAppWaker, ConfigurationRef, InputStatus, MainEvent, Rect};
 use tracing::{debug, trace, warn};
 
@@ -16,7 +16,6 @@ use crate::error;
 use crate::error::EventLoopError;
 use crate::event::{self, Force, InnerSizeWriter, StartCause};
 use crate::event_loop::{self, ActiveEventLoop as RootAEL, ControlFlow, DeviceEvents};
-use crate::keyboard::{Key, KeyCode, KeyLocation, NamedKey, PhysicalKey};
 use crate::platform::pump_events::PumpStatus;
 use crate::platform_impl::Fullscreen;
 use crate::window::{self, CursorGrabMode, CustomCursor, CustomCursorSource, ImePurpose, ResizeDirection, Theme, WindowButtons, WindowLevel};
@@ -27,150 +26,6 @@ pub(crate) use crate::cursor::{NoCustomCursor as PlatformCustomCursor, NoCustomC
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 
 static HAS_FOCUS: AtomicBool = AtomicBool::new(true);
-static ANDROID_IME_ALLOWED: AtomicBool = AtomicBool::new(false);
-static TEXT_INPUT_STATE_BASELINE: Mutex<Option<TextInputState>> = Mutex::new(None);
-
-#[derive(Clone)]
-struct TextInputDelta {
-    deleted_text: String,
-    inserted_text: String,
-}
-
-fn empty_text_input_state() -> TextInputState {
-    TextInputState {
-        text: String::new(),
-        selection: TextSpan { start: 0, end: 0 },
-        compose_region: None,
-    }
-}
-
-fn normalize_game_activity_text_delta(raw_text_delta: &str) -> String {
-    let mut normalized_text_delta = String::new();
-    let mut text_delta_characters = raw_text_delta.chars();
-
-    while let Some(first_character) = text_delta_characters.next() {
-        match text_delta_characters.next() {
-            Some(second_character) if second_character == first_character => {
-                normalized_text_delta.push(first_character);
-            }
-            _ => {
-                return raw_text_delta.to_owned();
-            }
-        }
-    }
-
-    normalized_text_delta
-}
-
-pub(crate) fn set_text_input_state_baseline(text_input_state: TextInputState) {
-    match TEXT_INPUT_STATE_BASELINE.lock() {
-        Ok(mut pending_text_input_state) => {
-            *pending_text_input_state = Some(text_input_state);
-        }
-        Err(error) => {
-            warn!("Failed to set Android text input baseline: {error}");
-        }
-    }
-}
-
-fn take_text_input_state_baseline() -> Option<TextInputState> {
-    match TEXT_INPUT_STATE_BASELINE.lock() {
-        Ok(mut pending_text_input_state) => pending_text_input_state.take(),
-        Err(error) => {
-            warn!("Failed to take Android text input baseline: {error}");
-            None
-        }
-    }
-}
-
-fn should_suppress_android_text_key_event(
-    is_ime_allowed: bool,
-    is_text_event_backed: bool,
-    keycode: Keycode,
-    logical_key: &Key,
-) -> bool {
-    if !is_text_event_backed && !is_ime_allowed {
-        return false;
-    }
-
-    logical_key.to_text().is_some() || matches!(keycode, Keycode::Del | Keycode::ForwardDel | Keycode::Enter | Keycode::NumpadEnter)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn text_input_state(text: &str) -> TextInputState {
-        TextInputState {
-            text: text.to_owned(),
-            selection: TextSpan {
-                start: text.len() as _,
-                end: text.len() as _,
-            },
-            compose_region: None,
-        }
-    }
-
-    #[test]
-    fn normalize_game_activity_text_delta_collapses_duplicate_pairs() {
-        assert_eq!(normalize_game_activity_text_delta("88"), "8");
-        assert_eq!(normalize_game_activity_text_delta("aabb"), "ab");
-        assert_eq!(normalize_game_activity_text_delta("abc"), "abc");
-        assert_eq!(normalize_game_activity_text_delta("aaa"), "aaa");
-    }
-
-    #[test]
-    fn soft_keyboard_key_events_are_suppressed_for_text_event_bridge() {
-        assert!(should_suppress_android_text_key_event(true, false, Keycode::A, &Key::Character("a".into())));
-        assert!(should_suppress_android_text_key_event(false, true, Keycode::A, &Key::Character("a".into())));
-        assert!(should_suppress_android_text_key_event(
-            true,
-            false,
-            Keycode::Del,
-            &Key::Named(NamedKey::Backspace)
-        ));
-        assert!(should_suppress_android_text_key_event(
-            false,
-            true,
-            Keycode::Del,
-            &Key::Named(NamedKey::Backspace)
-        ));
-        assert!(should_suppress_android_text_key_event(
-            true,
-            false,
-            Keycode::Enter,
-            &Key::Named(NamedKey::Enter)
-        ));
-        assert!(!should_suppress_android_text_key_event(false, false, Keycode::A, &Key::Character("a".into())));
-        assert!(!should_suppress_android_text_key_event(
-            true,
-            false,
-            Keycode::DpadLeft,
-            &Key::Named(NamedKey::ArrowLeft)
-        ));
-        assert!(!should_suppress_android_text_key_event(
-            false,
-            true,
-            Keycode::DpadLeft,
-            &Key::Named(NamedKey::ArrowLeft)
-        ));
-    }
-
-    #[test]
-    fn calculate_text_input_delta_extracts_insertions_and_deletions() {
-        let insertion_delta = EventLoop::<()>::calculate_text_input_delta(&text_input_state("ab"), &text_input_state("abcc"));
-        assert_eq!(insertion_delta.deleted_text, "");
-        assert_eq!(insertion_delta.inserted_text, "c");
-
-        let deletion_delta = EventLoop::<()>::calculate_text_input_delta(&text_input_state("abcd"), &text_input_state("ad"));
-        assert_eq!(deletion_delta.deleted_text, "bc");
-        assert_eq!(deletion_delta.inserted_text, "");
-
-        let replacement_delta = EventLoop::<()>::calculate_text_input_delta(&text_input_state("scan"), &text_input_state("span"));
-        assert_eq!(replacement_delta.deleted_text, "c");
-        assert_eq!(replacement_delta.inserted_text, "p");
-    }
-}
 
 /// Returns the minimum `Option<Duration>`, taking into account that `None`
 /// equates to an infinite timeout, not a zero timeout (so can't just use
@@ -291,7 +146,6 @@ pub struct EventLoop<T: 'static> {
     cause: StartCause,
     ignore_volume_keys: bool,
     combining_accent: Option<char>,
-    android_text_input_state: TextInputState,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -339,143 +193,7 @@ impl<T: 'static> EventLoop<T> {
             cause: StartCause::Init,
             ignore_volume_keys: attributes.ignore_volume_keys,
             combining_accent: None,
-            android_text_input_state: empty_text_input_state(),
         })
-    }
-
-    fn calculate_text_input_delta(
-        previous_text_input_state: &TextInputState,
-        current_text_input_state: &TextInputState,
-    ) -> TextInputDelta {
-        let previous_text = previous_text_input_state.text.as_str();
-        let current_text = current_text_input_state.text.as_str();
-
-        if previous_text == current_text {
-            return TextInputDelta {
-                deleted_text: String::new(),
-                inserted_text: String::new(),
-            };
-        }
-
-        let prefix_byte_count = previous_text
-            .chars()
-            .zip(current_text.chars())
-            .take_while(|(previous_character, current_character)| previous_character == current_character)
-            .map(|(previous_character, _)| previous_character.len_utf8())
-            .sum::<usize>();
-
-        let previous_remainder = &previous_text[prefix_byte_count..];
-        let current_remainder = &current_text[prefix_byte_count..];
-        let suffix_byte_count = previous_remainder
-            .chars()
-            .rev()
-            .zip(current_remainder.chars().rev())
-            .take_while(|(previous_character, current_character)| previous_character == current_character)
-            .map(|(previous_character, _)| previous_character.len_utf8())
-            .sum::<usize>();
-
-        let previous_changed_end = previous_text.len().saturating_sub(suffix_byte_count);
-        let current_changed_end = current_text.len().saturating_sub(suffix_byte_count);
-        let deleted_text = &previous_text[prefix_byte_count..previous_changed_end];
-        let inserted_text = &current_text[prefix_byte_count..current_changed_end];
-
-        TextInputDelta {
-            deleted_text: normalize_game_activity_text_delta(deleted_text),
-            inserted_text: normalize_game_activity_text_delta(inserted_text),
-        }
-    }
-
-    fn emit_text_input_delta<F>(
-        &self,
-        text_input_delta: &TextInputDelta,
-        callback: &mut F,
-    ) where
-        F: FnMut(event::Event<T>, &RootAEL),
-    {
-        debug!(
-            target: "winit::platform_impl::android::text_input",
-            "GameActivity text delta deleted={:?} inserted={:?}",
-            text_input_delta.deleted_text, text_input_delta.inserted_text
-        );
-
-        for _deleted_character in text_input_delta.deleted_text.chars() {
-            self.emit_synthetic_key(callback, NamedKey::Backspace, KeyCode::Backspace, event::ElementState::Pressed);
-            self.emit_synthetic_key(callback, NamedKey::Backspace, KeyCode::Backspace, event::ElementState::Released);
-        }
-
-        if !text_input_delta.inserted_text.is_empty() {
-            self.emit_synthetic_text_input(callback, &text_input_delta.inserted_text);
-        }
-    }
-
-    fn emit_synthetic_text_input<F>(
-        &self,
-        callback: &mut F,
-        text: &str,
-    ) where
-        F: FnMut(event::Event<T>, &RootAEL),
-    {
-        let mut pending_text = String::new();
-
-        for text_character in text.chars() {
-            if text_character == '\n' || text_character == '\r' {
-                if !pending_text.is_empty() {
-                    self.emit_synthetic_ime_commit(callback, &pending_text);
-                    pending_text.clear();
-                }
-
-                self.emit_synthetic_key(callback, NamedKey::Enter, KeyCode::Enter, event::ElementState::Pressed);
-                self.emit_synthetic_key(callback, NamedKey::Enter, KeyCode::Enter, event::ElementState::Released);
-            } else {
-                pending_text.push(text_character);
-            }
-        }
-
-        if !pending_text.is_empty() {
-            self.emit_synthetic_ime_commit(callback, &pending_text);
-        }
-    }
-
-    fn emit_synthetic_ime_commit<F>(
-        &self,
-        callback: &mut F,
-        text: &str,
-    ) where
-        F: FnMut(event::Event<T>, &RootAEL),
-    {
-        let event = event::Event::WindowEvent {
-            window_id: window::WindowId(WindowId),
-            event: event::WindowEvent::Ime(event::Ime::Commit(text.to_owned())),
-        };
-        callback(event, self.window_target());
-    }
-
-    fn emit_synthetic_key<F>(
-        &self,
-        callback: &mut F,
-        named_key: NamedKey,
-        key_code: KeyCode,
-        state: event::ElementState,
-    ) where
-        F: FnMut(event::Event<T>, &RootAEL),
-    {
-        let event = event::Event::WindowEvent {
-            window_id: window::WindowId(WindowId),
-            event: event::WindowEvent::KeyboardInput {
-                device_id: event::DeviceId(DeviceId(0)),
-                event: event::KeyEvent {
-                    state,
-                    physical_key: PhysicalKey::Code(key_code),
-                    logical_key: Key::Named(named_key),
-                    location: KeyLocation::Standard,
-                    repeat: false,
-                    text: None,
-                    platform_specific: KeyEventExtra {},
-                },
-                is_synthetic: false,
-            },
-        };
-        callback(event, self.window_target());
     }
 
     fn single_iteration<F>(
@@ -715,17 +433,6 @@ impl<T: 'static> EventLoop<T> {
                         let key_char = keycodes::character_map_and_combine_key(android_app, key, &mut self.combining_accent);
 
                         let logical_key = keycodes::to_logical(key_char, keycode);
-                        let is_text_event_backed = key.flags().soft_keyboard() || key.device_id() == -1;
-                        if state == event::ElementState::Pressed
-                            && should_suppress_android_text_key_event(ANDROID_IME_ALLOWED.load(Ordering::Relaxed), is_text_event_backed, keycode, &logical_key)
-                        {
-                            trace!(
-                                target: "winit::platform_impl::android::text_input",
-                                "Suppressing Android text key event because GameActivity TextEvent is authoritative."
-                            );
-                            return input_status;
-                        }
-
                         let event = event::Event::WindowEvent {
                             window_id: window::WindowId(WindowId),
                             event: event::WindowEvent::KeyboardInput {
@@ -746,15 +453,7 @@ impl<T: 'static> EventLoop<T> {
                     }
                 }
             }
-            InputEvent::TextEvent(text_input_state) => {
-                if let Some(text_input_state_baseline) = take_text_input_state_baseline() {
-                    self.android_text_input_state = text_input_state_baseline;
-                }
-
-                let text_input_delta = Self::calculate_text_input_delta(&self.android_text_input_state, text_input_state);
-                self.emit_text_input_delta(&text_input_delta, callback);
-                self.android_text_input_state = text_input_state.clone();
-            }
+            InputEvent::TextEvent(_) => {}
             _ => {
                 warn!("Unknown android_activity input event {event:?}")
             }
@@ -1305,8 +1004,6 @@ impl Window {
         &self,
         allowed: bool,
     ) {
-        ANDROID_IME_ALLOWED.store(allowed, Ordering::Relaxed);
-
         if allowed {
             self.app.show_soft_input(true);
         } else {

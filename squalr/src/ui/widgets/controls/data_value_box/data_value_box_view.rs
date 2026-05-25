@@ -1,4 +1,3 @@
-use crate::ui::platform::android_text_input_sync;
 use crate::ui::widgets::controls::state_layer::StateLayer;
 use crate::{app_context::AppContext, ui::widgets::controls::data_value_box::data_value_box_convert_item_view::DataValueBoxConvertItemView};
 use eframe::egui::{Align, Area, Frame, Id, Key, Layout, Order, Response, Sense, TextEdit, Ui, UiBuilder, Widget};
@@ -436,15 +435,6 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
                 .show(&mut text_edit_user_interface)
         };
         let text_edit_response = text_edit_output.response.clone();
-        android_text_input_sync::sync_text_edit(
-            &text_edit_response,
-            text_edit_output
-                .state
-                .cursor
-                .char_range()
-                .or(text_edit_output.cursor_range),
-            &text_value,
-        );
 
         if self.border_width > 0.0 {
             user_interface.painter().rect_stroke(
