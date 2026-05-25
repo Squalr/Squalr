@@ -7,8 +7,6 @@ use epaint::{CornerRadius, Rgba, vec2};
 use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
 use squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState;
 use std::sync::RwLock;
-#[cfg(target_os = "android")]
-use std::time::Duration;
 use std::{rc::Rc, sync::Arc};
 
 #[derive(Clone)]
@@ -18,15 +16,6 @@ pub struct App {
     corner_radius: CornerRadius,
     #[cfg(target_os = "android")]
     android_soft_keyboard_was_allowed: bool,
-    #[cfg(target_os = "android")]
-    android_soft_keyboard_retry_frames_remaining: u8,
-}
-
-#[cfg(target_os = "android")]
-pub fn request_android_soft_keyboard() {
-    if let Some(android_app) = crate::get_android_app_handle() {
-        android_app.show_soft_input(true);
-    }
 }
 
 impl App {
@@ -53,8 +42,6 @@ impl App {
             corner_radius,
             #[cfg(target_os = "android")]
             android_soft_keyboard_was_allowed: false,
-            #[cfg(target_os = "android")]
-            android_soft_keyboard_retry_frames_remaining: 0,
         }
     }
 
@@ -64,22 +51,12 @@ impl App {
         context: &Context,
     ) {
         let allow_ime = context.wants_keyboard_input();
-        context.send_viewport_cmd(eframe::egui::ViewportCommand::IMEAllowed(allow_ime));
 
-        if allow_ime {
-            context.send_viewport_cmd(eframe::egui::ViewportCommand::IMEPurpose(eframe::egui::viewport::IMEPurpose::Normal));
-
+        if allow_ime != self.android_soft_keyboard_was_allowed {
+            context.send_viewport_cmd(eframe::egui::ViewportCommand::IMEAllowed(allow_ime));
             if !self.android_soft_keyboard_was_allowed {
-                self.android_soft_keyboard_retry_frames_remaining = 8;
+                context.send_viewport_cmd(eframe::egui::ViewportCommand::IMEPurpose(eframe::egui::viewport::IMEPurpose::Normal));
             }
-
-            if self.android_soft_keyboard_retry_frames_remaining > 0 {
-                request_android_soft_keyboard();
-                self.android_soft_keyboard_retry_frames_remaining -= 1;
-                context.request_repaint_after(Duration::from_millis(50));
-            }
-        } else {
-            self.android_soft_keyboard_retry_frames_remaining = 0;
         }
 
         self.android_soft_keyboard_was_allowed = allow_ime;

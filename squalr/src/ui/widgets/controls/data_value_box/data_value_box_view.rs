@@ -437,12 +437,6 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
             )
         };
 
-        #[cfg(target_os = "android")]
-        if !self.is_read_only && (text_edit_response.gained_focus() || text_edit_response.clicked()) {
-            crate::app::request_android_soft_keyboard();
-            self.app_context.context.request_repaint();
-        }
-
         if self.border_width > 0.0 {
             user_interface.painter().rect_stroke(
                 allocated_size_rectangle,

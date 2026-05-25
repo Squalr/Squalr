@@ -1,12 +1,14 @@
 use std::cell::Cell;
 use std::collections::VecDeque;
+use std::ffi::CString;
 use std::hash::Hash;
 use std::marker::PhantomData;
+use std::os::raw::{c_char, c_int};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use android_activity::input::{InputEvent, KeyAction, Keycode, MotionAction, TextInputState};
+use android_activity::input::{InputEvent, KeyAction, KeyMapChar, Keycode, MotionAction, TextInputState, TextSpan};
 use android_activity::{AndroidApp, AndroidAppWaker, ConfigurationRef, InputStatus, MainEvent, Rect};
 use tracing::{debug, trace, warn};
 
@@ -27,6 +29,57 @@ pub(crate) use crate::cursor::{NoCustomCursor as PlatformCustomCursor, NoCustomC
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 
 static HAS_FOCUS: AtomicBool = AtomicBool::new(true);
+
+unsafe extern "C" {
+    fn __android_log_write(
+        priority: c_int,
+        tag: *const c_char,
+        text: *const c_char,
+    ) -> c_int;
+}
+
+fn android_input_diagnostic_log(message: &str) {
+    let Ok(tag) = CString::new("SqualrInput") else {
+        return;
+    };
+    let Ok(text) = CString::new(message) else {
+        return;
+    };
+
+    unsafe {
+        __android_log_write(4, tag.as_ptr(), text.as_ptr());
+    }
+}
+
+fn empty_text_input_state() -> TextInputState {
+    TextInputState {
+        text: String::new(),
+        selection: TextSpan { start: 0, end: 0 },
+        compose_region: None,
+    }
+}
+
+fn key_map_char_produces_text(key_char: Option<KeyMapChar>) -> bool {
+    matches!(key_char, Some(KeyMapChar::Unicode(_) | KeyMapChar::CombiningAccent(_)))
+}
+
+fn normalize_game_activity_text_delta(raw_text_delta: &str) -> String {
+    let mut normalized_text_delta = String::new();
+    let mut text_delta_characters = raw_text_delta.chars();
+
+    while let Some(first_character) = text_delta_characters.next() {
+        match text_delta_characters.next() {
+            Some(second_character) if second_character == first_character => {
+                normalized_text_delta.push(first_character);
+            }
+            _ => {
+                return raw_text_delta.to_owned();
+            }
+        }
+    }
+
+    normalized_text_delta
+}
 
 /// Returns the minimum `Option<Duration>`, taking into account that `None`
 /// equates to an infinite timeout, not a zero timeout (so can't just use
@@ -147,7 +200,14 @@ pub struct EventLoop<T: 'static> {
     cause: StartCause,
     ignore_volume_keys: bool,
     combining_accent: Option<char>,
-    android_text_input_state: TextInputState,
+    android_raw_text_input_state: TextInputState,
+    android_canonical_text_input_state: TextInputState,
+}
+
+#[derive(Clone)]
+struct TextInputDelta {
+    deleted_text: String,
+    inserted_text: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -195,27 +255,23 @@ impl<T: 'static> EventLoop<T> {
             cause: StartCause::Init,
             ignore_volume_keys: attributes.ignore_volume_keys,
             combining_accent: None,
-            android_text_input_state: TextInputState {
-                text: String::new(),
-                selection: android_activity::input::TextSpan { start: 0, end: 0 },
-                compose_region: None,
-            },
+            android_raw_text_input_state: empty_text_input_state(),
+            android_canonical_text_input_state: empty_text_input_state(),
         })
     }
 
-    fn emit_text_input_delta<F>(
-        &self,
+    fn calculate_text_input_delta(
         previous_text_input_state: &TextInputState,
         current_text_input_state: &TextInputState,
-        callback: &mut F,
-    ) where
-        F: FnMut(event::Event<T>, &RootAEL),
-    {
+    ) -> TextInputDelta {
         let previous_text = previous_text_input_state.text.as_str();
         let current_text = current_text_input_state.text.as_str();
 
         if previous_text == current_text {
-            return;
+            return TextInputDelta {
+                deleted_text: String::new(),
+                inserted_text: String::new(),
+            };
         }
 
         let prefix_byte_count = previous_text
@@ -239,16 +295,95 @@ impl<T: 'static> EventLoop<T> {
         let current_changed_end = current_text.len().saturating_sub(suffix_byte_count);
         let deleted_text = &previous_text[prefix_byte_count..previous_changed_end];
         let inserted_text = &current_text[prefix_byte_count..current_changed_end];
+        let normalized_deleted_text = normalize_game_activity_text_delta(deleted_text);
+        let normalized_inserted_text = normalize_game_activity_text_delta(inserted_text);
 
-        for _deleted_character in deleted_text.chars() {
+        TextInputDelta {
+            deleted_text: normalized_deleted_text,
+            inserted_text: normalized_inserted_text,
+        }
+    }
+
+    fn choose_text_input_delta(
+        raw_text_input_delta: TextInputDelta,
+        canonical_text_input_delta: TextInputDelta,
+    ) -> TextInputDelta {
+        let raw_is_empty = raw_text_input_delta.deleted_text.is_empty() && raw_text_input_delta.inserted_text.is_empty();
+        let canonical_is_empty = canonical_text_input_delta.deleted_text.is_empty() && canonical_text_input_delta.inserted_text.is_empty();
+
+        if canonical_is_empty {
+            return canonical_text_input_delta;
+        }
+
+        if raw_is_empty {
+            return raw_text_input_delta;
+        }
+
+        let raw_is_replacement = !raw_text_input_delta.deleted_text.is_empty() && !raw_text_input_delta.inserted_text.is_empty();
+        let canonical_is_replacement = !canonical_text_input_delta.deleted_text.is_empty() && !canonical_text_input_delta.inserted_text.is_empty();
+
+        if raw_is_replacement != canonical_is_replacement {
+            return if raw_is_replacement {
+                canonical_text_input_delta
+            } else {
+                raw_text_input_delta
+            };
+        }
+
+        let raw_operation_count = raw_text_input_delta.deleted_text.chars().count() + raw_text_input_delta.inserted_text.chars().count();
+        let canonical_operation_count = canonical_text_input_delta.deleted_text.chars().count() + canonical_text_input_delta.inserted_text.chars().count();
+
+        if canonical_operation_count < raw_operation_count {
+            canonical_text_input_delta
+        } else {
+            raw_text_input_delta
+        }
+    }
+
+    fn apply_text_input_delta_to_canonical_state(
+        canonical_text_input_state: &TextInputState,
+        text_input_delta: &TextInputDelta,
+    ) -> TextInputState {
+        let mut canonical_text = canonical_text_input_state.text.clone();
+
+        for _deleted_character in text_input_delta.deleted_text.chars() {
+            canonical_text.pop();
+        }
+
+        canonical_text.push_str(text_input_delta.inserted_text.as_str());
+        let selection_offset = canonical_text.len();
+
+        TextInputState {
+            text: canonical_text,
+            selection: TextSpan {
+                start: selection_offset,
+                end: selection_offset,
+            },
+            compose_region: None,
+        }
+    }
+
+    fn emit_text_input_delta<F>(
+        &self,
+        text_input_delta: &TextInputDelta,
+        callback: &mut F,
+    ) where
+        F: FnMut(event::Event<T>, &RootAEL),
+    {
+        android_input_diagnostic_log(&format!(
+            "Text delta deleted={:?} inserted={:?}",
+            text_input_delta.deleted_text, text_input_delta.inserted_text
+        ));
+
+        for _deleted_character in text_input_delta.deleted_text.chars() {
             self.emit_synthetic_key(callback, NamedKey::Backspace, KeyCode::Backspace, event::ElementState::Pressed);
             self.emit_synthetic_key(callback, NamedKey::Backspace, KeyCode::Backspace, event::ElementState::Released);
         }
 
-        if !inserted_text.is_empty() {
+        if !text_input_delta.inserted_text.is_empty() {
             let event = event::Event::WindowEvent {
                 window_id: window::WindowId(WindowId),
-                event: event::WindowEvent::Ime(event::Ime::Commit(inserted_text.to_owned())),
+                event: event::WindowEvent::Ime(event::Ime::Commit(text_input_delta.inserted_text.clone())),
             };
             callback(event, self.window_target());
         }
@@ -517,6 +652,13 @@ impl<T: 'static> EventLoop<T> {
                         };
 
                         let key_char = keycodes::character_map_and_combine_key(android_app, key, &mut self.combining_accent);
+                        let suppress_key_event_text = key_map_char_produces_text(key_char);
+                        android_input_diagnostic_log(&format!(
+                            "Key event action={:?} code={:?} key_char={:?} suppress_text={suppress_key_event_text}",
+                            key.action(),
+                            keycode,
+                            key_char
+                        ));
 
                         let event = event::Event::WindowEvent {
                             window_id: window::WindowId(WindowId),
@@ -528,7 +670,7 @@ impl<T: 'static> EventLoop<T> {
                                     logical_key: keycodes::to_logical(key_char, keycode),
                                     location: keycodes::to_location(keycode),
                                     repeat: key.repeat_count() > 0,
-                                    text: None,
+                                    text: suppress_key_event_text.then(|| "".into()),
                                     platform_specific: KeyEventExtra {},
                                 },
                                 is_synthetic: false,
@@ -539,8 +681,24 @@ impl<T: 'static> EventLoop<T> {
                 }
             }
             InputEvent::TextEvent(text_input_state) => {
-                self.emit_text_input_delta(&self.android_text_input_state, text_input_state, callback);
-                self.android_text_input_state = text_input_state.clone();
+                let raw_text_input_delta = Self::calculate_text_input_delta(&self.android_raw_text_input_state, text_input_state);
+                let canonical_text_input_delta = Self::calculate_text_input_delta(&self.android_canonical_text_input_state, text_input_state);
+                let text_input_delta = Self::choose_text_input_delta(raw_text_input_delta, canonical_text_input_delta);
+                let canonical_text_input_state = Self::apply_text_input_delta_to_canonical_state(&self.android_canonical_text_input_state, &text_input_delta);
+
+                android_input_diagnostic_log(&format!(
+                    "Text event raw={:?} canonical_before={:?} canonical_after={:?} selection={}..{} compose={:?}",
+                    text_input_state.text,
+                    self.android_canonical_text_input_state.text,
+                    canonical_text_input_state.text,
+                    text_input_state.selection.start,
+                    text_input_state.selection.end,
+                    text_input_state.compose_region
+                ));
+                self.emit_text_input_delta(&text_input_delta, callback);
+                self.android_raw_text_input_state = text_input_state.clone();
+                self.android_canonical_text_input_state = canonical_text_input_state;
+                android_app.set_text_input_state(self.android_canonical_text_input_state.clone());
             }
             _ => {
                 warn!("Unknown android_activity input event {event:?}")

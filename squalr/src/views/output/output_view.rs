@@ -107,12 +107,6 @@ impl OutputView {
                 cursor_range = text_edit_output.cursor_range;
                 text_edit_id = Some(text_edit_response.id);
 
-                #[cfg(target_os = "android")]
-                if text_edit_response.gained_focus() || text_edit_response.clicked() {
-                    crate::app::request_android_soft_keyboard();
-                    self.app_context.context.request_repaint();
-                }
-
                 self.show_context_menu_for_response(&text_edit_response, OutputContextMenuState::show_command_input_menu);
 
                 if text_edit_response.has_focus() && command_line_user_interface.input(|input_state| input_state.key_pressed(Key::ArrowUp)) {
