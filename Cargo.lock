@@ -5100,7 +5100,7 @@ dependencies = [
 
 [[package]]
 name = "squalr"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "android-activity",
  "anyhow",
@@ -5126,7 +5126,7 @@ dependencies = [
 
 [[package]]
 name = "squalr-cli"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "crossbeam-channel",
@@ -5141,7 +5141,7 @@ dependencies = [
 
 [[package]]
 name = "squalr-engine"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "crossbeam-channel",
@@ -5172,7 +5172,7 @@ dependencies = [
 
 [[package]]
 name = "squalr-engine-api"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -5196,7 +5196,7 @@ dependencies = [
 
 [[package]]
 name = "squalr-engine-projects"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "directories",
@@ -5209,7 +5209,7 @@ dependencies = [
 
 [[package]]
 name = "squalr-engine-scanning"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "log",
  "rayon",
@@ -5218,7 +5218,7 @@ dependencies = [
 
 [[package]]
 name = "squalr-engine-session"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "android_log-sys",
  "anyhow",
@@ -5239,7 +5239,7 @@ dependencies = [
 
 [[package]]
 name = "squalr-engine-targets"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "squalr-engine-api",
  "sysinfo",
@@ -5248,7 +5248,7 @@ dependencies = [
 
 [[package]]
 name = "squalr-engine-targets-native"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "bitflags 2.10.0",
  "image",
@@ -5272,7 +5272,7 @@ dependencies = [
 
 [[package]]
 name = "squalr-installer"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "eframe",
@@ -5285,14 +5285,14 @@ dependencies = [
 
 [[package]]
 name = "squalr-plugin-binary-symbols"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "squalr-engine-api",
 ]
 
 [[package]]
 name = "squalr-plugin-builtins"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "squalr-engine-api",
  "squalr-plugin-binary-symbols",
@@ -5305,28 +5305,28 @@ dependencies = [
 
 [[package]]
 name = "squalr-plugin-data-types-24bit"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "squalr-engine-api",
 ]
 
 [[package]]
 name = "squalr-plugin-instructions-arm"
-version = "0.1.0"
+version = "0.4.0"
 dependencies = [
  "squalr-engine-api",
 ]
 
 [[package]]
 name = "squalr-plugin-instructions-powerpc"
-version = "0.1.0"
+version = "0.4.0"
 dependencies = [
  "squalr-engine-api",
 ]
 
 [[package]]
 name = "squalr-plugin-instructions-x86"
-version = "0.1.0"
+version = "0.4.0"
 dependencies = [
  "iced-x86",
  "squalr-engine-api",
@@ -5334,7 +5334,7 @@ dependencies = [
 
 [[package]]
 name = "squalr-plugin-memory-view-dolphin"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "squalr-engine-api",
  "squalr-engine-targets-native",
@@ -5342,7 +5342,7 @@ dependencies = [
 
 [[package]]
 name = "squalr-tests"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "crossbeam-channel",
  "squalr-engine",
@@ -5353,7 +5353,7 @@ dependencies = [
 
 [[package]]
 name = "squalr-tui"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "crossbeam-channel",
