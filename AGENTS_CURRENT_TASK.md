@@ -1,6 +1,6 @@
 # Agentic Current Task
 Our current task, from `README.md`, is:
-`pointer reachability graph to inferred symbol layouts investigation`
+`debugger plugin / WinDbg wrapper investigation`
 
 # Notes from Owner
 - Assume any unstaged/uncommitted file changes are from a previous iteration, or from the human author giving guidance. Keep them if they look good; do not ask about them by default.
@@ -9,7 +9,67 @@ Our current task, from `README.md`, is:
 - Alpha-stage data compatibility is not required for this refactor. Prefer a clean model over preserving old address/pointer/symbol-ref project item properties.
 
 ## Current Tasklist
-- 
+- Design a debugger extension surface in `squalr-engine-api::plugins` before implementing a WinDbg plugin:
+  - Add `PluginCapability::Debugger` plus permissions such as attach/detach debugger, control target execution, read/write registers, and manage breakpoints.
+  - Add debugger API models for attach/detach, pause/resume, breakpoint create/remove/list, register snapshots, and memory-access trace events.
+  - Add command models under `squalr-engine-api::commands` so CLI/TUI/GUI can drive the debugger without directly calling plugin internals.
+- Add a session-side debugger service/router next to memory-view routing, not inside `MemoryViewPlugin`.
+  - Memory-view plugins route address spaces, page bounds, reads, writes, and modules.
+  - Debugger plugins need long-lived process control state, a serialized event loop, breakpoint lifetime management, and event fanout.
+- Implement a Windows-only builtin plugin crate, likely `plugins/squalr-plugin-debugger-windbg`.
+  - Gate it behind `cfg(windows)` and keep non-Windows debugger support as an empty/no-op capability.
+  - Prefer a thin internal wrapper around `dbgeng.dll` first, then decide whether to use the current `dbgeng` crate after a small proof of concept.
+- MVP UI should be command-first, then GUI:
+  - CLI commands for attach, detach, pause, resume, registers, breakpoint list/remove, and `find-what-reads/writes/accesses`.
+  - GUI can start as a docked Debugger window fed by debugger events, with Memory Viewer and Code Viewer context menu actions later.
+- Build a proof-of-concept before committing to the full plugin API:
+  - Attach to a disposable local process.
+  - Set a hardware data breakpoint on a known address.
+  - Receive a breakpoint callback.
+  - Capture register values and instruction pointer.
+  - Read instruction bytes through existing memory providers and disassemble with `squalr-plugin-instructions-x86`.
+  - Resume execution and remove the breakpoint cleanly.
 
 ## Important Information
-- 
+- `README.md` explicitly says core Squalr is not currently building a debugger, but the library layering table names debuggers as custom target integrators. That supports a plugin-backed implementation instead of hard-coding debugger behavior into scanning or target access.
+- Existing plugin capabilities are `DataType`, `InstructionSet`, `MemoryView`, and `SymbolTree`. There is no general tool/window/debugger capability yet.
+- Existing plugin permissions are symbol-store/window plus read/write process memory. Debugging needs stronger and more explicit permissions because attach, pause, resume, register writes, and breakpoints can control the target.
+- Existing `MemoryViewPlugin` is the closest pattern, but it is insufficient as the debugger API. It owns virtual pages/modules/reads/writes. A debugger owns a process debug session and asynchronous events.
+- `EngineOsProviders::with_memory_view_routing` is the best local precedent for routing plugin-backed behavior through session state. A parallel debugger router/service should cache the active debugger instance per opened process and clear it on process close.
+- The native Windows target backend already uses Win32 APIs for `OpenProcess`, `ReadProcessMemory`, `WriteProcessMemory`, `VirtualProtectEx`, `VirtualQueryEx`, and module enumeration. WinDbg integration can initially reuse normal memory reads/writes and only add debugger-specific operations.
+- Old C# Squalr debugger scope was small:
+  - `FindWhatReads`, `FindWhatWrites`, and `FindWhatAccesses` set hardware data breakpoints.
+  - `PauseExecution` and `ResumeExecution` interrupt/resume the debuggee.
+  - `ReadRegister`, `WriteRegister`, `ReadInstructionPointer`, and `WriteInstructionPointer` expose register control.
+  - Breakpoint callbacks returned `CodeTraceInfo` with integer registers and a disassembled instruction.
+- Old C# implementation details worth carrying over:
+  - DbgEng starts from `DebugCreate`, then `IDebugClient::AttachProcess`.
+  - Attach is not complete until `IDebugControl::WaitForEvent` has observed the initial event.
+  - `WaitForEvent` must be driven from the thread that started the debugger session and is not re-entrant, so Rust needs a dedicated debugger thread or single-thread executor per debug session.
+  - Event callbacks need to collect registers, instruction pointer, and instruction bytes, then publish a Squalr event instead of directly touching GUI state.
+  - Breakpoint cancellation must remove/disable the DbgEng breakpoint and clear callback state.
+- Current Rust ecosystem note:
+  - The `dbgeng` crate exists on docs.rs at version `0.5.1` and wraps Microsoft Debug Engine COM objects through `windows 0.62`.
+  - The workspace already uses both `windows-sys 0.61.2` in `squalr-engine-targets-native` and `windows 0.61.3` in `squalr-engine`, so dependency/version alignment must be checked in the proof of concept.
+  - Microsoft docs confirm `IDebugClient` supports attach/detach/callback registration and that `WaitForEvent` drives the debugger event model.
+- Recommended MVP architecture:
+  - `squalr-engine-api`: debugger plugin trait, command/response/event models, permission/capability additions.
+  - `squalr-engine-session`: active debugger service/router with event channel, process-close cleanup, and plugin enablement checks.
+  - `plugins/squalr-plugin-debugger-windbg`: Windows DbgEng implementation with hardware data breakpoints and register snapshots.
+  - `squalr-engine`: command executors that call the debugger service.
+  - `squalr-cli`/`squalr-tui`/`squalr`: command and basic UI surfaces.
+- Key risks:
+  - DbgEng threading rules and `WaitForEvent` serialization are the main complexity.
+  - Hardware data breakpoints are limited in number and size/alignment by CPU/debug registers; expose clear failures rather than silently falling back.
+  - Attach behavior can suspend or perturb targets. Require explicit user action and plugin permission checks.
+  - Anti-debug behavior in games will need human verification after implementation and validation.
+  - Register naming and instruction pointer handling must account for x86 vs x64 target bitness.
+  - Rust COM callback implementation may be more expensive than using the `dbgeng` crate, but the crate still needs a focused audit before becoming a core dependency.
+
+## Validation
+- Investigation only. No source implementation was changed, so no code tests were run.
+- References checked:
+  - Local Rust workspace plugin/session/target architecture.
+  - Old C# implementation under `C:\Projects\Squalr\Squalr.Engine.Debugger`.
+  - Microsoft DbgEng docs for `IDebugClient`, `AttachProcess`, and `WaitForEvent`.
+  - `dbgeng` crate docs.rs page.
