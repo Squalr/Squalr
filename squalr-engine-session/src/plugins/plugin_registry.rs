@@ -204,6 +204,10 @@ impl PluginRegistry {
 
         let selected_plugin_id = opened_process_info
             .and_then(|opened_process_info| self.find_memory_view_plugin_package_with_enabled_ids(opened_process_info, &enabled_plugin_ids))
+            .or_else(|| {
+                opened_process_info
+                    .and_then(|opened_process_info| self.find_debugger_plugin_package_with_enabled_ids(opened_process_info, None, &enabled_plugin_ids))
+            })
             .map(|plugin_package| plugin_package.metadata().get_plugin_id().to_string());
 
         self.get_ordered_plugin_packages()
@@ -230,32 +234,47 @@ impl PluginRegistry {
         active_plugin_id: Option<&str>,
         selected_plugin_id: Option<&str>,
     ) -> PluginState {
-        let activation_state = plugin_package
-            .as_memory_view_plugin()
-            .map(|memory_view_plugin| {
-                let can_activate_for_current_process = opened_process_info
-                    .map(|opened_process_info| memory_view_plugin.can_attach(opened_process_info))
-                    .unwrap_or(false);
+        let activation_state = if let Some(memory_view_plugin) = plugin_package.as_memory_view_plugin() {
+            let can_activate_for_current_process = opened_process_info
+                .map(|opened_process_info| memory_view_plugin.can_attach(opened_process_info))
+                .unwrap_or(false);
 
-                if active_plugin_id
-                    .map(|active_plugin_id| active_plugin_id == plugin_package.metadata().get_plugin_id())
-                    .unwrap_or(false)
-                {
-                    PluginActivationState::Activated
-                } else if selected_plugin_id
-                    .map(|selected_plugin_id| selected_plugin_id == plugin_package.metadata().get_plugin_id())
-                    .unwrap_or(false)
-                {
-                    PluginActivationState::Activating
-                } else if can_activate_for_current_process {
-                    PluginActivationState::Available
-                } else {
-                    PluginActivationState::Idle
-                }
-            })
-            .unwrap_or(PluginActivationState::Idle);
+            self.resolve_activation_state(plugin_package, can_activate_for_current_process, active_plugin_id, selected_plugin_id)
+        } else if let Some(debugger_plugin) = plugin_package.as_debugger_plugin() {
+            let can_activate_for_current_process = opened_process_info
+                .map(|opened_process_info| debugger_plugin.can_attach(opened_process_info))
+                .unwrap_or(false);
+
+            self.resolve_activation_state(plugin_package, can_activate_for_current_process, active_plugin_id, selected_plugin_id)
+        } else {
+            PluginActivationState::Idle
+        };
 
         PluginState::new(plugin_package.metadata().clone(), is_enabled, activation_state)
+    }
+
+    fn resolve_activation_state(
+        &self,
+        plugin_package: &dyn PluginPackage,
+        can_activate_for_current_process: bool,
+        active_plugin_id: Option<&str>,
+        selected_plugin_id: Option<&str>,
+    ) -> PluginActivationState {
+        if active_plugin_id
+            .map(|active_plugin_id| active_plugin_id == plugin_package.metadata().get_plugin_id())
+            .unwrap_or(false)
+        {
+            PluginActivationState::Activated
+        } else if selected_plugin_id
+            .map(|selected_plugin_id| selected_plugin_id == plugin_package.metadata().get_plugin_id())
+            .unwrap_or(false)
+        {
+            PluginActivationState::Activating
+        } else if can_activate_for_current_process {
+            PluginActivationState::Available
+        } else {
+            PluginActivationState::Idle
+        }
     }
 
     pub fn set_plugin_enabled(
@@ -421,6 +440,22 @@ impl PluginRegistry {
         self.find_memory_view_plugin_package_with_enabled_ids(process_info, &enabled_plugin_ids)
     }
 
+    pub fn find_debugger_plugin_package(
+        &self,
+        process_info: &OpenedProcessInfo,
+        requested_plugin_id: Option<&str>,
+    ) -> Option<Arc<dyn PluginPackage>> {
+        let enabled_plugin_ids = match self.enabled_plugin_ids.read() {
+            Ok(enabled_plugin_ids) => enabled_plugin_ids,
+            Err(error) => {
+                log::error!("Failed to acquire plugin enablement snapshot while selecting debugger plugin: {}", error);
+                return None;
+            }
+        };
+
+        self.find_debugger_plugin_package_with_enabled_ids(process_info, requested_plugin_id, &enabled_plugin_ids)
+    }
+
     fn find_memory_view_plugin_package_with_enabled_ids(
         &self,
         process_info: &OpenedProcessInfo,
@@ -433,6 +468,27 @@ impl PluginRegistry {
                     && plugin_package
                         .as_memory_view_plugin()
                         .map(|memory_view_plugin| memory_view_plugin.can_attach(process_info))
+                        .unwrap_or(false)
+            })
+            .cloned()
+    }
+
+    fn find_debugger_plugin_package_with_enabled_ids(
+        &self,
+        process_info: &OpenedProcessInfo,
+        requested_plugin_id: Option<&str>,
+        enabled_plugin_ids: &HashSet<String>,
+    ) -> Option<Arc<dyn PluginPackage>> {
+        self.get_ordered_plugin_packages()
+            .iter()
+            .find(|plugin_package| {
+                requested_plugin_id
+                    .map(|requested_plugin_id| requested_plugin_id == plugin_package.metadata().get_plugin_id())
+                    .unwrap_or(true)
+                    && enabled_plugin_ids.contains(plugin_package.metadata().get_plugin_id())
+                    && plugin_package
+                        .as_debugger_plugin()
+                        .map(|debugger_plugin| debugger_plugin.can_attach(process_info))
                         .unwrap_or(false)
             })
             .cloned()
@@ -451,12 +507,17 @@ mod tests {
     use squalr_engine_api::{
         plugins::{
             Plugin, PluginActivationState, PluginCapability, PluginMetadata, PluginPackage, PluginPermission,
+            debugger::{DebuggerPlugin, DebuggerPluginError, DebuggerSession},
             symbol_tree::{
                 symbol_tree_action::{SymbolTreeAction, SymbolTreeActionContext, SymbolTreeActionServices},
                 symbol_tree_plugin::SymbolTreePlugin,
             },
         },
-        structures::{memory::bitness::Bitness, processes::opened_process_info::OpenedProcessInfo},
+        structures::{
+            debugger::{DebuggerBreakpointDescriptor, DebuggerBreakpointKind, DebuggerRegisterSnapshot, DebuggerSessionState},
+            memory::bitness::Bitness,
+            processes::opened_process_info::OpenedProcessInfo,
+        },
     };
     use std::sync::Arc;
 
@@ -547,6 +608,123 @@ mod tests {
         }
     }
 
+    struct TestDebuggerPlugin {
+        metadata: PluginMetadata,
+        process_name: String,
+    }
+
+    impl TestDebuggerPlugin {
+        fn new(
+            plugin_id: &str,
+            process_name: &str,
+        ) -> Self {
+            Self {
+                metadata: PluginMetadata::new_with_permissions(
+                    plugin_id,
+                    "Test Debugger",
+                    "Test debugger plugin",
+                    vec![PluginCapability::Debugger],
+                    vec![PluginPermission::AttachDebugger],
+                    true,
+                    true,
+                ),
+                process_name: process_name.to_string(),
+            }
+        }
+    }
+
+    impl Plugin for TestDebuggerPlugin {
+        fn metadata(&self) -> &PluginMetadata {
+            &self.metadata
+        }
+    }
+
+    impl PluginPackage for TestDebuggerPlugin {
+        fn as_debugger_plugin(&self) -> Option<&dyn DebuggerPlugin> {
+            Some(self)
+        }
+    }
+
+    impl DebuggerPlugin for TestDebuggerPlugin {
+        fn can_attach(
+            &self,
+            process_info: &OpenedProcessInfo,
+        ) -> bool {
+            process_info.get_name() == self.process_name
+        }
+
+        fn create_session(
+            &self,
+            _process_info: &OpenedProcessInfo,
+        ) -> Result<Box<dyn DebuggerSession>, DebuggerPluginError> {
+            Ok(Box::new(TestDebuggerSession {
+                plugin_id: self.metadata.get_plugin_id().to_string(),
+            }))
+        }
+    }
+
+    struct TestDebuggerSession {
+        plugin_id: String,
+    }
+
+    impl DebuggerSession for TestDebuggerSession {
+        fn plugin_id(&self) -> &str {
+            &self.plugin_id
+        }
+
+        fn get_state(&self) -> DebuggerSessionState {
+            DebuggerSessionState::Detached
+        }
+
+        fn attach(&mut self) -> Result<DebuggerSessionState, DebuggerPluginError> {
+            Ok(DebuggerSessionState::Attached)
+        }
+
+        fn detach(&mut self) -> Result<DebuggerSessionState, DebuggerPluginError> {
+            Ok(DebuggerSessionState::Detached)
+        }
+
+        fn pause(&mut self) -> Result<DebuggerSessionState, DebuggerPluginError> {
+            Ok(DebuggerSessionState::Paused)
+        }
+
+        fn resume(&mut self) -> Result<DebuggerSessionState, DebuggerPluginError> {
+            Ok(DebuggerSessionState::Running)
+        }
+
+        fn set_breakpoint(
+            &mut self,
+            address: u64,
+            kind: DebuggerBreakpointKind,
+            label: Option<String>,
+        ) -> Result<DebuggerBreakpointDescriptor, DebuggerPluginError> {
+            Ok(DebuggerBreakpointDescriptor::new("test-breakpoint", address, kind, true, label))
+        }
+
+        fn remove_breakpoint(
+            &mut self,
+            _breakpoint_id: &str,
+        ) -> Result<(), DebuggerPluginError> {
+            Ok(())
+        }
+
+        fn list_breakpoints(&self) -> Result<Vec<DebuggerBreakpointDescriptor>, DebuggerPluginError> {
+            Ok(Vec::new())
+        }
+
+        fn read_registers(&self) -> Result<DebuggerRegisterSnapshot, DebuggerPluginError> {
+            Ok(DebuggerRegisterSnapshot::default())
+        }
+
+        fn write_register(
+            &mut self,
+            _register_name: &str,
+            _value: u64,
+        ) -> Result<DebuggerRegisterSnapshot, DebuggerPluginError> {
+            Ok(DebuggerRegisterSnapshot::default())
+        }
+    }
+
     #[test]
     fn registry_exposes_builtin_dolphin_memory_view_plugin() {
         let plugin_registry = PluginRegistry::new();
@@ -617,6 +795,43 @@ mod tests {
         assert!(!dolphin_plugin_state.get_is_enabled());
         assert!(dolphin_plugin_state.get_can_activate_for_current_process());
         assert!(!dolphin_plugin_state.get_is_active_for_current_process());
+    }
+
+    #[test]
+    fn debugger_plugin_selection_honors_order_requested_plugin_and_enablement() {
+        let plugin_registry = PluginRegistry::from_plugin_packages(vec![
+            Arc::new(TestDebuggerPlugin::new("test.debugger.first", "Game.exe")),
+            Arc::new(TestDebuggerPlugin::new("test.debugger.second", "Game.exe")),
+        ]);
+        let opened_process_info = OpenedProcessInfo::new(1, "Game.exe".to_string(), 0, Bitness::Bit64, None);
+
+        let selected_plugin_package = plugin_registry
+            .find_debugger_plugin_package(&opened_process_info, None)
+            .expect("Expected the first ordered debugger plugin to match.");
+        let requested_plugin_package = plugin_registry
+            .find_debugger_plugin_package(&opened_process_info, Some("test.debugger.second"))
+            .expect("Expected the requested debugger plugin to match.");
+        let plugin_states = plugin_registry.get_plugin_states(Some(&opened_process_info), None);
+        let first_plugin_state = plugin_states
+            .iter()
+            .find(|plugin_state| plugin_state.get_metadata().get_plugin_id() == "test.debugger.first")
+            .expect("Expected first debugger plugin state to be present.");
+        let second_plugin_state = plugin_states
+            .iter()
+            .find(|plugin_state| plugin_state.get_metadata().get_plugin_id() == "test.debugger.second")
+            .expect("Expected second debugger plugin state to be present.");
+
+        assert_eq!(selected_plugin_package.metadata().get_plugin_id(), "test.debugger.first");
+        assert_eq!(requested_plugin_package.metadata().get_plugin_id(), "test.debugger.second");
+        assert_eq!(first_plugin_state.get_activation_state(), PluginActivationState::Activating);
+        assert_eq!(second_plugin_state.get_activation_state(), PluginActivationState::Available);
+
+        assert!(plugin_registry.set_plugin_enabled("test.debugger.second", false));
+        assert!(
+            plugin_registry
+                .find_debugger_plugin_package(&opened_process_info, Some("test.debugger.second"))
+                .is_none()
+        );
     }
 
     #[test]

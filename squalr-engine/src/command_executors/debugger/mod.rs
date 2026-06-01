@@ -1,25 +1,36 @@
 use crate::command_executors::privileged_command_executor::PrivilegedCommandExecutor;
 use crate::command_executors::privileged_request_executor::PrivilegedCommandRequestExecutor;
 use crate::engine_privileged_state::EnginePrivilegedState;
-use squalr_engine_api::commands::debugger::{
-    attach::{debugger_attach_request::DebuggerAttachRequest, debugger_attach_response::DebuggerAttachResponse},
-    breakpoint_list::{debugger_breakpoint_list_request::DebuggerBreakpointListRequest, debugger_breakpoint_list_response::DebuggerBreakpointListResponse},
-    breakpoint_remove::{
-        debugger_breakpoint_remove_request::DebuggerBreakpointRemoveRequest, debugger_breakpoint_remove_response::DebuggerBreakpointRemoveResponse,
-    },
-    breakpoint_set::{debugger_breakpoint_set_request::DebuggerBreakpointSetRequest, debugger_breakpoint_set_response::DebuggerBreakpointSetResponse},
-    debugger_command::DebuggerCommand,
-    detach::{debugger_detach_request::DebuggerDetachRequest, debugger_detach_response::DebuggerDetachResponse},
-    pause::{debugger_pause_request::DebuggerPauseRequest, debugger_pause_response::DebuggerPauseResponse},
-    register_write::{debugger_register_write_request::DebuggerRegisterWriteRequest, debugger_register_write_response::DebuggerRegisterWriteResponse},
-    registers_read::{debugger_registers_read_request::DebuggerRegistersReadRequest, debugger_registers_read_response::DebuggerRegistersReadResponse},
-    resume::{debugger_resume_request::DebuggerResumeRequest, debugger_resume_response::DebuggerResumeResponse},
-};
+use squalr_engine_api::commands::debugger::attach::debugger_attach_request::DebuggerAttachRequest;
+use squalr_engine_api::commands::debugger::attach::debugger_attach_response::DebuggerAttachResponse;
+use squalr_engine_api::commands::debugger::breakpoint_list::debugger_breakpoint_list_request::DebuggerBreakpointListRequest;
+use squalr_engine_api::commands::debugger::breakpoint_list::debugger_breakpoint_list_response::DebuggerBreakpointListResponse;
+use squalr_engine_api::commands::debugger::breakpoint_remove::debugger_breakpoint_remove_request::DebuggerBreakpointRemoveRequest;
+use squalr_engine_api::commands::debugger::breakpoint_remove::debugger_breakpoint_remove_response::DebuggerBreakpointRemoveResponse;
+use squalr_engine_api::commands::debugger::breakpoint_set::debugger_breakpoint_set_request::DebuggerBreakpointSetRequest;
+use squalr_engine_api::commands::debugger::breakpoint_set::debugger_breakpoint_set_response::DebuggerBreakpointSetResponse;
+use squalr_engine_api::commands::debugger::debugger_command::DebuggerCommand;
+use squalr_engine_api::commands::debugger::detach::debugger_detach_request::DebuggerDetachRequest;
+use squalr_engine_api::commands::debugger::detach::debugger_detach_response::DebuggerDetachResponse;
+use squalr_engine_api::commands::debugger::pause::debugger_pause_request::DebuggerPauseRequest;
+use squalr_engine_api::commands::debugger::pause::debugger_pause_response::DebuggerPauseResponse;
+use squalr_engine_api::commands::debugger::register_write::debugger_register_write_request::DebuggerRegisterWriteRequest;
+use squalr_engine_api::commands::debugger::register_write::debugger_register_write_response::DebuggerRegisterWriteResponse;
+use squalr_engine_api::commands::debugger::registers_read::debugger_registers_read_request::DebuggerRegistersReadRequest;
+use squalr_engine_api::commands::debugger::registers_read::debugger_registers_read_response::DebuggerRegistersReadResponse;
+use squalr_engine_api::commands::debugger::resume::debugger_resume_request::DebuggerResumeRequest;
+use squalr_engine_api::commands::debugger::resume::debugger_resume_response::DebuggerResumeResponse;
 use squalr_engine_api::commands::privileged_command_response::{PrivilegedCommandResponse, TypedPrivilegedCommandResponse};
 use squalr_engine_api::structures::debugger::{DebuggerCommandStatus, DebuggerSessionState};
 use std::sync::Arc;
 
-const DEBUGGER_SERVICE_UNAVAILABLE: &str = "Debugger service is not wired yet.";
+fn failure_status(error_message: impl Into<String>) -> DebuggerCommandStatus {
+    DebuggerCommandStatus::failure(error_message)
+}
+
+fn no_opened_process_status() -> DebuggerCommandStatus {
+    failure_status("No opened process to debug.")
+}
 
 impl PrivilegedCommandExecutor for DebuggerCommand {
     type ResponseType = PrivilegedCommandResponse;
@@ -70,21 +81,38 @@ impl PrivilegedCommandExecutor for DebuggerCommand {
     }
 }
 
-fn unavailable_status() -> DebuggerCommandStatus {
-    DebuggerCommandStatus::failure(DEBUGGER_SERVICE_UNAVAILABLE)
-}
-
 impl PrivilegedCommandRequestExecutor for DebuggerAttachRequest {
     type ResponseType = DebuggerAttachResponse;
 
     fn execute(
         &self,
-        _engine_privileged_state: &Arc<EnginePrivilegedState>,
+        engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
-        DebuggerAttachResponse {
-            status: unavailable_status(),
-            session_state: DebuggerSessionState::Detached,
-            active_plugin_id: None,
+        let Some(opened_process_info) = engine_privileged_state
+            .get_process_manager()
+            .get_opened_process()
+        else {
+            return DebuggerAttachResponse {
+                status: no_opened_process_status(),
+                session_state: DebuggerSessionState::Detached,
+                active_plugin_id: None,
+            };
+        };
+
+        match engine_privileged_state
+            .get_debugger_service()
+            .attach(&opened_process_info, self.plugin_id.as_deref())
+        {
+            Ok(operation_status) => DebuggerAttachResponse {
+                status: DebuggerCommandStatus::success(),
+                session_state: operation_status.get_session_state(),
+                active_plugin_id: operation_status.get_active_plugin_id().map(ToString::to_string),
+            },
+            Err(error_message) => DebuggerAttachResponse {
+                status: failure_status(error_message),
+                session_state: DebuggerSessionState::Detached,
+                active_plugin_id: None,
+            },
         }
     }
 }
@@ -94,11 +122,17 @@ impl PrivilegedCommandRequestExecutor for DebuggerDetachRequest {
 
     fn execute(
         &self,
-        _engine_privileged_state: &Arc<EnginePrivilegedState>,
+        engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
-        DebuggerDetachResponse {
-            status: unavailable_status(),
-            session_state: DebuggerSessionState::Detached,
+        match engine_privileged_state.get_debugger_service().detach() {
+            Ok(operation_status) => DebuggerDetachResponse {
+                status: DebuggerCommandStatus::success(),
+                session_state: operation_status.get_session_state(),
+            },
+            Err(error_message) => DebuggerDetachResponse {
+                status: failure_status(error_message),
+                session_state: DebuggerSessionState::Detached,
+            },
         }
     }
 }
@@ -108,11 +142,17 @@ impl PrivilegedCommandRequestExecutor for DebuggerPauseRequest {
 
     fn execute(
         &self,
-        _engine_privileged_state: &Arc<EnginePrivilegedState>,
+        engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
-        DebuggerPauseResponse {
-            status: unavailable_status(),
-            session_state: DebuggerSessionState::Detached,
+        match engine_privileged_state.get_debugger_service().pause() {
+            Ok(operation_status) => DebuggerPauseResponse {
+                status: DebuggerCommandStatus::success(),
+                session_state: operation_status.get_session_state(),
+            },
+            Err(error_message) => DebuggerPauseResponse {
+                status: failure_status(error_message),
+                session_state: DebuggerSessionState::Detached,
+            },
         }
     }
 }
@@ -122,11 +162,17 @@ impl PrivilegedCommandRequestExecutor for DebuggerResumeRequest {
 
     fn execute(
         &self,
-        _engine_privileged_state: &Arc<EnginePrivilegedState>,
+        engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
-        DebuggerResumeResponse {
-            status: unavailable_status(),
-            session_state: DebuggerSessionState::Detached,
+        match engine_privileged_state.get_debugger_service().resume() {
+            Ok(operation_status) => DebuggerResumeResponse {
+                status: DebuggerCommandStatus::success(),
+                session_state: operation_status.get_session_state(),
+            },
+            Err(error_message) => DebuggerResumeResponse {
+                status: failure_status(error_message),
+                session_state: DebuggerSessionState::Detached,
+            },
         }
     }
 }
@@ -136,11 +182,20 @@ impl PrivilegedCommandRequestExecutor for DebuggerBreakpointSetRequest {
 
     fn execute(
         &self,
-        _engine_privileged_state: &Arc<EnginePrivilegedState>,
+        engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
-        DebuggerBreakpointSetResponse {
-            status: unavailable_status(),
-            breakpoint: None,
+        match engine_privileged_state
+            .get_debugger_service()
+            .set_breakpoint(self.address, self.kind.clone(), self.label.clone())
+        {
+            Ok(breakpoint) => DebuggerBreakpointSetResponse {
+                status: DebuggerCommandStatus::success(),
+                breakpoint: Some(breakpoint),
+            },
+            Err(error_message) => DebuggerBreakpointSetResponse {
+                status: failure_status(error_message),
+                breakpoint: None,
+            },
         }
     }
 }
@@ -150,9 +205,19 @@ impl PrivilegedCommandRequestExecutor for DebuggerBreakpointRemoveRequest {
 
     fn execute(
         &self,
-        _engine_privileged_state: &Arc<EnginePrivilegedState>,
+        engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
-        DebuggerBreakpointRemoveResponse { status: unavailable_status() }
+        match engine_privileged_state
+            .get_debugger_service()
+            .remove_breakpoint(&self.breakpoint_id)
+        {
+            Ok(()) => DebuggerBreakpointRemoveResponse {
+                status: DebuggerCommandStatus::success(),
+            },
+            Err(error_message) => DebuggerBreakpointRemoveResponse {
+                status: failure_status(error_message),
+            },
+        }
     }
 }
 
@@ -161,11 +226,20 @@ impl PrivilegedCommandRequestExecutor for DebuggerBreakpointListRequest {
 
     fn execute(
         &self,
-        _engine_privileged_state: &Arc<EnginePrivilegedState>,
+        engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
-        DebuggerBreakpointListResponse {
-            status: unavailable_status(),
-            breakpoints: Vec::new(),
+        match engine_privileged_state
+            .get_debugger_service()
+            .list_breakpoints()
+        {
+            Ok(breakpoints) => DebuggerBreakpointListResponse {
+                status: DebuggerCommandStatus::success(),
+                breakpoints,
+            },
+            Err(error_message) => DebuggerBreakpointListResponse {
+                status: failure_status(error_message),
+                breakpoints: Vec::new(),
+            },
         }
     }
 }
@@ -175,11 +249,17 @@ impl PrivilegedCommandRequestExecutor for DebuggerRegistersReadRequest {
 
     fn execute(
         &self,
-        _engine_privileged_state: &Arc<EnginePrivilegedState>,
+        engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
-        DebuggerRegistersReadResponse {
-            status: unavailable_status(),
-            register_snapshot: None,
+        match engine_privileged_state.get_debugger_service().read_registers() {
+            Ok(register_snapshot) => DebuggerRegistersReadResponse {
+                status: DebuggerCommandStatus::success(),
+                register_snapshot: Some(register_snapshot),
+            },
+            Err(error_message) => DebuggerRegistersReadResponse {
+                status: failure_status(error_message),
+                register_snapshot: None,
+            },
         }
     }
 }
@@ -189,11 +269,20 @@ impl PrivilegedCommandRequestExecutor for DebuggerRegisterWriteRequest {
 
     fn execute(
         &self,
-        _engine_privileged_state: &Arc<EnginePrivilegedState>,
+        engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
-        DebuggerRegisterWriteResponse {
-            status: unavailable_status(),
-            register_snapshot: None,
+        match engine_privileged_state
+            .get_debugger_service()
+            .write_register(&self.register_name, self.value)
+        {
+            Ok(register_snapshot) => DebuggerRegisterWriteResponse {
+                status: DebuggerCommandStatus::success(),
+                register_snapshot: Some(register_snapshot),
+            },
+            Err(error_message) => DebuggerRegisterWriteResponse {
+                status: failure_status(error_message),
+                register_snapshot: None,
+            },
         }
     }
 }

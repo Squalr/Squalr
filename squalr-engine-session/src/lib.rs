@@ -1,3 +1,4 @@
+pub mod debugger;
 pub mod engine_privileged_state;
 pub mod engine_unprivileged_state;
 mod logging;

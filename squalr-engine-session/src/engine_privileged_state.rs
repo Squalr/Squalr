@@ -1,3 +1,4 @@
+use crate::debugger::debugger_service::DebuggerService;
 use crate::os::ProcessManager;
 use crate::os::engine_os_provider::EngineOsProviders;
 use crate::plugins::plugin_registry::PluginRegistry;
@@ -59,6 +60,9 @@ pub struct EnginePrivilegedState {
     /// The registry of loaded built-in plugins available to this session.
     plugin_registry: Arc<PluginRegistry>,
 
+    /// Coordinates debugger plugin session lifecycle and command routing.
+    debugger_service: Arc<DebuggerService>,
+
     /// OS access providers for process and memory operations.
     os_providers: EngineOsProviders,
 }
@@ -98,6 +102,7 @@ impl EnginePrivilegedState {
         let plugin_registry = Arc::new(PluginRegistry::new());
         Self::register_plugin_data_types(registries.get_symbol_registry().as_ref(), plugin_registry.get_plugin_packages());
         let os_providers = os_providers.with_memory_view_routing(plugin_registry.clone());
+        let debugger_service = Arc::new(DebuggerService::new(plugin_registry.clone(), event_emitter.clone()));
 
         SnapshotScanResultFreezeTask::start_task(
             process_manager.get_opened_process_ref(),
@@ -116,6 +121,7 @@ impl EnginePrivilegedState {
             engine_bindings,
             registries,
             plugin_registry,
+            debugger_service,
             os_providers,
         });
 
@@ -244,8 +250,12 @@ impl EnginePrivilegedState {
     pub fn get_plugin_states(&self) -> Vec<PluginState> {
         let opened_process_info = self.get_process_manager().get_opened_process();
         let active_plugin_id = opened_process_info.as_ref().and_then(|opened_process_info| {
-            self.os_providers
-                .get_active_memory_view_plugin_id(opened_process_info)
+            self.debugger_service
+                .get_active_plugin_id_for_process(opened_process_info)
+                .or_else(|| {
+                    self.os_providers
+                        .get_active_memory_view_plugin_id(opened_process_info)
+                })
         });
 
         self.plugin_registry
@@ -254,6 +264,10 @@ impl EnginePrivilegedState {
 
     pub fn invalidate_memory_view_runtime_state(&self) {
         self.os_providers.clear_active_memory_view_instance();
+    }
+
+    pub fn get_debugger_service(&self) -> Arc<DebuggerService> {
+        self.debugger_service.clone()
     }
 
     /// Gets OS providers used for process and memory operations.
@@ -344,6 +358,9 @@ impl EnginePrivilegedState {
                 match engine_event_envelope.into_engine_event() {
                     EngineEvent::Process(ProcessEvent::ProcessChanged { .. }) => {
                         engine_privileged_state.invalidate_memory_view_runtime_state();
+                        engine_privileged_state
+                            .get_debugger_service()
+                            .clear_active_session();
                     }
                     EngineEvent::Logging(_) => {}
                     _ => {}

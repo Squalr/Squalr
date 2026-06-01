@@ -17,7 +17,7 @@ Our current task, from `README.md`, is:
   - Add `PluginCapability::Debugger` plus permissions such as attach/detach debugger, control target execution, read/write registers, and manage breakpoints.
   - Add engine-owned debugger API models for attach/detach, pause/resume, breakpoint create/remove/list, register snapshots, instruction pointers, and memory-access trace events.
   - Add command models under `squalr-engine-api::commands` so CLI/TUI/GUI can drive the debugger without directly calling plugin internals.
-- [ ] Add a session-side debugger service/router next to memory-view routing, not inside `MemoryViewPlugin`.
+- [x] Add a session-side debugger service/router next to memory-view routing, not inside `MemoryViewPlugin`.
   - Memory-view plugins route address spaces, page bounds, reads, writes, and modules.
   - Debugger plugins need long-lived process control state, a serialized event loop, breakpoint lifetime management, and event fanout.
 - [ ] Implement a Windows-only builtin plugin crate, likely `plugins/squalr-plugin-debugger-windbg`.
@@ -54,7 +54,13 @@ Our current task, from `README.md`, is:
   - Added `plugins::debugger::{DebuggerPlugin, DebuggerSession, DebuggerPluginError}` plus `PluginCapability::Debugger` and debugger-specific permissions.
   - Added privileged `commands::debugger` request/response models for attach/detach/pause/resume/breakpoint set-remove-list/register read-write.
   - Added `events::debugger` session-state and trace-recorded events with unprivileged event fanout.
-  - Added CLI parsing under `debugger`/`dbg`; executors currently return "Debugger service is not wired yet." until the session router exists.
+  - Added CLI parsing under `debugger`/`dbg`.
+- Session router slice completed:
+  - Added `squalr-engine-session::debugger::DebuggerService` to own active debugger session lifecycle, plugin selection, process-close cleanup, command routing, and session-state event emission.
+  - Extended `PluginRegistry` so debugger plugins participate in ordered selection, requested-plugin matching, enablement checks, and plugin activation state reporting.
+  - Added `EnginePrivilegedState::get_debugger_service()` and clear the debugger session when the opened process changes.
+  - Wired `squalr-engine` debugger command executors into `DebuggerService` for attach, detach, pause, resume, breakpoint set/remove/list, and register read/write.
+  - Added focused tests for debugger service routing/events and debugger plugin registry selection/enablement.
 - Old C# Squalr debugger scope was small:
   - `FindWhatReads`, `FindWhatWrites`, and `FindWhatAccesses` set hardware data breakpoints.
   - `PauseExecution` and `ResumeExecution` interrupt/resume the debuggee.
@@ -72,10 +78,14 @@ Our current task, from `README.md`, is:
   - Microsoft docs confirm `IDebugClient` supports attach/detach/callback registration and that `WaitForEvent` drives the debugger event model.
 - Recommended MVP architecture:
   - `squalr-engine-api`: debugger plugin trait, generic command/response/event models, generic debugger data types, permission/capability additions.
-  - `squalr-engine-session`: active debugger service/router with event channel, process-close cleanup, plugin selection, and plugin enablement checks.
+  - `squalr-engine-session`: active debugger service/router with event channel, process-close cleanup, plugin selection, and plugin enablement checks. This is now present for synchronous command routing; async trace event fanout still depends on the DbgEng plugin event loop.
   - `plugins/squalr-plugin-debugger-windbg`: Windows-only DbgEng implementation with hardware data breakpoints and register snapshots.
   - `squalr-engine`: command executors that call the debugger service.
   - `squalr-cli`/`squalr-tui`/`squalr`: command and basic UI surfaces.
+- Next implementation target:
+  - Create `plugins/squalr-plugin-debugger-windbg` as a Windows-only builtin debugger plugin.
+  - Start with a minimal DbgEng wrapper/proof of concept that can attach, wait for the initial event on a dedicated thread, detach, and expose a stubbed register snapshot before adding hardware data breakpoints.
+  - Audit `dbgeng 0.5.1` against direct `windows` bindings in the plugin crate before committing to it as the long-term wrapper.
 - Key risks:
   - DbgEng threading rules and `WaitForEvent` serialization are the main complexity.
   - Hardware data breakpoints are limited in number and size/alignment by CPU/debug registers; expose clear failures rather than silently falling back.
@@ -86,6 +96,7 @@ Our current task, from `README.md`, is:
 
 ## Validation
 - `cargo test -p squalr-engine-api --locked` passed.
+- `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
 - `cargo check -p squalr-engine --locked` passed.
 - References checked:
   - Local Rust workspace plugin/session/target architecture.
