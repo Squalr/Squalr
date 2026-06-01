@@ -1,4 +1,5 @@
 use super::command::CommandLineCommand;
+use super::debugger::CommandLineDebuggerCommand;
 use super::memory::CommandLineMemoryCommand;
 use super::plugins::CommandLinePluginsCommand;
 use super::pointer_scan::CommandLinePointerScanCommand;
@@ -17,6 +18,8 @@ use crate::commands::unprivileged_command::UnprivilegedCommand;
 use structopt::StructOpt;
 #[derive(Clone, StructOpt, Debug)]
 pub(crate) enum CommandLineRootCommand {
+    #[structopt(alias = "dbg", alias = "debug")]
+    Debugger(CommandLineDebuggerCommand),
     #[structopt(alias = "mem", alias = "m")]
     Memory(CommandLineMemoryCommand),
     #[structopt(alias = "plug", alias = "plugins")]
@@ -48,6 +51,7 @@ pub(crate) enum CommandLineRootCommand {
 impl From<CommandLineRootCommand> for CommandLineCommand {
     fn from(command: CommandLineRootCommand) -> Self {
         match command {
+            CommandLineRootCommand::Debugger(command) => Self::Privileged(PrivilegedCommand::Debugger(command.into())),
             CommandLineRootCommand::Memory(command) => Self::Privileged(PrivilegedCommand::Memory(command.into())),
             CommandLineRootCommand::Plugins(command) => Self::Privileged(PrivilegedCommand::Plugins(command.into())),
             CommandLineRootCommand::Process(command) => Self::Privileged(PrivilegedCommand::Process(command.into())),

@@ -1,3 +1,4 @@
+use crate::commands::debugger::debugger_response::DebuggerResponse;
 use crate::commands::memory::memory_response::MemoryResponse;
 use crate::commands::plugins::plugins_response::PluginsResponse;
 use crate::commands::pointer_scan::pointer_scan_response::PointerScanResponse;
@@ -14,6 +15,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum PrivilegedCommandResponse {
+    Debugger(DebuggerResponse),
     Memory(MemoryResponse),
     Plugins(PluginsResponse),
     Process(ProcessResponse),

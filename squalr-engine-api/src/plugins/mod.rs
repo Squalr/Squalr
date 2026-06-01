@@ -1,4 +1,5 @@
 pub mod data_type;
+pub mod debugger;
 pub mod instruction_set;
 pub mod memory_view;
 mod plugin_activation_state;

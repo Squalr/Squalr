@@ -1,0 +1,11 @@
+pub mod attach;
+pub mod breakpoint_list;
+pub mod breakpoint_remove;
+pub mod breakpoint_set;
+pub mod debugger_command;
+pub mod debugger_response;
+pub mod detach;
+pub mod pause;
+pub mod register_write;
+pub mod registers_read;
+pub mod resume;

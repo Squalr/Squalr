@@ -1,5 +1,6 @@
 use super::*;
 use crate as api;
+use api::commands::debugger::debugger_command::DebuggerCommand;
 use api::commands::process::process_command::ProcessCommand;
 use api::commands::project::project_command::ProjectCommand;
 
@@ -10,6 +11,27 @@ fn parse_command_line_args_routes_privileged_namespace_directly() {
     assert!(matches!(
         parsed_command,
         CommandLineCommand::Privileged(api::commands::privileged_command::PrivilegedCommand::Process(ProcessCommand::List { .. }))
+    ));
+}
+
+#[test]
+fn parse_command_line_args_routes_debugger_alias_to_privileged_namespace() {
+    let parsed_command = parse_command_line_args([
+        "squalr-cli",
+        "dbg",
+        "breakpoint-set",
+        "--address",
+        "0x1000",
+        "--access",
+        "rw",
+    ])
+    .expect("Expected debugger command to parse.");
+
+    assert!(matches!(
+        parsed_command,
+        CommandLineCommand::Privileged(api::commands::privileged_command::PrivilegedCommand::Debugger(
+            DebuggerCommand::BreakpointSet { .. }
+        ))
     ));
 }
 

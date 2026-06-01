@@ -1,5 +1,6 @@
 pub mod command_invocation;
 pub mod command_line;
+pub mod debugger;
 pub mod memory;
 pub mod plugins;
 pub mod pointer_scan;

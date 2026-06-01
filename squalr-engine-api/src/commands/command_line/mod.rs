@@ -1,6 +1,7 @@
 pub use structopt::clap;
 
 mod command;
+mod debugger;
 mod memory;
 mod parse_error;
 mod parser;

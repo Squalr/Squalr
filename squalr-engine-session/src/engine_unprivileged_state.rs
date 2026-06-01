@@ -914,6 +914,16 @@ impl EngineUnprivilegedState {
         engine_event: EngineEvent,
     ) {
         match engine_event {
+            EngineEvent::Debugger(debugger_event) => match debugger_event {
+                squalr_engine_api::events::debugger::debugger_event::DebuggerEvent::SessionStateChanged {
+                    debugger_session_state_changed_event,
+                } => {
+                    Self::dispatch_engine_event(event_listeners, debugger_session_state_changed_event);
+                }
+                squalr_engine_api::events::debugger::debugger_event::DebuggerEvent::TraceRecorded { debugger_trace_recorded_event } => {
+                    Self::dispatch_engine_event(event_listeners, debugger_trace_recorded_event);
+                }
+            },
             EngineEvent::Logging(logging_event) => match logging_event {
                 LoggingEvent::LogRecorded { log_recorded_event } => {
                     log::log!(

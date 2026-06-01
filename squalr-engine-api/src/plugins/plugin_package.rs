@@ -1,9 +1,14 @@
 use crate::plugins::{
-    Plugin, data_type::DataTypePlugin, instruction_set::InstructionSetPlugin, memory_view::MemoryViewPlugin, symbol_tree::symbol_tree_plugin::SymbolTreePlugin,
+    Plugin, data_type::DataTypePlugin, debugger::DebuggerPlugin, instruction_set::InstructionSetPlugin, memory_view::MemoryViewPlugin,
+    symbol_tree::symbol_tree_plugin::SymbolTreePlugin,
 };
 
 pub trait PluginPackage: Plugin {
     fn as_data_type_plugin(&self) -> Option<&dyn DataTypePlugin> {
+        None
+    }
+
+    fn as_debugger_plugin(&self) -> Option<&dyn DebuggerPlugin> {
         None
     }
 
