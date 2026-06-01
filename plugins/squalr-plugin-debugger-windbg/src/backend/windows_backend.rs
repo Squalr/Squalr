@@ -1,11 +1,14 @@
 use crate::constants::WINDBG_DEBUGGER_PLUGIN_ID;
+use squalr_engine_api::structures::debugger::DebuggerRegisterSnapshot;
 use squalr_engine_api::{plugins::debugger::DebuggerPluginError, structures::processes::opened_process_info::OpenedProcessInfo};
 use std::{
     sync::mpsc::{self, Receiver, Sender},
     thread::{self, JoinHandle},
 };
 use windows::{
-    Win32::System::Diagnostics::Debug::Extensions::{DEBUG_ATTACH_DEFAULT, DEBUG_END_ACTIVE_DETACH, DebugCreate, IDebugClient, IDebugControl},
+    Win32::System::Diagnostics::Debug::Extensions::{
+        DEBUG_ATTACH_DEFAULT, DEBUG_END_ACTIVE_DETACH, DEBUG_INTERRUPT_ACTIVE, DEBUG_STATUS_GO, DebugCreate, IDebugClient, IDebugControl, IDebugRegisters,
+    },
     core::Interface,
 };
 
@@ -60,6 +63,27 @@ impl WindbgBackend {
         }
     }
 
+    pub(crate) fn pause(&self) -> Result<(), DebuggerPluginError> {
+        self.worker_handle
+            .as_ref()
+            .ok_or_else(|| Self::plugin_error("Cannot pause because there is no active DbgEng worker."))?
+            .pause()
+    }
+
+    pub(crate) fn resume(&self) -> Result<(), DebuggerPluginError> {
+        self.worker_handle
+            .as_ref()
+            .ok_or_else(|| Self::plugin_error("Cannot resume because there is no active DbgEng worker."))?
+            .resume()
+    }
+
+    pub(crate) fn read_registers(&self) -> Result<DebuggerRegisterSnapshot, DebuggerPluginError> {
+        self.worker_handle
+            .as_ref()
+            .ok_or_else(|| Self::plugin_error("Cannot read registers because there is no active DbgEng worker."))?
+            .read_registers()
+    }
+
     pub(crate) fn unavailable_error(&self) -> DebuggerPluginError {
         DebuggerPluginError::new(WINDBG_DEBUGGER_PLUGIN_ID, "DbgEng debugger backend currently supports attach/detach only.")
     }
@@ -83,6 +107,26 @@ struct WindbgWorkerHandle {
 }
 
 impl WindbgWorkerHandle {
+    fn pause(&self) -> Result<(), DebuggerPluginError> {
+        self.request_worker_result(WindbgWorkerCommandKind::Pause)
+    }
+
+    fn resume(&self) -> Result<(), DebuggerPluginError> {
+        self.request_worker_result(WindbgWorkerCommandKind::Resume)
+    }
+
+    fn read_registers(&self) -> Result<DebuggerRegisterSnapshot, DebuggerPluginError> {
+        let (result_sender, result_receiver) = mpsc::channel();
+
+        self.command_sender
+            .send(WindbgWorkerCommand::ReadRegisters { result_sender })
+            .map_err(|error| WindbgBackend::plugin_error(format!("Failed to request DbgEng register snapshot: {}", error)))?;
+
+        result_receiver
+            .recv()
+            .map_err(|error| WindbgBackend::plugin_error(format!("DbgEng worker exited before register snapshot completed: {}", error)))?
+    }
+
     fn detach(&mut self) -> Result<(), DebuggerPluginError> {
         let (detach_result_sender, detach_result_receiver) = mpsc::channel();
 
@@ -104,14 +148,51 @@ impl WindbgWorkerHandle {
 
         detach_result
     }
+
+    fn request_worker_result(
+        &self,
+        command_kind: WindbgWorkerCommandKind,
+    ) -> Result<(), DebuggerPluginError> {
+        let (result_sender, result_receiver) = mpsc::channel();
+        let worker_command = match command_kind {
+            WindbgWorkerCommandKind::Pause => WindbgWorkerCommand::Pause { result_sender },
+            WindbgWorkerCommandKind::Resume => WindbgWorkerCommand::Resume { result_sender },
+        };
+
+        self.command_sender
+            .send(worker_command)
+            .map_err(|error| WindbgBackend::plugin_error(format!("Failed to send DbgEng worker command: {}", error)))?;
+
+        result_receiver
+            .recv()
+            .map_err(|error| WindbgBackend::plugin_error(format!("DbgEng worker exited before command completed: {}", error)))?
+    }
 }
 
 enum WindbgWorkerCommand {
-    Detach { result_sender: Sender<Result<(), DebuggerPluginError>> },
+    Pause {
+        result_sender: Sender<Result<(), DebuggerPluginError>>,
+    },
+    Resume {
+        result_sender: Sender<Result<(), DebuggerPluginError>>,
+    },
+    ReadRegisters {
+        result_sender: Sender<Result<DebuggerRegisterSnapshot, DebuggerPluginError>>,
+    },
+    Detach {
+        result_sender: Sender<Result<(), DebuggerPluginError>>,
+    },
+}
+
+enum WindbgWorkerCommandKind {
+    Pause,
+    Resume,
 }
 
 struct ActiveWindbgSession {
     client: IDebugClient,
+    control: IDebugControl,
+    registers: IDebugRegisters,
 }
 
 impl ActiveWindbgSession {
@@ -127,6 +208,14 @@ impl ActiveWindbgSession {
         let control = client.cast::<IDebugControl>().map_err(|error| {
             WindbgBackend::plugin_error(format!(
                 "IDebugClient could not be cast to IDebugControl while attaching to '{}' ({}): {}",
+                process_info.get_name(),
+                process_info.get_process_id(),
+                error
+            ))
+        })?;
+        let registers = client.cast::<IDebugRegisters>().map_err(|error| {
+            WindbgBackend::plugin_error(format!(
+                "IDebugClient could not be cast to IDebugRegisters while attaching to '{}' ({}): {}",
                 process_info.get_name(),
                 process_info.get_process_id(),
                 error
@@ -158,7 +247,39 @@ impl ActiveWindbgSession {
             )));
         }
 
-        Ok(Self { client })
+        Ok(Self { client, control, registers })
+    }
+
+    fn pause(&self) -> Result<(), DebuggerPluginError> {
+        unsafe {
+            self.control
+                .SetInterrupt(DEBUG_INTERRUPT_ACTIVE)
+                .map_err(|error| WindbgBackend::plugin_error(format!("IDebugControl::SetInterrupt(DEBUG_INTERRUPT_ACTIVE) failed: {}", error)))?;
+            self.control
+                .WaitForEvent(0, INITIAL_ATTACH_WAIT_TIMEOUT_MS)
+                .map_err(|error| WindbgBackend::plugin_error(format!("IDebugControl::WaitForEvent failed while pausing: {}", error)))?;
+        }
+
+        Ok(())
+    }
+
+    fn resume(&self) -> Result<(), DebuggerPluginError> {
+        unsafe {
+            self.control
+                .SetExecutionStatus(DEBUG_STATUS_GO)
+                .map_err(|error| WindbgBackend::plugin_error(format!("IDebugControl::SetExecutionStatus(DEBUG_STATUS_GO) failed: {}", error)))?;
+        }
+
+        Ok(())
+    }
+
+    fn read_registers(&self) -> Result<DebuggerRegisterSnapshot, DebuggerPluginError> {
+        let instruction_pointer = unsafe { self.registers.GetInstructionOffset() }
+            .map_err(|error| WindbgBackend::plugin_error(format!("IDebugRegisters::GetInstructionOffset failed: {}", error)))?;
+        let stack_pointer = unsafe { self.registers.GetStackOffset() }
+            .map_err(|error| WindbgBackend::plugin_error(format!("IDebugRegisters::GetStackOffset failed: {}", error)))?;
+
+        Ok(DebuggerRegisterSnapshot::new(Some(instruction_pointer), Some(stack_pointer), Vec::new()))
     }
 
     fn detach(&self) -> Result<(), DebuggerPluginError> {
@@ -199,14 +320,27 @@ fn wait_for_worker_commands(
     active_session: ActiveWindbgSession,
     worker_command_receiver: Receiver<WindbgWorkerCommand>,
 ) {
-    if let Ok(worker_command) = worker_command_receiver.recv() {
+    while let Ok(worker_command) = worker_command_receiver.recv() {
         match worker_command {
+            WindbgWorkerCommand::Pause { result_sender } => {
+                let pause_result = active_session.pause();
+                let _ = result_sender.send(pause_result);
+            }
+            WindbgWorkerCommand::Resume { result_sender } => {
+                let resume_result = active_session.resume();
+                let _ = result_sender.send(resume_result);
+            }
+            WindbgWorkerCommand::ReadRegisters { result_sender } => {
+                let read_registers_result = active_session.read_registers();
+                let _ = result_sender.send(read_registers_result);
+            }
             WindbgWorkerCommand::Detach { result_sender } => {
                 let detach_result = active_session.detach();
                 let _ = result_sender.send(detach_result);
+                return;
             }
         }
-    } else {
-        let _ = active_session.detach();
     }
+
+    let _ = active_session.detach();
 }

@@ -71,7 +71,8 @@ Our current task, from `README.md`, is:
   - Added direct `windows 0.62.2` bindings for `Win32_System_Diagnostics_Debug_Extensions` in the WinDbg plugin crate.
   - Implemented a worker-thread attach path using `DebugCreate<IDebugClient>`, `IDebugClient::AttachProcess`, and `IDebugControl::WaitForEvent`.
   - Implemented detach through the worker thread using `IDebugClient::DetachProcesses` plus `EndSession(DEBUG_END_ACTIVE_DETACH)`.
-  - Kept pause/resume/register/breakpoint operations returning explicit "attach/detach only" errors until event-loop command handling and state capture are implemented.
+  - Added worker-thread commands for pause via `IDebugControl::SetInterrupt(DEBUG_INTERRUPT_ACTIVE)`, resume via `SetExecutionStatus(DEBUG_STATUS_GO)`, and register snapshots with `IDebugRegisters::GetInstructionOffset`/`GetStackOffset`.
+  - Kept named register enumeration, register writes, and breakpoints returning explicit backend errors until the live attach path is verified.
   - This needs human verification against a disposable local process before it should be treated as functional.
 - Old C# Squalr debugger scope was small:
   - `FindWhatReads`, `FindWhatWrites`, and `FindWhatAccesses` set hardware data breakpoints.
@@ -96,7 +97,8 @@ Our current task, from `README.md`, is:
   - `squalr-cli`/`squalr-tui`/`squalr`: command and basic UI surfaces.
 - Next implementation target:
   - Human-verify the DbgEng attach/detach path against a disposable local process.
-  - Add worker-thread commands for pause/resume and a stubbed register snapshot.
+  - Add named register enumeration/register writes after the IP/SP snapshot behavior is verified.
+  - Add hardware data breakpoint create/remove/list and breakpoint callback event fanout.
   - Audit `dbgeng 0.5.1` against the direct `windows` binding implementation before committing to it as the long-term wrapper.
 - Key risks:
   - DbgEng threading rules and `WaitForEvent` serialization are the main complexity.

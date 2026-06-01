@@ -47,11 +47,17 @@ impl DebuggerSession for WindbgDebuggerSession {
     }
 
     fn pause(&mut self) -> Result<DebuggerSessionState, DebuggerPluginError> {
-        Err(self.unavailable())
+        self.backend.pause()?;
+        self.session_state = DebuggerSessionState::Paused;
+
+        Ok(self.session_state)
     }
 
     fn resume(&mut self) -> Result<DebuggerSessionState, DebuggerPluginError> {
-        Err(self.unavailable())
+        self.backend.resume()?;
+        self.session_state = DebuggerSessionState::Running;
+
+        Ok(self.session_state)
     }
 
     fn set_breakpoint(
@@ -75,7 +81,7 @@ impl DebuggerSession for WindbgDebuggerSession {
     }
 
     fn read_registers(&self) -> Result<DebuggerRegisterSnapshot, DebuggerPluginError> {
-        Err(self.unavailable())
+        self.backend.read_registers()
     }
 
     fn write_register(
