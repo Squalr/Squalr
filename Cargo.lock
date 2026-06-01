@@ -5297,6 +5297,7 @@ dependencies = [
  "squalr-engine-api",
  "squalr-plugin-binary-symbols",
  "squalr-plugin-data-types-24bit",
+ "squalr-plugin-debugger-windbg",
  "squalr-plugin-instructions-arm",
  "squalr-plugin-instructions-powerpc",
  "squalr-plugin-instructions-x86",
@@ -5305,6 +5306,13 @@ dependencies = [
 
 [[package]]
 name = "squalr-plugin-data-types-24bit"
+version = "0.4.0"
+dependencies = [
+ "squalr-engine-api",
+]
+
+[[package]]
+name = "squalr-plugin-debugger-windbg"
 version = "0.4.0"
 dependencies = [
  "squalr-engine-api",

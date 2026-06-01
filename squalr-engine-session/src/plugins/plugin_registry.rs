@@ -725,6 +725,10 @@ mod tests {
         }
     }
 
+    fn expected_builtin_plugin_count() -> usize {
+        if cfg!(windows) { 7 } else { 6 }
+    }
+
     #[test]
     fn registry_exposes_builtin_dolphin_memory_view_plugin() {
         let plugin_registry = PluginRegistry::new();
@@ -732,7 +736,7 @@ mod tests {
         let plugin_package = plugin_registry.find_memory_view_plugin_package(&opened_process_info);
 
         assert!(plugin_package.is_some());
-        assert_eq!(plugin_registry.get_plugin_packages().len(), 6);
+        assert_eq!(plugin_registry.get_plugin_packages().len(), expected_builtin_plugin_count());
         assert_eq!(
             plugin_package
                 .expect("Expected the Dolphin plugin to match the Dolphin process.")
@@ -753,7 +757,7 @@ mod tests {
             .find(|plugin_state| plugin_state.get_metadata().get_plugin_id() == "builtin.memory-view.dolphin")
             .expect("Expected the Dolphin plugin state to be present.");
 
-        assert_eq!(plugin_states.len(), 6);
+        assert_eq!(plugin_states.len(), expected_builtin_plugin_count());
         assert_eq!(dolphin_plugin_state.get_activation_state(), PluginActivationState::Activating);
     }
 
@@ -768,7 +772,7 @@ mod tests {
             .find(|plugin_state| plugin_state.get_metadata().get_plugin_id() == "builtin.memory-view.dolphin")
             .expect("Expected the Dolphin plugin state to be present.");
 
-        assert_eq!(plugin_states.len(), 6);
+        assert_eq!(plugin_states.len(), expected_builtin_plugin_count());
         assert_eq!(dolphin_plugin_state.get_activation_state(), PluginActivationState::Activated);
     }
 
@@ -791,7 +795,7 @@ mod tests {
             .find(|plugin_state| plugin_state.get_metadata().get_plugin_id() == "builtin.memory-view.dolphin")
             .expect("Expected the Dolphin plugin state to be present.");
 
-        assert_eq!(plugin_states.len(), 6);
+        assert_eq!(plugin_states.len(), expected_builtin_plugin_count());
         assert!(!dolphin_plugin_state.get_is_enabled());
         assert!(dolphin_plugin_state.get_can_activate_for_current_process());
         assert!(!dolphin_plugin_state.get_is_active_for_current_process());
