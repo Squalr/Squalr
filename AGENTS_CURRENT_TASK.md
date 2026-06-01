@@ -65,8 +65,14 @@ Our current task, from `README.md`, is:
   - Added `plugins/squalr-plugin-debugger-windbg` as a workspace crate with debugger capability metadata and explicit debugger permissions.
   - Registered it through `squalr-plugin-builtins` only on Windows via `cfg(windows)`.
   - Kept the plugin disabled by default until the DbgEng attach/event-loop proof is functional.
-  - Added Windows/non-Windows backend modules. The Windows backend currently returns explicit "DbgEng attach is not implemented yet" errors instead of pretending attach works.
+  - Added Windows/non-Windows backend modules.
   - Updated builtin and plugin-registry tests to account for the Windows-only debugger package.
+- Initial DbgEng backend slice completed:
+  - Added direct `windows 0.62.2` bindings for `Win32_System_Diagnostics_Debug_Extensions` in the WinDbg plugin crate.
+  - Implemented a worker-thread attach path using `DebugCreate<IDebugClient>`, `IDebugClient::AttachProcess`, and `IDebugControl::WaitForEvent`.
+  - Implemented detach through the worker thread using `IDebugClient::DetachProcesses` plus `EndSession(DEBUG_END_ACTIVE_DETACH)`.
+  - Kept pause/resume/register/breakpoint operations returning explicit "attach/detach only" errors until event-loop command handling and state capture are implemented.
+  - This needs human verification against a disposable local process before it should be treated as functional.
 - Old C# Squalr debugger scope was small:
   - `FindWhatReads`, `FindWhatWrites`, and `FindWhatAccesses` set hardware data breakpoints.
   - `PauseExecution` and `ResumeExecution` interrupt/resume the debuggee.
@@ -89,8 +95,9 @@ Our current task, from `README.md`, is:
   - `squalr-engine`: command executors that call the debugger service.
   - `squalr-cli`/`squalr-tui`/`squalr`: command and basic UI surfaces.
 - Next implementation target:
-  - Replace the WinDbg plugin scaffold backend with a minimal DbgEng wrapper/proof of concept that can attach, wait for the initial event on a dedicated thread, detach, and expose a stubbed register snapshot before adding hardware data breakpoints.
-  - Audit `dbgeng 0.5.1` against direct `windows` bindings in the plugin crate before committing to it as the long-term wrapper.
+  - Human-verify the DbgEng attach/detach path against a disposable local process.
+  - Add worker-thread commands for pause/resume and a stubbed register snapshot.
+  - Audit `dbgeng 0.5.1` against the direct `windows` binding implementation before committing to it as the long-term wrapper.
 - Key risks:
   - DbgEng threading rules and `WaitForEvent` serialization are the main complexity.
   - Hardware data breakpoints are limited in number and size/alignment by CPU/debug registers; expose clear failures rather than silently falling back.
@@ -104,6 +111,7 @@ Our current task, from `README.md`, is:
 - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
 - `cargo test -p squalr-plugin-debugger-windbg --locked -- --nocapture` passed.
 - `cargo test -p squalr-plugin-builtins --locked -- --nocapture` passed.
+- `cargo check -p squalr-plugin-debugger-windbg --locked` passed.
 - `cargo check -p squalr-engine --locked` passed.
 - References checked:
   - Local Rust workspace plugin/session/target architecture.

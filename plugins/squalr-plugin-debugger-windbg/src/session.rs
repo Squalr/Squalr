@@ -40,6 +40,7 @@ impl DebuggerSession for WindbgDebuggerSession {
     }
 
     fn detach(&mut self) -> Result<DebuggerSessionState, DebuggerPluginError> {
+        self.backend.detach()?;
         self.session_state = DebuggerSessionState::Detached;
 
         Ok(self.session_state)

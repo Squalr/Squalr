@@ -5315,7 +5315,9 @@ dependencies = [
 name = "squalr-plugin-debugger-windbg"
 version = "0.4.0"
 dependencies = [
+ "log",
  "squalr-engine-api",
+ "windows 0.62.2",
 ]
 
 [[package]]
