@@ -1,6 +1,6 @@
 # Agentic Current Task
 Our current task, from `README.md`, is:
-`debugger plugin / WinDbg wrapper investigation`
+`standard debugger plugin abstraction with Windows DbgEng implementation`
 
 # Notes from Owner
 - Assume any unstaged/uncommitted file changes are from a previous iteration, or from the human author giving guidance. Keep them if they look good; do not ask about them by default.
@@ -9,9 +9,13 @@ Our current task, from `README.md`, is:
 - Alpha-stage data compatibility is not required for this refactor. Prefer a clean model over preserving old address/pointer/symbol-ref project item properties.
 
 ## Current Tasklist
+- Treat the debugger as engine-level workflow with plugin-owned platform behavior:
+  - The engine owns debugger commands, responses, events, permissions, and Squalr-facing data types.
+  - Plugins own platform-specific attach/control/breakpoint/register implementations.
+  - The Windows reference implementation should be DbgEng/WinDbg-backed behind the same generic debugger interface future Linux/macOS/emulator/remote implementations would use.
 - Design a debugger extension surface in `squalr-engine-api::plugins` before implementing a WinDbg plugin:
   - Add `PluginCapability::Debugger` plus permissions such as attach/detach debugger, control target execution, read/write registers, and manage breakpoints.
-  - Add debugger API models for attach/detach, pause/resume, breakpoint create/remove/list, register snapshots, and memory-access trace events.
+  - Add engine-owned debugger API models for attach/detach, pause/resume, breakpoint create/remove/list, register snapshots, instruction pointers, and memory-access trace events.
   - Add command models under `squalr-engine-api::commands` so CLI/TUI/GUI can drive the debugger without directly calling plugin internals.
 - Add a session-side debugger service/router next to memory-view routing, not inside `MemoryViewPlugin`.
   - Memory-view plugins route address spaces, page bounds, reads, writes, and modules.
@@ -32,11 +36,19 @@ Our current task, from `README.md`, is:
 
 ## Important Information
 - `README.md` explicitly says core Squalr is not currently building a debugger, but the library layering table names debuggers as custom target integrators. That supports a plugin-backed implementation instead of hard-coding debugger behavior into scanning or target access.
+- The intended architecture is "core abstractions, plugin implementations": debugger workflows are a first-class engine feature, while DbgEng/ptrace/lldb/emulator/remote-agent details live behind plugins.
+- This should mirror the platform-call split already present in the target layer: command and type semantics are stable in Squalr, but OS-specific behavior is hard-gated and implemented behind traits.
 - Existing plugin capabilities are `DataType`, `InstructionSet`, `MemoryView`, and `SymbolTree`. There is no general tool/window/debugger capability yet.
 - Existing plugin permissions are symbol-store/window plus read/write process memory. Debugging needs stronger and more explicit permissions because attach, pause, resume, register writes, and breakpoints can control the target.
 - Existing `MemoryViewPlugin` is the closest pattern, but it is insufficient as the debugger API. It owns virtual pages/modules/reads/writes. A debugger owns a process debug session and asynchronous events.
 - `EngineOsProviders::with_memory_view_routing` is the best local precedent for routing plugin-backed behavior through session state. A parallel debugger router/service should cache the active debugger instance per opened process and clear it on process close.
 - The native Windows target backend already uses Win32 APIs for `OpenProcess`, `ReadProcessMemory`, `WriteProcessMemory`, `VirtualProtectEx`, `VirtualQueryEx`, and module enumeration. WinDbg integration can initially reuse normal memory reads/writes and only add debugger-specific operations.
+- DbgEng is the desired first implementation for Windows. It should be treated as the reference plugin, not as the shape of the generic API.
+- Generic debugger commands/types should use Squalr concepts:
+  - `DebuggerAttach`, `DebuggerDetach`, `DebuggerPause`, `DebuggerResume`.
+  - `DebuggerBreakpointKind::{Software, HardwareData}` and `DebuggerDataBreakpointAccess::{Read, Write, ReadWrite}`.
+  - `DebuggerRegisterSnapshot`, `DebuggerRegisterValue`, `DebuggerInstructionPointer`, `DebuggerTraceEvent`, and `DebuggerSessionState`.
+  - Plugin-specific details should stay in diagnostic metadata or backend error strings unless the engine needs them for generic behavior.
 - Old C# Squalr debugger scope was small:
   - `FindWhatReads`, `FindWhatWrites`, and `FindWhatAccesses` set hardware data breakpoints.
   - `PauseExecution` and `ResumeExecution` interrupt/resume the debuggee.
@@ -53,9 +65,9 @@ Our current task, from `README.md`, is:
   - The workspace already uses both `windows-sys 0.61.2` in `squalr-engine-targets-native` and `windows 0.61.3` in `squalr-engine`, so dependency/version alignment must be checked in the proof of concept.
   - Microsoft docs confirm `IDebugClient` supports attach/detach/callback registration and that `WaitForEvent` drives the debugger event model.
 - Recommended MVP architecture:
-  - `squalr-engine-api`: debugger plugin trait, command/response/event models, permission/capability additions.
-  - `squalr-engine-session`: active debugger service/router with event channel, process-close cleanup, and plugin enablement checks.
-  - `plugins/squalr-plugin-debugger-windbg`: Windows DbgEng implementation with hardware data breakpoints and register snapshots.
+  - `squalr-engine-api`: debugger plugin trait, generic command/response/event models, generic debugger data types, permission/capability additions.
+  - `squalr-engine-session`: active debugger service/router with event channel, process-close cleanup, plugin selection, and plugin enablement checks.
+  - `plugins/squalr-plugin-debugger-windbg`: Windows-only DbgEng implementation with hardware data breakpoints and register snapshots.
   - `squalr-engine`: command executors that call the debugger service.
   - `squalr-cli`/`squalr-tui`/`squalr`: command and basic UI surfaces.
 - Key risks:
