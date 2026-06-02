@@ -340,7 +340,7 @@ fn resolve_project_item_container_type(symbolic_struct_namespace: &str) -> Conta
 }
 
 fn normalize_instruction_preview_data_type_id(symbolic_struct_namespace: &str) -> Option<String> {
-    normalize_instruction_data_type_id(symbolic_struct_namespace).filter(|data_type_id| matches!(data_type_id.as_str(), "i_x86" | "i_x64"))
+    normalize_instruction_data_type_id(symbolic_struct_namespace)
 }
 
 fn first_disassembled_instruction_text(disassembly_text: &str) -> Option<&str> {

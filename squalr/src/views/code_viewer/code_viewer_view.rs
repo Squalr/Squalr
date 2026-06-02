@@ -29,12 +29,12 @@ use squalr_engine_api::{
     commands::unprivileged_command_request::UnprivilegedCommandRequest,
     dependency_injection::dependency::Dependency,
     events::process::changed::process_changed_event::ProcessChangedEvent,
+    plugins::instruction_set::{DisassembledInstruction, InstructionSet},
     structures::{
         data_types::{built_in_types::u64::data_type_u64::DataTypeU64, data_type_ref::DataTypeRef},
-        memory::bitness::Bitness,
+        processes::target_architecture::TargetArchitecture,
     },
 };
-use squalr_plugin_instructions_x86::DisassembledInstruction;
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
@@ -120,15 +120,24 @@ impl CodeViewerView {
             });
     }
 
-    fn get_process_bitness(&self) -> Option<Bitness> {
+    fn get_target_architecture(&self) -> Option<TargetArchitecture> {
         self.process_selector_view_data
-            .read("Code viewer process bitness")
+            .read("Code viewer target architecture")
             .and_then(|process_selector_view_data| {
                 process_selector_view_data
                     .opened_process
                     .as_ref()
-                    .map(|opened_process_info| opened_process_info.get_bitness())
+                    .map(|opened_process_info| opened_process_info.get_target_architecture().clone())
             })
+    }
+
+    fn get_instruction_set(&self) -> Option<Arc<dyn InstructionSet>> {
+        let target_architecture = self.get_target_architecture()?;
+
+        self.app_context
+            .engine_unprivileged_state
+            .get_plugin_registry()
+            .find_instruction_set(target_architecture.get_instruction_set_id())
     }
 
     fn fixed_columns_width() -> f32 {
@@ -429,7 +438,7 @@ impl CodeViewerView {
             self.code_viewer_view_data.clone(),
             absolute_address,
             target_directory_path,
-            self.get_process_bitness(),
+            self.get_target_architecture().as_ref(),
             instruction_lines,
         ) else {
             log::warn!("Failed to build code viewer instruction project item create request.");
@@ -483,10 +492,11 @@ impl CodeViewerView {
     }
 
     fn instruction_edit_data_type_ref(&self) -> DataTypeRef {
-        DataTypeRef::new(match self.get_process_bitness().unwrap_or(Bitness::Bit64) {
-            Bitness::Bit32 => "i_x86",
-            Bitness::Bit64 => "i_x64",
-        })
+        DataTypeRef::new(
+            self.get_target_architecture()
+                .unwrap_or_default()
+                .get_instruction_data_type_id(),
+        )
     }
 
     fn build_context_menu_edit_label(
@@ -724,7 +734,7 @@ impl CodeViewerView {
 
         if commit_button.clicked() || should_commit_edit {
             if let Some(instruction_write_plan) =
-                CodeViewerViewData::evaluate_instruction_edit_commit(self.code_viewer_view_data.clone(), self.get_process_bitness())
+                CodeViewerViewData::evaluate_instruction_edit_commit(self.code_viewer_view_data.clone(), self.get_instruction_set())
             {
                 self.dispatch_instruction_write(instruction_write_plan);
             }
@@ -812,7 +822,7 @@ impl CodeViewerView {
 
                 if fill_button.clicked() {
                     if let Some(instruction_write_plan) =
-                        CodeViewerViewData::accept_instruction_edit_pending_fill_with_nops(self.code_viewer_view_data.clone(), self.get_process_bitness())
+                        CodeViewerViewData::accept_instruction_edit_pending_fill_with_nops(self.code_viewer_view_data.clone(), self.get_instruction_set())
                     {
                         self.dispatch_instruction_write(instruction_write_plan);
                     }
@@ -907,13 +917,11 @@ impl Widget for CodeViewerView {
                 }
 
                 toolbar_user_interface.add_space(12.0);
+                let target_architecture = self.get_target_architecture().unwrap_or_default();
                 toolbar_user_interface.label(
-                    RichText::new(match self.get_process_bitness().unwrap_or(Bitness::Bit64) {
-                        Bitness::Bit32 => "x86 code",
-                        Bitness::Bit64 => "x64 code",
-                    })
-                    .font(theme.font_library.font_noto_sans.font_normal.clone())
-                    .color(theme.foreground_preview),
+                    RichText::new(format!("{} code", target_architecture.get_instruction_set_id()))
+                        .font(theme.font_library.font_noto_sans.font_normal.clone())
+                        .color(theme.foreground_preview),
                 );
 
                 let go_to_preview_text = CodeViewerViewData::get_go_to_address_preview_text(self.code_viewer_view_data.clone());
@@ -1021,7 +1029,7 @@ impl Widget for CodeViewerView {
                     .painter()
                     .rect_filled(content_user_interface.max_rect(), CornerRadius::ZERO, theme.background_panel);
 
-                let process_bitness = self.get_process_bitness();
+                let instruction_set = self.get_instruction_set();
                 let current_page = CodeViewerViewData::get_current_page(self.code_viewer_view_data.clone());
                 let mut visible_instruction_lines = Vec::new();
                 let (header_rect, _) =
@@ -1058,7 +1066,7 @@ impl Widget for CodeViewerView {
                             .engine_unprivileged_state
                             .request_virtual_snapshot_refresh(CodeViewerViewData::WINDOW_VIRTUAL_SNAPSHOT_ID);
 
-                        visible_instruction_lines = CodeViewerViewData::build_instruction_lines(self.code_viewer_view_data.clone(), process_bitness);
+                        visible_instruction_lines = CodeViewerViewData::build_instruction_lines(self.code_viewer_view_data.clone(), instruction_set.clone());
                         let pending_scroll_address = CodeViewerViewData::take_pending_scroll_address(self.code_viewer_view_data.clone());
                         let scroll_target_address = CodeViewerViewData::resolve_scroll_target_address(pending_scroll_address, &visible_instruction_lines);
                         if !visible_instruction_lines.is_empty() {

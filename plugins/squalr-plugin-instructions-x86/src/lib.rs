@@ -15,8 +15,9 @@ pub use constants::{
     X86_FAMILY_DATA_TYPE_IDS, X86_FAMILY_INSTRUCTION_SET_IDS, X86_FAMILY_PLUGIN_DESCRIPTION, X86_FAMILY_PLUGIN_DISPLAY_NAME, X86_FAMILY_PLUGIN_ID,
 };
 pub use data_types::{DataTypeInstructionX64, DataTypeInstructionX86};
-pub use instruction_set::{DisassembledInstruction, X64InstructionSet, X86InstructionSet};
+pub use instruction_set::{X64InstructionSet, X86InstructionSet};
 pub use plugin::X86FamilyInstructionsPlugin;
+pub use squalr_engine_api::plugins::instruction_set::DisassembledInstruction;
 
 #[cfg(test)]
 mod tests {
@@ -319,7 +320,6 @@ mod tests {
     #[test]
     fn plugin_exposes_data_type_and_instruction_set_capabilities() {
         let plugin = X86FamilyInstructionsPlugin::new();
-        let expected_default_enablement = cfg!(any(target_arch = "x86", target_arch = "x86_64"));
 
         assert_eq!(plugin.metadata().get_plugin_id(), "builtin.instruction-set.x86-family");
         assert!(
@@ -332,6 +332,6 @@ mod tests {
                 .metadata()
                 .has_plugin_capability(PluginCapability::InstructionSet)
         );
-        assert_eq!(plugin.metadata().get_is_enabled_by_default(), expected_default_enablement);
+        assert!(plugin.metadata().get_is_enabled_by_default());
     }
 }

@@ -29,7 +29,7 @@ impl X86FamilyInstructionsPlugin {
                 X86_FAMILY_PLUGIN_DESCRIPTION,
                 vec![PluginCapability::DataType, PluginCapability::InstructionSet],
                 true,
-                is_enabled_by_default_for_current_target(),
+                true,
             ),
             contributed_data_types: vec![
                 Arc::new(DataTypeInstructionX86::new()),
@@ -41,10 +41,6 @@ impl X86FamilyInstructionsPlugin {
             ],
         }
     }
-}
-
-fn is_enabled_by_default_for_current_target() -> bool {
-    cfg!(any(target_arch = "x86", target_arch = "x86_64"))
 }
 
 impl Default for X86FamilyInstructionsPlugin {

@@ -489,6 +489,34 @@ Our current task, from `README.md`, is:
   - `cargo run -p squalr-engine --example debugger_command_windbg_smoke --locked` passed on Windows against a disposable child process and now reports Stop Trace with zero returned records.
   - `cargo test -p squalr-plugin-debugger-windbg --locked -- --nocapture` passed.
   - GUI behavior against the originally failing target still needs human verification after implementation and validation.
+- After target-architecture ISA selection:
+  - Added `TargetArchitecture` to `OpenedProcessInfo` with instruction-set id, instruction data-type id, pointer width, and endianness. Existing constructors default to x86/x64 from pointer width for compatibility, while remote/plugin paths can override with `with_target_architecture`.
+  - Promoted `DisassembledInstruction` and `InstructionSet::disassemble_block` into `squalr-engine-api`, with x86/x64 overriding the block decoder and other instruction plugins using the shared trait surface.
+  - Debugger trace disassembly now selects the instruction plugin from target architecture metadata instead of mapping `Bit32 -> x86` and `Bit64 -> x64`.
+  - GUI Code Viewer disassembly, assemble/edit, NOP fill, toolbar ISA label, and add-instruction-to-project data type now use target architecture and the plugin registry rather than direct x86/x64 construction.
+  - Debugger trace add-to-project now uses the target architecture's instruction data type id instead of bitness-derived `i_x86`/`i_x64`.
+  - Instruction project item preview/open/edit helpers no longer filter instruction data types down to `i_x86 | i_x64`; any normalized `i_*` instruction type is accepted.
+  - Built-in ARM, PowerPC, and x86 instruction-family plugins are now enabled by default independent of host CPU so a Windows host can still decode/assemble remote ARM/PowerPC target bytes if the target metadata asks for them.
+  - Remaining caveat: TUI Code Viewer still stores only opened-process bitness and directly constructs x86/x64 instruction sets. It compiled after this change, but needs the same target-architecture/plugin-registry plumbing before TUI remote/non-x86 code viewing is correct.
+  - `cargo fmt --all` completed with the existing `.rustfmt.toml` deprecation warnings for `fn_args_layout`.
+  - `cargo check -p squalr-engine-api --locked` passed.
+  - `cargo check -p squalr-engine-session --locked` passed.
+  - `cargo check -p squalr --locked` passed.
+  - `cargo check -p squalr-tui --locked` passed.
+  - `cargo test -p squalr-engine-api --locked opened_process_info -- --nocapture` passed.
+  - `cargo test -p squalr-engine-api --locked normalize_instruction_data_type_id -- --nocapture` passed.
+  - `cargo test -p squalr-engine-session --locked trace_disassembly_uses_target_architecture_instruction_set -- --nocapture` passed.
+  - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
+  - `cargo test -p squalr-plugin-instructions-arm --locked -- --nocapture` passed.
+  - `cargo test -p squalr-plugin-instructions-powerpc --locked -- --nocapture` passed.
+  - `cargo test -p squalr-plugin-instructions-x86 --locked -- --nocapture` passed.
+  - `cargo test -p squalr-plugin-builtins --locked -- --nocapture` passed.
+  - `cargo test -p squalr-engine --locked project_item_preview -- --nocapture` passed.
+  - `cargo test -p squalr --locked instruction_project_item_preview -- --nocapture` passed.
+  - `cargo test -p squalr --locked instruction_alias_label_is_preserved -- --nocapture` passed.
+  - `cargo run -p squalr-engine-session --example debugger_service_windbg_smoke --locked` passed on Windows against a disposable child process.
+  - `cargo run -p squalr-engine --example debugger_command_windbg_smoke --locked` passed on Windows against a disposable child process.
+  - GUI behavior against the originally failing target still needs human verification after implementation and validation.
 - References checked:
   - Local Rust workspace plugin/session/target architecture.
   - Old C# implementation under `C:\Projects\Squalr\Squalr.Engine.Debugger`.

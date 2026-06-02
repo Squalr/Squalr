@@ -8,8 +8,8 @@ use squalr_engine_api::structures::debugger::{
     DebuggerBreakpointDescriptor, DebuggerBreakpointKind, DebuggerDataBreakpointAccess, DebuggerRegisterSnapshot, DebuggerSessionState, DebuggerTraceEvent,
     DebuggerTraceInstructionRecord, DebuggerTraceSessionDescriptor,
 };
-use squalr_engine_api::structures::memory::bitness::Bitness;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
+use squalr_engine_api::structures::processes::target_architecture::TargetArchitecture;
 use std::{
     collections::HashMap,
     sync::{
@@ -673,11 +673,11 @@ impl DebuggerService {
         let event_emitter = self.event_emitter.clone();
         let plugin_registry = self.plugin_registry.clone();
         let trace_sessions = self.trace_sessions.clone();
-        let process_bitness = process_info.get_bitness();
+        let target_architecture = process_info.get_target_architecture().clone();
         let active_plugin_id = plugin_id.to_string();
 
         Arc::new(move |trace_event: DebuggerTraceEvent| {
-            let trace_event = Self::enrich_trace_event_with_disassembly(&plugin_registry, process_bitness, trace_event);
+            let trace_event = Self::enrich_trace_event_with_disassembly(&plugin_registry, &target_architecture, trace_event);
             let trace_session_update = trace_sessions
                 .write()
                 .ok()
@@ -711,19 +711,15 @@ impl DebuggerService {
 
     fn enrich_trace_event_with_disassembly(
         plugin_registry: &PluginRegistry,
-        process_bitness: Bitness,
+        target_architecture: &TargetArchitecture,
         trace_event: DebuggerTraceEvent,
     ) -> DebuggerTraceEvent {
         if trace_event.get_instruction_text().is_some() || trace_event.get_instruction_bytes().is_empty() {
             return trace_event;
         }
 
-        let instruction_set_id = match process_bitness {
-            Bitness::Bit32 => "x86",
-            Bitness::Bit64 => "x64",
-        };
         let instruction_text = plugin_registry
-            .find_instruction_set(instruction_set_id)
+            .find_instruction_set(target_architecture.get_instruction_set_id())
             .and_then(|instruction_set| {
                 instruction_set
                     .disassemble(trace_event.get_instruction_bytes())
@@ -807,6 +803,7 @@ mod tests {
             },
             memory::bitness::Bitness,
             processes::opened_process_info::OpenedProcessInfo,
+            processes::target_architecture::TargetArchitecture,
         },
     };
     use std::sync::{Arc, Mutex};
@@ -829,15 +826,33 @@ mod tests {
     }
 
     #[derive(Debug)]
-    struct TestInstructionSet;
+    struct TestInstructionSet {
+        instruction_set_id: &'static str,
+        display_name: &'static str,
+        disassembly_prefix: &'static str,
+    }
+
+    impl TestInstructionSet {
+        fn new(
+            instruction_set_id: &'static str,
+            display_name: &'static str,
+            disassembly_prefix: &'static str,
+        ) -> Self {
+            Self {
+                instruction_set_id,
+                display_name,
+                disassembly_prefix,
+            }
+        }
+    }
 
     impl InstructionSet for TestInstructionSet {
         fn get_instruction_set_id(&self) -> &str {
-            "x64"
+            self.instruction_set_id
         }
 
         fn get_display_name(&self) -> &str {
-            "Test x64"
+            self.display_name
         }
 
         fn assemble(
@@ -851,7 +866,7 @@ mod tests {
             &self,
             instruction_bytes: &[u8],
         ) -> Result<String, String> {
-            Ok(format!("test-disassembly-{}", instruction_bytes.len()))
+            Ok(format!("{}-{}", self.disassembly_prefix, instruction_bytes.len()))
         }
     }
 
@@ -871,7 +886,10 @@ mod tests {
                     true,
                     true,
                 ),
-                instruction_sets: vec![Arc::new(TestInstructionSet)],
+                instruction_sets: vec![
+                    Arc::new(TestInstructionSet::new("x64", "Test x64", "test-disassembly")),
+                    Arc::new(TestInstructionSet::new("arm64", "Test ARM64", "arm64-disassembly")),
+                ],
             }
         }
     }
@@ -894,7 +912,7 @@ mod tests {
         }
 
         fn contributed_instruction_set_ids(&self) -> &'static [&'static str] {
-            &["x64"]
+            &["x64", "arm64"]
         }
     }
 
@@ -1151,6 +1169,16 @@ mod tests {
             Some("add eax, ebx")
         );
         assert_eq!(DebuggerService::first_disassembled_instruction_text("   "), None);
+    }
+
+    #[test]
+    fn trace_disassembly_uses_target_architecture_instruction_set() {
+        let plugin_registry = PluginRegistry::from_plugin_packages(vec![Arc::new(TestInstructionSetPlugin::new())]);
+        let trace_event = DebuggerTraceEvent::new(None, DebuggerRegisterSnapshot::default(), Some(0x4000), vec![0x00], None, None);
+
+        let enriched_trace_event = DebuggerService::enrich_trace_event_with_disassembly(&plugin_registry, &TargetArchitecture::arm64(), trace_event);
+
+        assert_eq!(enriched_trace_event.get_instruction_text(), Some("arm64-disassembly-1"));
     }
 
     #[test]

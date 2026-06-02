@@ -29,7 +29,7 @@ impl ArmFamilyInstructionsPlugin {
                 ARM_FAMILY_PLUGIN_DESCRIPTION,
                 vec![PluginCapability::DataType, PluginCapability::InstructionSet],
                 true,
-                is_enabled_by_default_for_current_target(),
+                true,
             ),
             contributed_data_types: vec![
                 Arc::new(DataTypeInstructionArm::new()),
@@ -41,10 +41,6 @@ impl ArmFamilyInstructionsPlugin {
             ],
         }
     }
-}
-
-fn is_enabled_by_default_for_current_target() -> bool {
-    cfg!(any(target_arch = "arm", target_arch = "aarch64"))
 }
 
 impl Default for ArmFamilyInstructionsPlugin {

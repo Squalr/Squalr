@@ -29,7 +29,8 @@ use squalr_engine_api::{
     events::debugger::trace_session_updated::debugger_trace_session_updated_event::DebuggerTraceSessionUpdatedEvent,
     structures::{
         debugger::{DebuggerDataBreakpointAccess, DebuggerTraceInstructionRecord, DebuggerTraceSessionDescriptor},
-        memory::{address_display::format_module_address, bitness::Bitness},
+        memory::address_display::format_module_address,
+        processes::target_architecture::TargetArchitecture,
     },
 };
 use std::sync::Arc;
@@ -652,7 +653,7 @@ impl DebuggerTraceView {
             is_directory: false,
             address: Some(project_item_address),
             module_name: Some(project_item_module_name),
-            data_type_id: Some(self.instruction_data_type_id().to_string()),
+            data_type_id: Some(self.instruction_data_type_id()),
             pointer_offsets: None,
             initial_preview_value: Some(Self::instruction_text(instruction_record)),
         };
@@ -664,21 +665,18 @@ impl DebuggerTraceView {
         });
     }
 
-    fn instruction_data_type_id(&self) -> &'static str {
-        let process_bitness = self
-            .process_selector_view_data
-            .read("Debugger trace process bitness")
+    fn instruction_data_type_id(&self) -> String {
+        self.process_selector_view_data
+            .read("Debugger trace target architecture")
             .and_then(|process_selector_view_data| {
                 process_selector_view_data
                     .opened_process
                     .as_ref()
-                    .map(|opened_process_info| opened_process_info.get_bitness())
-            });
-
-        match process_bitness.unwrap_or(Bitness::Bit64) {
-            Bitness::Bit32 => "i_x86",
-            Bitness::Bit64 => "i_x64",
-        }
+                    .map(|opened_process_info| opened_process_info.get_target_architecture().clone())
+            })
+            .unwrap_or_else(TargetArchitecture::default)
+            .get_instruction_data_type_id()
+            .to_string()
     }
 
     fn build_instruction_project_item_name(

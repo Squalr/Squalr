@@ -236,7 +236,7 @@ impl ProjectItemPreviewDetails {
     }
 
     fn normalize_instruction_data_type_id(symbolic_struct_namespace: &str) -> Option<String> {
-        normalize_instruction_data_type_id(symbolic_struct_namespace).filter(|data_type_id| matches!(data_type_id.as_str(), "i_x86" | "i_x64"))
+        normalize_instruction_data_type_id(symbolic_struct_namespace)
     }
 
     fn is_instruction_project_item(project_item: &ProjectItem) -> bool {

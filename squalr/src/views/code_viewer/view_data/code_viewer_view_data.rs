@@ -7,17 +7,17 @@ use squalr_engine_api::{
         project_items::create::project_items_create_request::ProjectItemsCreateRequest,
     },
     dependency_injection::dependency::Dependency,
-    plugins::instruction_set::InstructionSet,
+    plugins::instruction_set::{DisassembledInstruction, InstructionSet},
     plugins::memory_view::PageRetrievalMode,
     structures::{
         data_types::{built_in_types::u8::data_type_u8::DataTypeU8, data_type_ref::DataTypeRef},
         data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
         memory::{
             address_display::{format_absolute_address, format_module_address},
-            bitness::Bitness,
             normalized_module::NormalizedModule,
             normalized_region::NormalizedRegion,
         },
+        processes::target_architecture::TargetArchitecture,
         structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition},
     },
 };
@@ -25,7 +25,6 @@ use squalr_engine_session::{
     engine_unprivileged_state::EngineUnprivilegedState,
     virtual_snapshots::{virtual_snapshot::VirtualSnapshot, virtual_snapshot_query::VirtualSnapshotQuery},
 };
-use squalr_plugin_instructions_x86::{DisassembledInstruction, X64InstructionSet, X86InstructionSet};
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     ops::Range,
@@ -510,7 +509,7 @@ impl CodeViewerViewData {
 
     pub fn build_instruction_lines(
         code_viewer_view_data: Dependency<Self>,
-        process_bitness: Option<Bitness>,
+        instruction_set: Option<Arc<dyn InstructionSet>>,
     ) -> Vec<DisassembledInstruction> {
         let Some(current_page) = Self::get_current_page(code_viewer_view_data.clone()) else {
             return Vec::new();
@@ -542,10 +541,10 @@ impl CodeViewerViewData {
             return Vec::new();
         }
 
-        let decode_result = match process_bitness.unwrap_or(Bitness::Bit64) {
-            Bitness::Bit32 => X86InstructionSet::new().disassemble_block(&cached_bytes, decode_start_address),
-            Bitness::Bit64 => X64InstructionSet::new().disassemble_block(&cached_bytes, decode_start_address),
+        let Some(instruction_set) = instruction_set else {
+            return Vec::new();
         };
+        let decode_result = instruction_set.disassemble_block(&cached_bytes, decode_start_address);
 
         let Ok(decoded_instructions) = decode_result else {
             return Vec::new();
@@ -781,7 +780,7 @@ impl CodeViewerViewData {
 
     pub(crate) fn evaluate_instruction_edit_commit(
         code_viewer_view_data: Dependency<Self>,
-        process_bitness: Option<Bitness>,
+        instruction_set: Option<Arc<dyn InstructionSet>>,
     ) -> Option<CodeViewerInstructionWritePlan> {
         let Some(mut code_viewer_view_data) = code_viewer_view_data.write("Code viewer evaluate instruction edit commit") else {
             return None;
@@ -789,7 +788,12 @@ impl CodeViewerViewData {
         let Some(instruction_edit_state) = code_viewer_view_data.instruction_edit_state.as_mut() else {
             return None;
         };
-        let instruction_set = Self::create_instruction_set_for_process_bitness(process_bitness);
+        let Some(instruction_set) = instruction_set else {
+            instruction_edit_state.status = Some(CodeViewerInstructionEditStatus::Invalid(String::from(
+                "No instruction set plugin is enabled for this target.",
+            )));
+            return None;
+        };
         let assembled_bytes = match instruction_set.assemble(
             instruction_edit_state
                 .edit_value
@@ -833,7 +837,7 @@ impl CodeViewerViewData {
 
     pub(crate) fn accept_instruction_edit_pending_fill_with_nops(
         code_viewer_view_data: Dependency<Self>,
-        process_bitness: Option<Bitness>,
+        instruction_set: Option<Arc<dyn InstructionSet>>,
     ) -> Option<CodeViewerInstructionWritePlan> {
         let Some(mut code_viewer_view_data) = code_viewer_view_data.write("Code viewer accept instruction fill with nops") else {
             return None;
@@ -848,7 +852,12 @@ impl CodeViewerViewData {
         else {
             return None;
         };
-        let instruction_set = Self::create_instruction_set_for_process_bitness(process_bitness);
+        let Some(instruction_set) = instruction_set else {
+            instruction_edit_state.status = Some(CodeViewerInstructionEditStatus::Invalid(String::from(
+                "No instruction set plugin is enabled for this target.",
+            )));
+            return None;
+        };
         let nop_fill_bytes = match instruction_set.build_no_operation_fill(remaining_byte_count) {
             Ok(nop_fill_bytes) => nop_fill_bytes,
             Err(error) => {
@@ -913,7 +922,7 @@ impl CodeViewerViewData {
         code_viewer_view_data: Dependency<Self>,
         absolute_address: u64,
         target_directory_path: Option<PathBuf>,
-        process_bitness: Option<Bitness>,
+        target_architecture: Option<&TargetArchitecture>,
         instruction_lines: &[DisassembledInstruction],
     ) -> Option<ProjectItemsCreateRequest> {
         let code_viewer_view_data = code_viewer_view_data.read("Code viewer build instruction project item request")?;
@@ -926,7 +935,10 @@ impl CodeViewerViewData {
                     .map(|instruction_line| (instruction_line.address, (instruction_line.length as u64).max(1)))
             })?;
         let (project_item_address, project_item_module_name) = code_viewer_view_data.resolve_project_item_address(selection_start_address);
-        let instruction_data_type_id = Self::instruction_data_type_id_for_process_bitness(process_bitness);
+        let default_target_architecture = TargetArchitecture::default();
+        let instruction_data_type_id = target_architecture
+            .unwrap_or(&default_target_architecture)
+            .get_instruction_data_type_id();
         let resolved_data_type_id = if selected_byte_count > 1 {
             format!("{}[{}]", instruction_data_type_id, selected_byte_count)
         } else {
@@ -1085,20 +1097,6 @@ impl CodeViewerViewData {
             Some((selection_start_index, selection_end_index))
         } else {
             Some((target_instruction_index, target_instruction_index))
-        }
-    }
-
-    fn instruction_data_type_id_for_process_bitness(process_bitness: Option<Bitness>) -> &'static str {
-        match process_bitness.unwrap_or(Bitness::Bit64) {
-            Bitness::Bit32 => "i_x86",
-            Bitness::Bit64 => "i_x64",
-        }
-    }
-
-    fn create_instruction_set_for_process_bitness(process_bitness: Option<Bitness>) -> Box<dyn InstructionSet> {
-        match process_bitness.unwrap_or(Bitness::Bit64) {
-            Bitness::Bit32 => Box::new(X86InstructionSet::new()),
-            Bitness::Bit64 => Box::new(X64InstructionSet::new()),
         }
     }
 

@@ -26,6 +26,8 @@ mod tests {
     #[test]
     fn normalize_instruction_data_type_id_extracts_base_data_type_id() {
         assert_eq!(normalize_instruction_data_type_id("i_x86[7]").as_deref(), Some("i_x86"));
+        assert_eq!(normalize_instruction_data_type_id("i_arm64[4]").as_deref(), Some("i_arm64"));
+        assert_eq!(normalize_instruction_data_type_id("i_ppc32be").as_deref(), Some("i_ppc32be"));
     }
 
     #[test]

@@ -744,8 +744,7 @@ impl StructViewerViewData {
         Self::is_live_value_external_viewer_editable(valued_struct)
             && Self::read_symbolic_struct_definition_reference(valued_struct)
                 .and_then(|data_type_ref| normalize_instruction_data_type_id(data_type_ref.get_data_type_id()))
-                .map(|data_type_id| matches!(data_type_id.as_str(), "i_x86" | "i_x64"))
-                .unwrap_or(false)
+                .is_some()
     }
 
     fn read_symbolic_struct_definition_reference(valued_struct: &ValuedStruct) -> Option<DataTypeRef> {
