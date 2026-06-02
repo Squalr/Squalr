@@ -3,7 +3,7 @@ use squalr_engine_api::{
     events::debugger::trace_session_updated::debugger_trace_session_updated_event::DebuggerTraceSessionUpdatedEvent,
     structures::debugger::{DebuggerDataBreakpointAccess, DebuggerTraceInstructionRecord, DebuggerTraceSessionDescriptor},
 };
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
@@ -23,6 +23,7 @@ struct DebuggerTraceViewState {
     active_trace_start_operation_id: Option<u64>,
     pending_trace_start_started_at: Option<Instant>,
     is_starting_pending_trace: bool,
+    pending_control_trace_session_ids: HashSet<String>,
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -54,6 +55,7 @@ pub struct DebuggerTraceSnapshot {
     pub pending_trace_start_request: Option<PendingDebuggerTraceStartRequest>,
     pub pending_trace_start_status_message: Option<String>,
     pub is_starting_pending_trace: bool,
+    pub pending_control_trace_session_ids: HashSet<String>,
 }
 
 impl DebuggerTraceInstructionKey {
@@ -145,6 +147,16 @@ impl DebuggerTraceViewData {
                 state
                     .instruction_records_by_trace_session_id
                     .insert(trace_session_id, debugger_trace_session_updated_event.instruction_records.clone());
+                if !debugger_trace_session_updated_event
+                    .trace_session
+                    .get_is_active()
+                {
+                    state.pending_control_trace_session_ids.remove(
+                        debugger_trace_session_updated_event
+                            .trace_session
+                            .get_trace_session_id(),
+                    );
+                }
                 state.retain_valid_selection();
             }
             Err(error) => {
@@ -306,6 +318,35 @@ impl DebuggerTraceViewData {
             }
         }
     }
+
+    pub fn begin_trace_control(
+        &self,
+        trace_session_id: &str,
+    ) -> bool {
+        match self.inner.write() {
+            Ok(mut state) => state
+                .pending_control_trace_session_ids
+                .insert(trace_session_id.to_string()),
+            Err(error) => {
+                log::error!("Failed to begin debugger trace control operation: {}", error);
+                false
+            }
+        }
+    }
+
+    pub fn complete_trace_control(
+        &self,
+        trace_session_id: &str,
+    ) {
+        match self.inner.write() {
+            Ok(mut state) => {
+                state.pending_control_trace_session_ids.remove(trace_session_id);
+            }
+            Err(error) => {
+                log::error!("Failed to complete debugger trace control operation: {}", error);
+            }
+        }
+    }
 }
 
 impl DebuggerTraceViewState {
@@ -334,6 +375,7 @@ impl DebuggerTraceViewState {
             pending_trace_start_request: self.pending_trace_start_request.clone(),
             pending_trace_start_status_message: self.pending_trace_start_status_message.clone(),
             is_starting_pending_trace: self.is_starting_pending_trace,
+            pending_control_trace_session_ids: self.pending_control_trace_session_ids.clone(),
         }
     }
 

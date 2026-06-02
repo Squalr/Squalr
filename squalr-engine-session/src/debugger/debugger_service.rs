@@ -112,6 +112,9 @@ impl DebuggerTraceSessionStore {
 
         self.breakpoint_to_trace_session_id
             .remove(trace_session.descriptor.get_breakpoint().get_breakpoint_id());
+        let mut breakpoint = trace_session.descriptor.get_breakpoint().clone();
+        breakpoint.set_is_enabled(false);
+        trace_session.descriptor.set_breakpoint(breakpoint);
         trace_session.descriptor.set_is_active(false);
 
         Ok((trace_session.descriptor.clone(), trace_session.instruction_records.clone()))
@@ -436,8 +439,6 @@ impl DebuggerService {
             })
             .ok_or_else(|| format!("Debugger trace session '{}' does not exist.", trace_session_id))?;
 
-        self.remove_breakpoint(&breakpoint_id)?;
-
         let (trace_session, instruction_records) = self
             .trace_sessions
             .write()
@@ -445,6 +446,15 @@ impl DebuggerService {
             .stop_session(trace_session_id)?;
 
         self.emit_trace_session_updated(trace_session.clone(), instruction_records.clone());
+
+        if let Err(error) = self.remove_breakpoint(&breakpoint_id) {
+            log::warn!(
+                "Stopped debugger trace session '{}' but failed to clear backing breakpoint {}: {}.",
+                trace_session_id,
+                breakpoint_id,
+                error
+            );
+        }
 
         Ok((trace_session, instruction_records))
     }
@@ -809,6 +819,7 @@ mod tests {
         registers: Vec<DebuggerRegisterValue>,
         trace_event_sink: Option<DebuggerTraceEventSink>,
         resume_count: u32,
+        fail_remove_breakpoint: bool,
     }
 
     struct TestDebuggerPlugin {
@@ -1069,10 +1080,17 @@ mod tests {
             breakpoint_id: &str,
         ) -> Result<(), DebuggerPluginError> {
             self.mutate_backend(|backend| {
+                if backend.fail_remove_breakpoint {
+                    return Err(DebuggerPluginError::new(&self.plugin_id, "test remove failure"));
+                }
+
                 backend
                     .breakpoints
                     .retain(|breakpoint| breakpoint.get_breakpoint_id() != breakpoint_id);
+
+                Ok(())
             })
+            .and_then(|result| result)
         }
 
         fn set_breakpoint_enabled(
@@ -1380,5 +1398,39 @@ mod tests {
             .expect("Expected emitted event lock to be available.");
 
         assert_eq!(trace_hit_counts, vec![1, 1, 1, 2, 3, 3]);
+    }
+
+    #[test]
+    fn service_stops_trace_session_even_when_breakpoint_cleanup_fails() {
+        let debugger_backend = Arc::new(Mutex::new(TestDebuggerBackend::default()));
+        let plugin_registry = Arc::new(PluginRegistry::from_plugin_packages(vec![
+            Arc::new(TestDebuggerPlugin::new("test.debugger", "Game.exe", debugger_backend.clone())),
+            Arc::new(TestInstructionSetPlugin::new()),
+        ]));
+        let debugger_service = DebuggerService::new(plugin_registry, Arc::new(|_engine_event| {}));
+        let opened_process_info = OpenedProcessInfo::new(99, String::from("Game.exe"), 1234, Bitness::Bit64, None);
+
+        debugger_service
+            .attach(&opened_process_info, Some("test.debugger"))
+            .expect("Expected debugger plugin to attach.");
+        let (trace_session, _) = debugger_service
+            .start_trace_session(0x5000, 4, DebuggerDataBreakpointAccess::Write, Some(String::from("health")))
+            .expect("Expected trace session to start.");
+
+        debugger_backend
+            .lock()
+            .expect("Expected debugger backend lock.")
+            .fail_remove_breakpoint = true;
+
+        let (stopped_trace_session, _) = debugger_service
+            .stop_trace_session(trace_session.get_trace_session_id())
+            .expect("Expected trace session stop to tolerate backend cleanup failure.");
+
+        assert!(!stopped_trace_session.get_is_active());
+        assert!(
+            debugger_service
+                .pause_trace_session(trace_session.get_trace_session_id())
+                .is_err()
+        );
     }
 }

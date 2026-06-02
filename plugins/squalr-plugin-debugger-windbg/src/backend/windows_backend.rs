@@ -589,6 +589,7 @@ impl ActiveWindbgSession {
         breakpoint_id: &str,
     ) -> Result<(), DebuggerPluginError> {
         let debug_breakpoint_id = Self::parse_breakpoint_id(breakpoint_id)?;
+        let disable_result = self.set_breakpoint_enabled(breakpoint_id, false);
         let remove_result = self.execute_debugger_command(&format!("bc {}", debug_breakpoint_id), &format!("clear breakpoint {}", breakpoint_id));
 
         if remove_result.is_ok() {
@@ -596,7 +597,19 @@ impl ActiveWindbgSession {
             self.breakpoints_by_id.remove(&debug_breakpoint_id);
         }
 
-        remove_result
+        match (disable_result, remove_result) {
+            (_, Ok(())) => Ok(()),
+            (Ok(()), Err(error)) => {
+                self.breakpoint_labels.remove(&debug_breakpoint_id);
+                self.breakpoints_by_id.remove(&debug_breakpoint_id);
+                log::warn!("WinDbg disabled breakpoint {} but failed to clear it from DbgEng: {}.", breakpoint_id, error);
+                Ok(())
+            }
+            (Err(disable_error), Err(remove_error)) => Err(WindbgBackend::plugin_error(format!(
+                "Failed to disable or clear breakpoint {}. Disable error: {}. Clear error: {}.",
+                breakpoint_id, disable_error, remove_error
+            ))),
+        }
     }
 
     fn set_breakpoint_enabled(

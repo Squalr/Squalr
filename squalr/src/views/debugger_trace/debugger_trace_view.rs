@@ -84,10 +84,24 @@ impl DebuggerTraceView {
         &self,
         trace_session_id: &str,
     ) {
+        let Some(debugger_trace_view_data) = self.debugger_trace_view_data.read("Debugger trace stop begin") else {
+            return;
+        };
+
+        if !debugger_trace_view_data.begin_trace_control(trace_session_id) {
+            return;
+        }
+
+        let debugger_trace_view_data = self.debugger_trace_view_data.clone();
+        let trace_session_id_for_callback = trace_session_id.to_string();
         let is_dispatched = DebuggerTraceStopRequest {
             trace_session_id: trace_session_id.to_string(),
         }
-        .send(&self.app_context.engine_unprivileged_state, |debugger_trace_stop_response| {
+        .send(&self.app_context.engine_unprivileged_state, move |debugger_trace_stop_response| {
+            if let Some(debugger_trace_view_data) = debugger_trace_view_data.read("Debugger trace stop complete") {
+                debugger_trace_view_data.complete_trace_control(&trace_session_id_for_callback);
+            }
+
             if !debugger_trace_stop_response.status.get_success() {
                 log::warn!(
                     "Debugger trace stop failed: {}.",
@@ -100,6 +114,12 @@ impl DebuggerTraceView {
         });
 
         if !is_dispatched {
+            if let Some(debugger_trace_view_data) = self
+                .debugger_trace_view_data
+                .read("Debugger trace stop dispatch failure")
+            {
+                debugger_trace_view_data.complete_trace_control(trace_session_id);
+            }
             log::warn!("Debugger trace stop failed: command dispatch failed.");
         }
     }
@@ -108,10 +128,27 @@ impl DebuggerTraceView {
         &self,
         trace_session_id: &str,
     ) {
+        let Some(debugger_trace_view_data) = self
+            .debugger_trace_view_data
+            .read("Debugger trace collection pause begin")
+        else {
+            return;
+        };
+
+        if !debugger_trace_view_data.begin_trace_control(trace_session_id) {
+            return;
+        }
+
+        let debugger_trace_view_data = self.debugger_trace_view_data.clone();
+        let trace_session_id_for_callback = trace_session_id.to_string();
         let is_dispatched = DebuggerTracePauseRequest {
             trace_session_id: trace_session_id.to_string(),
         }
         .send(&self.app_context.engine_unprivileged_state, move |debugger_trace_pause_response| {
+            if let Some(debugger_trace_view_data) = debugger_trace_view_data.read("Debugger trace collection pause complete") {
+                debugger_trace_view_data.complete_trace_control(&trace_session_id_for_callback);
+            }
+
             if !debugger_trace_pause_response.status.get_success() {
                 log::warn!(
                     "Debugger trace collection pause failed: {}.",
@@ -124,6 +161,12 @@ impl DebuggerTraceView {
         });
 
         if !is_dispatched {
+            if let Some(debugger_trace_view_data) = self
+                .debugger_trace_view_data
+                .read("Debugger trace collection pause dispatch failure")
+            {
+                debugger_trace_view_data.complete_trace_control(trace_session_id);
+            }
             log::warn!("Debugger trace collection pause failed: command dispatch failed.");
         }
     }
@@ -132,10 +175,27 @@ impl DebuggerTraceView {
         &self,
         trace_session_id: &str,
     ) {
+        let Some(debugger_trace_view_data) = self
+            .debugger_trace_view_data
+            .read("Debugger trace collection resume begin")
+        else {
+            return;
+        };
+
+        if !debugger_trace_view_data.begin_trace_control(trace_session_id) {
+            return;
+        }
+
+        let debugger_trace_view_data = self.debugger_trace_view_data.clone();
+        let trace_session_id_for_callback = trace_session_id.to_string();
         let is_dispatched = DebuggerTraceResumeRequest {
             trace_session_id: trace_session_id.to_string(),
         }
         .send(&self.app_context.engine_unprivileged_state, move |debugger_trace_resume_response| {
+            if let Some(debugger_trace_view_data) = debugger_trace_view_data.read("Debugger trace collection resume complete") {
+                debugger_trace_view_data.complete_trace_control(&trace_session_id_for_callback);
+            }
+
             if !debugger_trace_resume_response.status.get_success() {
                 log::warn!(
                     "Debugger trace collection resume failed: {}.",
@@ -148,6 +208,12 @@ impl DebuggerTraceView {
         });
 
         if !is_dispatched {
+            if let Some(debugger_trace_view_data) = self
+                .debugger_trace_view_data
+                .read("Debugger trace collection resume dispatch failure")
+            {
+                debugger_trace_view_data.complete_trace_control(trace_session_id);
+            }
             log::warn!("Debugger trace collection resume failed: command dispatch failed.");
         }
     }
@@ -429,6 +495,7 @@ impl DebuggerTraceView {
         &self,
         user_interface: &mut Ui,
         trace_session: &DebuggerTraceSessionDescriptor,
+        has_pending_control: bool,
     ) {
         let theme = &self.app_context.theme;
         let header_height = 28.0;
@@ -436,7 +503,6 @@ impl DebuggerTraceView {
         let button_size = vec2(24.0, 24.0);
         let button_spacing = 4.0;
         let (header_rectangle, _) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), header_height), Sense::hover());
-        let mut text_position_x = header_rectangle.min.x + horizontal_padding;
         let status_label = if !trace_session.get_is_active() {
             "Stopped"
         } else if trace_session.get_breakpoint().get_is_enabled() {
@@ -455,47 +521,46 @@ impl DebuggerTraceView {
             .painter()
             .rect_filled(header_rectangle, CornerRadius::ZERO, theme.background_primary);
 
-        if trace_session.get_is_active() {
-            let stop_button_rectangle = Rect::from_min_size(
-                pos2(header_rectangle.min.x + horizontal_padding, header_rectangle.center().y - button_size.y * 0.5),
-                button_size,
-            );
-            let stop_response = user_interface.place(
-                stop_button_rectangle,
-                IconButtonView::new(theme, &theme.icon_library.icon_handle_navigation_stop, "Stop trace."),
-            );
+        let controls_are_disabled = has_pending_control || !trace_session.get_is_active();
+        let stop_button_rectangle = Rect::from_min_size(
+            pos2(header_rectangle.min.x + horizontal_padding, header_rectangle.center().y - button_size.y * 0.5),
+            button_size,
+        );
+        let stop_response = user_interface.place(
+            stop_button_rectangle,
+            IconButtonView::new(theme, &theme.icon_library.icon_handle_navigation_stop, "Stop trace.").disabled(controls_are_disabled),
+        );
 
-            if stop_response.clicked() {
-                self.stop_trace_session(trace_session.get_trace_session_id());
-            }
-
-            let control_button_rectangle = Rect::from_min_size(
-                pos2(stop_button_rectangle.max.x + button_spacing, header_rectangle.center().y - button_size.y * 0.5),
-                button_size,
-            );
-
-            if trace_session.get_breakpoint().get_is_enabled() {
-                let pause_response = user_interface.place(
-                    control_button_rectangle,
-                    IconButtonView::new(theme, &theme.icon_library.icon_handle_navigation_pause, "Pause collection."),
-                );
-
-                if pause_response.clicked() {
-                    self.pause_trace_collection(trace_session.get_trace_session_id());
-                }
-            } else {
-                let resume_response = user_interface.place(
-                    control_button_rectangle,
-                    IconButtonView::new(theme, &theme.icon_library.icon_handle_navigation_right_arrows, "Resume collection."),
-                );
-
-                if resume_response.clicked() {
-                    self.resume_trace_collection(trace_session.get_trace_session_id());
-                }
-            }
-
-            text_position_x = control_button_rectangle.max.x + horizontal_padding;
+        if stop_response.clicked() && !controls_are_disabled {
+            self.stop_trace_session(trace_session.get_trace_session_id());
         }
+
+        let control_button_rectangle = Rect::from_min_size(
+            pos2(stop_button_rectangle.max.x + button_spacing, header_rectangle.center().y - button_size.y * 0.5),
+            button_size,
+        );
+
+        if trace_session.get_is_active() && !trace_session.get_breakpoint().get_is_enabled() {
+            let resume_response = user_interface.place(
+                control_button_rectangle,
+                IconButtonView::new(theme, &theme.icon_library.icon_handle_navigation_right_arrows, "Resume collection.").disabled(controls_are_disabled),
+            );
+
+            if resume_response.clicked() && !controls_are_disabled {
+                self.resume_trace_collection(trace_session.get_trace_session_id());
+            }
+        } else {
+            let pause_response = user_interface.place(
+                control_button_rectangle,
+                IconButtonView::new(theme, &theme.icon_library.icon_handle_navigation_pause, "Pause collection.").disabled(controls_are_disabled),
+            );
+
+            if pause_response.clicked() && !controls_are_disabled {
+                self.pause_trace_collection(trace_session.get_trace_session_id());
+            }
+        }
+
+        let text_position_x = control_button_rectangle.max.x + horizontal_padding;
 
         user_interface.painter().text(
             pos2(text_position_x, header_rectangle.center().y),
@@ -512,9 +577,10 @@ impl DebuggerTraceView {
         trace_session: &DebuggerTraceSessionDescriptor,
         instruction_records: &[DebuggerTraceInstructionRecord],
         selected_instruction_keys: &[DebuggerTraceInstructionKey],
+        has_pending_control: bool,
     ) {
         let theme = &self.app_context.theme;
-        self.show_trace_session_header(user_interface, trace_session);
+        self.show_trace_session_header(user_interface, trace_session, has_pending_control);
 
         if instruction_records.is_empty() {
             user_interface.allocate_ui_with_layout(
@@ -697,7 +763,17 @@ impl Widget for DebuggerTraceView {
                                 .cloned()
                                 .collect::<Vec<_>>();
 
-                            self.show_instruction_records(user_interface, trace_session, &session_instruction_records, &snapshot.selected_instruction_keys);
+                            let has_pending_control = snapshot
+                                .pending_control_trace_session_ids
+                                .contains(trace_session.get_trace_session_id());
+
+                            self.show_instruction_records(
+                                user_interface,
+                                trace_session,
+                                &session_instruction_records,
+                                &snapshot.selected_instruction_keys,
+                                has_pending_control,
+                            );
                         }
                     });
             })
