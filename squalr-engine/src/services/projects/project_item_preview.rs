@@ -126,15 +126,6 @@ fn refresh_address_project_item_display_value(
     project_item_preview_refresh_session: &mut ProjectItemPreviewRefreshSession,
 ) {
     let address_target = ProjectItemTypeAddress::get_address_target(project_item);
-    let Some((address, module_name)) = resolve_address_target_for_preview(
-        engine_unprivileged_state,
-        project_symbol_catalog,
-        &address_target,
-        project_item_preview_refresh_session,
-    ) else {
-        ProjectItemTypeAddress::set_field_freeze_data_value_interpreter(project_item, "");
-        return;
-    };
     let Some(symbolic_struct_reference) = ProjectItemTypeAddress::get_field_symbolic_struct_definition_reference(project_item) else {
         ProjectItemTypeAddress::set_field_freeze_data_value_interpreter(project_item, "");
         return;
@@ -146,6 +137,20 @@ fn refresh_address_project_item_display_value(
         ProjectItemTypeAddress::set_field_freeze_data_value_interpreter(project_item, "");
         return;
     };
+    let existing_preview_value = ProjectItemTypeAddress::get_field_freeze_data_value_interpreter(project_item);
+    let should_preserve_existing_instruction_preview =
+        project_item_preview_read_definition.show_first_instruction_only && !existing_preview_value.trim().is_empty();
+    let Some((address, module_name)) = resolve_address_target_for_preview(
+        engine_unprivileged_state,
+        project_symbol_catalog,
+        &address_target,
+        project_item_preview_refresh_session,
+    ) else {
+        if !should_preserve_existing_instruction_preview {
+            ProjectItemTypeAddress::set_field_freeze_data_value_interpreter(project_item, "");
+        }
+        return;
+    };
 
     refresh_project_item_display_value_from_memory_read(
         engine_unprivileged_state,
@@ -154,6 +159,10 @@ fn refresh_address_project_item_display_value(
         &module_name,
         &project_item_preview_read_definition,
         |freeze_display_value| {
+            if freeze_display_value.trim().is_empty() && should_preserve_existing_instruction_preview {
+                return;
+            }
+
             ProjectItemTypeAddress::set_field_freeze_data_value_interpreter(project_item, freeze_display_value);
         },
     );
@@ -1170,6 +1179,33 @@ mod tests {
         assert_eq!(
             ProjectItemTypeAddress::get_field_freeze_data_value_interpreter(&mut address_project_item),
             "nop"
+        );
+    }
+
+    #[test]
+    fn refresh_address_project_item_display_value_preserves_seeded_instruction_preview_on_failed_read() {
+        let mock_memory_read_bindings = MockMemoryReadBindings::new(|memory_read_request| {
+            assert_eq!(memory_read_request.address, 0x1234);
+            assert_eq!(memory_read_request.module_name, "game.exe");
+
+            create_value_memory_read_response(DataValue::new(DataTypeRef::new("i_x64"), Vec::new()), false)
+        });
+        let engine_execution_context = create_execution_context(mock_memory_read_bindings);
+        let mut address_project_item =
+            ProjectItemTypeAddress::new_project_item("Instruction", 0x1234, "game.exe", "", DataValue::new(DataTypeRef::new("i_x64"), vec![0x90]));
+        ProjectItemTypeAddress::set_field_freeze_data_value_interpreter(&mut address_project_item, "inc dword ptr [eax]");
+        let mut project_item_preview_refresh_session = ProjectItemPreviewRefreshSession::new(None);
+
+        refresh_address_project_item_display_value(
+            &engine_execution_context,
+            &squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog::default(),
+            &mut address_project_item,
+            &mut project_item_preview_refresh_session,
+        );
+
+        assert_eq!(
+            ProjectItemTypeAddress::get_field_freeze_data_value_interpreter(&mut address_project_item),
+            "inc dword ptr [eax]"
         );
     }
 

@@ -458,6 +458,24 @@ Our current task, from `README.md`, is:
   - `cargo run -p squalr-engine --example debugger_command_windbg_smoke --locked` passed on Windows against a disposable child process and stopped a trace session cleanly.
   - `cargo test -p squalr --locked default_layout_places_output_related_windows_in_same_tab_group -- --nocapture` passed.
   - GUI behavior against the originally failing target and instruction project item still needs human verification after implementation and validation.
+- After DbgEng running-target breakpoint mutation and seeded instruction preview preservation:
+  - A temporary local `squalr-engine` winmine probe against `C:\Users\zacha\OneDrive\winmine.exe` at timer address `0x100579C` reproduced the failure: first trace start/stop succeeded, then the second trace start failed because DbgEng rejected `AddBreakpoint` while the debuggee was running.
+  - The WinDbg worker now behaves more like the old C# `DebugEngine`: running sessions spend their worker time inside `WaitForEvent`, public breakpoint/pause requests first interrupt that wait, and queued commands are drained after the wait returns.
+  - Breakpoint add/remove/enable mutations now interrupt, wait for a stopped DbgEng event, mutate through retained breakpoint handles, and resume/continue as needed. `SetExecutionStatus` treats `E_ACCESSDENIED` as an already-running target per DbgEng semantics.
+  - Hardware data breakpoint events now mark the event handled with `DEBUG_STATUS_GO_HANDLED` and then let the event loop continue, matching the callback-style DbgEng flow more closely.
+  - When `GetNearInstruction`/instruction bytes are unavailable, the WinDbg plugin now falls back to trimmed `IDebugControl::Disassemble` text so trace rows and double-click-created instruction project items do not show `??`.
+  - Instruction project-item preview refresh now preserves a non-empty seeded instruction preview if the live memory read/disassembly refresh fails, instead of clearing it to the Project Explorer `??` fallback.
+  - The temporary winmine probe passed twice before deletion: attach, trace start, trace stop, second trace start, second trace stop, detach.
+  - Residual caveat: if DbgEng refuses `GetNearInstruction`, the fallback disassembly may be from the post-trap instruction pointer rather than the exact access instruction. The preferred exact-attribution path still depends on DbgEng providing `GetNearInstruction` plus readable instruction bytes.
+  - `cargo fmt --all` completed with the existing `.rustfmt.toml` deprecation warnings for `fn_args_layout`.
+  - `cargo check -p squalr-plugin-debugger-windbg --locked` passed.
+  - `cargo test -p squalr-engine --locked project_item_preview -- --nocapture` passed.
+  - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
+  - `cargo test -p squalr-plugin-debugger-windbg --locked -- --nocapture` passed.
+  - `cargo check -p squalr --locked` passed.
+  - `cargo run -p squalr-engine --example debugger_command_windbg_smoke --locked` passed on Windows against a disposable child process; DbgEng fallback supplied trimmed instruction text when byte enrichment was unavailable.
+  - `cargo run -p squalr-engine-session --example debugger_service_windbg_smoke --locked` passed on Windows against a disposable child process; DbgEng fallback supplied trimmed instruction text when byte enrichment was unavailable.
+  - GUI behavior against the originally failing target and instruction project item still needs human verification after implementation and validation.
 - References checked:
   - Local Rust workspace plugin/session/target architecture.
   - Old C# implementation under `C:\Projects\Squalr\Squalr.Engine.Debugger`.
