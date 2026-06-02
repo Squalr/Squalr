@@ -26,6 +26,9 @@ pub struct ProjectItemsCreateRequest {
 
     #[serde(default)]
     pub pointer_offsets: Option<Vec<PointerChainSegment>>,
+
+    #[serde(default)]
+    pub initial_preview_value: Option<String>,
 }
 
 impl UnprivilegedCommandRequest for ProjectItemsCreateRequest {

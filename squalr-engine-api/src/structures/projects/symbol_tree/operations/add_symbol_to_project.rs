@@ -50,6 +50,7 @@ pub fn build_add_symbol_project_item_create_request(add_symbol_to_project_target
         module_name: Some(add_symbol_to_project_target.module_name.clone()),
         data_type_id: Some(add_symbol_to_project_target.data_type_id.clone()),
         pointer_offsets: add_symbol_to_project_target.pointer_offsets.clone(),
+        initial_preview_value: None,
     }
 }
 

@@ -184,6 +184,13 @@ fn create_address_item(
         );
     }
     ProjectItemTypeAddress::set_field_symbolic_struct_definition_reference(&mut project_item, &data_type_id);
+    if let Some(initial_preview_value) = project_items_create_request
+        .initial_preview_value
+        .as_ref()
+        .filter(|initial_preview_value| !initial_preview_value.trim().is_empty())
+    {
+        ProjectItemTypeAddress::set_field_freeze_data_value_interpreter(&mut project_item, initial_preview_value);
+    }
 
     opened_project
         .get_project_items_mut()
@@ -273,6 +280,7 @@ mod tests {
             module_name: Some(String::from("winmine.exe")),
             data_type_id: Some(String::from("u32")),
             pointer_offsets: Some(vec![PointerChainSegment::Symbol(String::from("Timer"))]),
+            initial_preview_value: None,
         }
         .execute(&engine_execution_context);
 
@@ -289,6 +297,51 @@ mod tests {
         assert_eq!(
             ProjectItemTypeAddress::get_address_target(&mut created_project_item).get_pointer_offsets(),
             &[PointerChainSegment::Symbol(String::from("Timer"))]
+        );
+    }
+
+    #[test]
+    fn create_address_item_uses_initial_preview_value_when_provided() {
+        let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
+        let project_file_path = temp_directory.path().join(Project::PROJECT_FILE);
+        let project_root_path = temp_directory.path().join(Project::PROJECT_DIR);
+        let project_root_ref = ProjectItemRef::new(project_root_path);
+        let project_info = ProjectInfo::new(project_file_path, None, ProjectManifest::default());
+        let project = Project::new(project_info, std::collections::HashMap::new(), project_root_ref);
+        let engine_unprivileged_state = create_engine_unprivileged_state(MockProjectSymbolsBindings::new());
+
+        *engine_unprivileged_state
+            .get_project_manager()
+            .get_opened_project()
+            .write()
+            .expect("Expected opened project write lock in test.") = Some(project);
+
+        let engine_execution_context: Arc<dyn EngineExecutionContext> = engine_unprivileged_state.clone();
+        let project_items_create_response = ProjectItemsCreateRequest {
+            parent_directory_path: PathBuf::new(),
+            project_item_name: String::from("Instruction"),
+            is_directory: false,
+            address: Some(0x1234),
+            module_name: Some(String::from("game.exe")),
+            data_type_id: Some(String::from("i_x64")),
+            pointer_offsets: None,
+            initial_preview_value: Some(String::from("inc dword ptr [rax]")),
+        }
+        .execute(&engine_execution_context);
+
+        assert!(project_items_create_response.success);
+
+        let loaded_project = Project::load_from_path(temp_directory.path()).expect("Expected project to load after address create.");
+        let created_project_item = loaded_project
+            .get_project_items()
+            .values()
+            .find(|project_item| project_item.get_item_type().get_project_item_type_id() == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID)
+            .expect("Expected created address item.");
+        let mut created_project_item = created_project_item.clone();
+
+        assert_eq!(
+            ProjectItemTypeAddress::get_field_freeze_data_value_interpreter(&mut created_project_item),
+            "inc dword ptr [rax]"
         );
     }
 }

@@ -381,9 +381,15 @@ struct ActiveWindbgSession {
     data_spaces: IDebugDataSpaces,
     registers: IDebugRegisters2,
     system_objects: IDebugSystemObjects,
+    breakpoints_by_id: HashMap<u32, StoredWindbgBreakpoint>,
     breakpoint_labels: HashMap<u32, Option<String>>,
     session_state: DebuggerSessionState,
     trace_event_sink: DebuggerTraceEventSink,
+}
+
+struct StoredWindbgBreakpoint {
+    breakpoint: IDebugBreakpoint,
+    flags: u32,
 }
 
 impl ActiveWindbgSession {
@@ -464,6 +470,7 @@ impl ActiveWindbgSession {
             data_spaces,
             registers,
             system_objects,
+            breakpoints_by_id: HashMap::new(),
             breakpoint_labels: HashMap::new(),
             session_state: DebuggerSessionState::Attached,
             trace_event_sink,
@@ -566,6 +573,13 @@ impl ActiveWindbgSession {
             ))
         })?;
         self.breakpoint_labels.insert(breakpoint_id, label.clone());
+        self.breakpoints_by_id.insert(
+            breakpoint_id,
+            StoredWindbgBreakpoint {
+                breakpoint,
+                flags: DEBUG_BREAKPOINT_ENABLED,
+            },
+        );
 
         Ok(DebuggerBreakpointDescriptor::new(breakpoint_id.to_string(), address, kind, true, label))
     }
@@ -579,6 +593,7 @@ impl ActiveWindbgSession {
 
         if remove_result.is_ok() {
             self.breakpoint_labels.remove(&debug_breakpoint_id);
+            self.breakpoints_by_id.remove(&debug_breakpoint_id);
         }
 
         remove_result
@@ -590,27 +605,34 @@ impl ActiveWindbgSession {
         is_enabled: bool,
     ) -> Result<(), DebuggerPluginError> {
         let debug_breakpoint_id = Self::parse_breakpoint_id(breakpoint_id)?;
-        let breakpoint = unsafe { self.control.GetBreakpointById(debug_breakpoint_id) }
-            .map_err(|error| WindbgBackend::plugin_error(format!("IDebugControl::GetBreakpointById({}) failed: {}", debug_breakpoint_id, error)))?;
-        let current_flags = unsafe { breakpoint.GetFlags() }
-            .map_err(|error| WindbgBackend::plugin_error(format!("IDebugBreakpoint::GetFlags({}) failed: {}", debug_breakpoint_id, error)))?;
+        let stored_breakpoint = self
+            .breakpoints_by_id
+            .get_mut(&debug_breakpoint_id)
+            .ok_or_else(|| WindbgBackend::plugin_error(format!("Breakpoint {} is not tracked by the WinDbg worker.", breakpoint_id)))?;
         let updated_flags = if is_enabled {
-            current_flags | DEBUG_BREAKPOINT_ENABLED
+            stored_breakpoint.flags | DEBUG_BREAKPOINT_ENABLED
         } else {
-            current_flags & !DEBUG_BREAKPOINT_ENABLED
+            stored_breakpoint.flags & !DEBUG_BREAKPOINT_ENABLED
         };
 
         unsafe {
-            breakpoint.SetFlags(updated_flags).map_err(|error| {
-                WindbgBackend::plugin_error(format!(
-                    "IDebugBreakpoint::SetFlags({:#X}) failed while trying to {} breakpoint {}: {}",
-                    updated_flags,
-                    if is_enabled { "enable" } else { "disable" },
-                    breakpoint_id,
-                    error
-                ))
-            })
-        }
+            stored_breakpoint
+                .breakpoint
+                .SetFlags(updated_flags)
+                .map_err(|error| {
+                    WindbgBackend::plugin_error(format!(
+                        "IDebugBreakpoint::SetFlags({:#X}) failed while trying to {} breakpoint {}: {}",
+                        updated_flags,
+                        if is_enabled { "enable" } else { "disable" },
+                        breakpoint_id,
+                        error
+                    ))
+                })
+        }?;
+
+        stored_breakpoint.flags = updated_flags;
+
+        Ok(())
     }
 
     fn execute_debugger_command(

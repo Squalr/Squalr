@@ -213,7 +213,8 @@ Our current task, from `README.md`, is:
   - `DebuggerService` now pauses trace collection by disabling the trace session's backing breakpoint and resumes collection by re-enabling it, while leaving debugger execution state alone.
   - Disabled trace sessions ignore late or in-flight trace events so row hit counts do not increment while collection is paused.
   - The WinDbg plugin originally used textual DbgEng worker commands `bd <breakpoint_id>` and `be <breakpoint_id>`, but GUI testing showed `IDebugControl::Execute` can fail with `0x80040205` while the target is running.
-  - WinDbg collection pause/resume now uses direct `IDebugControl::GetBreakpointById`, `IDebugBreakpoint::GetFlags`, and `IDebugBreakpoint::SetFlags` to clear/set `DEBUG_BREAKPOINT_ENABLED` on the serialized worker thread.
+  - GUI testing then showed `IDebugControl::GetBreakpointById(0)` could still fail with catastrophic failure while the trace target was running.
+  - WinDbg collection pause/resume now retains the `IDebugBreakpoint` interface returned from `AddBreakpoint` and caches the current breakpoint flags in the serialized worker session. Pause/resume calls `IDebugBreakpoint::SetFlags` on that retained interface instead of resolving the breakpoint by ID while the target is running.
   - The Debugger Trace window no longer listens to global debugger session state for its pause/resume button. The header now derives `Collecting`, `Collection Paused`, or `Stopped` from the trace descriptor and uses collection-specific tooltips.
   - Session and command WinDbg smoke examples now exercise pause/resume collection before stopping the trace.
   - GUI behavior against the originally failing target still needs human verification.
@@ -221,6 +222,8 @@ Our current task, from `README.md`, is:
   - Owner reported trace-created instruction project items showed `??` as their Project Explorer preview.
   - Instruction data types (`i_x86`/`i_x64`) have unit size 1, so the normal project preview read often fetched only one byte and could not disassemble a complete instruction.
   - Project Explorer runtime previews now special-case `i_x86`/`i_x64` project items to read a 16-byte fixed instruction window while still formatting the preview as a scalar instruction text.
+  - Decorated instruction data type IDs such as `i_x64[3]` are now normalized back to their instruction provider data type before preview reads are built.
+  - `ProjectItemsCreateRequest` now supports an optional initial preview value. Debugger Trace double-click add-to-project seeds this with the trace row instruction text so new instruction project items are not born with an empty `??` preview while waiting for runtime refresh.
   - Added a focused GUI unit test that asserts instruction previews build a 16-byte read definition.
   - GUI behavior against the originally failing project item still needs human verification.
 - Next implementation target:
@@ -425,6 +428,19 @@ Our current task, from `README.md`, is:
   - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
   - `cargo test -p squalr-plugin-debugger-windbg --locked -- --nocapture` passed.
   - `cargo test -p squalr --locked default_layout_places_output_related_windows_in_same_tab_group -- --nocapture` passed.
+  - GUI behavior against the originally failing target and instruction project item still needs human verification after implementation and validation.
+- After retained DbgEng breakpoint handles and trace-created instruction preview seeding:
+  - `cargo check -p squalr-engine-api --locked` passed.
+  - `cargo test -p squalr-engine --locked create_address_item_uses_initial_preview_value_when_provided -- --nocapture` passed.
+  - `cargo check -p squalr-plugin-debugger-windbg --locked` passed.
+  - `cargo check -p squalr --locked` passed.
+  - `cargo test -p squalr --locked instruction_project_item_preview -- --nocapture` passed.
+  - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
+  - `cargo fmt --all` completed with the existing `.rustfmt.toml` deprecation warnings for `fn_args_layout`.
+  - `cargo run -p squalr-engine-session --example debugger_service_windbg_smoke --locked` passed on Windows against a disposable child process and exercised trace collection pause/resume plus trace stop without `GetBreakpointById`.
+  - `cargo run -p squalr-engine --example debugger_command_windbg_smoke --locked` passed on Windows against a disposable child process and exercised trace collection pause/resume plus trace stop without `GetBreakpointById`.
+  - `cargo run -p squalr-plugin-debugger-windbg --example windbg_smoke --locked` passed on Windows against a disposable child process.
+  - `cargo test -p squalr-plugin-debugger-windbg --locked -- --nocapture` passed.
   - GUI behavior against the originally failing target and instruction project item still needs human verification after implementation and validation.
 - References checked:
   - Local Rust workspace plugin/session/target architecture.

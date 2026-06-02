@@ -2,6 +2,7 @@ use squalr_engine::services::projects::project_item_symbol_resolution::{
     resolve_address_target_runtime_pointer_with_optional_catalog, resolve_project_item_struct_layout_id,
 };
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
+use squalr_engine_api::plugins::instruction_set::normalize_instruction_data_type_id;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::{
     anonymous_value_string_format::AnonymousValueStringFormat,
@@ -166,8 +167,8 @@ impl ProjectItemPreviewDetails {
         engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
         symbolic_struct_namespace: &str,
     ) -> Option<SymbolicStructDefinition> {
-        if Self::is_instruction_data_type(symbolic_struct_namespace) {
-            return Some(Self::build_instruction_preview_symbolic_struct_definition(symbolic_struct_namespace));
+        if let Some(instruction_data_type_id) = Self::normalize_instruction_data_type_id(symbolic_struct_namespace) {
+            return Some(Self::build_instruction_preview_symbolic_struct_definition(&instruction_data_type_id));
         }
 
         let symbolic_struct_definition = engine_unprivileged_state.resolve_struct_layout_definition(symbolic_struct_namespace)?;
@@ -194,7 +195,7 @@ impl ProjectItemPreviewDetails {
             return ContainerType::None;
         };
 
-        if Self::is_instruction_data_type(&symbolic_struct_namespace) {
+        if Self::normalize_instruction_data_type_id(&symbolic_struct_namespace).is_some() {
             return ContainerType::None;
         }
 
@@ -214,8 +215,8 @@ impl ProjectItemPreviewDetails {
         DataValuePreviewFormatter::array_preview_was_truncated(symbolic_field_definition.get_container_type())
     }
 
-    fn is_instruction_data_type(data_type_id: &str) -> bool {
-        data_type_id == "i_x86" || data_type_id == "i_x64"
+    fn normalize_instruction_data_type_id(symbolic_struct_namespace: &str) -> Option<String> {
+        normalize_instruction_data_type_id(symbolic_struct_namespace).filter(|data_type_id| matches!(data_type_id.as_str(), "i_x86" | "i_x64"))
     }
 
     fn build_instruction_preview_symbolic_struct_definition(data_type_id: &str) -> SymbolicStructDefinition {
@@ -241,5 +242,13 @@ mod tests {
 
         assert_eq!(preview_field.get_data_type_ref().get_data_type_id(), "i_x64");
         assert_eq!(preview_field.get_container_type(), ContainerType::ArrayFixed(16));
+    }
+
+    #[test]
+    fn instruction_project_item_preview_normalizes_decorated_instruction_type() {
+        assert_eq!(
+            ProjectItemPreviewDetails::normalize_instruction_data_type_id("i_x64[3]").as_deref(),
+            Some("i_x64")
+        );
     }
 }

@@ -588,6 +588,7 @@ impl DebuggerTraceView {
             module_name: Some(project_item_module_name),
             data_type_id: Some(self.instruction_data_type_id().to_string()),
             pointer_offsets: None,
+            initial_preview_value: Some(Self::instruction_text(instruction_record)),
         };
 
         project_items_create_request.send(&self.app_context.engine_unprivileged_state, |project_items_create_response| {
