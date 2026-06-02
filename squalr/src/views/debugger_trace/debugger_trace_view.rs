@@ -18,16 +18,20 @@ use squalr_engine_api::{
     commands::{
         debugger::{
             attach::debugger_attach_request::DebuggerAttachRequest, pause::debugger_pause_request::DebuggerPauseRequest,
-            trace_start::debugger_trace_start_request::DebuggerTraceStartRequest, trace_stop::debugger_trace_stop_request::DebuggerTraceStopRequest,
+            resume::debugger_resume_request::DebuggerResumeRequest, trace_start::debugger_trace_start_request::DebuggerTraceStartRequest,
+            trace_stop::debugger_trace_stop_request::DebuggerTraceStopRequest,
         },
         privileged_command_request::PrivilegedCommandRequest,
         project_items::create::project_items_create_request::ProjectItemsCreateRequest,
         unprivileged_command_request::UnprivilegedCommandRequest,
     },
     dependency_injection::dependency::Dependency,
-    events::debugger::trace_session_updated::debugger_trace_session_updated_event::DebuggerTraceSessionUpdatedEvent,
+    events::debugger::{
+        session_state_changed::debugger_session_state_changed_event::DebuggerSessionStateChangedEvent,
+        trace_session_updated::debugger_trace_session_updated_event::DebuggerTraceSessionUpdatedEvent,
+    },
     structures::{
-        debugger::{DebuggerDataBreakpointAccess, DebuggerTraceInstructionRecord, DebuggerTraceSessionDescriptor},
+        debugger::{DebuggerDataBreakpointAccess, DebuggerSessionState, DebuggerTraceInstructionRecord, DebuggerTraceSessionDescriptor},
         memory::{address_display::format_module_address, bitness::Bitness},
     },
 };
@@ -61,18 +65,27 @@ impl DebuggerTraceView {
             process_selector_view_data,
         };
 
-        instance.listen_for_trace_session_updates();
+        instance.listen_for_debugger_events();
 
         instance
     }
 
-    fn listen_for_trace_session_updates(&self) {
+    fn listen_for_debugger_events(&self) {
         let debugger_trace_view_data = self.debugger_trace_view_data.clone();
         self.app_context
             .engine_unprivileged_state
             .listen_for_engine_event::<DebuggerTraceSessionUpdatedEvent>(move |debugger_trace_session_updated_event| {
                 if let Some(debugger_trace_view_data) = debugger_trace_view_data.read("Debugger trace event listener") {
                     debugger_trace_view_data.apply_trace_session_updated(debugger_trace_session_updated_event);
+                }
+            });
+
+        let debugger_trace_view_data = self.debugger_trace_view_data.clone();
+        self.app_context
+            .engine_unprivileged_state
+            .listen_for_engine_event::<DebuggerSessionStateChangedEvent>(move |debugger_session_state_changed_event| {
+                if let Some(debugger_trace_view_data) = debugger_trace_view_data.read("Debugger session state event listener") {
+                    debugger_trace_view_data.apply_debugger_session_state_changed(debugger_session_state_changed_event);
                 }
             });
     }
@@ -98,7 +111,8 @@ impl DebuggerTraceView {
     }
 
     fn pause_debugger(&self) {
-        DebuggerPauseRequest {}.send(&self.app_context.engine_unprivileged_state, |debugger_pause_response| {
+        let debugger_trace_view_data = self.debugger_trace_view_data.clone();
+        DebuggerPauseRequest {}.send(&self.app_context.engine_unprivileged_state, move |debugger_pause_response| {
             if !debugger_pause_response.status.get_success() {
                 log::warn!(
                     "Debugger pause failed: {}.",
@@ -107,6 +121,25 @@ impl DebuggerTraceView {
                         .get_message()
                         .unwrap_or("unknown error")
                 );
+            } else if let Some(debugger_trace_view_data) = debugger_trace_view_data.read("Debugger pause response") {
+                debugger_trace_view_data.set_debugger_session_state(debugger_pause_response.session_state);
+            }
+        });
+    }
+
+    fn resume_debugger(&self) {
+        let debugger_trace_view_data = self.debugger_trace_view_data.clone();
+        DebuggerResumeRequest {}.send(&self.app_context.engine_unprivileged_state, move |debugger_resume_response| {
+            if !debugger_resume_response.status.get_success() {
+                log::warn!(
+                    "Debugger resume failed: {}.",
+                    debugger_resume_response
+                        .status
+                        .get_message()
+                        .unwrap_or("unknown error")
+                );
+            } else if let Some(debugger_trace_view_data) = debugger_trace_view_data.read("Debugger resume response") {
+                debugger_trace_view_data.set_debugger_session_state(debugger_resume_response.session_state);
             }
         });
     }
@@ -372,6 +405,7 @@ impl DebuggerTraceView {
         &self,
         user_interface: &mut Ui,
         trace_session: &DebuggerTraceSessionDescriptor,
+        debugger_session_state: DebuggerSessionState,
     ) {
         let theme = &self.app_context.theme;
         let header_height = 28.0;
@@ -380,7 +414,14 @@ impl DebuggerTraceView {
         let button_spacing = 4.0;
         let (header_rectangle, _) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), header_height), Sense::hover());
         let mut text_position_x = header_rectangle.min.x + horizontal_padding;
-        let status_label = if trace_session.get_is_active() { "Active" } else { "Stopped" };
+        let status_label = if trace_session.get_is_active() {
+            match debugger_session_state {
+                DebuggerSessionState::Paused => "Paused",
+                _ => "Active",
+            }
+        } else {
+            "Stopped"
+        };
         let header_label = format!(
             "{} | {} | {}",
             trace_session.get_trace_session_id(),
@@ -406,20 +447,32 @@ impl DebuggerTraceView {
                 self.stop_trace_session(trace_session.get_trace_session_id());
             }
 
-            let pause_button_rectangle = Rect::from_min_size(
+            let control_button_rectangle = Rect::from_min_size(
                 pos2(stop_button_rectangle.max.x + button_spacing, header_rectangle.center().y - button_size.y * 0.5),
                 button_size,
             );
-            let pause_response = user_interface.place(
-                pause_button_rectangle,
-                IconButtonView::new(theme, &theme.icon_library.icon_handle_navigation_pause, "Pause target."),
-            );
 
-            if pause_response.clicked() {
-                self.pause_debugger();
+            if debugger_session_state == DebuggerSessionState::Paused {
+                let resume_response = user_interface.place(
+                    control_button_rectangle,
+                    IconButtonView::new(theme, &theme.icon_library.icon_handle_navigation_right_arrows, "Resume target."),
+                );
+
+                if resume_response.clicked() {
+                    self.resume_debugger();
+                }
+            } else {
+                let pause_response = user_interface.place(
+                    control_button_rectangle,
+                    IconButtonView::new(theme, &theme.icon_library.icon_handle_navigation_pause, "Pause target."),
+                );
+
+                if pause_response.clicked() {
+                    self.pause_debugger();
+                }
             }
 
-            text_position_x = pause_button_rectangle.max.x + horizontal_padding;
+            text_position_x = control_button_rectangle.max.x + horizontal_padding;
         }
 
         user_interface.painter().text(
@@ -437,9 +490,10 @@ impl DebuggerTraceView {
         trace_session: &DebuggerTraceSessionDescriptor,
         instruction_records: &[DebuggerTraceInstructionRecord],
         selected_instruction_keys: &[DebuggerTraceInstructionKey],
+        debugger_session_state: DebuggerSessionState,
     ) {
         let theme = &self.app_context.theme;
-        self.show_trace_session_header(user_interface, trace_session);
+        self.show_trace_session_header(user_interface, trace_session, debugger_session_state);
 
         if instruction_records.is_empty() {
             user_interface.allocate_ui_with_layout(
@@ -620,7 +674,13 @@ impl Widget for DebuggerTraceView {
                                 .cloned()
                                 .collect::<Vec<_>>();
 
-                            self.show_instruction_records(user_interface, trace_session, &session_instruction_records, &snapshot.selected_instruction_keys);
+                            self.show_instruction_records(
+                                user_interface,
+                                trace_session,
+                                &session_instruction_records,
+                                &snapshot.selected_instruction_keys,
+                                snapshot.debugger_session_state,
+                            );
                         }
                     });
             })

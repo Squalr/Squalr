@@ -1,7 +1,10 @@
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::{
-    events::debugger::trace_session_updated::debugger_trace_session_updated_event::DebuggerTraceSessionUpdatedEvent,
-    structures::debugger::{DebuggerDataBreakpointAccess, DebuggerTraceInstructionRecord, DebuggerTraceSessionDescriptor},
+    events::debugger::{
+        session_state_changed::debugger_session_state_changed_event::DebuggerSessionStateChangedEvent,
+        trace_session_updated::debugger_trace_session_updated_event::DebuggerTraceSessionUpdatedEvent,
+    },
+    structures::debugger::{DebuggerDataBreakpointAccess, DebuggerSessionState, DebuggerTraceInstructionRecord, DebuggerTraceSessionDescriptor},
 };
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
@@ -19,6 +22,7 @@ struct DebuggerTraceViewState {
     pending_trace_start_request: Option<PendingDebuggerTraceStartRequest>,
     pending_trace_start_status_message: Option<String>,
     is_starting_pending_trace: bool,
+    debugger_session_state: DebuggerSessionState,
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -44,6 +48,7 @@ pub struct DebuggerTraceSnapshot {
     pub pending_trace_start_request: Option<PendingDebuggerTraceStartRequest>,
     pub pending_trace_start_status_message: Option<String>,
     pub is_starting_pending_trace: bool,
+    pub debugger_session_state: DebuggerSessionState,
 }
 
 impl DebuggerTraceInstructionKey {
@@ -129,6 +134,27 @@ impl DebuggerTraceViewData {
             }
             Err(error) => {
                 log::error!("Failed to update debugger trace view data: {}", error);
+            }
+        }
+    }
+
+    pub fn apply_debugger_session_state_changed(
+        &self,
+        debugger_session_state_changed_event: &DebuggerSessionStateChangedEvent,
+    ) {
+        self.set_debugger_session_state(debugger_session_state_changed_event.session_state);
+    }
+
+    pub fn set_debugger_session_state(
+        &self,
+        debugger_session_state: DebuggerSessionState,
+    ) {
+        match self.inner.write() {
+            Ok(mut state) => {
+                state.debugger_session_state = debugger_session_state;
+            }
+            Err(error) => {
+                log::error!("Failed to update debugger session state in trace view data: {}", error);
             }
         }
     }
@@ -253,6 +279,7 @@ impl DebuggerTraceViewState {
             pending_trace_start_request: self.pending_trace_start_request.clone(),
             pending_trace_start_status_message: self.pending_trace_start_status_message.clone(),
             is_starting_pending_trace: self.is_starting_pending_trace,
+            debugger_session_state: self.debugger_session_state,
         }
     }
 

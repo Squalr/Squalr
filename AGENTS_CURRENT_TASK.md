@@ -168,6 +168,7 @@ Our current task, from `README.md`, is:
   - The attach confirmation now keeps Cancel secondary and renders Attach with `background_control_primary`.
   - Added a `pause.png` navigation asset and `icon_handle_navigation_pause`; active trace session headers now render Stop then Pause controls on the left, with session text after the controls.
   - The Pause control dispatches the engine-owned `DebuggerPauseRequest`; Stop Trace still dispatches `DebuggerTraceStopRequest`.
+  - The trace view now listens for `DebuggerSessionStateChangedEvent`; after a pause, the Pause control is replaced with a Resume control using the existing `right_arrows.png` icon and dispatches `DebuggerResumeRequest`.
   - Trace rows no longer render `DebuggerTraceInstructionRecord::last_backend_message` as right-aligned preview text, since messages such as `Hit breakpoint 0` are backend diagnostics rather than useful row data.
   - The WinDbg backend now clears breakpoints through `IDebugControl::Execute("bc <id>")` after parsing the numeric breakpoint ID, avoiding the `GetBreakpointById`/`RemoveBreakpoint` COM wrapper removal path that led into the observed `Release` crash.
   - Live disposable-process smokes stopped trace sessions cleanly after this change, but Minesweeper/timer GUI behavior still needs human verification.
@@ -208,7 +209,7 @@ Our current task, from `README.md`, is:
   - Human-verify DbgEng attach/detach, pause/resume, register read/write, breakpoint create/remove/list, trace sessions, and breakpoint trace emission from CLI/TUI/GUI command surfaces against a disposable local process.
   - Human-verify that GUI `Find What Writes` no longer leaves the target frozen after attach or after trace hits, and that closing Squalr detaches instead of killing the target.
   - Human-verify that GUI `Find What Writes` now arms the breakpoint at the resolved absolute runtime address for module-relative project items and that Stop Trace no longer reports `GetBreakpointById(0)` catastrophic failure.
-  - Human-verify that the Debugger Trace attach prompt renders Attach as the blue primary action, the active header renders Stop/Pause left-aligned with session text after the controls, and Stop Trace no longer crashes when attached to the Minesweeper timer target.
+  - Human-verify that the Debugger Trace attach prompt renders Attach as the blue primary action, the active header renders Stop/Pause/Resume left-aligned with session text after the controls, and Stop Trace no longer crashes when attached to the Minesweeper timer target.
   - Human-verify that the Debugger Trace Instruction column shows only the single hit instruction and that trace rows no longer show stale backend preview text such as `Hit breakpoint 0`.
   - Human-verify that GUI `Find What Writes` reports the actual access instruction for Minesweeper timer-style cases, not the following post-trap instruction.
   - Human-verify that double-clicking a debugger trace row creates a module-relative `i_x86`/`i_x64` project item when the instruction lives inside a known module.
@@ -358,6 +359,12 @@ Our current task, from `README.md`, is:
   - `cargo run -p squalr-engine-session --example debugger_service_windbg_smoke --locked` passed on Windows against a disposable child process and stopped a running trace session cleanly with one instruction record.
   - `cargo run -p squalr-engine --example debugger_command_windbg_smoke --locked` passed on Windows against a disposable child process and stopped a running trace session cleanly with one instruction record.
   - `cargo run -p squalr-plugin-debugger-windbg --example windbg_smoke --locked` passed on Windows against a disposable child process.
+  - GUI behavior against the originally failing target still needs human verification after implementation and validation.
+- After debugger trace pause/resume toggle polish:
+  - `cargo fmt --all` completed with the existing `.rustfmt.toml` deprecation warnings for `fn_args_layout`.
+  - `cargo check -p squalr --locked` passed.
+  - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
+  - `cargo test -p squalr --locked default_layout_places_output_related_windows_in_same_tab_group -- --nocapture` passed.
   - GUI behavior against the originally failing target still needs human verification after implementation and validation.
 - References checked:
   - Local Rust workspace plugin/session/target architecture.
