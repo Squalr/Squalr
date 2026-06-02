@@ -80,7 +80,8 @@ Our current task, from `README.md`, is:
   - Added a generic `DebuggerTraceEventSink` to the debugger plugin trait so plugins can emit Squalr trace events without depending on engine transport.
   - `DebuggerService` now wraps plugin trace events into `DebuggerTraceRecordedEvent` for the existing engine event stream.
   - The WinDbg worker now alternates command handling with short `WaitForEvent` calls while running, uses `GetLastEventInformation` to identify breakpoint stops, captures a register snapshot, and emits `DebuggerTraceEvent`.
-  - Trace events currently include breakpoint descriptor, registers, DbgEng backend message, and a 16-byte instruction window read through `IDebugDataSpaces::ReadVirtual`; disassembly is still pending.
+  - Trace events currently include breakpoint descriptor, registers, DbgEng backend message, and a 16-byte instruction window read through `IDebugDataSpaces::ReadVirtual`.
+  - `DebuggerService` enriches trace events with disassembly by selecting the enabled instruction-set plugin for the opened process bitness (`x86`/`x64` for now).
   - This needs human verification against a disposable local process before it should be treated as functional.
 - Old C# Squalr debugger scope was small:
   - `FindWhatReads`, `FindWhatWrites`, and `FindWhatAccesses` set hardware data breakpoints.
@@ -105,7 +106,6 @@ Our current task, from `README.md`, is:
   - `squalr-cli`/`squalr-tui`/`squalr`: command and basic UI surfaces.
 - Next implementation target:
   - Human-verify DbgEng attach/detach, pause/resume, register read/write, breakpoint create/remove/list, and breakpoint trace emission against a disposable local process.
-  - Add engine-side disassembly enrichment through registered instruction-set plugins, starting with `squalr-plugin-instructions-x86`.
   - Decide whether DbgEng trace byte capture should remain plugin-owned or be moved to a generic engine memory-provider enrichment path.
   - Audit `dbgeng 0.5.1` against the direct `windows` binding implementation before committing to it as the long-term wrapper.
 - Key risks:
@@ -138,6 +138,10 @@ Our current task, from `README.md`, is:
   - `cargo check -p squalr-plugin-debugger-windbg --locked` passed.
   - `cargo test -p squalr-plugin-debugger-windbg --locked -- --nocapture` passed.
   - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
+  - `cargo check -p squalr-engine --locked` passed.
+- After engine-side debugger trace disassembly enrichment:
+  - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
+  - `cargo test -p squalr-engine-session --locked registry_exposes_builtin_x86_instruction_plugin_capabilities -- --nocapture` passed.
   - `cargo check -p squalr-engine --locked` passed.
 - References checked:
   - Local Rust workspace plugin/session/target architecture.

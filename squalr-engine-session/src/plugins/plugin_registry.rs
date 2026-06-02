@@ -4,7 +4,10 @@ use std::{
 };
 
 use squalr_engine_api::{
-    plugins::{PluginActivationState, PluginCapability, PluginPackage, PluginPermission, PluginState, symbol_tree::symbol_tree_action::SymbolTreeAction},
+    plugins::{
+        PluginActivationState, PluginCapability, PluginPackage, PluginPermission, PluginState, instruction_set::InstructionSet,
+        symbol_tree::symbol_tree_action::SymbolTreeAction,
+    },
     structures::processes::opened_process_info::OpenedProcessInfo,
 };
 use squalr_plugin_builtins::get_builtin_plugin_packages;
@@ -456,6 +459,37 @@ impl PluginRegistry {
         self.find_debugger_plugin_package_with_enabled_ids(process_info, requested_plugin_id, &enabled_plugin_ids)
     }
 
+    pub fn find_instruction_set(
+        &self,
+        instruction_set_id: &str,
+    ) -> Option<Arc<dyn InstructionSet>> {
+        let enabled_plugin_ids = match self.enabled_plugin_ids.read() {
+            Ok(enabled_plugin_ids) => enabled_plugin_ids,
+            Err(error) => {
+                log::error!("Failed to acquire plugin enablement snapshot while selecting instruction set: {}", error);
+                return None;
+            }
+        };
+
+        for plugin_package in self.get_ordered_plugin_packages() {
+            if !enabled_plugin_ids.contains(plugin_package.metadata().get_plugin_id()) {
+                continue;
+            }
+
+            let Some(instruction_set_plugin) = plugin_package.as_instruction_set_plugin() else {
+                continue;
+            };
+
+            for instruction_set in instruction_set_plugin.contributed_instruction_sets() {
+                if instruction_set.get_instruction_set_id() == instruction_set_id {
+                    return Some(instruction_set.clone());
+                }
+            }
+        }
+
+        None
+    }
+
     fn find_memory_view_plugin_package_with_enabled_ids(
         &self,
         process_info: &OpenedProcessInfo,
@@ -845,6 +879,7 @@ mod tests {
 
         assert!(plugin_registry.has_plugin_capability("builtin.instruction-set.x86-family", PluginCapability::InstructionSet));
         assert!(plugin_registry.has_plugin_capability("builtin.instruction-set.x86-family", PluginCapability::DataType));
+        assert!(plugin_registry.find_instruction_set("x64").is_some());
     }
 
     #[test]

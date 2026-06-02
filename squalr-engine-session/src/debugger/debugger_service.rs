@@ -6,6 +6,7 @@ use squalr_engine_api::plugins::debugger::{DebuggerSession, DebuggerTraceEventSi
 use squalr_engine_api::structures::debugger::{
     DebuggerBreakpointDescriptor, DebuggerBreakpointKind, DebuggerRegisterSnapshot, DebuggerSessionState, DebuggerTraceEvent,
 };
+use squalr_engine_api::structures::memory::bitness::Bitness;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use std::sync::{Arc, Mutex, RwLock};
 
@@ -254,7 +255,7 @@ impl DebuggerService {
             .as_debugger_plugin()
             .ok_or_else(|| format!("Plugin '{}' is not a debugger plugin.", plugin_package.metadata().get_plugin_id()))?;
         let plugin_id = plugin_package.metadata().get_plugin_id().to_string();
-        let trace_event_sink = self.create_trace_event_sink();
+        let trace_event_sink = self.create_trace_event_sink(process_info);
         let debugger_session = debugger_plugin
             .create_session(process_info, trace_event_sink)
             .map_err(|error| error.to_string())?;
@@ -343,12 +344,53 @@ impl DebuggerService {
         );
     }
 
-    fn create_trace_event_sink(&self) -> DebuggerTraceEventSink {
+    fn create_trace_event_sink(
+        &self,
+        process_info: &OpenedProcessInfo,
+    ) -> DebuggerTraceEventSink {
         let event_emitter = self.event_emitter.clone();
+        let plugin_registry = self.plugin_registry.clone();
+        let process_bitness = process_info.get_bitness();
 
         Arc::new(move |trace_event: DebuggerTraceEvent| {
+            let trace_event = Self::enrich_trace_event_with_disassembly(&plugin_registry, process_bitness, trace_event);
+
             event_emitter(DebuggerTraceRecordedEvent { trace_event }.to_engine_event());
         })
+    }
+
+    fn enrich_trace_event_with_disassembly(
+        plugin_registry: &PluginRegistry,
+        process_bitness: Bitness,
+        trace_event: DebuggerTraceEvent,
+    ) -> DebuggerTraceEvent {
+        if trace_event.get_instruction_text().is_some() || trace_event.get_instruction_bytes().is_empty() {
+            return trace_event;
+        }
+
+        let instruction_set_id = match process_bitness {
+            Bitness::Bit32 => "x86",
+            Bitness::Bit64 => "x64",
+        };
+        let instruction_text = plugin_registry
+            .find_instruction_set(instruction_set_id)
+            .and_then(|instruction_set| {
+                instruction_set
+                    .disassemble(trace_event.get_instruction_bytes())
+                    .ok()
+            });
+
+        if instruction_text.is_none() {
+            return trace_event;
+        }
+
+        DebuggerTraceEvent::new(
+            trace_event.get_breakpoint().cloned(),
+            trace_event.get_register_snapshot().clone(),
+            trace_event.get_instruction_bytes().to_vec(),
+            instruction_text,
+            trace_event.get_backend_message().map(String::from),
+        )
     }
 }
 
@@ -365,6 +407,7 @@ mod tests {
         plugins::{
             Plugin, PluginCapability, PluginMetadata, PluginPackage, PluginPermission,
             debugger::{DebuggerPlugin, DebuggerPluginError, DebuggerSession, DebuggerTraceEventSink},
+            instruction_set::{InstructionSet, InstructionSetPlugin},
         },
         structures::{
             debugger::{
@@ -389,6 +432,76 @@ mod tests {
         metadata: PluginMetadata,
         process_name: String,
         backend: Arc<Mutex<TestDebuggerBackend>>,
+    }
+
+    #[derive(Debug)]
+    struct TestInstructionSet;
+
+    impl InstructionSet for TestInstructionSet {
+        fn get_instruction_set_id(&self) -> &str {
+            "x64"
+        }
+
+        fn get_display_name(&self) -> &str {
+            "Test x64"
+        }
+
+        fn assemble(
+            &self,
+            _assembly_source: &str,
+        ) -> Result<Vec<u8>, String> {
+            Ok(Vec::new())
+        }
+
+        fn disassemble(
+            &self,
+            instruction_bytes: &[u8],
+        ) -> Result<String, String> {
+            Ok(format!("test-disassembly-{}", instruction_bytes.len()))
+        }
+    }
+
+    struct TestInstructionSetPlugin {
+        metadata: PluginMetadata,
+        instruction_sets: Vec<Arc<dyn InstructionSet>>,
+    }
+
+    impl TestInstructionSetPlugin {
+        fn new() -> Self {
+            Self {
+                metadata: PluginMetadata::new(
+                    "test.instruction-set",
+                    "Test Instruction Set",
+                    "Test instruction set plugin",
+                    vec![PluginCapability::InstructionSet],
+                    true,
+                    true,
+                ),
+                instruction_sets: vec![Arc::new(TestInstructionSet)],
+            }
+        }
+    }
+
+    impl Plugin for TestInstructionSetPlugin {
+        fn metadata(&self) -> &PluginMetadata {
+            &self.metadata
+        }
+    }
+
+    impl PluginPackage for TestInstructionSetPlugin {
+        fn as_instruction_set_plugin(&self) -> Option<&dyn InstructionSetPlugin> {
+            Some(self)
+        }
+    }
+
+    impl InstructionSetPlugin for TestInstructionSetPlugin {
+        fn contributed_instruction_sets(&self) -> &[Arc<dyn InstructionSet>] {
+            &self.instruction_sets
+        }
+
+        fn contributed_instruction_set_ids(&self) -> &'static [&'static str] {
+            &["x64"]
+        }
     }
 
     impl TestDebuggerPlugin {
@@ -498,8 +611,8 @@ mod tests {
                     trace_event_sink(DebuggerTraceEvent::new(
                         breakpoint,
                         register_snapshot,
-                        Vec::new(),
-                        Some(String::from("test instruction")),
+                        vec![0x90],
+                        None,
                         Some(String::from("test trace")),
                     ));
                 }
@@ -615,6 +728,7 @@ mod tests {
         let plugin_registry = Arc::new(PluginRegistry::from_plugin_packages(vec![
             Arc::new(TestDebuggerPlugin::new("test.debugger.first", "Game.exe", first_backend.clone())),
             Arc::new(TestDebuggerPlugin::new("test.debugger.second", "Game.exe", second_backend.clone())),
+            Arc::new(TestInstructionSetPlugin::new()),
         ]));
         let emitted_events = Arc::new(Mutex::new(Vec::new()));
         let event_sink = emitted_events.clone();
@@ -722,16 +836,22 @@ mod tests {
             ]
         );
 
-        let trace_event_count = emitted_events
+        let trace_event_texts = emitted_events
             .lock()
             .map(|events| {
                 events
                     .iter()
-                    .filter(|engine_event| matches!(engine_event, EngineEvent::Debugger(DebuggerEvent::TraceRecorded { .. })))
-                    .count()
+                    .filter_map(|engine_event| match engine_event {
+                        EngineEvent::Debugger(DebuggerEvent::TraceRecorded { debugger_trace_recorded_event }) => debugger_trace_recorded_event
+                            .trace_event
+                            .get_instruction_text()
+                            .map(String::from),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>()
             })
             .expect("Expected emitted event lock to be available.");
 
-        assert_eq!(trace_event_count, 1);
+        assert_eq!(trace_event_texts, vec![String::from("test-disassembly-1")]);
     }
 }
