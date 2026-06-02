@@ -17,8 +17,8 @@ use epaint::{CornerRadius, Margin, Stroke, Vec2};
 use squalr_engine_api::{
     commands::{
         debugger::{
-            attach::debugger_attach_request::DebuggerAttachRequest, trace_start::debugger_trace_start_request::DebuggerTraceStartRequest,
-            trace_stop::debugger_trace_stop_request::DebuggerTraceStopRequest,
+            attach::debugger_attach_request::DebuggerAttachRequest, pause::debugger_pause_request::DebuggerPauseRequest,
+            trace_start::debugger_trace_start_request::DebuggerTraceStartRequest, trace_stop::debugger_trace_stop_request::DebuggerTraceStopRequest,
         },
         privileged_command_request::PrivilegedCommandRequest,
         project_items::create::project_items_create_request::ProjectItemsCreateRequest,
@@ -89,6 +89,20 @@ impl DebuggerTraceView {
                 log::warn!(
                     "Debugger trace stop failed: {}.",
                     debugger_trace_stop_response
+                        .status
+                        .get_message()
+                        .unwrap_or("unknown error")
+                );
+            }
+        });
+    }
+
+    fn pause_debugger(&self) {
+        DebuggerPauseRequest {}.send(&self.app_context.engine_unprivileged_state, |debugger_pause_response| {
+            if !debugger_pause_response.status.get_success() {
+                log::warn!(
+                    "Debugger pause failed: {}.",
+                    debugger_pause_response
                         .status
                         .get_message()
                         .unwrap_or("unknown error")
@@ -246,8 +260,8 @@ impl DebuggerTraceView {
                 let attach_response = user_interface.add_sized(
                     button_size,
                     Button::new(RichText::new("Attach").color(theme.foreground))
-                        .fill(theme.background_control_secondary)
-                        .stroke(Stroke::new(1.0, theme.background_control_secondary_dark)),
+                        .fill(theme.background_control_primary)
+                        .stroke(Stroke::new(1.0, theme.background_control_primary_dark)),
                 );
 
                 if attach_response.clicked() {
@@ -362,7 +376,8 @@ impl DebuggerTraceView {
         let theme = &self.app_context.theme;
         let header_height = 28.0;
         let horizontal_padding = 8.0;
-        let stop_button_size = vec2(24.0, 24.0);
+        let button_size = vec2(24.0, 24.0);
+        let button_spacing = 4.0;
         let (header_rectangle, _) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), header_height), Sense::hover());
         let mut text_position_x = header_rectangle.min.x + horizontal_padding;
         let status_label = if trace_session.get_is_active() { "Active" } else { "Stopped" };
@@ -379,11 +394,8 @@ impl DebuggerTraceView {
 
         if trace_session.get_is_active() {
             let stop_button_rectangle = Rect::from_min_size(
-                pos2(
-                    header_rectangle.min.x + horizontal_padding,
-                    header_rectangle.center().y - stop_button_size.y * 0.5,
-                ),
-                stop_button_size,
+                pos2(header_rectangle.min.x + horizontal_padding, header_rectangle.center().y - button_size.y * 0.5),
+                button_size,
             );
             let stop_response = user_interface.place(
                 stop_button_rectangle,
@@ -394,7 +406,20 @@ impl DebuggerTraceView {
                 self.stop_trace_session(trace_session.get_trace_session_id());
             }
 
-            text_position_x = stop_button_rectangle.max.x + horizontal_padding;
+            let pause_button_rectangle = Rect::from_min_size(
+                pos2(stop_button_rectangle.max.x + button_spacing, header_rectangle.center().y - button_size.y * 0.5),
+                button_size,
+            );
+            let pause_response = user_interface.place(
+                pause_button_rectangle,
+                IconButtonView::new(theme, &theme.icon_library.icon_handle_navigation_pause, "Pause target."),
+            );
+
+            if pause_response.clicked() {
+                self.pause_debugger();
+            }
+
+            text_position_x = pause_button_rectangle.max.x + horizontal_padding;
         }
 
         user_interface.painter().text(

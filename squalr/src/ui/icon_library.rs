@@ -70,6 +70,7 @@ static ICON_NAVIGATION_HOME: &[u8] = include_bytes!("../../images/navigation/hom
 static ICON_NAVIGATION_LEFT_ARROW_SMALL: &[u8] = include_bytes!("../../images/navigation/left_arrow_small.png");
 static ICON_NAVIGATION_LEFT_ARROW: &[u8] = include_bytes!("../../images/navigation/left_arrow.png");
 static ICON_NAVIGATION_LEFT_ARROWS: &[u8] = include_bytes!("../../images/navigation/left_arrows.png");
+static ICON_NAVIGATION_PAUSE: &[u8] = include_bytes!("../../images/navigation/pause.png");
 static ICON_NAVIGATION_REDO: &[u8] = include_bytes!("../../images/navigation/redo.png");
 static ICON_NAVIGATION_REFRESH: &[u8] = include_bytes!("../../images/navigation/refresh.png");
 static ICON_NAVIGATION_RIGHT_ARROW_SMALL: &[u8] = include_bytes!("../../images/navigation/right_arrow_small.png");
@@ -183,6 +184,7 @@ pub struct IconLibrary {
     pub icon_handle_navigation_left_arrow_small: TextureHandle,
     pub icon_handle_navigation_left_arrow: TextureHandle,
     pub icon_handle_navigation_left_arrows: TextureHandle,
+    pub icon_handle_navigation_pause: TextureHandle,
     pub icon_handle_navigation_redo: TextureHandle,
     pub icon_handle_navigation_refresh: TextureHandle,
     pub icon_handle_navigation_right_arrow_small: TextureHandle,
@@ -298,6 +300,7 @@ impl IconLibrary {
         let icon_handle_navigation_left_arrow_small = Self::load_icon(context, ICON_NAVIGATION_LEFT_ARROW_SMALL);
         let icon_handle_navigation_left_arrow = Self::load_icon(context, ICON_NAVIGATION_LEFT_ARROW);
         let icon_handle_navigation_left_arrows = Self::load_icon(context, ICON_NAVIGATION_LEFT_ARROWS);
+        let icon_handle_navigation_pause = Self::load_icon(context, ICON_NAVIGATION_PAUSE);
         let icon_handle_navigation_redo = Self::load_icon(context, ICON_NAVIGATION_REDO);
         let icon_handle_navigation_refresh = Self::load_icon(context, ICON_NAVIGATION_REFRESH);
         let icon_handle_navigation_right_arrow_small = Self::load_icon(context, ICON_NAVIGATION_RIGHT_ARROW_SMALL);
@@ -411,6 +414,7 @@ impl IconLibrary {
             icon_handle_navigation_left_arrow_small,
             icon_handle_navigation_left_arrow,
             icon_handle_navigation_left_arrows,
+            icon_handle_navigation_pause,
             icon_handle_navigation_redo,
             icon_handle_navigation_refresh,
             icon_handle_navigation_right_arrow_small,

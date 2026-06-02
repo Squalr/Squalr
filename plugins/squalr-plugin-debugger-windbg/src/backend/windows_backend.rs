@@ -7,6 +7,7 @@ use squalr_engine_api::structures::debugger::{
 use squalr_engine_api::{plugins::debugger::DebuggerPluginError, structures::processes::opened_process_info::OpenedProcessInfo};
 use std::{
     collections::HashMap,
+    ffi::CString,
     mem::size_of,
     sync::mpsc::{self, Receiver, RecvTimeoutError, Sender},
     thread::{self, JoinHandle},
@@ -17,12 +18,13 @@ use windows::{
         Foundation::{S_FALSE, S_OK},
         System::Diagnostics::Debug::Extensions::{
             DEBUG_ANY_ID, DEBUG_ATTACH_DEFAULT, DEBUG_BREAK_READ, DEBUG_BREAK_WRITE, DEBUG_BREAKPOINT_CODE, DEBUG_BREAKPOINT_DATA, DEBUG_BREAKPOINT_ENABLED,
-            DEBUG_BREAKPOINT_PARAMETERS, DEBUG_END_ACTIVE_DETACH, DEBUG_ENGOPT_INITIAL_BREAK, DEBUG_EVENT_BREAKPOINT, DEBUG_INTERRUPT_ACTIVE,
-            DEBUG_LAST_EVENT_INFO_BREAKPOINT, DEBUG_REGISTER_DESCRIPTION, DEBUG_STATUS_GO, DEBUG_VALUE, DEBUG_VALUE_INT8, DEBUG_VALUE_INT16, DEBUG_VALUE_INT32,
-            DEBUG_VALUE_INT64, DebugCreate, IDebugBreakpoint, IDebugClient, IDebugControl, IDebugDataSpaces, IDebugRegisters2, IDebugSystemObjects,
+            DEBUG_BREAKPOINT_PARAMETERS, DEBUG_END_ACTIVE_DETACH, DEBUG_ENGOPT_INITIAL_BREAK, DEBUG_EVENT_BREAKPOINT, DEBUG_EXECUTE_NOT_LOGGED,
+            DEBUG_INTERRUPT_ACTIVE, DEBUG_LAST_EVENT_INFO_BREAKPOINT, DEBUG_OUTCTL_IGNORE, DEBUG_REGISTER_DESCRIPTION, DEBUG_STATUS_GO, DEBUG_VALUE,
+            DEBUG_VALUE_INT8, DEBUG_VALUE_INT16, DEBUG_VALUE_INT32, DEBUG_VALUE_INT64, DebugCreate, IDebugBreakpoint, IDebugClient, IDebugControl,
+            IDebugDataSpaces, IDebugRegisters2, IDebugSystemObjects,
         },
     },
-    core::{HSTRING, Interface},
+    core::{HSTRING, Interface, PCSTR},
 };
 
 const INITIAL_ATTACH_WAIT_TIMEOUT_MS: u32 = 10_000;
@@ -543,13 +545,7 @@ impl ActiveWindbgSession {
         }
 
         let debug_breakpoint_id = Self::parse_breakpoint_id(breakpoint_id)?;
-        let remove_result = unsafe { self.control.GetBreakpointById(debug_breakpoint_id) }
-            .map_err(|error| WindbgBackend::plugin_error(format!("IDebugControl::GetBreakpointById({}) failed: {}", breakpoint_id, error)))
-            .and_then(|breakpoint| unsafe {
-                self.control
-                    .RemoveBreakpoint(&breakpoint)
-                    .map_err(|error| WindbgBackend::plugin_error(format!("IDebugControl::RemoveBreakpoint({}) failed: {}", breakpoint_id, error)))
-            });
+        let remove_result = self.execute_debugger_command(&format!("bc {}", debug_breakpoint_id), &format!("clear breakpoint {}", breakpoint_id));
 
         if remove_result.is_ok() {
             self.breakpoint_labels.remove(&debug_breakpoint_id);
@@ -564,6 +560,21 @@ impl ActiveWindbgSession {
         }
 
         remove_result
+    }
+
+    fn execute_debugger_command(
+        &self,
+        command: &str,
+        context: &str,
+    ) -> Result<(), DebuggerPluginError> {
+        let command = CString::new(command)
+            .map_err(|error| WindbgBackend::plugin_error(format!("DbgEng command for {} contained an interior null byte: {}", context, error)))?;
+
+        unsafe {
+            self.control
+                .Execute(DEBUG_OUTCTL_IGNORE, PCSTR(command.as_ptr().cast()), DEBUG_EXECUTE_NOT_LOGGED)
+                .map_err(|error| WindbgBackend::plugin_error(format!("IDebugControl::Execute failed while trying to {}: {}", context, error)))
+        }
     }
 
     fn list_breakpoints(&self) -> Result<Vec<DebuggerBreakpointDescriptor>, DebuggerPluginError> {

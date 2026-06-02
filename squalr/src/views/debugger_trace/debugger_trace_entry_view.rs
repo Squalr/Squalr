@@ -130,7 +130,6 @@ impl Widget for DebuggerTraceEntryView<'_> {
         let hits_text = self.instruction_record.get_hit_count().to_string();
         let instruction_text = Self::instruction_text(self.instruction_record);
         let address_text = Self::format_address(self.instruction_record.get_instruction_address());
-        let backend_text = self.instruction_record.get_last_backend_message().unwrap_or("");
 
         let hits_cell_rectangle = Rect::from_min_max(
             pos2(self.hit_count_splitter_position_x, row_rectangle.min.y),
@@ -169,16 +168,6 @@ impl Widget for DebuggerTraceEntryView<'_> {
             theme.hexadecimal_green,
             theme.font_library.font_ubuntu_mono_bold.font_normal.clone(),
         );
-
-        if !backend_text.is_empty() {
-            row_user_interface.painter().text(
-                pos2(row_rectangle.max.x - text_left_padding, row_center_y),
-                Align2::RIGHT_CENTER,
-                backend_text,
-                theme.font_library.font_noto_sans.font_small.clone(),
-                theme.foreground_preview,
-            );
-        }
 
         response.on_hover_text(format!(
             "{}\n{}\nTrace: {}",
