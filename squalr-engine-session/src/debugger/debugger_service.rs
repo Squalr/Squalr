@@ -1,14 +1,22 @@
 use crate::plugins::plugin_registry::PluginRegistry;
 use squalr_engine_api::events::debugger::session_state_changed::debugger_session_state_changed_event::DebuggerSessionStateChangedEvent;
 use squalr_engine_api::events::debugger::trace_recorded::debugger_trace_recorded_event::DebuggerTraceRecordedEvent;
+use squalr_engine_api::events::debugger::trace_session_updated::debugger_trace_session_updated_event::DebuggerTraceSessionUpdatedEvent;
 use squalr_engine_api::events::engine_event::{EngineEvent, EngineEventRequest};
 use squalr_engine_api::plugins::debugger::{DebuggerSession, DebuggerTraceEventSink};
 use squalr_engine_api::structures::debugger::{
-    DebuggerBreakpointDescriptor, DebuggerBreakpointKind, DebuggerRegisterSnapshot, DebuggerSessionState, DebuggerTraceEvent,
+    DebuggerBreakpointDescriptor, DebuggerBreakpointKind, DebuggerDataBreakpointAccess, DebuggerRegisterSnapshot, DebuggerSessionState, DebuggerTraceEvent,
+    DebuggerTraceInstructionRecord, DebuggerTraceSessionDescriptor,
 };
 use squalr_engine_api::structures::memory::bitness::Bitness;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
-use std::sync::{Arc, Mutex, RwLock};
+use std::{
+    collections::HashMap,
+    sync::{
+        Arc, Mutex, RwLock,
+        atomic::{AtomicU64, Ordering},
+    },
+};
 
 type SharedDebuggerSession = Arc<Mutex<Box<dyn DebuggerSession>>>;
 
@@ -69,9 +77,119 @@ impl CachedDebuggerSession {
     }
 }
 
+#[derive(Default)]
+struct DebuggerTraceSessionStore {
+    sessions: HashMap<String, DebuggerTraceSessionState>,
+    breakpoint_to_trace_session_id: HashMap<String, String>,
+}
+
+impl DebuggerTraceSessionStore {
+    fn insert_session(
+        &mut self,
+        descriptor: DebuggerTraceSessionDescriptor,
+    ) {
+        self.breakpoint_to_trace_session_id.insert(
+            descriptor.get_breakpoint().get_breakpoint_id().to_string(),
+            descriptor.get_trace_session_id().to_string(),
+        );
+        self.sessions.insert(
+            descriptor.get_trace_session_id().to_string(),
+            DebuggerTraceSessionState {
+                descriptor,
+                instruction_records: Vec::new(),
+            },
+        );
+    }
+
+    fn stop_session(
+        &mut self,
+        trace_session_id: &str,
+    ) -> Result<(DebuggerTraceSessionDescriptor, Vec<DebuggerTraceInstructionRecord>), String> {
+        let trace_session = self
+            .sessions
+            .get_mut(trace_session_id)
+            .ok_or_else(|| format!("Debugger trace session '{}' does not exist.", trace_session_id))?;
+
+        self.breakpoint_to_trace_session_id
+            .remove(trace_session.descriptor.get_breakpoint().get_breakpoint_id());
+        trace_session.descriptor.set_is_active(false);
+
+        Ok((trace_session.descriptor.clone(), trace_session.instruction_records.clone()))
+    }
+
+    fn list_sessions(&self) -> (Vec<DebuggerTraceSessionDescriptor>, Vec<DebuggerTraceInstructionRecord>) {
+        let mut trace_sessions = self
+            .sessions
+            .values()
+            .map(|trace_session| trace_session.descriptor.clone())
+            .collect::<Vec<_>>();
+        let mut instruction_records = self
+            .sessions
+            .values()
+            .flat_map(|trace_session| trace_session.instruction_records.clone())
+            .collect::<Vec<_>>();
+
+        trace_sessions.sort_by(|left, right| left.get_trace_session_id().cmp(right.get_trace_session_id()));
+        instruction_records.sort_by(|left, right| {
+            left.get_trace_session_id()
+                .cmp(right.get_trace_session_id())
+                .then(
+                    left.get_instruction_address()
+                        .cmp(&right.get_instruction_address()),
+                )
+        });
+
+        (trace_sessions, instruction_records)
+    }
+
+    fn record_trace_event(
+        &mut self,
+        trace_event: &DebuggerTraceEvent,
+    ) -> Option<(DebuggerTraceSessionDescriptor, Vec<DebuggerTraceInstructionRecord>)> {
+        let breakpoint_id = trace_event.get_breakpoint()?.get_breakpoint_id();
+        let trace_session_id = self.breakpoint_to_trace_session_id.get(breakpoint_id)?.clone();
+        let trace_session = self.sessions.get_mut(&trace_session_id)?;
+
+        if !trace_session.descriptor.get_is_active() {
+            return None;
+        }
+
+        let instruction_address = trace_event.get_register_snapshot().get_instruction_pointer();
+        let instruction_bytes = trace_event.get_instruction_bytes();
+
+        if let Some(instruction_record) = trace_session
+            .instruction_records
+            .iter_mut()
+            .find(|instruction_record| {
+                instruction_record.get_instruction_address() == instruction_address && instruction_record.get_instruction_bytes() == instruction_bytes
+            })
+        {
+            instruction_record.record_hit(trace_event);
+        } else {
+            trace_session
+                .instruction_records
+                .push(DebuggerTraceInstructionRecord::new(&trace_session_id, trace_event));
+        }
+
+        Some((trace_session.descriptor.clone(), trace_session.instruction_records.clone()))
+    }
+
+    fn clear(&mut self) {
+        self.sessions.clear();
+        self.breakpoint_to_trace_session_id.clear();
+    }
+}
+
+struct DebuggerTraceSessionState {
+    descriptor: DebuggerTraceSessionDescriptor,
+    instruction_records: Vec<DebuggerTraceInstructionRecord>,
+}
+
 pub struct DebuggerService {
     plugin_registry: Arc<PluginRegistry>,
     active_session: RwLock<Option<CachedDebuggerSession>>,
+    trace_sessions: Arc<RwLock<DebuggerTraceSessionStore>>,
+    next_trace_session_number: AtomicU64,
     event_emitter: Arc<dyn Fn(EngineEvent) + Send + Sync>,
 }
 
@@ -83,6 +201,8 @@ impl DebuggerService {
         Self {
             plugin_registry,
             active_session: RwLock::new(None),
+            trace_sessions: Arc::new(RwLock::new(DebuggerTraceSessionStore::default())),
+            next_trace_session_number: AtomicU64::new(1),
             event_emitter,
         }
     }
@@ -111,6 +231,7 @@ impl DebuggerService {
             debugger_session.detach().map_err(|error| error.to_string())
         })?;
 
+        self.clear_trace_sessions();
         self.emit_session_state_changed(session_state, None);
 
         Ok(DebuggerOperationStatus::new(session_state, None))
@@ -186,6 +307,75 @@ impl DebuggerService {
         })
     }
 
+    pub fn start_trace_session(
+        &self,
+        address: u64,
+        size_in_bytes: u8,
+        access: DebuggerDataBreakpointAccess,
+        label: Option<String>,
+    ) -> Result<(DebuggerTraceSessionDescriptor, Vec<DebuggerTraceInstructionRecord>), String> {
+        let active_session = self.get_cached_session()?;
+        let trace_session_number = self.next_trace_session_number.fetch_add(1, Ordering::Relaxed);
+        let trace_session_id = format!("trace-{}", trace_session_number);
+        let breakpoint_label = label
+            .clone()
+            .unwrap_or_else(|| format!("{} data trace at 0x{:X}", access.get_cli_label(), address));
+        let breakpoint = self.with_debugger_session(&active_session.session, |debugger_session| {
+            debugger_session
+                .set_breakpoint(address, DebuggerBreakpointKind::hardware_data(access, size_in_bytes), Some(breakpoint_label))
+                .map_err(|error| error.to_string())
+        })?;
+        let trace_session = DebuggerTraceSessionDescriptor::new(trace_session_id, address, size_in_bytes, access, breakpoint, label, true);
+
+        self.trace_sessions
+            .write()
+            .map_err(|error| format!("Failed to cache debugger trace session: {}", error))?
+            .insert_session(trace_session.clone());
+
+        self.emit_trace_session_updated(trace_session.clone(), Vec::new());
+
+        Ok((trace_session, Vec::new()))
+    }
+
+    pub fn stop_trace_session(
+        &self,
+        trace_session_id: &str,
+    ) -> Result<(DebuggerTraceSessionDescriptor, Vec<DebuggerTraceInstructionRecord>), String> {
+        let breakpoint_id = self
+            .trace_sessions
+            .read()
+            .map_err(|error| format!("Failed to read debugger trace sessions: {}", error))?
+            .sessions
+            .get(trace_session_id)
+            .map(|trace_session| {
+                trace_session
+                    .descriptor
+                    .get_breakpoint()
+                    .get_breakpoint_id()
+                    .to_string()
+            })
+            .ok_or_else(|| format!("Debugger trace session '{}' does not exist.", trace_session_id))?;
+
+        self.remove_breakpoint(&breakpoint_id)?;
+
+        let (trace_session, instruction_records) = self
+            .trace_sessions
+            .write()
+            .map_err(|error| format!("Failed to update debugger trace sessions: {}", error))?
+            .stop_session(trace_session_id)?;
+
+        self.emit_trace_session_updated(trace_session.clone(), instruction_records.clone());
+
+        Ok((trace_session, instruction_records))
+    }
+
+    pub fn list_trace_sessions(&self) -> Result<(Vec<DebuggerTraceSessionDescriptor>, Vec<DebuggerTraceInstructionRecord>), String> {
+        self.trace_sessions
+            .read()
+            .map(|trace_sessions| trace_sessions.list_sessions())
+            .map_err(|error| format!("Failed to read debugger trace sessions: {}", error))
+    }
+
     pub fn clear_active_session(&self) {
         let cached_session = match self.active_session.write() {
             Ok(mut active_session) => active_session.take(),
@@ -202,6 +392,7 @@ impl DebuggerService {
                 log::debug!("Failed to detach debugger session while clearing it: {}", error);
             }
 
+            self.clear_trace_sessions();
             self.emit_session_state_changed(DebuggerSessionState::Detached, None);
         }
     }
@@ -351,11 +542,16 @@ impl DebuggerService {
     ) -> DebuggerTraceEventSink {
         let event_emitter = self.event_emitter.clone();
         let plugin_registry = self.plugin_registry.clone();
+        let trace_sessions = self.trace_sessions.clone();
         let process_bitness = process_info.get_bitness();
         let active_plugin_id = plugin_id.to_string();
 
         Arc::new(move |trace_event: DebuggerTraceEvent| {
             let trace_event = Self::enrich_trace_event_with_disassembly(&plugin_registry, process_bitness, trace_event);
+            let trace_session_update = trace_sessions
+                .write()
+                .ok()
+                .and_then(|mut trace_sessions| trace_sessions.record_trace_event(&trace_event));
 
             event_emitter(
                 DebuggerSessionStateChangedEvent {
@@ -365,6 +561,16 @@ impl DebuggerService {
                 .to_engine_event(),
             );
             event_emitter(DebuggerTraceRecordedEvent { trace_event }.to_engine_event());
+
+            if let Some((trace_session, instruction_records)) = trace_session_update {
+                event_emitter(
+                    DebuggerTraceSessionUpdatedEvent {
+                        trace_session,
+                        instruction_records,
+                    }
+                    .to_engine_event(),
+                );
+            }
         })
     }
 
@@ -401,6 +607,29 @@ impl DebuggerService {
             trace_event.get_backend_message().map(String::from),
         )
     }
+
+    fn clear_trace_sessions(&self) {
+        match self.trace_sessions.write() {
+            Ok(mut trace_sessions) => trace_sessions.clear(),
+            Err(error) => {
+                log::error!("Failed to clear debugger trace sessions: {}", error);
+            }
+        }
+    }
+
+    fn emit_trace_session_updated(
+        &self,
+        trace_session: DebuggerTraceSessionDescriptor,
+        instruction_records: Vec<DebuggerTraceInstructionRecord>,
+    ) {
+        (self.event_emitter)(
+            DebuggerTraceSessionUpdatedEvent {
+                trace_session,
+                instruction_records,
+            }
+            .to_engine_event(),
+        );
+    }
 }
 
 struct CachedDebuggerSessionSnapshot {
@@ -420,7 +649,8 @@ mod tests {
         },
         structures::{
             debugger::{
-                DebuggerBreakpointDescriptor, DebuggerBreakpointKind, DebuggerRegisterSnapshot, DebuggerRegisterValue, DebuggerSessionState, DebuggerTraceEvent,
+                DebuggerBreakpointDescriptor, DebuggerBreakpointKind, DebuggerDataBreakpointAccess, DebuggerRegisterSnapshot, DebuggerRegisterValue,
+                DebuggerSessionState, DebuggerTraceEvent,
             },
             memory::bitness::Bitness,
             processes::opened_process_info::OpenedProcessInfo,
@@ -863,5 +1093,84 @@ mod tests {
             .expect("Expected emitted event lock to be available.");
 
         assert_eq!(trace_event_texts, vec![String::from("test-disassembly-1")]);
+    }
+
+    #[test]
+    fn service_starts_trace_session_and_aggregates_breakpoint_hits() {
+        let debugger_backend = Arc::new(Mutex::new(TestDebuggerBackend::default()));
+        let plugin_registry = Arc::new(PluginRegistry::from_plugin_packages(vec![
+            Arc::new(TestDebuggerPlugin::new("test.debugger", "Game.exe", debugger_backend.clone())),
+            Arc::new(TestInstructionSetPlugin::new()),
+        ]));
+        let emitted_events = Arc::new(Mutex::new(Vec::new()));
+        let event_sink = emitted_events.clone();
+        let debugger_service = DebuggerService::new(
+            plugin_registry,
+            Arc::new(move |engine_event| {
+                if let Ok(mut events) = event_sink.lock() {
+                    events.push(engine_event);
+                }
+            }),
+        );
+        let opened_process_info = OpenedProcessInfo::new(99, String::from("Game.exe"), 1234, Bitness::Bit64, None);
+
+        debugger_service
+            .attach(&opened_process_info, Some("test.debugger"))
+            .expect("Expected debugger plugin to attach.");
+        let (trace_session, initial_records) = debugger_service
+            .start_trace_session(0x5000, 4, DebuggerDataBreakpointAccess::Write, Some(String::from("health")))
+            .expect("Expected trace session to start.");
+
+        assert_eq!(trace_session.get_trace_session_id(), "trace-1");
+        assert_eq!(trace_session.get_address(), 0x5000);
+        assert_eq!(trace_session.get_size_in_bytes(), 4);
+        assert_eq!(trace_session.get_access(), DebuggerDataBreakpointAccess::Write);
+        assert!(trace_session.get_is_active());
+        assert!(initial_records.is_empty());
+
+        debugger_service.resume().expect("Expected first trace hit.");
+        debugger_service.resume().expect("Expected second trace hit.");
+
+        let (trace_sessions, instruction_records) = debugger_service
+            .list_trace_sessions()
+            .expect("Expected trace session list.");
+        assert_eq!(trace_sessions.len(), 1);
+        assert_eq!(instruction_records.len(), 1);
+        assert_eq!(instruction_records[0].get_trace_session_id(), "trace-1");
+        assert_eq!(instruction_records[0].get_instruction_address(), Some(0x401000));
+        assert_eq!(instruction_records[0].get_instruction_text(), Some("test-disassembly-1"));
+        assert_eq!(instruction_records[0].get_hit_count(), 2);
+
+        let (stopped_trace_session, stopped_records) = debugger_service
+            .stop_trace_session(trace_session.get_trace_session_id())
+            .expect("Expected trace session to stop.");
+        assert!(!stopped_trace_session.get_is_active());
+        assert_eq!(stopped_records[0].get_hit_count(), 2);
+        assert!(
+            debugger_backend
+                .lock()
+                .map(|backend| backend.breakpoints.is_empty())
+                .expect("Expected debugger backend lock.")
+        );
+
+        let trace_hit_counts = emitted_events
+            .lock()
+            .map(|events| {
+                events
+                    .iter()
+                    .filter_map(|engine_event| match engine_event {
+                        EngineEvent::Debugger(DebuggerEvent::TraceSessionUpdated {
+                            debugger_trace_session_updated_event,
+                        }) => debugger_trace_session_updated_event
+                            .instruction_records
+                            .last()
+                            .map(|instruction_record| instruction_record.get_hit_count()),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .expect("Expected emitted event lock to be available.");
+
+        assert_eq!(trace_hit_counts, vec![1, 2, 2]);
     }
 }

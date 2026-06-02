@@ -4,6 +4,8 @@ use crate::commands::debugger::{
     breakpoint_set::debugger_breakpoint_set_request::DebuggerBreakpointSetRequest, detach::debugger_detach_request::DebuggerDetachRequest,
     pause::debugger_pause_request::DebuggerPauseRequest, register_write::debugger_register_write_request::DebuggerRegisterWriteRequest,
     registers_read::debugger_registers_read_request::DebuggerRegistersReadRequest, resume::debugger_resume_request::DebuggerResumeRequest,
+    trace_list::debugger_trace_list_request::DebuggerTraceListRequest, trace_start::debugger_trace_start_request::DebuggerTraceStartRequest,
+    trace_stop::debugger_trace_stop_request::DebuggerTraceStopRequest,
 };
 use serde::{Deserialize, Serialize};
 
@@ -35,5 +37,14 @@ pub enum DebuggerCommand {
     },
     RegisterWrite {
         debugger_register_write_request: DebuggerRegisterWriteRequest,
+    },
+    TraceStart {
+        debugger_trace_start_request: DebuggerTraceStartRequest,
+    },
+    TraceStop {
+        debugger_trace_stop_request: DebuggerTraceStopRequest,
+    },
+    TraceList {
+        debugger_trace_list_request: DebuggerTraceListRequest,
     },
 }

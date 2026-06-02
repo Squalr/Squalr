@@ -104,6 +104,14 @@ Our current task, from `README.md`, is:
   - Local smoke output showed command-level attach, attach-time register read, hardware breakpoint set/list/remove, resume, enriched trace event, and detach.
   - This exposed and fixed a process-change race: the privileged internal event hook used to clear the debugger session for every `ProcessChanged` event, so a delayed opened-process event could detach a freshly attached debugger. The hook now preserves the session when the event names the same process as the active debugger session.
   - This still needs human verification through real CLI/TUI/GUI command surfaces because the smoke injects opened process state directly.
+- Trace session command slice completed:
+  - Added engine-owned trace-session models:
+    - `DebuggerTraceSessionDescriptor` tracks a Squalr trace session, target address, byte size, read/write/access mode, backing breakpoint, label, and active state.
+    - `DebuggerTraceInstructionRecord` aggregates breakpoint hits by instruction address plus instruction bytes and stores hit count, latest register snapshot, latest backend message, and disassembly text.
+  - Added debugger commands and responses for `TraceStart`, `TraceStop`, and `TraceList`.
+  - Added CLI parser support for `debugger trace-start`, `debugger trace-stop`, `debugger trace-list`, and C#-style aliases `find-what-reads`, `find-what-writes`, and `find-what-accesses`.
+  - `DebuggerService` now owns trace sessions, maps them to plugin breakpoint IDs, aggregates repeated trace events into instruction records, emits `DebuggerTraceSessionUpdatedEvent`, and removes the backing breakpoint when a trace session stops.
+  - This is the backend abstraction needed for the old flow of "right-click project item -> find what writes to -> docked hit-count table." Project-item context menus, the docked GUI table, and adding selected instructions to the project are still pending and need human verification after implementation.
 - Old C# Squalr debugger scope was small:
   - `FindWhatReads`, `FindWhatWrites`, and `FindWhatAccesses` set hardware data breakpoints.
   - `PauseExecution` and `ResumeExecution` interrupt/resume the debuggee.
@@ -133,7 +141,13 @@ Our current task, from `README.md`, is:
   - `squalr-engine`: command executors that call the debugger service.
   - `squalr-cli`/`squalr-tui`/`squalr`: command and basic UI surfaces.
 - Next implementation target:
-  - Human-verify DbgEng attach/detach, pause/resume, register read/write, breakpoint create/remove/list, and breakpoint trace emission from CLI/TUI/GUI command surfaces against a disposable local process.
+  - Add GUI/project-item integration for the C#-style flow:
+    - Resolve address/pointer project items into a runtime address and byte size.
+    - Add Symbol Tree/project item context menu actions for find what reads/writes/accesses.
+    - Open a docked debugger trace window fed by `DebuggerTraceSessionUpdatedEvent`.
+    - Show instruction text, hit count, instruction address/module context, and session controls.
+    - Add selected trace instruction records to the project through a clean project item/symbol representation.
+  - Human-verify DbgEng attach/detach, pause/resume, register read/write, breakpoint create/remove/list, trace sessions, and breakpoint trace emission from CLI/TUI/GUI command surfaces against a disposable local process.
   - Decide whether to keep the three smoke examples separate or consolidate shared disposable-child helpers into test support.
   - Decide whether DbgEng trace byte capture should remain plugin-owned or be moved to a generic engine memory-provider enrichment path.
   - Defer any `dbgeng` crate adoption unless a later symbol/output-capture feature benefits from its helper API.
@@ -204,6 +218,10 @@ Our current task, from `README.md`, is:
 - After `dbgeng 0.5.1` crate audit:
   - `cargo info dbgeng@0.5.1` completed and downloaded the crate source.
   - Local source inspection compared `dbgeng-0.5.1` APIs against the direct `windows` implementation.
+- After engine-owned trace sessions and find-what command aliases:
+  - `cargo test -p squalr-engine-api --locked command_line -- --nocapture` passed.
+  - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
+  - `cargo check -p squalr-engine --locked` passed.
 - References checked:
   - Local Rust workspace plugin/session/target architecture.
   - Old C# implementation under `C:\Projects\Squalr\Squalr.Engine.Debugger`.

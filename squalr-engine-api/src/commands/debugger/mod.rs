@@ -9,3 +9,6 @@ pub mod pause;
 pub mod register_write;
 pub mod registers_read;
 pub mod resume;
+pub mod trace_list;
+pub mod trace_start;
+pub mod trace_stop;

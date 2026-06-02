@@ -39,6 +39,33 @@ pub(crate) enum CommandLineDebuggerCommand {
         #[structopt(flatten)]
         debugger_register_write_request: CommandLineDebuggerRegisterWriteRequest,
     },
+    TraceStart {
+        #[structopt(flatten)]
+        debugger_trace_start_request: CommandLineDebuggerTraceStartRequest,
+    },
+    TraceStop {
+        #[structopt(flatten)]
+        debugger_trace_stop_request: CommandLineDebuggerTraceStopRequest,
+    },
+    TraceList {
+        #[structopt(flatten)]
+        debugger_trace_list_request: CommandLineDebuggerTraceListRequest,
+    },
+    #[structopt(alias = "what-reads")]
+    FindWhatReads {
+        #[structopt(flatten)]
+        debugger_trace_target_request: CommandLineDebuggerTraceTargetRequest,
+    },
+    #[structopt(alias = "what-writes")]
+    FindWhatWrites {
+        #[structopt(flatten)]
+        debugger_trace_target_request: CommandLineDebuggerTraceTargetRequest,
+    },
+    #[structopt(alias = "what-accesses")]
+    FindWhatAccesses {
+        #[structopt(flatten)]
+        debugger_trace_target_request: CommandLineDebuggerTraceTargetRequest,
+    },
 }
 
 #[derive(Clone, StructOpt, Debug, Default)]
@@ -88,6 +115,37 @@ pub(crate) struct CommandLineDebuggerRegisterWriteRequest {
     pub value: u64,
 }
 
+#[derive(Clone, StructOpt, Debug)]
+pub(crate) struct CommandLineDebuggerTraceStartRequest {
+    #[structopt(short = "a", long, parse(try_from_str = api::conversions::conversions_from_primitives::Conversions::parse_hex_or_int))]
+    pub address: u64,
+    #[structopt(short = "s", long, default_value = "1")]
+    pub size_in_bytes: u8,
+    #[structopt(long = "access", default_value = "write")]
+    pub access: api::structures::debugger::DebuggerDataBreakpointAccess,
+    #[structopt(long)]
+    pub label: Option<String>,
+}
+
+#[derive(Clone, StructOpt, Debug)]
+pub(crate) struct CommandLineDebuggerTraceTargetRequest {
+    #[structopt(short = "a", long, parse(try_from_str = api::conversions::conversions_from_primitives::Conversions::parse_hex_or_int))]
+    pub address: u64,
+    #[structopt(short = "s", long, default_value = "1")]
+    pub size_in_bytes: u8,
+    #[structopt(long)]
+    pub label: Option<String>,
+}
+
+#[derive(Clone, StructOpt, Debug)]
+pub(crate) struct CommandLineDebuggerTraceStopRequest {
+    #[structopt(long = "trace-session-id")]
+    pub trace_session_id: String,
+}
+
+#[derive(Clone, StructOpt, Debug, Default)]
+pub(crate) struct CommandLineDebuggerTraceListRequest {}
+
 impl From<CommandLineDebuggerCommand> for api::commands::debugger::debugger_command::DebuggerCommand {
     fn from(command: CommandLineDebuggerCommand) -> Self {
         match command {
@@ -127,6 +185,27 @@ impl From<CommandLineDebuggerCommand> for api::commands::debugger::debugger_comm
                 debugger_register_write_request,
             } => Self::RegisterWrite {
                 debugger_register_write_request: debugger_register_write_request.into(),
+            },
+            CommandLineDebuggerCommand::TraceStart { debugger_trace_start_request } => Self::TraceStart {
+                debugger_trace_start_request: debugger_trace_start_request.into(),
+            },
+            CommandLineDebuggerCommand::TraceStop { debugger_trace_stop_request } => Self::TraceStop {
+                debugger_trace_stop_request: debugger_trace_stop_request.into(),
+            },
+            CommandLineDebuggerCommand::TraceList { debugger_trace_list_request } => Self::TraceList {
+                debugger_trace_list_request: debugger_trace_list_request.into(),
+            },
+            CommandLineDebuggerCommand::FindWhatReads { debugger_trace_target_request } => Self::TraceStart {
+                debugger_trace_start_request: debugger_trace_target_request
+                    .into_trace_start_request(api::structures::debugger::DebuggerDataBreakpointAccess::Read),
+            },
+            CommandLineDebuggerCommand::FindWhatWrites { debugger_trace_target_request } => Self::TraceStart {
+                debugger_trace_start_request: debugger_trace_target_request
+                    .into_trace_start_request(api::structures::debugger::DebuggerDataBreakpointAccess::Write),
+            },
+            CommandLineDebuggerCommand::FindWhatAccesses { debugger_trace_target_request } => Self::TraceStart {
+                debugger_trace_start_request: debugger_trace_target_request
+                    .into_trace_start_request(api::structures::debugger::DebuggerDataBreakpointAccess::ReadWrite),
             },
         }
     }
@@ -196,5 +275,44 @@ impl From<CommandLineDebuggerRegisterWriteRequest> for api::commands::debugger::
             register_name: request.register_name,
             value: request.value,
         }
+    }
+}
+
+impl From<CommandLineDebuggerTraceStartRequest> for api::commands::debugger::trace_start::debugger_trace_start_request::DebuggerTraceStartRequest {
+    fn from(request: CommandLineDebuggerTraceStartRequest) -> Self {
+        Self {
+            address: request.address,
+            size_in_bytes: request.size_in_bytes,
+            access: request.access,
+            label: request.label,
+        }
+    }
+}
+
+impl CommandLineDebuggerTraceTargetRequest {
+    fn into_trace_start_request(
+        self,
+        access: api::structures::debugger::DebuggerDataBreakpointAccess,
+    ) -> api::commands::debugger::trace_start::debugger_trace_start_request::DebuggerTraceStartRequest {
+        api::commands::debugger::trace_start::debugger_trace_start_request::DebuggerTraceStartRequest {
+            address: self.address,
+            size_in_bytes: self.size_in_bytes,
+            access,
+            label: self.label,
+        }
+    }
+}
+
+impl From<CommandLineDebuggerTraceStopRequest> for api::commands::debugger::trace_stop::debugger_trace_stop_request::DebuggerTraceStopRequest {
+    fn from(request: CommandLineDebuggerTraceStopRequest) -> Self {
+        Self {
+            trace_session_id: request.trace_session_id,
+        }
+    }
+}
+
+impl From<CommandLineDebuggerTraceListRequest> for api::commands::debugger::trace_list::debugger_trace_list_request::DebuggerTraceListRequest {
+    fn from(_: CommandLineDebuggerTraceListRequest) -> Self {
+        Self {}
     }
 }

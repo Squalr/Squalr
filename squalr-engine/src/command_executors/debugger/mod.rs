@@ -20,6 +20,12 @@ use squalr_engine_api::commands::debugger::registers_read::debugger_registers_re
 use squalr_engine_api::commands::debugger::registers_read::debugger_registers_read_response::DebuggerRegistersReadResponse;
 use squalr_engine_api::commands::debugger::resume::debugger_resume_request::DebuggerResumeRequest;
 use squalr_engine_api::commands::debugger::resume::debugger_resume_response::DebuggerResumeResponse;
+use squalr_engine_api::commands::debugger::trace_list::debugger_trace_list_request::DebuggerTraceListRequest;
+use squalr_engine_api::commands::debugger::trace_list::debugger_trace_list_response::DebuggerTraceListResponse;
+use squalr_engine_api::commands::debugger::trace_start::debugger_trace_start_request::DebuggerTraceStartRequest;
+use squalr_engine_api::commands::debugger::trace_start::debugger_trace_start_response::DebuggerTraceStartResponse;
+use squalr_engine_api::commands::debugger::trace_stop::debugger_trace_stop_request::DebuggerTraceStopRequest;
+use squalr_engine_api::commands::debugger::trace_stop::debugger_trace_stop_response::DebuggerTraceStopResponse;
 use squalr_engine_api::commands::privileged_command_response::{PrivilegedCommandResponse, TypedPrivilegedCommandResponse};
 use squalr_engine_api::structures::debugger::{DebuggerCommandStatus, DebuggerSessionState};
 use std::sync::Arc;
@@ -75,6 +81,15 @@ impl PrivilegedCommandExecutor for DebuggerCommand {
             DebuggerCommand::RegisterWrite {
                 debugger_register_write_request,
             } => debugger_register_write_request
+                .execute(engine_privileged_state)
+                .to_engine_response(),
+            DebuggerCommand::TraceStart { debugger_trace_start_request } => debugger_trace_start_request
+                .execute(engine_privileged_state)
+                .to_engine_response(),
+            DebuggerCommand::TraceStop { debugger_trace_stop_request } => debugger_trace_stop_request
+                .execute(engine_privileged_state)
+                .to_engine_response(),
+            DebuggerCommand::TraceList { debugger_trace_list_request } => debugger_trace_list_request
                 .execute(engine_privileged_state)
                 .to_engine_response(),
         }
@@ -282,6 +297,81 @@ impl PrivilegedCommandRequestExecutor for DebuggerRegisterWriteRequest {
             Err(error_message) => DebuggerRegisterWriteResponse {
                 status: failure_status(error_message),
                 register_snapshot: None,
+            },
+        }
+    }
+}
+
+impl PrivilegedCommandRequestExecutor for DebuggerTraceStartRequest {
+    type ResponseType = DebuggerTraceStartResponse;
+
+    fn execute(
+        &self,
+        engine_privileged_state: &Arc<EnginePrivilegedState>,
+    ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
+        match engine_privileged_state
+            .get_debugger_service()
+            .start_trace_session(self.address, self.size_in_bytes, self.access, self.label.clone())
+        {
+            Ok((trace_session, instruction_records)) => DebuggerTraceStartResponse {
+                status: DebuggerCommandStatus::success(),
+                trace_session: Some(trace_session),
+                instruction_records,
+            },
+            Err(error_message) => DebuggerTraceStartResponse {
+                status: failure_status(error_message),
+                trace_session: None,
+                instruction_records: Vec::new(),
+            },
+        }
+    }
+}
+
+impl PrivilegedCommandRequestExecutor for DebuggerTraceStopRequest {
+    type ResponseType = DebuggerTraceStopResponse;
+
+    fn execute(
+        &self,
+        engine_privileged_state: &Arc<EnginePrivilegedState>,
+    ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
+        match engine_privileged_state
+            .get_debugger_service()
+            .stop_trace_session(&self.trace_session_id)
+        {
+            Ok((trace_session, instruction_records)) => DebuggerTraceStopResponse {
+                status: DebuggerCommandStatus::success(),
+                trace_session: Some(trace_session),
+                instruction_records,
+            },
+            Err(error_message) => DebuggerTraceStopResponse {
+                status: failure_status(error_message),
+                trace_session: None,
+                instruction_records: Vec::new(),
+            },
+        }
+    }
+}
+
+impl PrivilegedCommandRequestExecutor for DebuggerTraceListRequest {
+    type ResponseType = DebuggerTraceListResponse;
+
+    fn execute(
+        &self,
+        engine_privileged_state: &Arc<EnginePrivilegedState>,
+    ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
+        match engine_privileged_state
+            .get_debugger_service()
+            .list_trace_sessions()
+        {
+            Ok((trace_sessions, instruction_records)) => DebuggerTraceListResponse {
+                status: DebuggerCommandStatus::success(),
+                trace_sessions,
+                instruction_records,
+            },
+            Err(error_message) => DebuggerTraceListResponse {
+                status: failure_status(error_message),
+                trace_sessions: Vec::new(),
+                instruction_records: Vec::new(),
             },
         }
     }

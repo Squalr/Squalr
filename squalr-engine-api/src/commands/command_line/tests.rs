@@ -36,6 +36,34 @@ fn parse_command_line_args_routes_debugger_alias_to_privileged_namespace() {
 }
 
 #[test]
+fn parse_command_line_routes_find_what_writes_to_trace_start() {
+    let parsed_command = parse_command_line_args([
+        "squalr-cli",
+        "dbg",
+        "find-what-writes",
+        "--address",
+        "0x1000",
+        "--size-in-bytes",
+        "4",
+    ])
+    .expect("Expected debugger find-what-writes command to parse.");
+
+    let CommandLineCommand::Privileged(api::commands::privileged_command::PrivilegedCommand::Debugger(DebuggerCommand::TraceStart {
+        debugger_trace_start_request,
+    })) = parsed_command
+    else {
+        panic!("Expected find-what-writes to lower to debugger trace start.");
+    };
+
+    assert_eq!(debugger_trace_start_request.address, 0x1000);
+    assert_eq!(debugger_trace_start_request.size_in_bytes, 4);
+    assert_eq!(
+        debugger_trace_start_request.access,
+        api::structures::debugger::DebuggerDataBreakpointAccess::Write
+    );
+}
+
+#[test]
 fn parse_command_line_args_routes_unprivileged_namespace_directly() {
     let parsed_command = parse_command_line_args(["squalr-cli", "project", "list"]).expect("Expected project list to parse.");
 

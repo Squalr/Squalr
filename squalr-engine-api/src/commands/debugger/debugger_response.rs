@@ -4,6 +4,8 @@ use crate::commands::debugger::{
     breakpoint_set::debugger_breakpoint_set_response::DebuggerBreakpointSetResponse, detach::debugger_detach_response::DebuggerDetachResponse,
     pause::debugger_pause_response::DebuggerPauseResponse, register_write::debugger_register_write_response::DebuggerRegisterWriteResponse,
     registers_read::debugger_registers_read_response::DebuggerRegistersReadResponse, resume::debugger_resume_response::DebuggerResumeResponse,
+    trace_list::debugger_trace_list_response::DebuggerTraceListResponse, trace_start::debugger_trace_start_response::DebuggerTraceStartResponse,
+    trace_stop::debugger_trace_stop_response::DebuggerTraceStopResponse,
 };
 use serde::{Deserialize, Serialize};
 
@@ -35,5 +37,14 @@ pub enum DebuggerResponse {
     },
     RegisterWrite {
         debugger_register_write_response: DebuggerRegisterWriteResponse,
+    },
+    TraceStart {
+        debugger_trace_start_response: DebuggerTraceStartResponse,
+    },
+    TraceStop {
+        debugger_trace_stop_response: DebuggerTraceStopResponse,
+    },
+    TraceList {
+        debugger_trace_list_response: DebuggerTraceListResponse,
     },
 }
