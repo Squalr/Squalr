@@ -255,7 +255,7 @@ impl DebuggerService {
             .as_debugger_plugin()
             .ok_or_else(|| format!("Plugin '{}' is not a debugger plugin.", plugin_package.metadata().get_plugin_id()))?;
         let plugin_id = plugin_package.metadata().get_plugin_id().to_string();
-        let trace_event_sink = self.create_trace_event_sink(process_info);
+        let trace_event_sink = self.create_trace_event_sink(process_info, &plugin_id);
         let debugger_session = debugger_plugin
             .create_session(process_info, trace_event_sink)
             .map_err(|error| error.to_string())?;
@@ -347,14 +347,23 @@ impl DebuggerService {
     fn create_trace_event_sink(
         &self,
         process_info: &OpenedProcessInfo,
+        plugin_id: &str,
     ) -> DebuggerTraceEventSink {
         let event_emitter = self.event_emitter.clone();
         let plugin_registry = self.plugin_registry.clone();
         let process_bitness = process_info.get_bitness();
+        let active_plugin_id = plugin_id.to_string();
 
         Arc::new(move |trace_event: DebuggerTraceEvent| {
             let trace_event = Self::enrich_trace_event_with_disassembly(&plugin_registry, process_bitness, trace_event);
 
+            event_emitter(
+                DebuggerSessionStateChangedEvent {
+                    session_state: DebuggerSessionState::Paused,
+                    active_plugin_id: Some(active_plugin_id.clone()),
+                }
+                .to_engine_event(),
+            );
             event_emitter(DebuggerTraceRecordedEvent { trace_event }.to_engine_event());
         })
     }
@@ -830,6 +839,7 @@ mod tests {
             session_events,
             vec![
                 (DebuggerSessionState::Attached, Some(String::from("test.debugger.second"))),
+                (DebuggerSessionState::Paused, Some(String::from("test.debugger.second"))),
                 (DebuggerSessionState::Paused, Some(String::from("test.debugger.second"))),
                 (DebuggerSessionState::Running, Some(String::from("test.debugger.second"))),
                 (DebuggerSessionState::Detached, None),

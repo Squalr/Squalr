@@ -82,6 +82,7 @@ Our current task, from `README.md`, is:
   - The WinDbg worker now alternates command handling with short `WaitForEvent` calls while running, uses `GetLastEventInformation` to identify breakpoint stops, captures a register snapshot, and emits `DebuggerTraceEvent`.
   - Trace events currently include breakpoint descriptor, registers, DbgEng backend message, and a 16-byte instruction window read through `IDebugDataSpaces::ReadVirtual`.
   - `DebuggerService` enriches trace events with disassembly by selecting the enabled instruction-set plugin for the opened process bitness (`x86`/`x64` for now).
+  - Plugin trace emission also emits a `DebuggerSessionState::Paused` event so frontends do not keep showing the target as running after a breakpoint stop.
   - This needs human verification against a disposable local process before it should be treated as functional.
 - Old C# Squalr debugger scope was small:
   - `FindWhatReads`, `FindWhatWrites`, and `FindWhatAccesses` set hardware data breakpoints.
@@ -142,6 +143,9 @@ Our current task, from `README.md`, is:
 - After engine-side debugger trace disassembly enrichment:
   - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
   - `cargo test -p squalr-engine-session --locked registry_exposes_builtin_x86_instruction_plugin_capabilities -- --nocapture` passed.
+  - `cargo check -p squalr-engine --locked` passed.
+- After paused-state emission for debugger traces:
+  - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
   - `cargo check -p squalr-engine --locked` passed.
 - References checked:
   - Local Rust workspace plugin/session/target architecture.
