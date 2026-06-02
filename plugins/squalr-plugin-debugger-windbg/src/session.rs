@@ -86,9 +86,9 @@ impl DebuggerSession for WindbgDebuggerSession {
 
     fn write_register(
         &mut self,
-        _register_name: &str,
-        _value: u64,
+        register_name: &str,
+        value: u64,
     ) -> Result<DebuggerRegisterSnapshot, DebuggerPluginError> {
-        Err(self.unavailable())
+        self.backend.write_register(register_name, value)
     }
 }

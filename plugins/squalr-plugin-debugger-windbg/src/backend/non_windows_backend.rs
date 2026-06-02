@@ -31,6 +31,14 @@ impl WindbgBackend {
         Err(self.unavailable_error())
     }
 
+    pub(crate) fn write_register(
+        &self,
+        _register_name: &str,
+        _value: u64,
+    ) -> Result<DebuggerRegisterSnapshot, DebuggerPluginError> {
+        Err(self.unavailable_error())
+    }
+
     pub(crate) fn unavailable_error(&self) -> DebuggerPluginError {
         DebuggerPluginError::new(WINDBG_DEBUGGER_PLUGIN_ID, "WinDbg DbgEng debugger backend is only available on Windows.")
     }

@@ -1,5 +1,5 @@
 use crate::constants::WINDBG_DEBUGGER_PLUGIN_ID;
-use squalr_engine_api::structures::debugger::DebuggerRegisterSnapshot;
+use squalr_engine_api::structures::debugger::{DebuggerRegisterSnapshot, DebuggerRegisterValue};
 use squalr_engine_api::{plugins::debugger::DebuggerPluginError, structures::processes::opened_process_info::OpenedProcessInfo};
 use std::{
     sync::mpsc::{self, Receiver, Sender},
@@ -7,9 +7,10 @@ use std::{
 };
 use windows::{
     Win32::System::Diagnostics::Debug::Extensions::{
-        DEBUG_ATTACH_DEFAULT, DEBUG_END_ACTIVE_DETACH, DEBUG_INTERRUPT_ACTIVE, DEBUG_STATUS_GO, DebugCreate, IDebugClient, IDebugControl, IDebugRegisters,
+        DEBUG_ATTACH_DEFAULT, DEBUG_END_ACTIVE_DETACH, DEBUG_INTERRUPT_ACTIVE, DEBUG_REGISTER_DESCRIPTION, DEBUG_STATUS_GO, DEBUG_VALUE, DEBUG_VALUE_INT8,
+        DEBUG_VALUE_INT16, DEBUG_VALUE_INT32, DEBUG_VALUE_INT64, DebugCreate, IDebugClient, IDebugControl, IDebugRegisters2,
     },
-    core::Interface,
+    core::{HSTRING, Interface},
 };
 
 const INITIAL_ATTACH_WAIT_TIMEOUT_MS: u32 = 10_000;
@@ -84,6 +85,17 @@ impl WindbgBackend {
             .read_registers()
     }
 
+    pub(crate) fn write_register(
+        &self,
+        register_name: &str,
+        value: u64,
+    ) -> Result<DebuggerRegisterSnapshot, DebuggerPluginError> {
+        self.worker_handle
+            .as_ref()
+            .ok_or_else(|| Self::plugin_error("Cannot write registers because there is no active DbgEng worker."))?
+            .write_register(register_name, value)
+    }
+
     pub(crate) fn unavailable_error(&self) -> DebuggerPluginError {
         DebuggerPluginError::new(WINDBG_DEBUGGER_PLUGIN_ID, "DbgEng debugger backend currently supports attach/detach only.")
     }
@@ -125,6 +137,26 @@ impl WindbgWorkerHandle {
         result_receiver
             .recv()
             .map_err(|error| WindbgBackend::plugin_error(format!("DbgEng worker exited before register snapshot completed: {}", error)))?
+    }
+
+    fn write_register(
+        &self,
+        register_name: &str,
+        value: u64,
+    ) -> Result<DebuggerRegisterSnapshot, DebuggerPluginError> {
+        let (result_sender, result_receiver) = mpsc::channel();
+
+        self.command_sender
+            .send(WindbgWorkerCommand::WriteRegister {
+                register_name: register_name.to_string(),
+                value,
+                result_sender,
+            })
+            .map_err(|error| WindbgBackend::plugin_error(format!("Failed to request DbgEng register write: {}", error)))?;
+
+        result_receiver
+            .recv()
+            .map_err(|error| WindbgBackend::plugin_error(format!("DbgEng worker exited before register write completed: {}", error)))?
     }
 
     fn detach(&mut self) -> Result<(), DebuggerPluginError> {
@@ -179,6 +211,11 @@ enum WindbgWorkerCommand {
     ReadRegisters {
         result_sender: Sender<Result<DebuggerRegisterSnapshot, DebuggerPluginError>>,
     },
+    WriteRegister {
+        register_name: String,
+        value: u64,
+        result_sender: Sender<Result<DebuggerRegisterSnapshot, DebuggerPluginError>>,
+    },
     Detach {
         result_sender: Sender<Result<(), DebuggerPluginError>>,
     },
@@ -192,7 +229,7 @@ enum WindbgWorkerCommandKind {
 struct ActiveWindbgSession {
     client: IDebugClient,
     control: IDebugControl,
-    registers: IDebugRegisters,
+    registers: IDebugRegisters2,
 }
 
 impl ActiveWindbgSession {
@@ -213,9 +250,9 @@ impl ActiveWindbgSession {
                 error
             ))
         })?;
-        let registers = client.cast::<IDebugRegisters>().map_err(|error| {
+        let registers = client.cast::<IDebugRegisters2>().map_err(|error| {
             WindbgBackend::plugin_error(format!(
-                "IDebugClient could not be cast to IDebugRegisters while attaching to '{}' ({}): {}",
+                "IDebugClient could not be cast to IDebugRegisters2 while attaching to '{}' ({}): {}",
                 process_info.get_name(),
                 process_info.get_process_id(),
                 error
@@ -278,8 +315,147 @@ impl ActiveWindbgSession {
             .map_err(|error| WindbgBackend::plugin_error(format!("IDebugRegisters::GetInstructionOffset failed: {}", error)))?;
         let stack_pointer = unsafe { self.registers.GetStackOffset() }
             .map_err(|error| WindbgBackend::plugin_error(format!("IDebugRegisters::GetStackOffset failed: {}", error)))?;
+        let registers = self.read_integer_registers()?;
 
-        Ok(DebuggerRegisterSnapshot::new(Some(instruction_pointer), Some(stack_pointer), Vec::new()))
+        Ok(DebuggerRegisterSnapshot::new(Some(instruction_pointer), Some(stack_pointer), registers))
+    }
+
+    fn write_register(
+        &self,
+        register_name: &str,
+        value: u64,
+    ) -> Result<DebuggerRegisterSnapshot, DebuggerPluginError> {
+        let register_ordinal = unsafe {
+            self.registers
+                .GetIndexByNameWide(&HSTRING::from(register_name))
+                .map_err(|error| WindbgBackend::plugin_error(format!("IDebugRegisters::GetIndexByNameWide('{}') failed: {}", register_name, error)))?
+        };
+        let mut debug_value = DEBUG_VALUE::default();
+
+        unsafe {
+            self.registers
+                .GetValue(register_ordinal, &mut debug_value)
+                .map_err(|error| WindbgBackend::plugin_error(format!("IDebugRegisters::GetValue('{}') failed before write: {}", register_name, error)))?;
+        }
+
+        Self::set_debug_value_integer(&mut debug_value, value)?;
+
+        unsafe {
+            self.registers
+                .SetValue(register_ordinal, &debug_value)
+                .map_err(|error| WindbgBackend::plugin_error(format!("IDebugRegisters::SetValue('{}') failed: {}", register_name, error)))?;
+        }
+
+        self.read_registers()
+    }
+
+    fn read_integer_registers(&self) -> Result<Vec<DebuggerRegisterValue>, DebuggerPluginError> {
+        let register_count = unsafe { self.registers.GetNumberRegisters() }
+            .map_err(|error| WindbgBackend::plugin_error(format!("IDebugRegisters::GetNumberRegisters failed: {}", error)))?;
+        let mut register_values = Vec::new();
+
+        for register_ordinal in 0..register_count {
+            if let Some(register_value) = self.read_integer_register(register_ordinal)? {
+                register_values.push(register_value);
+            }
+        }
+
+        Ok(register_values)
+    }
+
+    fn read_integer_register(
+        &self,
+        register_ordinal: u32,
+    ) -> Result<Option<DebuggerRegisterValue>, DebuggerPluginError> {
+        let mut register_name_buffer = [0u16; 128];
+        let mut register_name_size = 0u32;
+        let mut register_description = DEBUG_REGISTER_DESCRIPTION::default();
+        let mut debug_value = DEBUG_VALUE::default();
+
+        unsafe {
+            self.registers
+                .GetDescriptionWide(
+                    register_ordinal,
+                    Some(&mut register_name_buffer),
+                    Some(&mut register_name_size),
+                    Some(&mut register_description),
+                )
+                .map_err(|error| WindbgBackend::plugin_error(format!("IDebugRegisters::GetDescriptionWide({}) failed: {}", register_ordinal, error)))?;
+            self.registers
+                .GetValue(register_ordinal, &mut debug_value)
+                .map_err(|error| WindbgBackend::plugin_error(format!("IDebugRegisters::GetValue({}) failed: {}", register_ordinal, error)))?;
+        }
+
+        let Some((value, bit_width)) = Self::debug_value_to_u64(&debug_value) else {
+            return Ok(None);
+        };
+        let register_name = Self::decode_register_name(&register_name_buffer, register_name_size);
+
+        if register_name.is_empty() {
+            return Ok(None);
+        }
+
+        Ok(Some(DebuggerRegisterValue::new(register_name, value, bit_width)))
+    }
+
+    fn decode_register_name(
+        register_name_buffer: &[u16],
+        register_name_size: u32,
+    ) -> String {
+        let candidate_length = if register_name_size > 0 {
+            register_name_size as usize
+        } else {
+            register_name_buffer
+                .iter()
+                .position(|character| *character == 0)
+                .unwrap_or(register_name_buffer.len())
+        };
+        let bounded_length = candidate_length.min(register_name_buffer.len());
+        let trimmed_length = if bounded_length > 0 && register_name_buffer[bounded_length - 1] == 0 {
+            bounded_length - 1
+        } else {
+            bounded_length
+        };
+
+        String::from_utf16_lossy(&register_name_buffer[..trimmed_length])
+    }
+
+    fn debug_value_to_u64(debug_value: &DEBUG_VALUE) -> Option<(u64, u16)> {
+        match debug_value.Type {
+            DEBUG_VALUE_INT8 => Some((unsafe { debug_value.Anonymous.I8 } as u64, 8)),
+            DEBUG_VALUE_INT16 => Some((unsafe { debug_value.Anonymous.I16 } as u64, 16)),
+            DEBUG_VALUE_INT32 => Some((unsafe { debug_value.Anonymous.I32 } as u64, 32)),
+            DEBUG_VALUE_INT64 => Some((unsafe { debug_value.Anonymous.Anonymous.I64 }, 64)),
+            _ => None,
+        }
+    }
+
+    fn set_debug_value_integer(
+        debug_value: &mut DEBUG_VALUE,
+        value: u64,
+    ) -> Result<(), DebuggerPluginError> {
+        match debug_value.Type {
+            DEBUG_VALUE_INT8 => {
+                debug_value.Anonymous.I8 = value as u8;
+                Ok(())
+            }
+            DEBUG_VALUE_INT16 => {
+                debug_value.Anonymous.I16 = value as u16;
+                Ok(())
+            }
+            DEBUG_VALUE_INT32 => {
+                debug_value.Anonymous.I32 = value as u32;
+                Ok(())
+            }
+            DEBUG_VALUE_INT64 => {
+                debug_value.Anonymous.Anonymous.I64 = value;
+                Ok(())
+            }
+            _ => Err(WindbgBackend::plugin_error(format!(
+                "Register value type {} is not supported for integer writes.",
+                debug_value.Type
+            ))),
+        }
     }
 
     fn detach(&self) -> Result<(), DebuggerPluginError> {
@@ -333,6 +509,14 @@ fn wait_for_worker_commands(
             WindbgWorkerCommand::ReadRegisters { result_sender } => {
                 let read_registers_result = active_session.read_registers();
                 let _ = result_sender.send(read_registers_result);
+            }
+            WindbgWorkerCommand::WriteRegister {
+                register_name,
+                value,
+                result_sender,
+            } => {
+                let write_register_result = active_session.write_register(&register_name, value);
+                let _ = result_sender.send(write_register_result);
             }
             WindbgWorkerCommand::Detach { result_sender } => {
                 let detach_result = active_session.detach();
