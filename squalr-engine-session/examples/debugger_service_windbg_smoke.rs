@@ -160,6 +160,39 @@ fn run_smoke_against_child(child_process: &mut std::process::Child) -> Result<()
         instruction_records.len()
     );
 
+    let (second_trace_session, _) = debugger_service.start_trace_session(
+        target_address,
+        8,
+        DebuggerDataBreakpointAccess::Write,
+        Some(String::from("session-windbg-smoke-write-restart")),
+    )?;
+    println!(
+        "Restarted trace session {} at {:#x}.",
+        second_trace_session.get_trace_session_id(),
+        second_trace_session.get_address()
+    );
+
+    let second_trace_event = wait_for_trace_event(&engine_event_receiver, Duration::from_secs(10))?;
+    println!(
+        "Restart trace event: IP={}, instruction_address={}, bytes={}, instruction={:?}, backend={:?}.",
+        format_optional_address(
+            second_trace_event
+                .get_register_snapshot()
+                .get_instruction_pointer()
+        ),
+        format_optional_address(second_trace_event.get_instruction_address()),
+        second_trace_event.get_instruction_bytes().len(),
+        second_trace_event.get_instruction_text(),
+        second_trace_event.get_backend_message()
+    );
+
+    let (second_stopped_trace_session, second_instruction_records) = debugger_service.stop_trace_session(second_trace_session.get_trace_session_id())?;
+    println!(
+        "Stopped restarted trace session {} with {} instruction record(s).",
+        second_stopped_trace_session.get_trace_session_id(),
+        second_instruction_records.len()
+    );
+
     debugger_service.detach()?;
     println!("Detached cleanly through the session service.");
 

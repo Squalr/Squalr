@@ -141,6 +141,22 @@ impl DebuggerTraceViewData {
 
         match self.inner.write() {
             Ok(mut state) => {
+                if !debugger_trace_session_updated_event
+                    .trace_session
+                    .get_is_active()
+                {
+                    state.trace_sessions.remove(&trace_session_id);
+                    state
+                        .instruction_records_by_trace_session_id
+                        .remove(&trace_session_id);
+                    state
+                        .pending_control_trace_session_ids
+                        .remove(&trace_session_id);
+                    state.retain_valid_selection();
+
+                    return;
+                }
+
                 state
                     .trace_sessions
                     .insert(trace_session_id.clone(), debugger_trace_session_updated_event.trace_session.clone());
@@ -392,5 +408,56 @@ impl DebuggerTraceViewState {
 
         self.selected_instruction_keys
             .retain(|selected_instruction_key| valid_instruction_keys.contains(selected_instruction_key));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::DebuggerTraceViewData;
+    use squalr_engine_api::{
+        events::debugger::trace_session_updated::debugger_trace_session_updated_event::DebuggerTraceSessionUpdatedEvent,
+        structures::debugger::{DebuggerBreakpointDescriptor, DebuggerBreakpointKind, DebuggerDataBreakpointAccess, DebuggerTraceSessionDescriptor},
+    };
+
+    #[test]
+    fn inactive_trace_update_removes_session_and_records_from_snapshot() {
+        let debugger_trace_view_data = DebuggerTraceViewData::new();
+        let active_trace_session = create_trace_session(true);
+        let inactive_trace_session = create_trace_session(false);
+
+        debugger_trace_view_data.apply_trace_session_updated(&DebuggerTraceSessionUpdatedEvent {
+            trace_session: active_trace_session,
+            instruction_records: Vec::new(),
+        });
+        assert_eq!(debugger_trace_view_data.get_snapshot().trace_sessions.len(), 1);
+
+        debugger_trace_view_data.apply_trace_session_updated(&DebuggerTraceSessionUpdatedEvent {
+            trace_session: inactive_trace_session,
+            instruction_records: Vec::new(),
+        });
+        let snapshot = debugger_trace_view_data.get_snapshot();
+
+        assert!(snapshot.trace_sessions.is_empty());
+        assert!(snapshot.instruction_records.is_empty());
+    }
+
+    fn create_trace_session(is_active: bool) -> DebuggerTraceSessionDescriptor {
+        let breakpoint = DebuggerBreakpointDescriptor::new(
+            "bp-1",
+            0x5000,
+            DebuggerBreakpointKind::hardware_data(DebuggerDataBreakpointAccess::Write, 4),
+            is_active,
+            Some(String::from("health")),
+        );
+
+        DebuggerTraceSessionDescriptor::new(
+            "trace-1",
+            0x5000,
+            4,
+            DebuggerDataBreakpointAccess::Write,
+            breakpoint,
+            Some(String::from("health")),
+            is_active,
+        )
     }
 }

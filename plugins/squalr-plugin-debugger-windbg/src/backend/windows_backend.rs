@@ -31,6 +31,7 @@ const INITIAL_ATTACH_WAIT_TIMEOUT_MS: u32 = 10_000;
 const RUNNING_EVENT_WAIT_TIMEOUT_MS: u32 = 50;
 const IDLE_COMMAND_WAIT_TIMEOUT_MS: u64 = 50;
 const TRACE_INSTRUCTION_BYTE_WINDOW: usize = 16;
+const HRESULT_ACCESS_DENIED: i32 = 0x80070005u32 as i32;
 
 pub(crate) struct WindbgBackend {
     process_info: OpenedProcessInfo,
@@ -389,6 +390,8 @@ struct ActiveWindbgSession {
 
 struct StoredWindbgBreakpoint {
     breakpoint: IDebugBreakpoint,
+    address: u64,
+    kind: DebuggerBreakpointKind,
     flags: u32,
 }
 
@@ -499,10 +502,17 @@ impl ActiveWindbgSession {
     }
 
     fn resume(&mut self) -> Result<(), DebuggerPluginError> {
-        unsafe {
-            self.control
-                .SetExecutionStatus(DEBUG_STATUS_GO)
-                .map_err(|error| WindbgBackend::plugin_error(format!("IDebugControl::SetExecutionStatus(DEBUG_STATUS_GO) failed: {}", error)))?;
+        let resume_result = unsafe { self.control.SetExecutionStatus(DEBUG_STATUS_GO) };
+
+        if let Err(error) = resume_result {
+            if Self::is_target_already_executing_error(&error) {
+                log::debug!("IDebugControl::SetExecutionStatus(DEBUG_STATUS_GO) reported the target is already executing.");
+            } else {
+                return Err(WindbgBackend::plugin_error(format!(
+                    "IDebugControl::SetExecutionStatus(DEBUG_STATUS_GO) failed: {}",
+                    error
+                )));
+            }
         }
 
         self.session_state = DebuggerSessionState::Running;
@@ -555,6 +565,10 @@ impl ActiveWindbgSession {
         kind: DebuggerBreakpointKind,
         label: Option<String>,
     ) -> Result<DebuggerBreakpointDescriptor, DebuggerPluginError> {
+        if let Some(reused_breakpoint_descriptor) = self.reuse_disabled_breakpoint(address, &kind, label.clone())? {
+            return Ok(reused_breakpoint_descriptor);
+        }
+
         let breakpoint_type = Self::debug_breakpoint_type(&kind);
         let breakpoint = unsafe { self.control.AddBreakpoint(breakpoint_type, DEBUG_ANY_ID) }
             .map_err(|error| WindbgBackend::plugin_error(format!("IDebugControl::AddBreakpoint failed for 0x{:X}: {}", address, error)))?;
@@ -577,11 +591,46 @@ impl ActiveWindbgSession {
             breakpoint_id,
             StoredWindbgBreakpoint {
                 breakpoint,
+                address,
+                kind: kind.clone(),
                 flags: DEBUG_BREAKPOINT_ENABLED,
             },
         );
 
         Ok(DebuggerBreakpointDescriptor::new(breakpoint_id.to_string(), address, kind, true, label))
+    }
+
+    fn reuse_disabled_breakpoint(
+        &mut self,
+        address: u64,
+        kind: &DebuggerBreakpointKind,
+        label: Option<String>,
+    ) -> Result<Option<DebuggerBreakpointDescriptor>, DebuggerPluginError> {
+        let Some(debug_breakpoint_id) = self
+            .breakpoints_by_id
+            .iter()
+            .find_map(|(debug_breakpoint_id, stored_breakpoint)| {
+                if stored_breakpoint.address == address && stored_breakpoint.kind == *kind && stored_breakpoint.flags & DEBUG_BREAKPOINT_ENABLED == 0 {
+                    Some(*debug_breakpoint_id)
+                } else {
+                    None
+                }
+            })
+        else {
+            return Ok(None);
+        };
+
+        self.set_breakpoint_enabled(&debug_breakpoint_id.to_string(), true)?;
+        self.breakpoint_labels
+            .insert(debug_breakpoint_id, label.clone());
+
+        Ok(Some(DebuggerBreakpointDescriptor::new(
+            debug_breakpoint_id.to_string(),
+            address,
+            kind.clone(),
+            true,
+            label,
+        )))
     }
 
     fn remove_breakpoint(
@@ -985,6 +1034,10 @@ impl ActiveWindbgSession {
             DebuggerBreakpointKind::Software => DEBUG_BREAKPOINT_CODE,
             DebuggerBreakpointKind::HardwareData { .. } => DEBUG_BREAKPOINT_DATA,
         }
+    }
+
+    fn is_target_already_executing_error(error: &windows::core::Error) -> bool {
+        error.code().0 == HRESULT_ACCESS_DENIED
     }
 
     fn debug_data_breakpoint_access(access: DebuggerDataBreakpointAccess) -> u32 {

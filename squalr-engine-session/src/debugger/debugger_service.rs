@@ -105,9 +105,9 @@ impl DebuggerTraceSessionStore {
         &mut self,
         trace_session_id: &str,
     ) -> Result<(DebuggerTraceSessionDescriptor, Vec<DebuggerTraceInstructionRecord>), String> {
-        let trace_session = self
+        let mut trace_session = self
             .sessions
-            .get_mut(trace_session_id)
+            .remove(trace_session_id)
             .ok_or_else(|| format!("Debugger trace session '{}' does not exist.", trace_session_id))?;
 
         self.breakpoint_to_trace_session_id
@@ -117,7 +117,7 @@ impl DebuggerTraceSessionStore {
         trace_session.descriptor.set_breakpoint(breakpoint);
         trace_session.descriptor.set_is_active(false);
 
-        Ok((trace_session.descriptor.clone(), trace_session.instruction_records.clone()))
+        Ok((trace_session.descriptor, Vec::new()))
     }
 
     fn set_collection_enabled(
@@ -1371,7 +1371,12 @@ mod tests {
             .stop_trace_session(trace_session.get_trace_session_id())
             .expect("Expected trace session to stop.");
         assert!(!stopped_trace_session.get_is_active());
-        assert_eq!(stopped_records[0].get_hit_count(), 3);
+        assert!(stopped_records.is_empty());
+        let (trace_sessions_after_stop, instruction_records_after_stop) = debugger_service
+            .list_trace_sessions()
+            .expect("Expected trace session list after stop.");
+        assert!(trace_sessions_after_stop.is_empty());
+        assert!(instruction_records_after_stop.is_empty());
         assert!(
             debugger_backend
                 .lock()
@@ -1397,7 +1402,7 @@ mod tests {
             })
             .expect("Expected emitted event lock to be available.");
 
-        assert_eq!(trace_hit_counts, vec![1, 1, 1, 2, 3, 3]);
+        assert_eq!(trace_hit_counts, vec![1, 1, 1, 2, 3]);
     }
 
     #[test]

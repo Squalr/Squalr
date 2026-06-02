@@ -474,6 +474,21 @@ Our current task, from `README.md`, is:
   - `cargo test -p squalr-plugin-debugger-windbg --locked -- --nocapture` passed.
   - `cargo run -p squalr-plugin-debugger-windbg --example windbg_smoke --locked` passed on Windows against a disposable child process.
   - GUI behavior against the originally failing target and instruction project item still needs human verification after implementation and validation.
+- After DbgEng restart-after-stop and stop-clears-trace correction:
+  - Reproduced the restart shape in the service smoke: after Stop Trace, starting a new trace on the same attached DbgEng session previously hit stale disabled-breakpoint state and/or an already-running `SetExecutionStatus(DEBUG_STATUS_GO)` failure.
+  - DbgEng breakpoint wrappers now retain address/kind metadata. Starting a matching trace reuses and re-enables the disabled tracked breakpoint instead of calling `AddBreakpoint` again.
+  - `resume()` now treats HRESULT `0x80070005` from `SetExecutionStatus(DEBUG_STATUS_GO)` as DbgEng's already-executing state and still reports the session as running. Other resume errors still fail.
+  - Stop Trace now removes the trace session from the session store and returns/emits an empty instruction record list, matching the intended "complete trace shutdown" behavior.
+  - The GUI trace view data now removes inactive trace sessions and their instruction records when it receives the final inactive trace update, so the grid clears after Stop Trace.
+  - `cargo fmt --all` completed with the existing `.rustfmt.toml` deprecation warnings for `fn_args_layout`.
+  - `cargo run -p squalr-engine-session --example debugger_service_windbg_smoke --locked` passed on Windows against a disposable child process and now covers start, hit, pause/resume collection, stop with zero returned records, restart on the same address, second hit, second stop, and detach.
+  - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
+  - `cargo test -p squalr --locked inactive_trace_update_removes_session_and_records_from_snapshot -- --nocapture` passed.
+  - `cargo check -p squalr-plugin-debugger-windbg --locked` passed.
+  - `cargo check -p squalr --locked` passed.
+  - `cargo run -p squalr-engine --example debugger_command_windbg_smoke --locked` passed on Windows against a disposable child process and now reports Stop Trace with zero returned records.
+  - `cargo test -p squalr-plugin-debugger-windbg --locked -- --nocapture` passed.
+  - GUI behavior against the originally failing target still needs human verification after implementation and validation.
 - References checked:
   - Local Rust workspace plugin/session/target architecture.
   - Old C# implementation under `C:\Projects\Squalr\Squalr.Engine.Debugger`.
