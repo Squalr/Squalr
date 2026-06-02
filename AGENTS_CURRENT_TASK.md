@@ -115,11 +115,18 @@ Our current task, from `README.md`, is:
 - GUI debugger trace bridge slice completed:
   - Added a docked `Debugger Trace` window registered in the main dock layout beside Output, Memory Viewer, Code Viewer, and Plugins.
   - Added `DebuggerTraceViewData` to listen for `DebuggerTraceSessionUpdatedEvent` and retain trace sessions, instruction records, and row selection.
-  - The trace window shows trace sessions, active stop buttons, instruction text/bytes, hit counts, instruction addresses, and backend messages.
+  - The trace window shows trace sessions, active stop buttons, instruction text/bytes, hit counts, instruction addresses, and backend messages in a scan-results-style entry grid.
   - Added project item context menu entries for `Find What Reads`, `Find What Writes`, and `Find What Accesses` on address/pointer-style project items.
-  - Project context actions reuse the existing runtime project item address resolution path, normalize hardware data-breakpoint sizes to 1/2/4/8 bytes, focus the debugger trace dock, auto-attach the debugger service if needed, and then start a trace session.
+  - Project context actions reuse the existing runtime project item address resolution path, normalize hardware data-breakpoint sizes to 1/2/4/8 bytes, focus the debugger trace dock, and queue a mandatory attach confirmation takeover before any debugger attach or trace-start command is sent.
   - Made `DebuggerService::attach` idempotent for already-active debugger sessions so repeated GUI trace actions do not reattach through the plugin.
-  - The visible C#-style path is now wired through the GUI up to trace result display, but adding selected trace instructions into the project is still pending and needs a clean project item/symbol representation.
+  - The visible C#-style path is now wired through the GUI up to trace result display.
+- Corrected debugger trace UX slice completed:
+  - Removed the ad hoc native egui grid/checkbox/toolbar trace result surface.
+  - Added a painted `DebuggerTraceEntryView` that follows the existing row-entry style used by scan results and plugin/process lists.
+  - `Find What Reads/Writes/Accesses` now always opens the Debugger Trace window and shows an attach confirmation takeover before dispatching `DebuggerAttachRequest` and `DebuggerTraceStartRequest`.
+  - Trace hits populate as row entries with instruction text/bytes, hit count, instruction address, backend message, and selected-row state.
+  - Double-clicking a trace instruction creates an address project item at the instruction address using the selected project directory, matching the scan-results double-click add-to-project flow.
+  - The current add-to-project representation is an ordinary `address` project item named `Instruction 0x...` with `u8` data type. A dedicated instruction/code project item type is still a future cleanup if the project schema should distinguish code locations from data addresses.
 - Old C# Squalr debugger scope was small:
   - `FindWhatReads`, `FindWhatWrites`, and `FindWhatAccesses` set hardware data breakpoints.
   - `PauseExecution` and `ResumeExecution` interrupt/resume the debuggee.
@@ -150,7 +157,8 @@ Our current task, from `README.md`, is:
   - `squalr-cli`/`squalr-tui`/`squalr`: command and basic UI surfaces.
 - Next implementation target:
   - Add GUI/project-item integration for the C#-style flow:
-    - Add selected trace instruction records to the project through a clean project item/symbol representation.
+    - Human-verify the corrected flow: right-click project item -> `Find What Writes` -> Debugger Trace attach takeover -> breakpoint hit rows populate -> double-click hit row creates a project item.
+    - Decide whether to add a dedicated instruction/code project item type instead of the current address-item representation for trace hits.
     - Consider adding the same find-what actions to the older Symbol Tree context menu once the Project Explorer path has human verification.
     - Consider adding module/offset enrichment to trace records instead of showing only absolute instruction addresses.
   - Human-verify DbgEng attach/detach, pause/resume, register read/write, breakpoint create/remove/list, trace sessions, and breakpoint trace emission from CLI/TUI/GUI command surfaces against a disposable local process.
@@ -232,6 +240,13 @@ Our current task, from `README.md`, is:
   - `cargo check -p squalr --locked` passed.
   - `cargo test -p squalr --locked default_layout_places_output_related_windows_in_same_tab_group -- --nocapture` passed.
   - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
+- After corrected debugger trace entry-grid UX and mandatory attach takeover:
+  - `cargo fmt --all` completed with the existing `.rustfmt.toml` deprecation warnings for `fn_args_layout`.
+  - `cargo check -p squalr --locked` passed.
+  - `cargo test -p squalr --locked default_layout_places_output_related_windows_in_same_tab_group -- --nocapture` passed.
+  - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
+  - Local source check found no remaining `Grid::new`, trace checkbox, `Add Selected to Project`, or auto-attach markers in `squalr/src/views/debugger_trace` or `squalr/src/views/project_explorer/project_hierarchy`.
+  - This still needs human verification through the GUI against a disposable local process before it should be treated as release-ready.
 - References checked:
   - Local Rust workspace plugin/session/target architecture.
   - Old C# implementation under `C:\Projects\Squalr\Squalr.Engine.Debugger`.
