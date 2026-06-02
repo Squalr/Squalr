@@ -1,8 +1,11 @@
 use crate::plugins::plugin_registry::PluginRegistry;
 use squalr_engine_api::events::debugger::session_state_changed::debugger_session_state_changed_event::DebuggerSessionStateChangedEvent;
+use squalr_engine_api::events::debugger::trace_recorded::debugger_trace_recorded_event::DebuggerTraceRecordedEvent;
 use squalr_engine_api::events::engine_event::{EngineEvent, EngineEventRequest};
-use squalr_engine_api::plugins::debugger::DebuggerSession;
-use squalr_engine_api::structures::debugger::{DebuggerBreakpointDescriptor, DebuggerBreakpointKind, DebuggerRegisterSnapshot, DebuggerSessionState};
+use squalr_engine_api::plugins::debugger::{DebuggerSession, DebuggerTraceEventSink};
+use squalr_engine_api::structures::debugger::{
+    DebuggerBreakpointDescriptor, DebuggerBreakpointKind, DebuggerRegisterSnapshot, DebuggerSessionState, DebuggerTraceEvent,
+};
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use std::sync::{Arc, Mutex, RwLock};
 
@@ -251,8 +254,9 @@ impl DebuggerService {
             .as_debugger_plugin()
             .ok_or_else(|| format!("Plugin '{}' is not a debugger plugin.", plugin_package.metadata().get_plugin_id()))?;
         let plugin_id = plugin_package.metadata().get_plugin_id().to_string();
+        let trace_event_sink = self.create_trace_event_sink();
         let debugger_session = debugger_plugin
-            .create_session(process_info)
+            .create_session(process_info, trace_event_sink)
             .map_err(|error| error.to_string())?;
         let shared_debugger_session = Arc::new(Mutex::new(debugger_session));
 
@@ -338,6 +342,14 @@ impl DebuggerService {
             .to_engine_event(),
         );
     }
+
+    fn create_trace_event_sink(&self) -> DebuggerTraceEventSink {
+        let event_emitter = self.event_emitter.clone();
+
+        Arc::new(move |trace_event: DebuggerTraceEvent| {
+            event_emitter(DebuggerTraceRecordedEvent { trace_event }.to_engine_event());
+        })
+    }
 }
 
 struct CachedDebuggerSessionSnapshot {
@@ -352,10 +364,12 @@ mod tests {
         events::{debugger::debugger_event::DebuggerEvent, engine_event::EngineEvent},
         plugins::{
             Plugin, PluginCapability, PluginMetadata, PluginPackage, PluginPermission,
-            debugger::{DebuggerPlugin, DebuggerPluginError, DebuggerSession},
+            debugger::{DebuggerPlugin, DebuggerPluginError, DebuggerSession, DebuggerTraceEventSink},
         },
         structures::{
-            debugger::{DebuggerBreakpointDescriptor, DebuggerBreakpointKind, DebuggerRegisterSnapshot, DebuggerRegisterValue, DebuggerSessionState},
+            debugger::{
+                DebuggerBreakpointDescriptor, DebuggerBreakpointKind, DebuggerRegisterSnapshot, DebuggerRegisterValue, DebuggerSessionState, DebuggerTraceEvent,
+            },
             memory::bitness::Bitness,
             processes::opened_process_info::OpenedProcessInfo,
         },
@@ -368,6 +382,7 @@ mod tests {
         state: DebuggerSessionState,
         breakpoints: Vec<DebuggerBreakpointDescriptor>,
         registers: Vec<DebuggerRegisterValue>,
+        trace_event_sink: Option<DebuggerTraceEventSink>,
     }
 
     struct TestDebuggerPlugin {
@@ -427,10 +442,14 @@ mod tests {
         fn create_session(
             &self,
             _process_info: &OpenedProcessInfo,
+            trace_event_sink: DebuggerTraceEventSink,
         ) -> Result<Box<dyn DebuggerSession>, DebuggerPluginError> {
             self.backend
                 .lock()
-                .map(|mut backend| backend.create_session_count += 1)
+                .map(|mut backend| {
+                    backend.create_session_count += 1;
+                    backend.trace_event_sink = Some(trace_event_sink);
+                })
                 .map_err(|error| DebuggerPluginError::new(self.metadata.get_plugin_id(), error.to_string()))?;
 
             Ok(Box::new(TestDebuggerSession {
@@ -469,6 +488,23 @@ mod tests {
         fn create_register_snapshot(registers: &[DebuggerRegisterValue]) -> DebuggerRegisterSnapshot {
             DebuggerRegisterSnapshot::new(Some(0x401000), Some(0x700000), registers.to_vec())
         }
+
+        fn emit_trace_event(&self) -> Result<(), DebuggerPluginError> {
+            self.read_backend(|backend| {
+                if let Some(trace_event_sink) = backend.trace_event_sink.as_ref() {
+                    let breakpoint = backend.breakpoints.first().cloned();
+                    let register_snapshot = Self::create_register_snapshot(&backend.registers);
+
+                    trace_event_sink(DebuggerTraceEvent::new(
+                        breakpoint,
+                        register_snapshot,
+                        Vec::new(),
+                        Some(String::from("test instruction")),
+                        Some(String::from("test trace")),
+                    ));
+                }
+            })
+        }
     }
 
     impl DebuggerSession for TestDebuggerSession {
@@ -505,10 +541,14 @@ mod tests {
         }
 
         fn resume(&mut self) -> Result<DebuggerSessionState, DebuggerPluginError> {
-            self.mutate_backend(|backend| {
+            let session_state = self.mutate_backend(|backend| {
                 backend.state = DebuggerSessionState::Running;
                 backend.state
-            })
+            })?;
+
+            self.emit_trace_event()?;
+
+            Ok(session_state)
         }
 
         fn set_breakpoint(
@@ -681,5 +721,17 @@ mod tests {
                 (DebuggerSessionState::Detached, None),
             ]
         );
+
+        let trace_event_count = emitted_events
+            .lock()
+            .map(|events| {
+                events
+                    .iter()
+                    .filter(|engine_event| matches!(engine_event, EngineEvent::Debugger(DebuggerEvent::TraceRecorded { .. })))
+                    .count()
+            })
+            .expect("Expected emitted event lock to be available.");
+
+        assert_eq!(trace_event_count, 1);
     }
 }

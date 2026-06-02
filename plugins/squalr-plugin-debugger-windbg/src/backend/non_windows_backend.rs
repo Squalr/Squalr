@@ -1,4 +1,5 @@
 use crate::constants::WINDBG_DEBUGGER_PLUGIN_ID;
+use squalr_engine_api::plugins::debugger::DebuggerTraceEventSink;
 use squalr_engine_api::structures::debugger::{DebuggerBreakpointDescriptor, DebuggerBreakpointKind, DebuggerRegisterSnapshot};
 use squalr_engine_api::{plugins::debugger::DebuggerPluginError, structures::processes::opened_process_info::OpenedProcessInfo};
 
@@ -7,7 +8,10 @@ pub(crate) struct WindbgBackend {
 }
 
 impl WindbgBackend {
-    pub(crate) fn new(process_info: OpenedProcessInfo) -> Self {
+    pub(crate) fn new(
+        process_info: OpenedProcessInfo,
+        _trace_event_sink: DebuggerTraceEventSink,
+    ) -> Self {
         Self { _process_info: process_info }
     }
 

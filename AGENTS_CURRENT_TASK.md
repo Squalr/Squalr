@@ -77,7 +77,10 @@ Our current task, from `README.md`, is:
   - Added breakpoint create/remove/list through the same DbgEng worker thread using `IDebugControl::AddBreakpoint`, `GetBreakpointById`, `GetBreakpointByIndex`, and `RemoveBreakpoint`.
   - Supports generic software breakpoints and hardware data breakpoints for 1, 2, 4, or 8 byte read/write/read-write access modes.
   - Squalr breakpoint IDs map to DbgEng breakpoint IDs; labels are retained in the worker session for breakpoints created through Squalr.
-  - Breakpoint callbacks/event fanout are not implemented yet.
+  - Added a generic `DebuggerTraceEventSink` to the debugger plugin trait so plugins can emit Squalr trace events without depending on engine transport.
+  - `DebuggerService` now wraps plugin trace events into `DebuggerTraceRecordedEvent` for the existing engine event stream.
+  - The WinDbg worker now alternates command handling with short `WaitForEvent` calls while running, uses `GetLastEventInformation` to identify breakpoint stops, captures a register snapshot, and emits `DebuggerTraceEvent`.
+  - Trace events currently include breakpoint descriptor, registers, and DbgEng backend message; instruction bytes/disassembly are still pending.
   - This needs human verification against a disposable local process before it should be treated as functional.
 - Old C# Squalr debugger scope was small:
   - `FindWhatReads`, `FindWhatWrites`, and `FindWhatAccesses` set hardware data breakpoints.
@@ -96,13 +99,13 @@ Our current task, from `README.md`, is:
   - Microsoft docs confirm `IDebugClient` supports attach/detach/callback registration and that `WaitForEvent` drives the debugger event model.
 - Recommended MVP architecture:
   - `squalr-engine-api`: debugger plugin trait, generic command/response/event models, generic debugger data types, permission/capability additions.
-  - `squalr-engine-session`: active debugger service/router with event channel, process-close cleanup, plugin selection, and plugin enablement checks. This is now present for synchronous command routing; async trace event fanout still depends on the DbgEng plugin event loop.
+  - `squalr-engine-session`: active debugger service/router with event channel, process-close cleanup, plugin selection, plugin enablement checks, and plugin trace-event fanout.
   - `plugins/squalr-plugin-debugger-windbg`: Windows-only DbgEng implementation with hardware data breakpoints and register snapshots.
   - `squalr-engine`: command executors that call the debugger service.
   - `squalr-cli`/`squalr-tui`/`squalr`: command and basic UI surfaces.
 - Next implementation target:
-  - Human-verify the DbgEng attach/detach path against a disposable local process.
-  - Add DbgEng breakpoint callback event fanout, including register snapshot capture and generic `DebuggerTraceEvent` emission.
+  - Human-verify DbgEng attach/detach, pause/resume, register read/write, breakpoint create/remove/list, and breakpoint trace emission against a disposable local process.
+  - Add instruction-byte capture through existing memory providers and disassembly through `squalr-plugin-instructions-x86`.
   - Audit `dbgeng 0.5.1` against the direct `windows` binding implementation before committing to it as the long-term wrapper.
 - Key risks:
   - DbgEng threading rules and `WaitForEvent` serialization are the main complexity.
@@ -122,6 +125,13 @@ Our current task, from `README.md`, is:
 - After WinDbg breakpoint lifetime implementation:
   - `cargo test -p squalr-plugin-debugger-windbg --locked -- --nocapture` passed.
   - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
+  - `cargo check -p squalr-engine --locked` passed.
+- After plugin trace-event sink and WinDbg breakpoint trace loop:
+  - `cargo test -p squalr-engine-api --locked` passed.
+  - `cargo check -p squalr-plugin-debugger-windbg --locked` passed.
+  - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
+  - `cargo test -p squalr-plugin-debugger-windbg --locked -- --nocapture` passed.
+  - `cargo test -p squalr-plugin-builtins --locked -- --nocapture` passed.
   - `cargo check -p squalr-engine --locked` passed.
 - References checked:
   - Local Rust workspace plugin/session/target architecture.

@@ -5,7 +5,7 @@ use crate::{
 use squalr_engine_api::{
     plugins::{
         Plugin, PluginCapability, PluginMetadata, PluginPackage, PluginPermission,
-        debugger::{DebuggerPlugin, DebuggerPluginError, DebuggerSession},
+        debugger::{DebuggerPlugin, DebuggerPluginError, DebuggerSession, DebuggerTraceEventSink},
     },
     structures::processes::opened_process_info::OpenedProcessInfo,
 };
@@ -65,7 +65,8 @@ impl DebuggerPlugin for WindbgDebuggerPlugin {
     fn create_session(
         &self,
         process_info: &OpenedProcessInfo,
+        trace_event_sink: DebuggerTraceEventSink,
     ) -> Result<Box<dyn DebuggerSession>, DebuggerPluginError> {
-        Ok(Box::new(WindbgDebuggerSession::new(process_info.clone())))
+        Ok(Box::new(WindbgDebuggerSession::new(process_info.clone(), trace_event_sink)))
     }
 }

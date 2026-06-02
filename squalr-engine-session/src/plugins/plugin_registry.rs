@@ -507,7 +507,7 @@ mod tests {
     use squalr_engine_api::{
         plugins::{
             Plugin, PluginActivationState, PluginCapability, PluginMetadata, PluginPackage, PluginPermission,
-            debugger::{DebuggerPlugin, DebuggerPluginError, DebuggerSession},
+            debugger::{DebuggerPlugin, DebuggerPluginError, DebuggerSession, DebuggerTraceEventSink},
             symbol_tree::{
                 symbol_tree_action::{SymbolTreeAction, SymbolTreeActionContext, SymbolTreeActionServices},
                 symbol_tree_plugin::SymbolTreePlugin,
@@ -656,6 +656,7 @@ mod tests {
         fn create_session(
             &self,
             _process_info: &OpenedProcessInfo,
+            _trace_event_sink: DebuggerTraceEventSink,
         ) -> Result<Box<dyn DebuggerSession>, DebuggerPluginError> {
             Ok(Box::new(TestDebuggerSession {
                 plugin_id: self.metadata.get_plugin_id().to_string(),
