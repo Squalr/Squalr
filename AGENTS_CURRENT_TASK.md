@@ -92,7 +92,8 @@ Our current task, from `README.md`, is:
   - The DbgEng backend now distinguishes `S_OK` from `S_FALSE` for `WaitForEvent`; the `windows` projection treats `S_FALSE` as `Ok(())`, but Microsoft documents it as timeout.
   - The DbgEng backend now selects the event process/thread through `IDebugSystemObjects` before register capture.
   - Register enumeration now skips unreadable/non-integer register ordinals instead of failing the entire snapshot.
-  - Local smoke output showed attach, breakpoint creation/listing, trace receipt, `IP=0x...`, 16 instruction bytes, 235 registers, and clean detach. This is still a local disposable-process validation and needs human verification through the real frontend/command flow before release confidence.
+  - Attach now selects the initial break event context before the worker reports ready, so an explicit register read immediately after attach can capture IP/SP/registers.
+  - Local smoke output showed attach-time IP/SP/registers, breakpoint creation/listing, trace receipt, breakpoint IP, 16 instruction bytes, 235 registers, and clean detach. This is still a local disposable-process validation and needs human verification through the real frontend/command flow before release confidence.
 - Live debugger service smoke harness slice completed:
   - Added `squalr-engine-session/examples/debugger_service_windbg_smoke.rs`, which enables the disabled-by-default WinDbg plugin in the builtin registry, routes attach/breakpoint/resume/remove/detach through `DebuggerService`, and waits on `EngineEvent::Debugger`.
   - Local smoke output showed a generic trace event with `IP=0x...`, 16 instruction bytes, 235 registers, backend `"Hit breakpoint 0"`, and x64 disassembly text from `squalr-plugin-instructions-x86`.
@@ -171,6 +172,13 @@ Our current task, from `README.md`, is:
 - After live debugger service smoke harness:
   - `cargo check -p squalr-engine-session --examples --locked` passed.
   - `cargo run -p squalr-engine-session --example debugger_service_windbg_smoke --locked` passed on Windows against a disposable child process and produced x64 disassembly text in the trace event.
+  - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
+  - `cargo check -p squalr-engine --locked` passed.
+- After attach-time DbgEng event-context selection:
+  - `cargo check -p squalr-plugin-debugger-windbg --examples --locked` passed.
+  - `cargo run -p squalr-plugin-debugger-windbg --example windbg_smoke --locked` passed on Windows and showed attach-time IP/SP/register capture plus breakpoint trace capture.
+  - `cargo run -p squalr-engine-session --example debugger_service_windbg_smoke --locked` passed on Windows and still produced disassembly text in the trace event.
+  - `cargo test -p squalr-plugin-debugger-windbg --locked -- --nocapture` passed.
   - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
   - `cargo check -p squalr-engine --locked` passed.
 - References checked:

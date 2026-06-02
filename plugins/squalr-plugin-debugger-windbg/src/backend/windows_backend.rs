@@ -420,7 +420,7 @@ impl ActiveWindbgSession {
             return Err(error);
         }
 
-        Ok(Self {
+        let active_session = Self {
             client,
             control,
             data_spaces,
@@ -429,7 +429,15 @@ impl ActiveWindbgSession {
             breakpoint_labels: HashMap::new(),
             session_state: DebuggerSessionState::Attached,
             trace_event_sink,
-        })
+        };
+        let mut attach_context_message = None;
+
+        active_session.select_last_event_context(&mut attach_context_message)?;
+        if let Some(attach_context_message) = attach_context_message {
+            log::debug!("{}", attach_context_message);
+        }
+
+        Ok(active_session)
     }
 
     fn pause(&mut self) -> Result<(), DebuggerPluginError> {
@@ -623,6 +631,39 @@ impl ActiveWindbgSession {
             None,
             backend_message,
         ));
+
+        Ok(())
+    }
+
+    fn select_last_event_context(
+        &self,
+        backend_message: &mut Option<String>,
+    ) -> Result<(), DebuggerPluginError> {
+        let mut debug_event_type = 0u32;
+        let mut debug_event_process_id = 0u32;
+        let mut debug_event_thread_id = 0u32;
+
+        unsafe {
+            self.control
+                .GetLastEventInformation(
+                    &mut debug_event_type,
+                    &mut debug_event_process_id,
+                    &mut debug_event_thread_id,
+                    None,
+                    0,
+                    None,
+                    None,
+                    None,
+                )
+                .map_err(|error| {
+                    WindbgBackend::plugin_error(format!(
+                        "IDebugControl::GetLastEventInformation failed while selecting event context: {}",
+                        error
+                    ))
+                })?;
+        }
+
+        self.set_current_event_context(debug_event_process_id, debug_event_thread_id, backend_message);
 
         Ok(())
     }

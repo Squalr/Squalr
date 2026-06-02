@@ -96,7 +96,13 @@ fn run_smoke_against_child(child_process: &mut std::process::Child) -> Result<()
 
     println!("Attaching to child process {target_process_id} at {target_address:#x}.");
     debugger_session.attach()?;
-    println!("Attached.");
+    let register_snapshot = debugger_session.read_registers()?;
+    println!(
+        "Attached. IP={}, SP={}, registers={}.",
+        format_optional_address(register_snapshot.get_instruction_pointer()),
+        format_optional_address(register_snapshot.get_stack_pointer()),
+        register_snapshot.get_registers().len()
+    );
 
     let breakpoint_descriptor = debugger_session.set_breakpoint(
         target_address,
