@@ -127,9 +127,10 @@ fn run_smoke_against_child(child_process: &mut std::process::Child) -> Result<()
     let trace_register_snapshot = trace_event.get_register_snapshot();
     let trace_instruction_pointer = trace_register_snapshot.get_instruction_pointer();
     println!(
-        "Trace received: breakpoint={}, IP={}, bytes={}, registers={}, instruction={:?}, backend={:?}.",
+        "Trace received: breakpoint={}, IP={}, instruction_address={}, bytes={}, registers={}, instruction={:?}, backend={:?}.",
         trace_breakpoint_id,
         format_optional_address(trace_instruction_pointer),
+        format_optional_address(trace_event.get_instruction_address()),
         trace_event.get_instruction_bytes().len(),
         trace_register_snapshot.get_registers().len(),
         trace_event.get_instruction_text(),

@@ -149,6 +149,13 @@ Our current task, from `README.md`, is:
   - Trace disassembly enrichment now keeps the full instruction byte window on the record for context, but stores/displays only the first decoded instruction at the captured instruction pointer.
   - Added a focused session test so semicolon-joined block disassembly is reduced to the first non-empty instruction for debugger trace display.
   - Live command smoke now prints one instruction in the trace event instead of the entire decoded byte window. GUI behavior still needs human verification.
+- Debugger trace instruction-attribution slice completed:
+  - Owner reported that Minesweeper `Find What Writes` surfaced a `call` instruction instead of the expected write instruction such as `inc`.
+  - Root cause: x86/x64 hardware data breakpoints report after the memory access instruction has executed, so the captured register IP can point at the following instruction.
+  - Added an explicit `instruction_address` to `DebuggerTraceEvent`; trace instruction records now group/display by that attributed address instead of always using the raw register snapshot IP.
+  - The WinDbg backend now uses `IDebugControl::GetNearInstruction(post_trap_ip, -1)` for hardware data breakpoints, reads instruction bytes from that resolved access-instruction address, and falls back to the raw IP with a backend diagnostic if attribution fails.
+  - Register snapshots still retain the real post-trap IP for context, while the trace row and disassembly use the attributed access instruction address.
+  - Live WinDbg command/service smokes now show `IP=...`, `instruction_address=...`, and a write instruction such as `lock xadd [rcx], rax`. Minesweeper GUI behavior still needs human verification.
 - Old C# Squalr debugger scope was small:
   - `FindWhatReads`, `FindWhatWrites`, and `FindWhatAccesses` set hardware data breakpoints.
   - `PauseExecution` and `ResumeExecution` interrupt/resume the debuggee.
@@ -187,6 +194,7 @@ Our current task, from `README.md`, is:
   - Human-verify that GUI `Find What Writes` no longer leaves the target frozen after attach or after trace hits, and that closing Squalr detaches instead of killing the target.
   - Human-verify that GUI `Find What Writes` now arms the breakpoint at the resolved absolute runtime address for module-relative project items and that Stop Trace no longer reports `GetBreakpointById(0)` catastrophic failure.
   - Human-verify that the Debugger Trace header renders the Stop button left-aligned with session text after it, and that the Instruction column shows only the single hit instruction.
+  - Human-verify that GUI `Find What Writes` reports the actual access instruction for Minesweeper timer-style cases, not the following post-trap instruction.
   - Decide whether to keep the three smoke examples separate or consolidate shared disposable-child helpers into test support.
   - Decide whether DbgEng trace byte capture should remain plugin-owned or be moved to a generic engine memory-provider enrichment path.
   - Defer any `dbgeng` crate adoption unless a later symbol/output-capture feature benefits from its helper API.
@@ -304,6 +312,17 @@ Our current task, from `README.md`, is:
   - `cargo check -p squalr --locked` passed.
   - `cargo test -p squalr --locked default_layout_places_output_related_windows_in_same_tab_group -- --nocapture` passed.
   - `cargo run -p squalr-engine --example debugger_command_windbg_smoke --locked` passed on Windows against a disposable child process and printed a single-instruction trace text.
+  - GUI behavior still needs human verification after implementation and validation.
+- After debugger trace instruction attribution:
+  - `cargo fmt --all` completed with the existing `.rustfmt.toml` deprecation warnings for `fn_args_layout`.
+  - `cargo test -p squalr-engine-api --locked debugger -- --nocapture` passed.
+  - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
+  - `cargo check -p squalr-plugin-debugger-windbg --locked` passed.
+  - `cargo check -p squalr --locked` passed.
+  - `cargo run -p squalr-engine --example debugger_command_windbg_smoke --locked` passed on Windows against a disposable child process and showed post-trap `IP` plus prior `instruction_address=...` with `lock xadd [rcx], rax`.
+  - `cargo run -p squalr-plugin-debugger-windbg --example windbg_smoke --locked` passed on Windows against a disposable child process and showed separate post-trap IP and attributed instruction address.
+  - `cargo run -p squalr-engine-session --example debugger_service_windbg_smoke --locked` passed on Windows against a disposable child process and showed `lock xadd [rcx], rax`.
+  - `cargo test -p squalr-plugin-debugger-windbg --locked -- --nocapture` passed.
   - GUI behavior still needs human verification after implementation and validation.
 - References checked:
   - Local Rust workspace plugin/session/target architecture.

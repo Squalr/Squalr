@@ -19,7 +19,7 @@ impl DebuggerTraceInstructionRecord {
     ) -> Self {
         Self {
             trace_session_id: trace_session_id.into(),
-            instruction_address: trace_event.get_register_snapshot().get_instruction_pointer(),
+            instruction_address: trace_event.get_instruction_address(),
             instruction_bytes: trace_event.get_instruction_bytes().to_vec(),
             instruction_text: trace_event.get_instruction_text().map(String::from),
             hit_count: 1,

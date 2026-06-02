@@ -637,11 +637,17 @@ impl ActiveWindbgSession {
                 DebuggerRegisterSnapshot::default()
             }
         };
-        let instruction_bytes = self.read_instruction_bytes(register_snapshot.get_instruction_pointer());
+        let trace_instruction_pointer = self.resolve_trace_instruction_pointer(
+            register_snapshot.get_instruction_pointer(),
+            breakpoint_descriptor.as_ref(),
+            &mut backend_message,
+        );
+        let instruction_bytes = self.read_instruction_bytes(trace_instruction_pointer);
 
         (self.trace_event_sink)(DebuggerTraceEvent::new(
             breakpoint_descriptor.clone(),
             register_snapshot,
+            trace_instruction_pointer,
             instruction_bytes,
             None,
             backend_message,
@@ -830,6 +836,42 @@ impl ActiveWindbgSession {
 
         instruction_bytes.truncate(bytes_read as usize);
         instruction_bytes
+    }
+
+    fn resolve_trace_instruction_pointer(
+        &self,
+        event_instruction_pointer: Option<u64>,
+        breakpoint_descriptor: Option<&DebuggerBreakpointDescriptor>,
+        backend_message: &mut Option<String>,
+    ) -> Option<u64> {
+        let Some(event_instruction_pointer) = event_instruction_pointer else {
+            return None;
+        };
+        let is_data_breakpoint = matches!(
+            breakpoint_descriptor.map(DebuggerBreakpointDescriptor::get_kind),
+            Some(DebuggerBreakpointKind::HardwareData { .. })
+        );
+
+        if !is_data_breakpoint {
+            return Some(event_instruction_pointer);
+        }
+
+        match unsafe { self.control.GetNearInstruction(event_instruction_pointer, -1) } {
+            Ok(access_instruction_pointer) => Some(access_instruction_pointer),
+            Err(error) => {
+                let attribution_message = format!(
+                    "Failed to resolve access instruction before post-trap IP 0x{:X}: {}.",
+                    event_instruction_pointer, error
+                );
+
+                *backend_message = Some(match backend_message.take() {
+                    Some(existing_message) => format!("{} {}", existing_message, attribution_message),
+                    None => attribution_message,
+                });
+
+                Some(event_instruction_pointer)
+            }
+        }
     }
 
     fn debug_breakpoint_type(kind: &DebuggerBreakpointKind) -> u32 {

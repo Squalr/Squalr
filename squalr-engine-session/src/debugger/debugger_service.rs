@@ -154,7 +154,7 @@ impl DebuggerTraceSessionStore {
             return None;
         }
 
-        let instruction_address = trace_event.get_register_snapshot().get_instruction_pointer();
+        let instruction_address = trace_event.get_instruction_address();
         let instruction_bytes = trace_event.get_instruction_bytes();
 
         if let Some(instruction_record) = trace_session
@@ -637,6 +637,7 @@ impl DebuggerService {
         DebuggerTraceEvent::new(
             trace_event.get_breakpoint().cloned(),
             trace_event.get_register_snapshot().clone(),
+            trace_event.get_instruction_address(),
             trace_event.get_instruction_bytes().to_vec(),
             instruction_text.map(String::from),
             trace_event.get_backend_message().map(String::from),
@@ -900,6 +901,7 @@ mod tests {
                     trace_event_sink(DebuggerTraceEvent::new(
                         breakpoint,
                         register_snapshot,
+                        Some(0x401000),
                         vec![0x90],
                         None,
                         Some(String::from("test trace")),

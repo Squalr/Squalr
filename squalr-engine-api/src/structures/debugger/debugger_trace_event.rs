@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 pub struct DebuggerTraceEvent {
     breakpoint: Option<DebuggerBreakpointDescriptor>,
     register_snapshot: DebuggerRegisterSnapshot,
+    instruction_address: Option<u64>,
     instruction_bytes: Vec<u8>,
     instruction_text: Option<String>,
     backend_message: Option<String>,
@@ -14,6 +15,7 @@ impl DebuggerTraceEvent {
     pub fn new(
         breakpoint: Option<DebuggerBreakpointDescriptor>,
         register_snapshot: DebuggerRegisterSnapshot,
+        instruction_address: Option<u64>,
         instruction_bytes: Vec<u8>,
         instruction_text: Option<String>,
         backend_message: Option<String>,
@@ -21,6 +23,7 @@ impl DebuggerTraceEvent {
         Self {
             breakpoint,
             register_snapshot,
+            instruction_address,
             instruction_bytes,
             instruction_text,
             backend_message,
@@ -33,6 +36,10 @@ impl DebuggerTraceEvent {
 
     pub fn get_register_snapshot(&self) -> &DebuggerRegisterSnapshot {
         &self.register_snapshot
+    }
+
+    pub fn get_instruction_address(&self) -> Option<u64> {
+        self.instruction_address
     }
 
     pub fn get_instruction_bytes(&self) -> &[u8] {
