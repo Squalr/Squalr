@@ -112,6 +112,14 @@ Our current task, from `README.md`, is:
   - Added CLI parser support for `debugger trace-start`, `debugger trace-stop`, `debugger trace-list`, and C#-style aliases `find-what-reads`, `find-what-writes`, and `find-what-accesses`.
   - `DebuggerService` now owns trace sessions, maps them to plugin breakpoint IDs, aggregates repeated trace events into instruction records, emits `DebuggerTraceSessionUpdatedEvent`, and removes the backing breakpoint when a trace session stops.
   - This is the backend abstraction needed for the old flow of "right-click project item -> find what writes to -> docked hit-count table." Project-item context menus, the docked GUI table, and adding selected instructions to the project are still pending and need human verification after implementation.
+- GUI debugger trace bridge slice completed:
+  - Added a docked `Debugger Trace` window registered in the main dock layout beside Output, Memory Viewer, Code Viewer, and Plugins.
+  - Added `DebuggerTraceViewData` to listen for `DebuggerTraceSessionUpdatedEvent` and retain trace sessions, instruction records, and row selection.
+  - The trace window shows trace sessions, active stop buttons, instruction text/bytes, hit counts, instruction addresses, and backend messages.
+  - Added project item context menu entries for `Find What Reads`, `Find What Writes`, and `Find What Accesses` on address/pointer-style project items.
+  - Project context actions reuse the existing runtime project item address resolution path, normalize hardware data-breakpoint sizes to 1/2/4/8 bytes, focus the debugger trace dock, auto-attach the debugger service if needed, and then start a trace session.
+  - Made `DebuggerService::attach` idempotent for already-active debugger sessions so repeated GUI trace actions do not reattach through the plugin.
+  - The visible C#-style path is now wired through the GUI up to trace result display, but adding selected trace instructions into the project is still pending and needs a clean project item/symbol representation.
 - Old C# Squalr debugger scope was small:
   - `FindWhatReads`, `FindWhatWrites`, and `FindWhatAccesses` set hardware data breakpoints.
   - `PauseExecution` and `ResumeExecution` interrupt/resume the debuggee.
@@ -142,11 +150,9 @@ Our current task, from `README.md`, is:
   - `squalr-cli`/`squalr-tui`/`squalr`: command and basic UI surfaces.
 - Next implementation target:
   - Add GUI/project-item integration for the C#-style flow:
-    - Resolve address/pointer project items into a runtime address and byte size.
-    - Add Symbol Tree/project item context menu actions for find what reads/writes/accesses.
-    - Open a docked debugger trace window fed by `DebuggerTraceSessionUpdatedEvent`.
-    - Show instruction text, hit count, instruction address/module context, and session controls.
     - Add selected trace instruction records to the project through a clean project item/symbol representation.
+    - Consider adding the same find-what actions to the older Symbol Tree context menu once the Project Explorer path has human verification.
+    - Consider adding module/offset enrichment to trace records instead of showing only absolute instruction addresses.
   - Human-verify DbgEng attach/detach, pause/resume, register read/write, breakpoint create/remove/list, trace sessions, and breakpoint trace emission from CLI/TUI/GUI command surfaces against a disposable local process.
   - Decide whether to keep the three smoke examples separate or consolidate shared disposable-child helpers into test support.
   - Decide whether DbgEng trace byte capture should remain plugin-owned or be moved to a generic engine memory-provider enrichment path.
@@ -222,6 +228,10 @@ Our current task, from `README.md`, is:
   - `cargo test -p squalr-engine-api --locked command_line -- --nocapture` passed.
   - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
   - `cargo check -p squalr-engine --locked` passed.
+- After GUI debugger trace dock and project item find-what actions:
+  - `cargo check -p squalr --locked` passed.
+  - `cargo test -p squalr --locked default_layout_places_output_related_windows_in_same_tab_group -- --nocapture` passed.
+  - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
 - References checked:
   - Local Rust workspace plugin/session/target architecture.
   - Old C# implementation under `C:\Projects\Squalr\Squalr.Engine.Debugger`.

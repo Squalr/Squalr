@@ -2,6 +2,7 @@ use crate::models::docking::builder::dock_builder::DockBuilder;
 use crate::models::docking::hierarchy::dock_node::DockNode;
 use crate::models::docking::hierarchy::types::dock_split_direction::DockSplitDirection;
 use crate::views::code_viewer::code_viewer_view::CodeViewerView;
+use crate::views::debugger_trace::debugger_trace_view::DebuggerTraceView;
 use crate::views::element_scanner::scanner::element_scanner_view::ElementScannerView;
 use crate::views::memory_viewer::memory_viewer_view::MemoryViewerView;
 use crate::views::output::output_view::OutputView;
@@ -64,6 +65,7 @@ impl DockSettingsConfig {
                             .push_tab(DockBuilder::window(OutputView::WINDOW_ID))
                             .push_tab(DockBuilder::window(MemoryViewerView::WINDOW_ID))
                             .push_tab(DockBuilder::window(CodeViewerView::WINDOW_ID))
+                            .push_tab(DockBuilder::window(DebuggerTraceView::WINDOW_ID))
                             .push_tab(DockBuilder::window(PluginsView::WINDOW_ID)),
                     ),
             )
@@ -111,6 +113,7 @@ impl DockSettingsConfig {
                     .push_tab(DockBuilder::window(OutputView::WINDOW_ID))
                     .push_tab(DockBuilder::window(MemoryViewerView::WINDOW_ID))
                     .push_tab(DockBuilder::window(CodeViewerView::WINDOW_ID))
+                    .push_tab(DockBuilder::window(DebuggerTraceView::WINDOW_ID))
                     .push_tab(DockBuilder::window(PluginsView::WINDOW_ID)),
             )
             .build();
@@ -123,6 +126,7 @@ impl DockSettingsConfig {
         Self::ensure_tab_window(&mut self.dock_root, OutputView::WINDOW_ID, PluginsView::WINDOW_ID);
         Self::ensure_tab_window(&mut self.dock_root, OutputView::WINDOW_ID, MemoryViewerView::WINDOW_ID);
         Self::ensure_tab_window(&mut self.dock_root, OutputView::WINDOW_ID, CodeViewerView::WINDOW_ID);
+        Self::ensure_tab_window(&mut self.dock_root, OutputView::WINDOW_ID, DebuggerTraceView::WINDOW_ID);
         Self::ensure_tab_window(&mut self.dock_root, ElementScannerView::WINDOW_ID, SymbolTreeView::WINDOW_ID);
         Self::ensure_tab_window(&mut self.dock_root, ElementScannerView::WINDOW_ID, SymbolResolverEditorView::WINDOW_ID);
         Self::ensure_tab_window(&mut self.dock_root, ElementScannerView::WINDOW_ID, SymbolLayoutEditorView::WINDOW_ID);
@@ -244,9 +248,10 @@ mod tests {
     use super::DockSettingsConfig;
     use crate::models::docking::builder::dock_builder::DockBuilder;
     use crate::views::{
-        code_viewer::code_viewer_view::CodeViewerView, element_scanner::scanner::element_scanner_view::ElementScannerView,
-        memory_viewer::memory_viewer_view::MemoryViewerView, output::output_view::OutputView, plugins::plugins_view::PluginsView,
-        pointer_scanner::pointer_scanner_view::PointerScannerView, settings::settings_view::SettingsView, struct_viewer::struct_viewer_view::StructViewerView,
+        code_viewer::code_viewer_view::CodeViewerView, debugger_trace::debugger_trace_view::DebuggerTraceView,
+        element_scanner::scanner::element_scanner_view::ElementScannerView, memory_viewer::memory_viewer_view::MemoryViewerView,
+        output::output_view::OutputView, plugins::plugins_view::PluginsView, pointer_scanner::pointer_scanner_view::PointerScannerView,
+        settings::settings_view::SettingsView, struct_viewer::struct_viewer_view::StructViewerView,
         symbol_layout_editor::symbol_layout_editor_view::SymbolLayoutEditorView, symbol_resolver_editor::symbol_resolver_editor_view::SymbolResolverEditorView,
         symbol_tree::symbol_tree_view::SymbolTreeView,
     };
@@ -258,6 +263,7 @@ mod tests {
         assert!(dock_root.are_windows_in_same_tab_group(OutputView::WINDOW_ID, PluginsView::WINDOW_ID));
         assert!(dock_root.are_windows_in_same_tab_group(OutputView::WINDOW_ID, MemoryViewerView::WINDOW_ID));
         assert!(dock_root.are_windows_in_same_tab_group(OutputView::WINDOW_ID, CodeViewerView::WINDOW_ID));
+        assert!(dock_root.are_windows_in_same_tab_group(OutputView::WINDOW_ID, DebuggerTraceView::WINDOW_ID));
     }
 
     #[test]

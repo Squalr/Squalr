@@ -6,6 +6,7 @@ use crate::{
         widgets::controls::context_menu::context_menu::{ContextMenu, ContextMenuSizing},
     },
     views::code_viewer::{code_viewer_view::CodeViewerView, view_data::code_viewer_view_data::CodeViewerViewData},
+    views::debugger_trace::debugger_trace_view::DebuggerTraceView,
     views::memory_viewer::{memory_viewer_view::MemoryViewerView, view_data::memory_viewer_view_data::MemoryViewerViewData},
     views::pointer_scanner::{pointer_scanner_view::PointerScannerView, view_data::pointer_scanner_view_data::PointerScannerViewData},
     views::project_explorer::{
@@ -29,11 +30,14 @@ use crate::{
     views::struct_viewer::view_data::{struct_viewer_focus_target::StructViewerFocusTarget, struct_viewer_view_data::StructViewerViewData},
 };
 use eframe::egui::{Align, CursorIcon, Key, Layout, Pos2, Response, Ui, Widget};
+use squalr_engine_api::commands::debugger::attach::debugger_attach_request::DebuggerAttachRequest;
+use squalr_engine_api::commands::debugger::trace_start::debugger_trace_start_request::DebuggerTraceStartRequest;
 use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRequest;
 use squalr_engine_api::commands::settings::scan::list::scan_settings_list_request::ScanSettingsListRequest;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::anonymous_value_string::AnonymousValueString;
+use squalr_engine_api::structures::debugger::DebuggerDataBreakpointAccess;
 use squalr_engine_api::structures::projects::project_items::project_item::ProjectItem;
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -645,6 +649,18 @@ impl Widget for ProjectHierarchyView {
 
                 self.focus_code_viewer_for_address(address, &module_name);
             }
+            ProjectHierarchyFrameAction::StartDebuggerTraceForAddress {
+                address,
+                size_in_bytes,
+                access,
+                label,
+            } => {
+                if has_blocking_take_over {
+                    return response;
+                }
+
+                self.start_debugger_trace_for_address(address, size_in_bytes, access, label);
+            }
             ProjectHierarchyFrameAction::PromoteToSymbol {
                 project_item_paths,
                 overwrite_conflicting_symbols,
@@ -871,6 +887,60 @@ impl ProjectHierarchyView {
             }
             Err(error) => {
                 log::error!("Failed to acquire docking manager while opening the code viewer: {}", error);
+            }
+        }
+    }
+
+    fn start_debugger_trace_for_address(
+        &self,
+        address: u64,
+        size_in_bytes: u8,
+        access: DebuggerDataBreakpointAccess,
+        label: Option<String>,
+    ) {
+        self.focus_debugger_trace_window();
+
+        let engine_unprivileged_state = self.app_context.engine_unprivileged_state.clone();
+        DebuggerAttachRequest { plugin_id: None }.send(&engine_unprivileged_state.clone(), move |debugger_attach_response| {
+            if !debugger_attach_response.status.get_success() {
+                log::warn!(
+                    "Debugger attach failed before trace start: {}.",
+                    debugger_attach_response
+                        .status
+                        .get_message()
+                        .unwrap_or("unknown error")
+                );
+                return;
+            }
+
+            DebuggerTraceStartRequest {
+                address,
+                size_in_bytes,
+                access,
+                label,
+            }
+            .send(&engine_unprivileged_state, |debugger_trace_start_response| {
+                if !debugger_trace_start_response.status.get_success() {
+                    log::warn!(
+                        "Debugger trace start failed: {}.",
+                        debugger_trace_start_response
+                            .status
+                            .get_message()
+                            .unwrap_or("unknown error")
+                    );
+                }
+            });
+        });
+    }
+
+    fn focus_debugger_trace_window(&self) {
+        match self.app_context.docking_manager.write() {
+            Ok(mut docking_manager) => {
+                docking_manager.set_window_visibility(DebuggerTraceView::WINDOW_ID, true);
+                docking_manager.select_tab_by_window_id(DebuggerTraceView::WINDOW_ID);
+            }
+            Err(error) => {
+                log::error!("Failed to acquire docking manager while opening the debugger trace window: {}", error);
             }
         }
     }

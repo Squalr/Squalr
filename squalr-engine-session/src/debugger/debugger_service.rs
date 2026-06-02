@@ -214,9 +214,16 @@ impl DebuggerService {
     ) -> Result<DebuggerOperationStatus, String> {
         let debugger_session = self.get_or_create_session(process_info, requested_plugin_id)?;
         let (session_state, active_plugin_id) = self.with_debugger_session(&debugger_session, |debugger_session| {
+            let active_plugin_id = debugger_session.plugin_id().to_string();
+            let current_session_state = debugger_session.get_state();
+
+            if current_session_state != DebuggerSessionState::Detached {
+                return Ok((current_session_state, active_plugin_id));
+            }
+
             debugger_session
                 .attach()
-                .map(|session_state| (session_state, debugger_session.plugin_id().to_string()))
+                .map(|session_state| (session_state, active_plugin_id))
                 .map_err(|error| error.to_string())
         })?;
 
