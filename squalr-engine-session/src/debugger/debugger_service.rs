@@ -117,6 +117,47 @@ impl DebuggerTraceSessionStore {
         Ok((trace_session.descriptor.clone(), trace_session.instruction_records.clone()))
     }
 
+    fn set_collection_enabled(
+        &mut self,
+        trace_session_id: &str,
+        is_enabled: bool,
+    ) -> Result<(DebuggerTraceSessionDescriptor, Vec<DebuggerTraceInstructionRecord>), String> {
+        let trace_session = self
+            .sessions
+            .get_mut(trace_session_id)
+            .ok_or_else(|| format!("Debugger trace session '{}' does not exist.", trace_session_id))?;
+
+        if !trace_session.descriptor.get_is_active() {
+            return Err(format!("Debugger trace session '{}' is stopped.", trace_session_id));
+        }
+
+        let mut breakpoint = trace_session.descriptor.get_breakpoint().clone();
+        breakpoint.set_is_enabled(is_enabled);
+        trace_session.descriptor.set_breakpoint(breakpoint);
+
+        Ok((trace_session.descriptor.clone(), trace_session.instruction_records.clone()))
+    }
+
+    fn get_active_breakpoint_id(
+        &self,
+        trace_session_id: &str,
+    ) -> Result<String, String> {
+        let trace_session = self
+            .sessions
+            .get(trace_session_id)
+            .ok_or_else(|| format!("Debugger trace session '{}' does not exist.", trace_session_id))?;
+
+        if !trace_session.descriptor.get_is_active() {
+            return Err(format!("Debugger trace session '{}' is stopped.", trace_session_id));
+        }
+
+        Ok(trace_session
+            .descriptor
+            .get_breakpoint()
+            .get_breakpoint_id()
+            .to_string())
+    }
+
     fn list_sessions(&self) -> (Vec<DebuggerTraceSessionDescriptor>, Vec<DebuggerTraceInstructionRecord>) {
         let mut trace_sessions = self
             .sessions
@@ -150,7 +191,7 @@ impl DebuggerTraceSessionStore {
         let trace_session_id = self.breakpoint_to_trace_session_id.get(breakpoint_id)?.clone();
         let trace_session = self.sessions.get_mut(&trace_session_id)?;
 
-        if !trace_session.descriptor.get_is_active() {
+        if !trace_session.descriptor.get_is_active() || !trace_session.descriptor.get_breakpoint().get_is_enabled() {
             return None;
         }
 
@@ -280,6 +321,20 @@ impl DebuggerService {
         })
     }
 
+    pub fn set_breakpoint_enabled(
+        &self,
+        breakpoint_id: &str,
+        is_enabled: bool,
+    ) -> Result<(), String> {
+        let active_session = self.get_cached_session()?;
+
+        self.with_debugger_session(&active_session.session, |debugger_session| {
+            debugger_session
+                .set_breakpoint_enabled(breakpoint_id, is_enabled)
+                .map_err(|error| error.to_string())
+        })
+    }
+
     pub fn list_breakpoints(&self) -> Result<Vec<DebuggerBreakpointDescriptor>, String> {
         let active_session = self.get_cached_session()?;
 
@@ -394,6 +449,20 @@ impl DebuggerService {
         Ok((trace_session, instruction_records))
     }
 
+    pub fn pause_trace_session(
+        &self,
+        trace_session_id: &str,
+    ) -> Result<(DebuggerTraceSessionDescriptor, Vec<DebuggerTraceInstructionRecord>), String> {
+        self.set_trace_session_collection_enabled(trace_session_id, false)
+    }
+
+    pub fn resume_trace_session(
+        &self,
+        trace_session_id: &str,
+    ) -> Result<(DebuggerTraceSessionDescriptor, Vec<DebuggerTraceInstructionRecord>), String> {
+        self.set_trace_session_collection_enabled(trace_session_id, true)
+    }
+
     pub fn list_trace_sessions(&self) -> Result<(Vec<DebuggerTraceSessionDescriptor>, Vec<DebuggerTraceInstructionRecord>), String> {
         self.trace_sessions
             .read()
@@ -452,6 +521,30 @@ impl DebuggerService {
         self.emit_session_state_changed(session_state, Some(active_plugin_id.clone()));
 
         Ok(DebuggerOperationStatus::new(session_state, Some(active_plugin_id)))
+    }
+
+    fn set_trace_session_collection_enabled(
+        &self,
+        trace_session_id: &str,
+        is_enabled: bool,
+    ) -> Result<(DebuggerTraceSessionDescriptor, Vec<DebuggerTraceInstructionRecord>), String> {
+        let breakpoint_id = self
+            .trace_sessions
+            .read()
+            .map_err(|error| format!("Failed to read debugger trace sessions: {}", error))?
+            .get_active_breakpoint_id(trace_session_id)?;
+
+        self.set_breakpoint_enabled(&breakpoint_id, is_enabled)?;
+
+        let (trace_session, instruction_records) = self
+            .trace_sessions
+            .write()
+            .map_err(|error| format!("Failed to update debugger trace sessions: {}", error))?
+            .set_collection_enabled(trace_session_id, is_enabled)?;
+
+        self.emit_trace_session_updated(trace_session.clone(), instruction_records.clone());
+
+        Ok((trace_session, instruction_records))
     }
 
     fn get_or_create_session(
@@ -982,6 +1075,22 @@ mod tests {
             })
         }
 
+        fn set_breakpoint_enabled(
+            &mut self,
+            breakpoint_id: &str,
+            is_enabled: bool,
+        ) -> Result<(), DebuggerPluginError> {
+            self.mutate_backend(|backend| {
+                if let Some(breakpoint) = backend
+                    .breakpoints
+                    .iter_mut()
+                    .find(|breakpoint| breakpoint.get_breakpoint_id() == breakpoint_id)
+                {
+                    breakpoint.set_is_enabled(is_enabled);
+                }
+            })
+        }
+
         fn list_breakpoints(&self) -> Result<Vec<DebuggerBreakpointDescriptor>, DebuggerPluginError> {
             self.read_backend(|backend| backend.breakpoints.clone())
         }
@@ -1192,6 +1301,7 @@ mod tests {
         assert_eq!(trace_session.get_size_in_bytes(), 4);
         assert_eq!(trace_session.get_access(), DebuggerDataBreakpointAccess::Write);
         assert!(trace_session.get_is_active());
+        assert!(trace_session.get_breakpoint().get_is_enabled());
         assert!(initial_records.is_empty());
         assert_eq!(
             debugger_backend
@@ -1200,6 +1310,31 @@ mod tests {
                 .expect("Expected debugger backend lock."),
             1
         );
+
+        let (paused_trace_session, paused_records) = debugger_service
+            .pause_trace_session(trace_session.get_trace_session_id())
+            .expect("Expected trace collection to pause.");
+        assert!(paused_trace_session.get_is_active());
+        assert!(!paused_trace_session.get_breakpoint().get_is_enabled());
+        assert_eq!(paused_records.len(), 1);
+        assert_eq!(paused_records[0].get_hit_count(), 1);
+
+        debugger_service
+            .resume()
+            .expect("Expected target resume while trace collection is paused.");
+        let (_, paused_instruction_records) = debugger_service
+            .list_trace_sessions()
+            .expect("Expected trace session list after paused target resume.");
+        assert_eq!(paused_instruction_records.len(), 1);
+        assert_eq!(paused_instruction_records[0].get_hit_count(), 1);
+
+        let (resumed_trace_session, resumed_records) = debugger_service
+            .resume_trace_session(trace_session.get_trace_session_id())
+            .expect("Expected trace collection to resume.");
+        assert!(resumed_trace_session.get_is_active());
+        assert!(resumed_trace_session.get_breakpoint().get_is_enabled());
+        assert_eq!(resumed_records.len(), 1);
+        assert_eq!(resumed_records[0].get_hit_count(), 1);
 
         debugger_service.resume().expect("Expected first trace hit.");
         debugger_service.resume().expect("Expected second trace hit.");
@@ -1244,6 +1379,6 @@ mod tests {
             })
             .expect("Expected emitted event lock to be available.");
 
-        assert_eq!(trace_hit_counts, vec![1, 2, 3, 3]);
+        assert_eq!(trace_hit_counts, vec![1, 1, 1, 2, 3, 3]);
     }
 }

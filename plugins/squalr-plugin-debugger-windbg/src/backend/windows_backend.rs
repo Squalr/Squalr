@@ -141,6 +141,17 @@ impl WindbgBackend {
             .remove_breakpoint(breakpoint_id)
     }
 
+    pub(crate) fn set_breakpoint_enabled(
+        &self,
+        breakpoint_id: &str,
+        is_enabled: bool,
+    ) -> Result<(), DebuggerPluginError> {
+        self.worker_handle
+            .as_ref()
+            .ok_or_else(|| Self::plugin_error("Cannot update a breakpoint because there is no active DbgEng worker."))?
+            .set_breakpoint_enabled(breakpoint_id, is_enabled)
+    }
+
     pub(crate) fn list_breakpoints(&self) -> Result<Vec<DebuggerBreakpointDescriptor>, DebuggerPluginError> {
         self.worker_handle
             .as_ref()
@@ -247,6 +258,26 @@ impl WindbgWorkerHandle {
             .map_err(|error| WindbgBackend::plugin_error(format!("DbgEng worker exited before breakpoint removal completed: {}", error)))?
     }
 
+    fn set_breakpoint_enabled(
+        &self,
+        breakpoint_id: &str,
+        is_enabled: bool,
+    ) -> Result<(), DebuggerPluginError> {
+        let (result_sender, result_receiver) = mpsc::channel();
+
+        self.command_sender
+            .send(WindbgWorkerCommand::SetBreakpointEnabled {
+                breakpoint_id: breakpoint_id.to_string(),
+                is_enabled,
+                result_sender,
+            })
+            .map_err(|error| WindbgBackend::plugin_error(format!("Failed to request DbgEng breakpoint state update: {}", error)))?;
+
+        result_receiver
+            .recv()
+            .map_err(|error| WindbgBackend::plugin_error(format!("DbgEng worker exited before breakpoint state update completed: {}", error)))?
+    }
+
     fn list_breakpoints(&self) -> Result<Vec<DebuggerBreakpointDescriptor>, DebuggerPluginError> {
         let (result_sender, result_receiver) = mpsc::channel();
 
@@ -324,6 +355,11 @@ enum WindbgWorkerCommand {
     },
     RemoveBreakpoint {
         breakpoint_id: String,
+        result_sender: Sender<Result<(), DebuggerPluginError>>,
+    },
+    SetBreakpointEnabled {
+        breakpoint_id: String,
+        is_enabled: bool,
         result_sender: Sender<Result<(), DebuggerPluginError>>,
     },
     ListBreakpoints {
@@ -546,6 +582,22 @@ impl ActiveWindbgSession {
         }
 
         remove_result
+    }
+
+    fn set_breakpoint_enabled(
+        &mut self,
+        breakpoint_id: &str,
+        is_enabled: bool,
+    ) -> Result<(), DebuggerPluginError> {
+        let debug_breakpoint_id = Self::parse_breakpoint_id(breakpoint_id)?;
+        let command_name = if is_enabled { "be" } else { "bd" };
+        let context = if is_enabled {
+            format!("enable breakpoint {}", breakpoint_id)
+        } else {
+            format!("disable breakpoint {}", breakpoint_id)
+        };
+
+        self.execute_debugger_command(&format!("{} {}", command_name, debug_breakpoint_id), &context)
     }
 
     fn execute_debugger_command(
@@ -1165,6 +1217,14 @@ fn handle_worker_command(
         WindbgWorkerCommand::RemoveBreakpoint { breakpoint_id, result_sender } => {
             let remove_breakpoint_result = active_session.remove_breakpoint(&breakpoint_id);
             let _ = result_sender.send(remove_breakpoint_result);
+        }
+        WindbgWorkerCommand::SetBreakpointEnabled {
+            breakpoint_id,
+            is_enabled,
+            result_sender,
+        } => {
+            let set_breakpoint_enabled_result = active_session.set_breakpoint_enabled(&breakpoint_id, is_enabled);
+            let _ = result_sender.send(set_breakpoint_enabled_result);
         }
         WindbgWorkerCommand::ListBreakpoints { result_sender } => {
             let list_breakpoints_result = active_session.list_breakpoints();

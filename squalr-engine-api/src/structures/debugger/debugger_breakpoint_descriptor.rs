@@ -43,6 +43,13 @@ impl DebuggerBreakpointDescriptor {
         self.is_enabled
     }
 
+    pub fn set_is_enabled(
+        &mut self,
+        is_enabled: bool,
+    ) {
+        self.is_enabled = is_enabled;
+    }
+
     pub fn get_label(&self) -> Option<&str> {
         self.label.as_deref()
     }

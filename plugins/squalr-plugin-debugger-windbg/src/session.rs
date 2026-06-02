@@ -75,6 +75,14 @@ impl DebuggerSession for WindbgDebuggerSession {
         self.backend.remove_breakpoint(breakpoint_id)
     }
 
+    fn set_breakpoint_enabled(
+        &mut self,
+        breakpoint_id: &str,
+        is_enabled: bool,
+    ) -> Result<(), DebuggerPluginError> {
+        self.backend.set_breakpoint_enabled(breakpoint_id, is_enabled)
+    }
+
     fn list_breakpoints(&self) -> Result<Vec<DebuggerBreakpointDescriptor>, DebuggerPluginError> {
         self.backend.list_breakpoints()
     }

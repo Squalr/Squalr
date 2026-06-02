@@ -53,6 +53,13 @@ impl DebuggerTraceSessionDescriptor {
         &self.breakpoint
     }
 
+    pub fn set_breakpoint(
+        &mut self,
+        breakpoint: DebuggerBreakpointDescriptor,
+    ) {
+        self.breakpoint = breakpoint;
+    }
+
     pub fn get_label(&self) -> Option<&str> {
         self.label.as_deref()
     }

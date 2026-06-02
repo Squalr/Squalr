@@ -59,6 +59,14 @@ impl WindbgBackend {
         Err(self.unavailable_error())
     }
 
+    pub(crate) fn set_breakpoint_enabled(
+        &self,
+        _breakpoint_id: &str,
+        _is_enabled: bool,
+    ) -> Result<(), DebuggerPluginError> {
+        Err(self.unavailable_error())
+    }
+
     pub(crate) fn list_breakpoints(&self) -> Result<Vec<DebuggerBreakpointDescriptor>, DebuggerPluginError> {
         Err(self.unavailable_error())
     }

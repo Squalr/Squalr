@@ -4,7 +4,8 @@ use crate::commands::debugger::{
     breakpoint_set::debugger_breakpoint_set_response::DebuggerBreakpointSetResponse, detach::debugger_detach_response::DebuggerDetachResponse,
     pause::debugger_pause_response::DebuggerPauseResponse, register_write::debugger_register_write_response::DebuggerRegisterWriteResponse,
     registers_read::debugger_registers_read_response::DebuggerRegistersReadResponse, resume::debugger_resume_response::DebuggerResumeResponse,
-    trace_list::debugger_trace_list_response::DebuggerTraceListResponse, trace_start::debugger_trace_start_response::DebuggerTraceStartResponse,
+    trace_list::debugger_trace_list_response::DebuggerTraceListResponse, trace_pause::debugger_trace_pause_response::DebuggerTracePauseResponse,
+    trace_resume::debugger_trace_resume_response::DebuggerTraceResumeResponse, trace_start::debugger_trace_start_response::DebuggerTraceStartResponse,
     trace_stop::debugger_trace_stop_response::DebuggerTraceStopResponse,
 };
 use serde::{Deserialize, Serialize};
@@ -43,6 +44,12 @@ pub enum DebuggerResponse {
     },
     TraceStop {
         debugger_trace_stop_response: DebuggerTraceStopResponse,
+    },
+    TracePause {
+        debugger_trace_pause_response: DebuggerTracePauseResponse,
+    },
+    TraceResume {
+        debugger_trace_resume_response: DebuggerTraceResumeResponse,
     },
     TraceList {
         debugger_trace_list_response: DebuggerTraceListResponse,

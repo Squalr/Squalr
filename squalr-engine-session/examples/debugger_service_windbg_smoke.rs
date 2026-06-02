@@ -139,6 +139,20 @@ fn run_smoke_against_child(child_process: &mut std::process::Child) -> Result<()
         return Err(String::from("Session trace was not enriched with disassembly text.").into());
     }
 
+    let (paused_trace_session, paused_instruction_records) = debugger_service.pause_trace_session(trace_session.get_trace_session_id())?;
+    println!(
+        "Paused trace collection for {} at {} instruction record(s).",
+        paused_trace_session.get_trace_session_id(),
+        paused_instruction_records.len()
+    );
+
+    let (resumed_trace_session, resumed_instruction_records) = debugger_service.resume_trace_session(trace_session.get_trace_session_id())?;
+    println!(
+        "Resumed trace collection for {} at {} instruction record(s).",
+        resumed_trace_session.get_trace_session_id(),
+        resumed_instruction_records.len()
+    );
+
     let (stopped_trace_session, instruction_records) = debugger_service.stop_trace_session(trace_session.get_trace_session_id())?;
     println!(
         "Stopped trace session {} with {} instruction record(s).",

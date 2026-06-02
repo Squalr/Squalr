@@ -743,6 +743,14 @@ mod tests {
             Ok(())
         }
 
+        fn set_breakpoint_enabled(
+            &mut self,
+            _breakpoint_id: &str,
+            _is_enabled: bool,
+        ) -> Result<(), DebuggerPluginError> {
+            Ok(())
+        }
+
         fn list_breakpoints(&self) -> Result<Vec<DebuggerBreakpointDescriptor>, DebuggerPluginError> {
             Ok(Vec::new())
         }

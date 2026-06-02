@@ -10,6 +10,7 @@ use squalr_engine_api::{
         debugger::{
             attach::debugger_attach_request::DebuggerAttachRequest, detach::debugger_detach_request::DebuggerDetachRequest,
             registers_read::debugger_registers_read_request::DebuggerRegistersReadRequest,
+            trace_pause::debugger_trace_pause_request::DebuggerTracePauseRequest, trace_resume::debugger_trace_resume_request::DebuggerTraceResumeRequest,
             trace_start::debugger_trace_start_request::DebuggerTraceStartRequest, trace_stop::debugger_trace_stop_request::DebuggerTraceStopRequest,
         },
         privileged_command::PrivilegedCommand,
@@ -173,6 +174,28 @@ fn run_smoke_against_child(child_process: &mut std::process::Child) -> Result<()
     if trace_event.get_instruction_text().is_none() {
         return Err(String::from("Command trace was not enriched with disassembly text.").into());
     }
+
+    let trace_pause_response = DebuggerTracePauseRequest {
+        trace_session_id: trace_session.get_trace_session_id().to_string(),
+    }
+    .execute(&engine_privileged_state);
+    require_status(&trace_pause_response.status, "debugger trace collection pause")?;
+    println!(
+        "Paused trace collection for {} at {} instruction record(s).",
+        trace_session.get_trace_session_id(),
+        trace_pause_response.instruction_records.len()
+    );
+
+    let trace_resume_response = DebuggerTraceResumeRequest {
+        trace_session_id: trace_session.get_trace_session_id().to_string(),
+    }
+    .execute(&engine_privileged_state);
+    require_status(&trace_resume_response.status, "debugger trace collection resume")?;
+    println!(
+        "Resumed trace collection for {} at {} instruction record(s).",
+        trace_session.get_trace_session_id(),
+        trace_resume_response.instruction_records.len()
+    );
 
     let trace_stop_response = DebuggerTraceStopRequest {
         trace_session_id: trace_session.get_trace_session_id().to_string(),

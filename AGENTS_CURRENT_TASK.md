@@ -206,6 +206,16 @@ Our current task, from `README.md`, is:
   - `plugins/squalr-plugin-debugger-windbg`: Windows-only DbgEng implementation with hardware data breakpoints and register snapshots.
   - `squalr-engine`: command executors that call the debugger service.
   - `squalr-cli`/`squalr-tui`/`squalr`: command and basic UI surfaces.
+- Debugger trace collection pause/resume correction completed:
+  - Owner clarified that the Debugger Trace header Pause button means pause collection of trace hits, not pause the debuggee.
+  - Added engine-owned `DebuggerTracePauseRequest`/`DebuggerTraceResumeRequest` commands and responses.
+  - Added generic debugger-session breakpoint enable/disable support.
+  - `DebuggerService` now pauses trace collection by disabling the trace session's backing breakpoint and resumes collection by re-enabling it, while leaving debugger execution state alone.
+  - Disabled trace sessions ignore late or in-flight trace events so row hit counts do not increment while collection is paused.
+  - The WinDbg plugin implements collection pause/resume with serialized DbgEng worker commands using `bd <breakpoint_id>` and `be <breakpoint_id>`.
+  - The Debugger Trace window no longer listens to global debugger session state for its pause/resume button. The header now derives `Collecting`, `Collection Paused`, or `Stopped` from the trace descriptor and uses collection-specific tooltips.
+  - Session and command WinDbg smoke examples now exercise pause/resume collection before stopping the trace.
+  - GUI behavior against the originally failing target still needs human verification.
 - Next implementation target:
   - Add GUI/project-item integration for the C#-style flow:
     - Human-verify the corrected flow: right-click project item -> `Find What Writes` -> Debugger Trace attach takeover -> breakpoint hit rows populate -> double-click hit row creates a project item.
@@ -215,7 +225,7 @@ Our current task, from `README.md`, is:
   - Human-verify DbgEng attach/detach, pause/resume, register read/write, breakpoint create/remove/list, trace sessions, and breakpoint trace emission from CLI/TUI/GUI command surfaces against a disposable local process.
   - Human-verify that GUI `Find What Writes` no longer leaves the target frozen after attach or after trace hits, and that closing Squalr detaches instead of killing the target.
   - Human-verify that GUI `Find What Writes` now arms the breakpoint at the resolved absolute runtime address for module-relative project items and that Stop Trace no longer reports `GetBreakpointById(0)` catastrophic failure.
-  - Human-verify that the Debugger Trace attach prompt renders Attach as the blue primary action, the active header renders Stop/Pause/Resume left-aligned with session text after the controls, and Stop Trace no longer crashes or times out when attached to the Minesweeper timer target.
+  - Human-verify that the Debugger Trace attach prompt renders Attach as the blue primary action, the active header renders Stop/Pause Collection/Resume Collection left-aligned with session text after the controls, collection pause does not freeze the target, and Stop Trace no longer crashes or times out when attached to the Minesweeper timer target.
   - Human-verify that the Debugger Trace Instruction column shows only the single hit instruction and that trace rows no longer show stale backend preview text such as `Hit breakpoint 0`.
   - Human-verify that starting another `Find What Reads/Writes/Accesses` while a prior prompt/action is in flight does not leave the takeover stuck on an unrecoverable spinner.
   - Human-verify that GUI `Find What Writes` reports the actual access instruction for Minesweeper timer-style cases, not the following post-trap instruction.
@@ -381,6 +391,21 @@ Our current task, from `README.md`, is:
   - `cargo run -p squalr-engine-session --example debugger_service_windbg_smoke --locked` passed on Windows against a disposable child process and stopped a running trace session cleanly without pause-before-remove.
   - `cargo run -p squalr-engine --example debugger_command_windbg_smoke --locked` passed on Windows against a disposable child process and stopped a running trace session cleanly without pause-before-remove.
   - `cargo test -p squalr --locked default_layout_places_output_related_windows_in_same_tab_group -- --nocapture` passed.
+  - `cargo run -p squalr-plugin-debugger-windbg --example windbg_smoke --locked` passed on Windows against a disposable child process.
+  - GUI behavior against the originally failing target still needs human verification after implementation and validation.
+- After debugger trace collection pause/resume correction:
+  - `cargo check -p squalr-engine-api --locked` passed.
+  - `cargo check -p squalr-engine-session --locked` passed.
+  - `cargo check -p squalr-plugin-debugger-windbg --locked` passed.
+  - `cargo check -p squalr --locked` passed.
+  - `cargo fmt --all` completed with the existing `.rustfmt.toml` deprecation warnings for `fn_args_layout`.
+  - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed and now asserts paused trace collection ignores target trace events.
+  - `cargo test -p squalr-plugin-debugger-windbg --locked -- --nocapture` passed.
+  - `cargo test -p squalr --locked default_layout_places_output_related_windows_in_same_tab_group -- --nocapture` passed.
+  - `cargo check -p squalr-engine --examples --locked` passed.
+  - `cargo check -p squalr-engine-session --examples --locked` passed.
+  - `cargo run -p squalr-engine-session --example debugger_service_windbg_smoke --locked` passed on Windows against a disposable child process and exercised trace collection pause/resume before stop.
+  - `cargo run -p squalr-engine --example debugger_command_windbg_smoke --locked` passed on Windows against a disposable child process and exercised trace collection pause/resume before stop.
   - `cargo run -p squalr-plugin-debugger-windbg --example windbg_smoke --locked` passed on Windows against a disposable child process.
   - GUI behavior against the originally failing target still needs human verification after implementation and validation.
 - References checked:

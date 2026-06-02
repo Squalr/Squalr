@@ -22,6 +22,10 @@ use squalr_engine_api::commands::debugger::resume::debugger_resume_request::Debu
 use squalr_engine_api::commands::debugger::resume::debugger_resume_response::DebuggerResumeResponse;
 use squalr_engine_api::commands::debugger::trace_list::debugger_trace_list_request::DebuggerTraceListRequest;
 use squalr_engine_api::commands::debugger::trace_list::debugger_trace_list_response::DebuggerTraceListResponse;
+use squalr_engine_api::commands::debugger::trace_pause::debugger_trace_pause_request::DebuggerTracePauseRequest;
+use squalr_engine_api::commands::debugger::trace_pause::debugger_trace_pause_response::DebuggerTracePauseResponse;
+use squalr_engine_api::commands::debugger::trace_resume::debugger_trace_resume_request::DebuggerTraceResumeRequest;
+use squalr_engine_api::commands::debugger::trace_resume::debugger_trace_resume_response::DebuggerTraceResumeResponse;
 use squalr_engine_api::commands::debugger::trace_start::debugger_trace_start_request::DebuggerTraceStartRequest;
 use squalr_engine_api::commands::debugger::trace_start::debugger_trace_start_response::DebuggerTraceStartResponse;
 use squalr_engine_api::commands::debugger::trace_stop::debugger_trace_stop_request::DebuggerTraceStopRequest;
@@ -87,6 +91,12 @@ impl PrivilegedCommandExecutor for DebuggerCommand {
                 .execute(engine_privileged_state)
                 .to_engine_response(),
             DebuggerCommand::TraceStop { debugger_trace_stop_request } => debugger_trace_stop_request
+                .execute(engine_privileged_state)
+                .to_engine_response(),
+            DebuggerCommand::TracePause { debugger_trace_pause_request } => debugger_trace_pause_request
+                .execute(engine_privileged_state)
+                .to_engine_response(),
+            DebuggerCommand::TraceResume { debugger_trace_resume_request } => debugger_trace_resume_request
                 .execute(engine_privileged_state)
                 .to_engine_response(),
             DebuggerCommand::TraceList { debugger_trace_list_request } => debugger_trace_list_request
@@ -344,6 +354,56 @@ impl PrivilegedCommandRequestExecutor for DebuggerTraceStopRequest {
                 instruction_records,
             },
             Err(error_message) => DebuggerTraceStopResponse {
+                status: failure_status(error_message),
+                trace_session: None,
+                instruction_records: Vec::new(),
+            },
+        }
+    }
+}
+
+impl PrivilegedCommandRequestExecutor for DebuggerTracePauseRequest {
+    type ResponseType = DebuggerTracePauseResponse;
+
+    fn execute(
+        &self,
+        engine_privileged_state: &Arc<EnginePrivilegedState>,
+    ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
+        match engine_privileged_state
+            .get_debugger_service()
+            .pause_trace_session(&self.trace_session_id)
+        {
+            Ok((trace_session, instruction_records)) => DebuggerTracePauseResponse {
+                status: DebuggerCommandStatus::success(),
+                trace_session: Some(trace_session),
+                instruction_records,
+            },
+            Err(error_message) => DebuggerTracePauseResponse {
+                status: failure_status(error_message),
+                trace_session: None,
+                instruction_records: Vec::new(),
+            },
+        }
+    }
+}
+
+impl PrivilegedCommandRequestExecutor for DebuggerTraceResumeRequest {
+    type ResponseType = DebuggerTraceResumeResponse;
+
+    fn execute(
+        &self,
+        engine_privileged_state: &Arc<EnginePrivilegedState>,
+    ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
+        match engine_privileged_state
+            .get_debugger_service()
+            .resume_trace_session(&self.trace_session_id)
+        {
+            Ok((trace_session, instruction_records)) => DebuggerTraceResumeResponse {
+                status: DebuggerCommandStatus::success(),
+                trace_session: Some(trace_session),
+                instruction_records,
+            },
+            Err(error_message) => DebuggerTraceResumeResponse {
                 status: failure_status(error_message),
                 trace_session: None,
                 instruction_records: Vec::new(),
