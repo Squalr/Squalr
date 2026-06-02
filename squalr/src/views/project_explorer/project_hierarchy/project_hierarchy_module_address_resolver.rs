@@ -41,6 +41,15 @@ impl ProjectHierarchyModuleAddressResolver {
         (address, module_name.to_string())
     }
 
+    pub fn resolve_absolute_address_to_project_item_address(
+        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
+        absolute_address: u64,
+    ) -> (u64, String) {
+        Self::dispatch_memory_query_request(engine_unprivileged_state)
+            .and_then(|memory_query_response| Self::resolve_absolute_address_to_module_relative_address(&memory_query_response.modules, absolute_address))
+            .unwrap_or((absolute_address, String::new()))
+    }
+
     fn dispatch_memory_query_request(engine_unprivileged_state: &Arc<EngineUnprivilegedState>) -> Option<MemoryQueryResponse> {
         let memory_query_request = MemoryQueryRequest::default();
         let memory_query_command = memory_query_request.to_engine_command();
@@ -97,5 +106,43 @@ impl ProjectHierarchyModuleAddressResolver {
                     .eq_ignore_ascii_case(module_name)
             })
             .and_then(|normalized_module| normalized_module.get_base_address().checked_add(address))
+    }
+
+    fn resolve_absolute_address_to_module_relative_address(
+        modules: &[NormalizedModule],
+        absolute_address: u64,
+    ) -> Option<(u64, String)> {
+        modules
+            .iter()
+            .find(|normalized_module| normalized_module.contains_address(absolute_address))
+            .map(|normalized_module| {
+                (
+                    absolute_address.saturating_sub(normalized_module.get_base_address()),
+                    normalized_module.get_module_name().to_string(),
+                )
+            })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ProjectHierarchyModuleAddressResolver;
+    use squalr_engine_api::structures::memory::normalized_module::NormalizedModule;
+
+    #[test]
+    fn absolute_address_resolution_prefers_containing_module_offset() {
+        let modules = vec![
+            NormalizedModule::new("first.exe", 0x1000, 0x100),
+            NormalizedModule::new("second.dll", 0x2000, 0x300),
+        ];
+
+        assert_eq!(
+            ProjectHierarchyModuleAddressResolver::resolve_absolute_address_to_module_relative_address(&modules, 0x2123),
+            Some((0x123, String::from("second.dll")))
+        );
+        assert_eq!(
+            ProjectHierarchyModuleAddressResolver::resolve_absolute_address_to_module_relative_address(&modules, 0x3000),
+            None
+        );
     }
 }

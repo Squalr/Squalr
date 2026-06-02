@@ -6,7 +6,10 @@ use crate::{
             debugger_trace_entry_view::DebuggerTraceEntryView,
             view_data::debugger_trace_view_data::{DebuggerTraceInstructionKey, DebuggerTraceViewData, PendingDebuggerTraceStartRequest},
         },
-        project_explorer::project_hierarchy::view_data::project_hierarchy_view_data::ProjectHierarchyViewData,
+        process_selector::view_data::process_selector_view_data::ProcessSelectorViewData,
+        project_explorer::project_hierarchy::{
+            project_hierarchy_module_address_resolver::ProjectHierarchyModuleAddressResolver, view_data::project_hierarchy_view_data::ProjectHierarchyViewData,
+        },
     },
 };
 use eframe::egui::{Align, Align2, Button, Direction, Layout, Rect, RichText, ScrollArea, Sense, Spinner, Ui, UiBuilder, Widget, pos2, vec2};
@@ -24,8 +27,8 @@ use squalr_engine_api::{
     dependency_injection::dependency::Dependency,
     events::debugger::trace_session_updated::debugger_trace_session_updated_event::DebuggerTraceSessionUpdatedEvent,
     structures::{
-        data_types::built_in_types::u8::data_type_u8::DataTypeU8,
         debugger::{DebuggerDataBreakpointAccess, DebuggerTraceInstructionRecord, DebuggerTraceSessionDescriptor},
+        memory::{address_display::format_module_address, bitness::Bitness},
     },
 };
 use std::sync::Arc;
@@ -35,6 +38,7 @@ pub struct DebuggerTraceView {
     app_context: Arc<AppContext>,
     debugger_trace_view_data: Dependency<DebuggerTraceViewData>,
     project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
+    process_selector_view_data: Dependency<ProcessSelectorViewData>,
 }
 
 impl DebuggerTraceView {
@@ -47,10 +51,14 @@ impl DebuggerTraceView {
         let project_hierarchy_view_data = app_context
             .dependency_container
             .get_dependency::<ProjectHierarchyViewData>();
+        let process_selector_view_data = app_context
+            .dependency_container
+            .get_dependency::<ProcessSelectorViewData>();
         let instance = Self {
             app_context,
             debugger_trace_view_data,
             project_hierarchy_view_data,
+            process_selector_view_data,
         };
 
         instance.listen_for_trace_session_updates();
@@ -467,14 +475,18 @@ impl DebuggerTraceView {
             return;
         };
         let target_directory_path = ProjectHierarchyViewData::get_selected_directory_path(self.project_hierarchy_view_data.clone()).unwrap_or_default();
-        let project_item_name = Self::build_instruction_project_item_name(instruction_record);
+        let (project_item_address, project_item_module_name) = ProjectHierarchyModuleAddressResolver::resolve_absolute_address_to_project_item_address(
+            &self.app_context.engine_unprivileged_state,
+            instruction_address,
+        );
+        let project_item_name = Self::build_instruction_project_item_name(project_item_address, &project_item_module_name, instruction_record);
         let project_items_create_request = ProjectItemsCreateRequest {
             parent_directory_path: target_directory_path,
             project_item_name,
             is_directory: false,
-            address: Some(instruction_address),
-            module_name: Some(String::new()),
-            data_type_id: Some(DataTypeU8::DATA_TYPE_ID.to_string()),
+            address: Some(project_item_address),
+            module_name: Some(project_item_module_name),
+            data_type_id: Some(self.instruction_data_type_id().to_string()),
             pointer_offsets: None,
         };
 
@@ -485,19 +497,40 @@ impl DebuggerTraceView {
         });
     }
 
-    fn build_instruction_project_item_name(instruction_record: &DebuggerTraceInstructionRecord) -> String {
-        instruction_record
-            .get_instruction_address()
-            .map(|instruction_address| format!("Instruction 0x{:X}", instruction_address))
-            .unwrap_or_else(|| {
-                let instruction_text = Self::instruction_text(instruction_record);
+    fn instruction_data_type_id(&self) -> &'static str {
+        let process_bitness = self
+            .process_selector_view_data
+            .read("Debugger trace process bitness")
+            .and_then(|process_selector_view_data| {
+                process_selector_view_data
+                    .opened_process
+                    .as_ref()
+                    .map(|opened_process_info| opened_process_info.get_bitness())
+            });
 
-                if instruction_text.is_empty() {
-                    String::from("Instruction")
-                } else {
-                    format!("Instruction {}", instruction_text)
-                }
-            })
+        match process_bitness.unwrap_or(Bitness::Bit64) {
+            Bitness::Bit32 => "i_x86",
+            Bitness::Bit64 => "i_x64",
+        }
+    }
+
+    fn build_instruction_project_item_name(
+        project_item_address: u64,
+        project_item_module_name: &str,
+        instruction_record: &DebuggerTraceInstructionRecord,
+    ) -> String {
+        let address_text = if project_item_module_name.is_empty() {
+            format!("0x{:X}", project_item_address)
+        } else {
+            format_module_address(project_item_module_name, project_item_address)
+        };
+        let instruction_text = Self::instruction_text(instruction_record);
+
+        if instruction_text.is_empty() {
+            format!("Instruction {}", address_text)
+        } else {
+            format!("{} {}", instruction_text, address_text)
+        }
     }
 }
 

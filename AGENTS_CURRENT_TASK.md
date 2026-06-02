@@ -156,6 +156,13 @@ Our current task, from `README.md`, is:
   - The WinDbg backend now uses `IDebugControl::GetNearInstruction(post_trap_ip, -1)` for hardware data breakpoints, reads instruction bytes from that resolved access-instruction address, and falls back to the raw IP with a backend diagnostic if attribution fails.
   - Register snapshots still retain the real post-trap IP for context, while the trace row and disassembly use the attributed access instruction address.
   - Live WinDbg command/service smokes now show `IP=...`, `instruction_address=...`, and a write instruction such as `lock xadd [rcx], rax`. Minesweeper GUI behavior still needs human verification.
+- Debugger trace add-to-project correction slice completed:
+  - Owner reported that double-clicking a trace instruction added an absolute `u8` address item instead of a module-relative instruction item.
+  - `ProjectHierarchyModuleAddressResolver` now exposes absolute-address-to-project-item resolution by querying current modules and converting contained addresses to `module_name + offset`.
+  - Debugger Trace double-click add-to-project now resolves the trace instruction absolute address back to module-relative form when a containing module exists.
+  - Debugger Trace double-click add-to-project now uses the opened process bitness to choose `i_x86` or `i_x64` instead of `u8`.
+  - The current project item still uses the generic address project item type, but its data type is now the instruction data type. A dedicated code/project item type remains future cleanup if needed.
+  - GUI behavior still needs human verification.
 - Old C# Squalr debugger scope was small:
   - `FindWhatReads`, `FindWhatWrites`, and `FindWhatAccesses` set hardware data breakpoints.
   - `PauseExecution` and `ResumeExecution` interrupt/resume the debuggee.
@@ -195,6 +202,7 @@ Our current task, from `README.md`, is:
   - Human-verify that GUI `Find What Writes` now arms the breakpoint at the resolved absolute runtime address for module-relative project items and that Stop Trace no longer reports `GetBreakpointById(0)` catastrophic failure.
   - Human-verify that the Debugger Trace header renders the Stop button left-aligned with session text after it, and that the Instruction column shows only the single hit instruction.
   - Human-verify that GUI `Find What Writes` reports the actual access instruction for Minesweeper timer-style cases, not the following post-trap instruction.
+  - Human-verify that double-clicking a debugger trace row creates a module-relative `i_x86`/`i_x64` project item when the instruction lives inside a known module.
   - Decide whether to keep the three smoke examples separate or consolidate shared disposable-child helpers into test support.
   - Decide whether DbgEng trace byte capture should remain plugin-owned or be moved to a generic engine memory-provider enrichment path.
   - Defer any `dbgeng` crate adoption unless a later symbol/output-capture feature benefits from its helper API.
@@ -323,6 +331,13 @@ Our current task, from `README.md`, is:
   - `cargo run -p squalr-plugin-debugger-windbg --example windbg_smoke --locked` passed on Windows against a disposable child process and showed separate post-trap IP and attributed instruction address.
   - `cargo run -p squalr-engine-session --example debugger_service_windbg_smoke --locked` passed on Windows against a disposable child process and showed `lock xadd [rcx], rax`.
   - `cargo test -p squalr-plugin-debugger-windbg --locked -- --nocapture` passed.
+  - GUI behavior still needs human verification after implementation and validation.
+- After debugger trace add-to-project correction:
+  - `cargo fmt --all` completed with the existing `.rustfmt.toml` deprecation warnings for `fn_args_layout`.
+  - `cargo check -p squalr --locked` passed.
+  - `cargo test -p squalr --locked absolute_address_resolution_prefers_containing_module_offset -- --nocapture` passed.
+  - `cargo test -p squalr --locked default_layout_places_output_related_windows_in_same_tab_group -- --nocapture` passed.
+  - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
   - GUI behavior still needs human verification after implementation and validation.
 - References checked:
   - Local Rust workspace plugin/session/target architecture.
