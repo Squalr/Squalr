@@ -212,10 +212,17 @@ Our current task, from `README.md`, is:
   - Added generic debugger-session breakpoint enable/disable support.
   - `DebuggerService` now pauses trace collection by disabling the trace session's backing breakpoint and resumes collection by re-enabling it, while leaving debugger execution state alone.
   - Disabled trace sessions ignore late or in-flight trace events so row hit counts do not increment while collection is paused.
-  - The WinDbg plugin implements collection pause/resume with serialized DbgEng worker commands using `bd <breakpoint_id>` and `be <breakpoint_id>`.
+  - The WinDbg plugin originally used textual DbgEng worker commands `bd <breakpoint_id>` and `be <breakpoint_id>`, but GUI testing showed `IDebugControl::Execute` can fail with `0x80040205` while the target is running.
+  - WinDbg collection pause/resume now uses direct `IDebugControl::GetBreakpointById`, `IDebugBreakpoint::GetFlags`, and `IDebugBreakpoint::SetFlags` to clear/set `DEBUG_BREAKPOINT_ENABLED` on the serialized worker thread.
   - The Debugger Trace window no longer listens to global debugger session state for its pause/resume button. The header now derives `Collecting`, `Collection Paused`, or `Stopped` from the trace descriptor and uses collection-specific tooltips.
   - Session and command WinDbg smoke examples now exercise pause/resume collection before stopping the trace.
   - GUI behavior against the originally failing target still needs human verification.
+- Debugger instruction project-item preview correction completed:
+  - Owner reported trace-created instruction project items showed `??` as their Project Explorer preview.
+  - Instruction data types (`i_x86`/`i_x64`) have unit size 1, so the normal project preview read often fetched only one byte and could not disassemble a complete instruction.
+  - Project Explorer runtime previews now special-case `i_x86`/`i_x64` project items to read a 16-byte fixed instruction window while still formatting the preview as a scalar instruction text.
+  - Added a focused GUI unit test that asserts instruction previews build a 16-byte read definition.
+  - GUI behavior against the originally failing project item still needs human verification.
 - Next implementation target:
   - Add GUI/project-item integration for the C#-style flow:
     - Human-verify the corrected flow: right-click project item -> `Find What Writes` -> Debugger Trace attach takeover -> breakpoint hit rows populate -> double-click hit row creates a project item.
@@ -229,7 +236,7 @@ Our current task, from `README.md`, is:
   - Human-verify that the Debugger Trace Instruction column shows only the single hit instruction and that trace rows no longer show stale backend preview text such as `Hit breakpoint 0`.
   - Human-verify that starting another `Find What Reads/Writes/Accesses` while a prior prompt/action is in flight does not leave the takeover stuck on an unrecoverable spinner.
   - Human-verify that GUI `Find What Writes` reports the actual access instruction for Minesweeper timer-style cases, not the following post-trap instruction.
-  - Human-verify that double-clicking a debugger trace row creates a module-relative `i_x86`/`i_x64` project item when the instruction lives inside a known module.
+  - Human-verify that double-clicking a debugger trace row creates a module-relative `i_x86`/`i_x64` project item when the instruction lives inside a known module and that its Project Explorer preview disassembles to instruction text instead of `??`.
   - Decide whether to keep the three smoke examples separate or consolidate shared disposable-child helpers into test support.
   - Decide whether DbgEng trace byte capture should remain plugin-owned or be moved to a generic engine memory-provider enrichment path.
   - Defer any `dbgeng` crate adoption unless a later symbol/output-capture feature benefits from its helper API.
@@ -408,6 +415,17 @@ Our current task, from `README.md`, is:
   - `cargo run -p squalr-engine --example debugger_command_windbg_smoke --locked` passed on Windows against a disposable child process and exercised trace collection pause/resume before stop.
   - `cargo run -p squalr-plugin-debugger-windbg --example windbg_smoke --locked` passed on Windows against a disposable child process.
   - GUI behavior against the originally failing target still needs human verification after implementation and validation.
+- After DbgEng breakpoint flag pause and instruction preview correction:
+  - `cargo check -p squalr-plugin-debugger-windbg --locked` passed.
+  - `cargo check -p squalr --locked` passed.
+  - `cargo run -p squalr-engine-session --example debugger_service_windbg_smoke --locked` passed on Windows against a disposable child process and exercised trace collection pause/resume with direct breakpoint flag changes.
+  - `cargo run -p squalr-engine --example debugger_command_windbg_smoke --locked` passed on Windows against a disposable child process and exercised trace collection pause/resume with direct breakpoint flag changes.
+  - `cargo fmt --all` completed with the existing `.rustfmt.toml` deprecation warnings for `fn_args_layout`.
+  - `cargo test -p squalr --locked instruction_project_item_preview_reads_instruction_byte_window -- --nocapture` passed.
+  - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
+  - `cargo test -p squalr-plugin-debugger-windbg --locked -- --nocapture` passed.
+  - `cargo test -p squalr --locked default_layout_places_output_related_windows_in_same_tab_group -- --nocapture` passed.
+  - GUI behavior against the originally failing target and instruction project item still needs human verification after implementation and validation.
 - References checked:
   - Local Rust workspace plugin/session/target architecture.
   - Old C# implementation under `C:\Projects\Squalr\Squalr.Engine.Debugger`.

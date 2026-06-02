@@ -590,14 +590,27 @@ impl ActiveWindbgSession {
         is_enabled: bool,
     ) -> Result<(), DebuggerPluginError> {
         let debug_breakpoint_id = Self::parse_breakpoint_id(breakpoint_id)?;
-        let command_name = if is_enabled { "be" } else { "bd" };
-        let context = if is_enabled {
-            format!("enable breakpoint {}", breakpoint_id)
+        let breakpoint = unsafe { self.control.GetBreakpointById(debug_breakpoint_id) }
+            .map_err(|error| WindbgBackend::plugin_error(format!("IDebugControl::GetBreakpointById({}) failed: {}", debug_breakpoint_id, error)))?;
+        let current_flags = unsafe { breakpoint.GetFlags() }
+            .map_err(|error| WindbgBackend::plugin_error(format!("IDebugBreakpoint::GetFlags({}) failed: {}", debug_breakpoint_id, error)))?;
+        let updated_flags = if is_enabled {
+            current_flags | DEBUG_BREAKPOINT_ENABLED
         } else {
-            format!("disable breakpoint {}", breakpoint_id)
+            current_flags & !DEBUG_BREAKPOINT_ENABLED
         };
 
-        self.execute_debugger_command(&format!("{} {}", command_name, debug_breakpoint_id), &context)
+        unsafe {
+            breakpoint.SetFlags(updated_flags).map_err(|error| {
+                WindbgBackend::plugin_error(format!(
+                    "IDebugBreakpoint::SetFlags({:#X}) failed while trying to {} breakpoint {}: {}",
+                    updated_flags,
+                    if is_enabled { "enable" } else { "disable" },
+                    breakpoint_id,
+                    error
+                ))
+            })
+        }
     }
 
     fn execute_debugger_command(

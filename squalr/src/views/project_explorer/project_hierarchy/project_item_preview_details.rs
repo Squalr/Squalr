@@ -2,6 +2,7 @@ use squalr_engine::services::projects::project_item_symbol_resolution::{
     resolve_address_target_runtime_pointer_with_optional_catalog, resolve_project_item_struct_layout_id,
 };
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
+use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::{
     anonymous_value_string_format::AnonymousValueStringFormat,
     container_type::ContainerType,
@@ -26,6 +27,7 @@ pub struct ProjectItemPreviewDetails;
 
 impl ProjectItemPreviewDetails {
     const PROJECT_ITEM_PREVIEW_FORMAT_OPTIONS: DataValuePreviewFormatOptions = DataValuePreviewFormatOptions::new(4, 96, 96);
+    const INSTRUCTION_PREVIEW_BYTE_COUNT: u64 = 16;
 
     pub fn copy_project_item_preview_fields(
         source_project_item: &ProjectItem,
@@ -164,6 +166,10 @@ impl ProjectItemPreviewDetails {
         engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
         symbolic_struct_namespace: &str,
     ) -> Option<SymbolicStructDefinition> {
+        if Self::is_instruction_data_type(symbolic_struct_namespace) {
+            return Some(Self::build_instruction_preview_symbolic_struct_definition(symbolic_struct_namespace));
+        }
+
         let symbolic_struct_definition = engine_unprivileged_state.resolve_struct_layout_definition(symbolic_struct_namespace)?;
         let preview_field_definition = SymbolicFieldDefinition::from_str(symbolic_struct_namespace).ok();
 
@@ -184,8 +190,15 @@ impl ProjectItemPreviewDetails {
     }
 
     fn resolve_project_item_symbolic_container_type(project_item: &ProjectItem) -> ContainerType {
-        resolve_project_item_struct_layout_id(&ProjectSymbolCatalog::default(), project_item)
-            .and_then(|symbolic_struct_namespace| SymbolicFieldDefinition::from_str(&symbolic_struct_namespace).ok())
+        let Some(symbolic_struct_namespace) = resolve_project_item_struct_layout_id(&ProjectSymbolCatalog::default(), project_item) else {
+            return ContainerType::None;
+        };
+
+        if Self::is_instruction_data_type(&symbolic_struct_namespace) {
+            return ContainerType::None;
+        }
+
+        SymbolicFieldDefinition::from_str(&symbolic_struct_namespace)
             .map(|symbolic_field_definition| symbolic_field_definition.get_container_type())
             .unwrap_or(ContainerType::None)
     }
@@ -199,5 +212,34 @@ impl ProjectItemPreviewDetails {
         };
 
         DataValuePreviewFormatter::array_preview_was_truncated(symbolic_field_definition.get_container_type())
+    }
+
+    fn is_instruction_data_type(data_type_id: &str) -> bool {
+        data_type_id == "i_x86" || data_type_id == "i_x64"
+    }
+
+    fn build_instruction_preview_symbolic_struct_definition(data_type_id: &str) -> SymbolicStructDefinition {
+        SymbolicStructDefinition::new_anonymous(vec![SymbolicFieldDefinition::new(
+            DataTypeRef::new(data_type_id),
+            ContainerType::ArrayFixed(Self::INSTRUCTION_PREVIEW_BYTE_COUNT),
+        )])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ProjectItemPreviewDetails;
+    use squalr_engine_api::structures::data_values::container_type::ContainerType;
+
+    #[test]
+    fn instruction_project_item_preview_reads_instruction_byte_window() {
+        let symbolic_struct_definition = ProjectItemPreviewDetails::build_instruction_preview_symbolic_struct_definition("i_x64");
+        let preview_field = symbolic_struct_definition
+            .get_fields()
+            .first()
+            .expect("Expected instruction preview definition to contain one field.");
+
+        assert_eq!(preview_field.get_data_type_ref().get_data_type_id(), "i_x64");
+        assert_eq!(preview_field.get_container_type(), ContainerType::ArrayFixed(16));
     }
 }
