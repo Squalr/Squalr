@@ -523,7 +523,7 @@ impl<'lifetime> ProjectHierarchyProjectItemContextMenuView<'lifetime> {
             .opened_project_info
             .map(|opened_project_info| opened_project_info.get_project_symbol_catalog());
 
-        if let Some((address, _module_name)) =
+        if let Some((address, module_name)) =
             resolve_project_item_runtime_value_target(&engine_execution_context, project_symbol_catalog, &self.tree_entry.project_item)
         {
             let size_in_bytes = resolve_project_item_runtime_value_byte_count(&engine_execution_context, &self.tree_entry.project_item)
@@ -533,6 +533,7 @@ impl<'lifetime> ProjectHierarchyProjectItemContextMenuView<'lifetime> {
 
             frame_actions.push(ProjectHierarchyFrameAction::StartDebuggerTraceForAddress {
                 address,
+                module_name,
                 size_in_bytes,
                 access,
                 label,

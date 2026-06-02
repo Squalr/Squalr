@@ -30,7 +30,7 @@ impl WindbgDebuggerPlugin {
                     PluginPermission::WriteRegisters,
                 ],
                 true,
-                false,
+                true,
             ),
         }
     }

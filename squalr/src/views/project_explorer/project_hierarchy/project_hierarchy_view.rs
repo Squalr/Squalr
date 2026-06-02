@@ -657,6 +657,7 @@ impl Widget for ProjectHierarchyView {
             }
             ProjectHierarchyFrameAction::StartDebuggerTraceForAddress {
                 address,
+                module_name,
                 size_in_bytes,
                 access,
                 label,
@@ -665,7 +666,7 @@ impl Widget for ProjectHierarchyView {
                     return response;
                 }
 
-                self.start_debugger_trace_for_address(address, size_in_bytes, access, label);
+                self.start_debugger_trace_for_address(address, &module_name, size_in_bytes, access, label);
             }
             ProjectHierarchyFrameAction::PromoteToSymbol {
                 project_item_paths,
@@ -900,14 +901,18 @@ impl ProjectHierarchyView {
     fn start_debugger_trace_for_address(
         &self,
         address: u64,
+        module_name: &str,
         size_in_bytes: u8,
         access: DebuggerDataBreakpointAccess,
         label: Option<String>,
     ) {
+        let (resolved_target_address, _resolved_target_module_name) =
+            ProjectHierarchyModuleAddressResolver::resolve_pointer_scanner_target(&self.app_context.engine_unprivileged_state, address, module_name);
+
         self.focus_debugger_trace_window();
         DebuggerTraceViewData::request_trace_start(
             self.debugger_trace_view_data.clone(),
-            PendingDebuggerTraceStartRequest::new(address, size_in_bytes, access, label),
+            PendingDebuggerTraceStartRequest::new(resolved_target_address, size_in_bytes, access, label),
         );
     }
 

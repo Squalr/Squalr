@@ -67,7 +67,7 @@ Our current task, from `README.md`, is:
 - WinDbg plugin scaffold slice completed:
   - Added `plugins/squalr-plugin-debugger-windbg` as a workspace crate with debugger capability metadata and explicit debugger permissions.
   - Registered it through `squalr-plugin-builtins` only on Windows via `cfg(windows)`.
-  - Kept the plugin disabled by default until the DbgEng attach/event-loop proof is functional.
+  - The plugin was initially disabled by default until the DbgEng attach/event-loop proof was functional; it is now enabled by default on Windows after live trace smokes passed.
   - Added Windows/non-Windows backend modules.
   - Updated builtin and plugin-registry tests to account for the Windows-only debugger package.
 - Initial DbgEng backend slice completed:
@@ -136,6 +136,13 @@ Our current task, from `README.md`, is:
   - WinDbg detach now requests `DEBUG_STATUS_GO` before `DetachProcesses`/`EndSession(DEBUG_END_ACTIVE_DETACH)` to avoid leaving a stopped debuggee vulnerable during Squalr shutdown.
   - A focused `DebuggerService` test now asserts that trace-start resumes the target once and that trace-hit aggregation continues after that resume.
   - This mitigates the observed freeze/target-death path in live smokes, but still needs human verification through the GUI against the originally failing target.
+- Debugger trace default/stop-path correction slice completed:
+  - Owner reported that the WinDbg plugin should be enabled by default, trace breakpoints were not hitting, and Stop Trace could fail with `IDebugControl::GetBreakpointById(0)` catastrophic failure while the target was likely still running.
+  - `builtin.debugger.windbg` is now enabled by default on Windows, and plugin/builtin tests expect the default-enabled state.
+  - Project-item `Find What Reads/Writes/Accesses` now preserves the resolved module name through the frame action and resolves module-relative project addresses to absolute runtime addresses before queuing the trace start. The previous GUI path dropped the module name and could arm a hardware breakpoint at the module-relative offset instead of the runtime address.
+  - WinDbg breakpoint removal now interrupts the debuggee before `GetBreakpointById`/`RemoveBreakpoint` when the session is running, then attempts to resume afterward. This targets the Stop Trace failure path, where trace stop removes the backing breakpoint while the trace session has already resumed the target.
+  - The service and command WinDbg smoke examples now use `start_trace_session`/`stop_trace_session` instead of raw breakpoint set/remove, so live validation covers the same abstraction used by the GUI trace flow.
+  - Live disposable-process smokes passed for plugin, session-service trace stop, and command-executor trace stop. The originally failing GUI target still needs human verification.
 - Old C# Squalr debugger scope was small:
   - `FindWhatReads`, `FindWhatWrites`, and `FindWhatAccesses` set hardware data breakpoints.
   - `PauseExecution` and `ResumeExecution` interrupt/resume the debuggee.
@@ -172,6 +179,7 @@ Our current task, from `README.md`, is:
     - Consider adding module/offset enrichment to trace records instead of showing only absolute instruction addresses.
   - Human-verify DbgEng attach/detach, pause/resume, register read/write, breakpoint create/remove/list, trace sessions, and breakpoint trace emission from CLI/TUI/GUI command surfaces against a disposable local process.
   - Human-verify that GUI `Find What Writes` no longer leaves the target frozen after attach or after trace hits, and that closing Squalr detaches instead of killing the target.
+  - Human-verify that GUI `Find What Writes` now arms the breakpoint at the resolved absolute runtime address for module-relative project items and that Stop Trace no longer reports `GetBreakpointById(0)` catastrophic failure.
   - Decide whether to keep the three smoke examples separate or consolidate shared disposable-child helpers into test support.
   - Decide whether DbgEng trace byte capture should remain plugin-owned or be moved to a generic engine memory-provider enrichment path.
   - Defer any `dbgeng` crate adoption unless a later symbol/output-capture feature benefits from its helper API.
@@ -269,6 +277,19 @@ Our current task, from `README.md`, is:
   - `cargo run -p squalr-engine --example debugger_command_windbg_smoke --locked` passed on Windows against a disposable child process.
   - Re-running `cargo run -p squalr-engine-session --example debugger_service_windbg_smoke --locked` three consecutive times passed on Windows against disposable child processes.
   - `cargo check -p squalr --locked` passed.
+  - GUI behavior against the originally failing target still needs human verification after implementation and validation.
+- After debugger trace default/stop-path correction:
+  - `cargo fmt --all` completed with the existing `.rustfmt.toml` deprecation warnings for `fn_args_layout`.
+  - `cargo check -p squalr-plugin-debugger-windbg --locked` passed.
+  - `cargo check -p squalr-plugin-builtins --locked` passed.
+  - `cargo check -p squalr --locked` passed.
+  - `cargo test -p squalr-plugin-debugger-windbg --locked -- --nocapture` passed.
+  - `cargo test -p squalr-plugin-builtins --locked -- --nocapture` passed.
+  - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
+  - `cargo run -p squalr-plugin-debugger-windbg --example windbg_smoke --locked` passed on Windows against a disposable child process.
+  - `cargo run -p squalr-engine-session --example debugger_service_windbg_smoke --locked` passed on Windows against a disposable child process and stopped a running trace session cleanly with one instruction record.
+  - `cargo run -p squalr-engine --example debugger_command_windbg_smoke --locked` passed on Windows against a disposable child process and stopped a running trace session cleanly with one instruction record.
+  - `cargo test -p squalr --locked default_layout_places_output_related_windows_in_same_tab_group -- --nocapture` passed.
   - GUI behavior against the originally failing target still needs human verification after implementation and validation.
 - References checked:
   - Local Rust workspace plugin/session/target architecture.

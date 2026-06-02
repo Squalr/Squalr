@@ -536,19 +536,34 @@ impl ActiveWindbgSession {
         &mut self,
         breakpoint_id: &str,
     ) -> Result<(), DebuggerPluginError> {
-        let debug_breakpoint_id = Self::parse_breakpoint_id(breakpoint_id)?;
-        let breakpoint = unsafe { self.control.GetBreakpointById(debug_breakpoint_id) }
-            .map_err(|error| WindbgBackend::plugin_error(format!("IDebugControl::GetBreakpointById({}) failed: {}", breakpoint_id, error)))?;
+        let should_resume_after_remove = self.session_state == DebuggerSessionState::Running;
 
-        unsafe {
-            self.control
-                .RemoveBreakpoint(&breakpoint)
-                .map_err(|error| WindbgBackend::plugin_error(format!("IDebugControl::RemoveBreakpoint({}) failed: {}", breakpoint_id, error)))?;
+        if should_resume_after_remove {
+            self.pause()?;
         }
 
-        self.breakpoint_labels.remove(&debug_breakpoint_id);
+        let debug_breakpoint_id = Self::parse_breakpoint_id(breakpoint_id)?;
+        let remove_result = unsafe { self.control.GetBreakpointById(debug_breakpoint_id) }
+            .map_err(|error| WindbgBackend::plugin_error(format!("IDebugControl::GetBreakpointById({}) failed: {}", breakpoint_id, error)))
+            .and_then(|breakpoint| unsafe {
+                self.control
+                    .RemoveBreakpoint(&breakpoint)
+                    .map_err(|error| WindbgBackend::plugin_error(format!("IDebugControl::RemoveBreakpoint({}) failed: {}", breakpoint_id, error)))
+            });
 
-        Ok(())
+        if remove_result.is_ok() {
+            self.breakpoint_labels.remove(&debug_breakpoint_id);
+        }
+
+        if should_resume_after_remove {
+            let resume_result = self.resume();
+
+            if let Err(error) = resume_result {
+                log::debug!("Failed to resume debuggee after breakpoint removal attempt: {}", error);
+            }
+        }
+
+        remove_result
     }
 
     fn list_breakpoints(&self) -> Result<Vec<DebuggerBreakpointDescriptor>, DebuggerPluginError> {

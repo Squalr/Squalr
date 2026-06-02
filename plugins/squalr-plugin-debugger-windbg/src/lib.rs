@@ -15,7 +15,7 @@ mod tests {
         let plugin = WindbgDebuggerPlugin::new();
 
         assert_eq!(plugin.metadata().get_plugin_id(), "builtin.debugger.windbg");
-        assert!(!plugin.metadata().get_is_enabled_by_default());
+        assert!(plugin.metadata().get_is_enabled_by_default());
         assert!(
             plugin
                 .metadata()

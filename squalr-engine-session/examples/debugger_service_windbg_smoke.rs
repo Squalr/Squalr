@@ -2,7 +2,7 @@
 use squalr_engine_api::{
     events::{debugger::debugger_event::DebuggerEvent, engine_event::EngineEvent},
     structures::{
-        debugger::{DebuggerBreakpointKind, DebuggerDataBreakpointAccess, DebuggerTraceEvent},
+        debugger::{DebuggerDataBreakpointAccess, DebuggerTraceEvent},
         memory::bitness::Bitness,
         processes::opened_process_info::OpenedProcessInfo,
     },
@@ -87,7 +87,7 @@ fn run_smoke_against_child(child_process: &mut std::process::Child) -> Result<()
     );
     let plugin_registry = Arc::new(PluginRegistry::new());
 
-    if !plugin_registry.set_plugin_enabled("builtin.debugger.windbg", true) {
+    if !plugin_registry.is_plugin_enabled("builtin.debugger.windbg") && !plugin_registry.set_plugin_enabled("builtin.debugger.windbg", true) {
         return Err(String::from("Failed to enable builtin.debugger.windbg for smoke validation.").into());
     }
 
@@ -108,21 +108,21 @@ fn run_smoke_against_child(child_process: &mut std::process::Child) -> Result<()
             .unwrap_or("<unknown debugger plugin>")
     );
 
-    let breakpoint_descriptor = debugger_service.set_breakpoint(
+    let (trace_session, _) = debugger_service.start_trace_session(
         target_address,
-        DebuggerBreakpointKind::hardware_data(DebuggerDataBreakpointAccess::Write, 8),
+        8,
+        DebuggerDataBreakpointAccess::Write,
         Some(String::from("session-windbg-smoke-write")),
     )?;
     println!(
-        "Breakpoint {} armed at {:#x}.",
-        breakpoint_descriptor.get_breakpoint_id(),
-        breakpoint_descriptor.get_address()
+        "Trace session {} armed at {:#x}.",
+        trace_session.get_trace_session_id(),
+        trace_session.get_address()
     );
 
     let listed_breakpoints = debugger_service.list_breakpoints()?;
     println!("Session service reports {} breakpoint(s).", listed_breakpoints.len());
 
-    debugger_service.resume()?;
     let trace_event = wait_for_trace_event(&engine_event_receiver, Duration::from_secs(10))?;
     let trace_register_snapshot = trace_event.get_register_snapshot();
     println!(
@@ -138,7 +138,13 @@ fn run_smoke_against_child(child_process: &mut std::process::Child) -> Result<()
         return Err(String::from("Session trace was not enriched with disassembly text.").into());
     }
 
-    debugger_service.remove_breakpoint(breakpoint_descriptor.get_breakpoint_id())?;
+    let (stopped_trace_session, instruction_records) = debugger_service.stop_trace_session(trace_session.get_trace_session_id())?;
+    println!(
+        "Stopped trace session {} with {} instruction record(s).",
+        stopped_trace_session.get_trace_session_id(),
+        instruction_records.len()
+    );
+
     debugger_service.detach()?;
     println!("Detached cleanly through the session service.");
 

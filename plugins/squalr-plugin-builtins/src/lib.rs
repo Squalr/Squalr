@@ -152,6 +152,6 @@ mod tests {
                 .has_plugin_capability(PluginCapability::Debugger)
         );
         assert!(plugin.as_debugger_plugin().is_some());
-        assert!(!plugin.metadata().get_is_enabled_by_default());
+        assert!(plugin.metadata().get_is_enabled_by_default());
     }
 }

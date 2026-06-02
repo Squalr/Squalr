@@ -37,6 +37,7 @@ pub enum ProjectHierarchyFrameAction {
     },
     StartDebuggerTraceForAddress {
         address: u64,
+        module_name: String,
         size_in_bytes: u8,
         access: DebuggerDataBreakpointAccess,
         label: Option<String>,

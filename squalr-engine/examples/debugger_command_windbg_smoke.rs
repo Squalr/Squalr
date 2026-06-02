@@ -8,10 +8,9 @@ use squalr_engine::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::{
     commands::{
         debugger::{
-            attach::debugger_attach_request::DebuggerAttachRequest, breakpoint_list::debugger_breakpoint_list_request::DebuggerBreakpointListRequest,
-            breakpoint_remove::debugger_breakpoint_remove_request::DebuggerBreakpointRemoveRequest,
-            breakpoint_set::debugger_breakpoint_set_request::DebuggerBreakpointSetRequest, detach::debugger_detach_request::DebuggerDetachRequest,
-            registers_read::debugger_registers_read_request::DebuggerRegistersReadRequest, resume::debugger_resume_request::DebuggerResumeRequest,
+            attach::debugger_attach_request::DebuggerAttachRequest, detach::debugger_detach_request::DebuggerDetachRequest,
+            registers_read::debugger_registers_read_request::DebuggerRegistersReadRequest,
+            trace_start::debugger_trace_start_request::DebuggerTraceStartRequest, trace_stop::debugger_trace_stop_request::DebuggerTraceStopRequest,
         },
         privileged_command::PrivilegedCommand,
         privileged_command_response::PrivilegedCommandResponse,
@@ -21,7 +20,7 @@ use squalr_engine_api::{
     },
     events::{debugger::debugger_event::DebuggerEvent, engine_event::EngineEvent},
     structures::{
-        debugger::{DebuggerBreakpointKind, DebuggerCommandStatus, DebuggerDataBreakpointAccess, DebuggerTraceEvent},
+        debugger::{DebuggerCommandStatus, DebuggerDataBreakpointAccess, DebuggerTraceEvent},
         memory::bitness::Bitness,
         processes::{opened_process_info::OpenedProcessInfo, process_info::ProcessInfo},
     },
@@ -106,10 +105,9 @@ fn run_smoke_against_child(child_process: &mut std::process::Child) -> Result<()
     let engine_privileged_state = create_smoke_engine_privileged_state()?;
     let engine_event_receiver = engine_privileged_state.subscribe_to_engine_events()?;
 
-    if !engine_privileged_state
-        .get_plugin_registry()
-        .set_plugin_enabled("builtin.debugger.windbg", true)
-    {
+    let plugin_registry = engine_privileged_state.get_plugin_registry();
+
+    if !plugin_registry.is_plugin_enabled("builtin.debugger.windbg") && !plugin_registry.set_plugin_enabled("builtin.debugger.windbg", true) {
         return Err(String::from("Failed to enable builtin.debugger.windbg for command smoke validation.").into());
     }
 
@@ -143,28 +141,23 @@ fn run_smoke_against_child(child_process: &mut std::process::Child) -> Result<()
         attach_register_snapshot.get_registers().len()
     );
 
-    let breakpoint_response = DebuggerBreakpointSetRequest {
+    let trace_start_response = DebuggerTraceStartRequest {
         address: target_address,
-        kind: DebuggerBreakpointKind::hardware_data(DebuggerDataBreakpointAccess::Write, 8),
+        size_in_bytes: 8,
+        access: DebuggerDataBreakpointAccess::Write,
         label: Some(String::from("command-windbg-smoke-write")),
     }
     .execute(&engine_privileged_state);
-    require_status(&breakpoint_response.status, "debugger breakpoint set")?;
-    let breakpoint_descriptor = breakpoint_response
-        .breakpoint
-        .ok_or_else(|| String::from("Breakpoint set response did not include a breakpoint descriptor."))?;
+    require_status(&trace_start_response.status, "debugger trace start")?;
+    let trace_session = trace_start_response
+        .trace_session
+        .ok_or_else(|| String::from("Trace start response did not include a trace session descriptor."))?;
     println!(
-        "Breakpoint {} armed at {:#x}.",
-        breakpoint_descriptor.get_breakpoint_id(),
-        breakpoint_descriptor.get_address()
+        "Trace session {} armed at {:#x}.",
+        trace_session.get_trace_session_id(),
+        trace_session.get_address()
     );
 
-    let breakpoint_list_response = DebuggerBreakpointListRequest {}.execute(&engine_privileged_state);
-    require_status(&breakpoint_list_response.status, "debugger breakpoint list")?;
-    println!("Command executor reports {} breakpoint(s).", breakpoint_list_response.breakpoints.len());
-
-    let resume_response = DebuggerResumeRequest {}.execute(&engine_privileged_state);
-    require_status(&resume_response.status, "debugger resume")?;
     let trace_event = wait_for_trace_event(&engine_event_receiver, Duration::from_secs(10))?;
     let trace_register_snapshot = trace_event.get_register_snapshot();
     println!(
@@ -180,11 +173,16 @@ fn run_smoke_against_child(child_process: &mut std::process::Child) -> Result<()
         return Err(String::from("Command trace was not enriched with disassembly text.").into());
     }
 
-    let breakpoint_remove_response = DebuggerBreakpointRemoveRequest {
-        breakpoint_id: breakpoint_descriptor.get_breakpoint_id().to_string(),
+    let trace_stop_response = DebuggerTraceStopRequest {
+        trace_session_id: trace_session.get_trace_session_id().to_string(),
     }
     .execute(&engine_privileged_state);
-    require_status(&breakpoint_remove_response.status, "debugger breakpoint remove")?;
+    require_status(&trace_stop_response.status, "debugger trace stop")?;
+    println!(
+        "Stopped trace session {} with {} instruction record(s).",
+        trace_session.get_trace_session_id(),
+        trace_stop_response.instruction_records.len()
+    );
 
     let detach_response = DebuggerDetachRequest {}.execute(&engine_privileged_state);
     require_status(&detach_response.status, "debugger detach")?;
