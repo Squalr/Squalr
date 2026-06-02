@@ -119,6 +119,13 @@ Our current task, from `README.md`, is:
   - The `dbgeng` crate exists on docs.rs at version `0.5.1` and wraps Microsoft Debug Engine COM objects through `windows 0.62`.
   - The workspace already uses both `windows-sys 0.61.2` in `squalr-engine-targets-native` and `windows 0.61.3` in `squalr-engine`, so dependency/version alignment must be checked in the proof of concept.
   - Microsoft docs confirm `IDebugClient` supports attach/detach/callback registration and that `WaitForEvent` drives the debugger event model.
+- `dbgeng 0.5.1` crate audit:
+  - It depends on `windows 0.62`, matching the direct WinDbg plugin dependency version closely enough that dependency alignment is viable.
+  - It exposes a `DebugClient::new(&IUnknown)` wrapper over `IDebugControl3`, `IDebugRegisters`, `IDebugDataSpaces4`, and `IDebugSymbols3`.
+  - It provides helpers for command execution/captured output, register lookup/value conversion, virtual memory reads, symbol lookup, debuggee/processor metadata, MSR reads, and synthetic modules.
+  - It does not appear to own `DebugCreate`, `AttachProcess`, `WaitForEvent`, event callbacks, breakpoint creation/removal, data breakpoint configuration, detach/end-session, or worker-thread/event-loop serialization.
+  - It uses `anyhow` and has a few internal `unwrap()`/assert-style helpers, so adopting it directly would not remove the need for Squalr-specific error mapping.
+  - Recommendation: keep the current direct `windows` DbgEng implementation for the attach/control/breakpoint/event-loop core. Consider selectively borrowing or wrapping `dbgeng`-style helper ideas later for command output capture, symbol helpers, and register value conversion, but do not switch the WinDbg plugin to `dbgeng` as the primary backend yet.
 - Recommended MVP architecture:
   - `squalr-engine-api`: debugger plugin trait, generic command/response/event models, generic debugger data types, permission/capability additions.
   - `squalr-engine-session`: active debugger service/router with event channel, process-close cleanup, plugin selection, plugin enablement checks, and plugin trace-event fanout.
@@ -129,7 +136,7 @@ Our current task, from `README.md`, is:
   - Human-verify DbgEng attach/detach, pause/resume, register read/write, breakpoint create/remove/list, and breakpoint trace emission from CLI/TUI/GUI command surfaces against a disposable local process.
   - Decide whether to keep the three smoke examples separate or consolidate shared disposable-child helpers into test support.
   - Decide whether DbgEng trace byte capture should remain plugin-owned or be moved to a generic engine memory-provider enrichment path.
-  - Audit `dbgeng 0.5.1` against the direct `windows` binding implementation before committing to it as the long-term wrapper.
+  - Defer any `dbgeng` crate adoption unless a later symbol/output-capture feature benefits from its helper API.
 - Key risks:
   - DbgEng threading rules and `WaitForEvent` serialization are the main complexity.
   - Hardware data breakpoints are limited in number and size/alignment by CPU/debug registers; expose clear failures rather than silently falling back.
@@ -194,6 +201,9 @@ Our current task, from `README.md`, is:
   - `cargo test -p squalr-engine --locked debugger -- --nocapture` passed, with no matching tests.
   - `cargo test -p squalr-plugin-debugger-windbg --locked -- --nocapture` passed.
   - `cargo check -p squalr-engine --locked` passed.
+- After `dbgeng 0.5.1` crate audit:
+  - `cargo info dbgeng@0.5.1` completed and downloaded the crate source.
+  - Local source inspection compared `dbgeng-0.5.1` APIs against the direct `windows` implementation.
 - References checked:
   - Local Rust workspace plugin/session/target architecture.
   - Old C# implementation under `C:\Projects\Squalr\Squalr.Engine.Debugger`.
