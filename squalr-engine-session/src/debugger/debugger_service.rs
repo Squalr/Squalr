@@ -626,6 +626,9 @@ impl DebuggerService {
                     .disassemble(trace_event.get_instruction_bytes())
                     .ok()
             });
+        let instruction_text = instruction_text
+            .as_deref()
+            .and_then(Self::first_disassembled_instruction_text);
 
         if instruction_text.is_none() {
             return trace_event;
@@ -635,9 +638,22 @@ impl DebuggerService {
             trace_event.get_breakpoint().cloned(),
             trace_event.get_register_snapshot().clone(),
             trace_event.get_instruction_bytes().to_vec(),
-            instruction_text,
+            instruction_text.map(String::from),
             trace_event.get_backend_message().map(String::from),
         )
+    }
+
+    fn first_disassembled_instruction_text(disassembly_text: &str) -> Option<&str> {
+        let trimmed_disassembly_text = disassembly_text.trim();
+
+        if trimmed_disassembly_text.is_empty() {
+            return None;
+        }
+
+        trimmed_disassembly_text
+            .split(';')
+            .map(str::trim)
+            .find(|instruction_text| !instruction_text.is_empty())
     }
 
     fn clear_trace_sessions(&self) {
@@ -993,6 +1009,19 @@ mod tests {
                 Self::create_register_snapshot(&backend.registers)
             })
         }
+    }
+
+    #[test]
+    fn trace_disassembly_display_uses_first_instruction_only() {
+        assert_eq!(
+            DebuggerService::first_disassembled_instruction_text("mov [rsp+18h], rax; jmp short 00000059h; mov rcx, [rsp+8]"),
+            Some("mov [rsp+18h], rax")
+        );
+        assert_eq!(
+            DebuggerService::first_disassembled_instruction_text(" ; ; add eax, ebx ; ret"),
+            Some("add eax, ebx")
+        );
+        assert_eq!(DebuggerService::first_disassembled_instruction_text("   "), None);
     }
 
     #[test]

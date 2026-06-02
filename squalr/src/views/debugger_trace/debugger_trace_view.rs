@@ -1,6 +1,6 @@
 use crate::{
     app_context::AppContext,
-    ui::widgets::controls::{groupbox::GroupBox, icon_button::IconButtonView, list_header::ListHeaderView},
+    ui::widgets::controls::{groupbox::GroupBox, icon_button::IconButtonView},
     views::{
         debugger_trace::{
             debugger_trace_entry_view::DebuggerTraceEntryView,
@@ -346,6 +346,58 @@ impl DebuggerTraceView {
         paint_header_label(user_interface, address_splitter_position_x, "Address");
     }
 
+    fn show_trace_session_header(
+        &self,
+        user_interface: &mut Ui,
+        trace_session: &DebuggerTraceSessionDescriptor,
+    ) {
+        let theme = &self.app_context.theme;
+        let header_height = 28.0;
+        let horizontal_padding = 8.0;
+        let stop_button_size = vec2(24.0, 24.0);
+        let (header_rectangle, _) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), header_height), Sense::hover());
+        let mut text_position_x = header_rectangle.min.x + horizontal_padding;
+        let status_label = if trace_session.get_is_active() { "Active" } else { "Stopped" };
+        let header_label = format!(
+            "{} | {} | {}",
+            trace_session.get_trace_session_id(),
+            Self::format_trace_target(trace_session),
+            status_label
+        );
+
+        user_interface
+            .painter()
+            .rect_filled(header_rectangle, CornerRadius::ZERO, theme.background_primary);
+
+        if trace_session.get_is_active() {
+            let stop_button_rectangle = Rect::from_min_size(
+                pos2(
+                    header_rectangle.min.x + horizontal_padding,
+                    header_rectangle.center().y - stop_button_size.y * 0.5,
+                ),
+                stop_button_size,
+            );
+            let stop_response = user_interface.place(
+                stop_button_rectangle,
+                IconButtonView::new(theme, &theme.icon_library.icon_handle_navigation_stop, "Stop trace."),
+            );
+
+            if stop_response.clicked() {
+                self.stop_trace_session(trace_session.get_trace_session_id());
+            }
+
+            text_position_x = stop_button_rectangle.max.x + horizontal_padding;
+        }
+
+        user_interface.painter().text(
+            pos2(text_position_x, header_rectangle.center().y),
+            Align2::LEFT_CENTER,
+            header_label,
+            theme.font_library.font_noto_sans.font_normal.clone(),
+            theme.foreground_preview,
+        );
+    }
+
     fn show_instruction_records(
         &self,
         user_interface: &mut Ui,
@@ -354,28 +406,7 @@ impl DebuggerTraceView {
         selected_instruction_keys: &[DebuggerTraceInstructionKey],
     ) {
         let theme = &self.app_context.theme;
-        let header_right_label = if trace_session.get_is_active() { "Active" } else { "Stopped" };
-
-        user_interface.add(ListHeaderView::new(
-            self.app_context.clone(),
-            &format!("{} | {}", trace_session.get_trace_session_id(), Self::format_trace_target(trace_session)),
-            header_right_label,
-        ));
-
-        if trace_session.get_is_active() {
-            let button_rectangle = Rect::from_min_size(
-                pos2(user_interface.available_rect_before_wrap().max.x - 36.0, user_interface.cursor().top() - 30.0),
-                vec2(28.0, 28.0),
-            );
-            let stop_response = user_interface.place(
-                button_rectangle,
-                IconButtonView::new(theme, &theme.icon_library.icon_handle_navigation_stop, "Stop trace."),
-            );
-
-            if stop_response.clicked() {
-                self.stop_trace_session(trace_session.get_trace_session_id());
-            }
-        }
+        self.show_trace_session_header(user_interface, trace_session);
 
         if instruction_records.is_empty() {
             user_interface.allocate_ui_with_layout(
