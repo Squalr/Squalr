@@ -13,11 +13,14 @@ use std::{
     time::Duration,
 };
 use windows::{
-    Win32::System::Diagnostics::Debug::Extensions::{
-        DEBUG_ANY_ID, DEBUG_ATTACH_DEFAULT, DEBUG_BREAK_READ, DEBUG_BREAK_WRITE, DEBUG_BREAKPOINT_CODE, DEBUG_BREAKPOINT_DATA, DEBUG_BREAKPOINT_ENABLED,
-        DEBUG_BREAKPOINT_PARAMETERS, DEBUG_END_ACTIVE_DETACH, DEBUG_EVENT_BREAKPOINT, DEBUG_INTERRUPT_ACTIVE, DEBUG_LAST_EVENT_INFO_BREAKPOINT,
-        DEBUG_REGISTER_DESCRIPTION, DEBUG_STATUS_GO, DEBUG_VALUE, DEBUG_VALUE_INT8, DEBUG_VALUE_INT16, DEBUG_VALUE_INT32, DEBUG_VALUE_INT64, DebugCreate,
-        IDebugBreakpoint, IDebugClient, IDebugControl, IDebugDataSpaces, IDebugRegisters2,
+    Win32::{
+        Foundation::{S_FALSE, S_OK},
+        System::Diagnostics::Debug::Extensions::{
+            DEBUG_ANY_ID, DEBUG_ATTACH_DEFAULT, DEBUG_BREAK_READ, DEBUG_BREAK_WRITE, DEBUG_BREAKPOINT_CODE, DEBUG_BREAKPOINT_DATA, DEBUG_BREAKPOINT_ENABLED,
+            DEBUG_BREAKPOINT_PARAMETERS, DEBUG_END_ACTIVE_DETACH, DEBUG_ENGOPT_INITIAL_BREAK, DEBUG_EVENT_BREAKPOINT, DEBUG_INTERRUPT_ACTIVE,
+            DEBUG_LAST_EVENT_INFO_BREAKPOINT, DEBUG_REGISTER_DESCRIPTION, DEBUG_STATUS_GO, DEBUG_VALUE, DEBUG_VALUE_INT8, DEBUG_VALUE_INT16, DEBUG_VALUE_INT32,
+            DEBUG_VALUE_INT64, DebugCreate, IDebugBreakpoint, IDebugClient, IDebugControl, IDebugDataSpaces, IDebugRegisters2, IDebugSystemObjects,
+        },
     },
     core::{HSTRING, Interface},
 };
@@ -339,6 +342,7 @@ struct ActiveWindbgSession {
     control: IDebugControl,
     data_spaces: IDebugDataSpaces,
     registers: IDebugRegisters2,
+    system_objects: IDebugSystemObjects,
     breakpoint_labels: HashMap<u32, Option<String>>,
     session_state: DebuggerSessionState,
     trace_event_sink: DebuggerTraceEventSink,
@@ -381,6 +385,20 @@ impl ActiveWindbgSession {
                 error
             ))
         })?;
+        let system_objects = client.cast::<IDebugSystemObjects>().map_err(|error| {
+            WindbgBackend::plugin_error(format!(
+                "IDebugClient could not be cast to IDebugSystemObjects while attaching to '{}' ({}): {}",
+                process_info.get_name(),
+                process_info.get_process_id(),
+                error
+            ))
+        })?;
+
+        unsafe {
+            control
+                .AddEngineOptions(DEBUG_ENGOPT_INITIAL_BREAK)
+                .map_err(|error| WindbgBackend::plugin_error(format!("IDebugControl::AddEngineOptions(DEBUG_ENGOPT_INITIAL_BREAK) failed: {}", error)))?;
+        }
 
         unsafe {
             client
@@ -395,16 +413,11 @@ impl ActiveWindbgSession {
                 })?;
         }
 
-        if let Err(error) = unsafe { control.WaitForEvent(0, INITIAL_ATTACH_WAIT_TIMEOUT_MS) } {
+        if let Err(error) = wait_for_required_debug_event(&control, INITIAL_ATTACH_WAIT_TIMEOUT_MS, "initial attach") {
             let _ = unsafe { client.DetachProcesses() };
             let _ = unsafe { client.EndSession(DEBUG_END_ACTIVE_DETACH) };
 
-            return Err(WindbgBackend::plugin_error(format!(
-                "IDebugControl::WaitForEvent timed out or failed after attaching to '{}' ({}): {}",
-                process_info.get_name(),
-                process_info.get_process_id(),
-                error
-            )));
+            return Err(error);
         }
 
         Ok(Self {
@@ -412,6 +425,7 @@ impl ActiveWindbgSession {
             control,
             data_spaces,
             registers,
+            system_objects,
             breakpoint_labels: HashMap::new(),
             session_state: DebuggerSessionState::Attached,
             trace_event_sink,
@@ -423,10 +437,8 @@ impl ActiveWindbgSession {
             self.control
                 .SetInterrupt(DEBUG_INTERRUPT_ACTIVE)
                 .map_err(|error| WindbgBackend::plugin_error(format!("IDebugControl::SetInterrupt(DEBUG_INTERRUPT_ACTIVE) failed: {}", error)))?;
-            self.control
-                .WaitForEvent(0, INITIAL_ATTACH_WAIT_TIMEOUT_MS)
-                .map_err(|error| WindbgBackend::plugin_error(format!("IDebugControl::WaitForEvent failed while pausing: {}", error)))?;
         }
+        wait_for_required_debug_event(&self.control, INITIAL_ATTACH_WAIT_TIMEOUT_MS, "pause")?;
 
         self.session_state = DebuggerSessionState::Paused;
 
@@ -553,9 +565,7 @@ impl ActiveWindbgSession {
             return Ok(());
         }
 
-        let wait_result = unsafe { self.control.WaitForEvent(0, RUNNING_EVENT_WAIT_TIMEOUT_MS) };
-
-        if wait_result.is_err() {
+        if !wait_for_optional_debug_event(&self.control, RUNNING_EVENT_WAIT_TIMEOUT_MS, "running event poll")? {
             return Ok(());
         }
 
@@ -592,9 +602,19 @@ impl ActiveWindbgSession {
 
         self.session_state = DebuggerSessionState::Paused;
         let breakpoint_descriptor = self.describe_breakpoint_by_id(breakpoint_event.Id)?;
-        let register_snapshot = self.read_registers()?;
+        let mut backend_message = Self::decode_debug_event_description(&event_description_buffer, event_description_used);
+        self.set_current_event_context(debug_event_process_id, debug_event_thread_id, &mut backend_message);
+        let register_snapshot = match self.read_registers() {
+            Ok(register_snapshot) => register_snapshot,
+            Err(error) => {
+                backend_message = Some(match backend_message {
+                    Some(existing_message) => format!("{} Register capture failed: {}", existing_message, error),
+                    None => format!("Register capture failed: {}", error),
+                });
+                DebuggerRegisterSnapshot::default()
+            }
+        };
         let instruction_bytes = self.read_instruction_bytes(register_snapshot.get_instruction_pointer());
-        let backend_message = Self::decode_debug_event_description(&event_description_buffer, event_description_used);
 
         (self.trace_event_sink)(DebuggerTraceEvent::new(
             breakpoint_descriptor,
@@ -605,6 +625,30 @@ impl ActiveWindbgSession {
         ));
 
         Ok(())
+    }
+
+    fn set_current_event_context(
+        &self,
+        debug_event_process_id: u32,
+        debug_event_thread_id: u32,
+        backend_message: &mut Option<String>,
+    ) {
+        let process_result = unsafe { self.system_objects.SetCurrentProcessId(debug_event_process_id) };
+        let thread_result = unsafe { self.system_objects.SetCurrentThreadId(debug_event_thread_id) };
+
+        if process_result.is_ok() && thread_result.is_ok() {
+            return;
+        }
+
+        let context_message = format!(
+            "Failed to select DbgEng event context process={} thread={} before register capture: process={:?}, thread={:?}.",
+            debug_event_process_id, debug_event_thread_id, process_result, thread_result
+        );
+
+        *backend_message = Some(match backend_message.take() {
+            Some(existing_message) => format!("{} {}", existing_message, context_message),
+            None => context_message,
+        });
     }
 
     fn configure_breakpoint(
@@ -837,9 +881,11 @@ impl ActiveWindbgSession {
                     Some(&mut register_description),
                 )
                 .map_err(|error| WindbgBackend::plugin_error(format!("IDebugRegisters::GetDescriptionWide({}) failed: {}", register_ordinal, error)))?;
-            self.registers
-                .GetValue(register_ordinal, &mut debug_value)
-                .map_err(|error| WindbgBackend::plugin_error(format!("IDebugRegisters::GetValue({}) failed: {}", register_ordinal, error)))?;
+            if let Err(error) = self.registers.GetValue(register_ordinal, &mut debug_value) {
+                log::debug!("IDebugRegisters::GetValue({}) failed while enumerating registers: {}", register_ordinal, error);
+
+                return Ok(None);
+            }
         }
 
         let Some((value, bit_width)) = Self::debug_value_to_u64(&debug_value) else {
@@ -1023,4 +1069,38 @@ fn handle_worker_command(
     }
 
     false
+}
+
+fn wait_for_required_debug_event(
+    control: &IDebugControl,
+    timeout_ms: u32,
+    context: &str,
+) -> Result<(), DebuggerPluginError> {
+    if wait_for_optional_debug_event(control, timeout_ms, context)? {
+        Ok(())
+    } else {
+        Err(WindbgBackend::plugin_error(format!(
+            "IDebugControl::WaitForEvent timed out during {} after {} ms.",
+            context, timeout_ms
+        )))
+    }
+}
+
+fn wait_for_optional_debug_event(
+    control: &IDebugControl,
+    timeout_ms: u32,
+    context: &str,
+) -> Result<bool, DebuggerPluginError> {
+    let wait_result = unsafe { (Interface::vtable(control).WaitForEvent)(Interface::as_raw(control), 0, timeout_ms) };
+
+    if wait_result == S_OK {
+        Ok(true)
+    } else if wait_result == S_FALSE {
+        Ok(false)
+    } else {
+        Err(WindbgBackend::plugin_error(format!(
+            "IDebugControl::WaitForEvent failed during {} with HRESULT 0x{:08X}.",
+            context, wait_result.0 as u32
+        )))
+    }
 }
