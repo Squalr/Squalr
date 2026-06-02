@@ -9,7 +9,7 @@ use std::{
     collections::HashMap,
     ffi::CString,
     mem::size_of,
-    sync::mpsc::{self, Receiver, RecvTimeoutError, Sender, TryRecvError},
+    sync::mpsc::{self, Receiver, RecvTimeoutError, Sender},
     thread::{self, JoinHandle},
     time::Duration,
 };
@@ -19,17 +19,16 @@ use windows::{
         System::Diagnostics::Debug::Extensions::{
             DEBUG_ANY_ID, DEBUG_ATTACH_DEFAULT, DEBUG_BREAK_READ, DEBUG_BREAK_WRITE, DEBUG_BREAKPOINT_CODE, DEBUG_BREAKPOINT_DATA, DEBUG_BREAKPOINT_ENABLED,
             DEBUG_BREAKPOINT_PARAMETERS, DEBUG_END_ACTIVE_DETACH, DEBUG_ENGOPT_INITIAL_BREAK, DEBUG_EVENT_BREAKPOINT, DEBUG_EXECUTE_NOT_LOGGED,
-            DEBUG_INTERRUPT_ACTIVE, DEBUG_LAST_EVENT_INFO_BREAKPOINT, DEBUG_OUTCTL_IGNORE, DEBUG_REGISTER_DESCRIPTION, DEBUG_STATUS_GO,
-            DEBUG_STATUS_GO_HANDLED, DEBUG_STATUS_GO_NOT_HANDLED, DEBUG_VALUE, DEBUG_VALUE_INT8, DEBUG_VALUE_INT16, DEBUG_VALUE_INT32, DEBUG_VALUE_INT64,
-            DebugCreate, IDebugBreakpoint, IDebugClient, IDebugControl, IDebugDataSpaces, IDebugRegisters2, IDebugSystemObjects,
+            DEBUG_INTERRUPT_ACTIVE, DEBUG_LAST_EVENT_INFO_BREAKPOINT, DEBUG_OUTCTL_IGNORE, DEBUG_REGISTER_DESCRIPTION, DEBUG_STATUS_GO, DEBUG_VALUE,
+            DEBUG_VALUE_INT8, DEBUG_VALUE_INT16, DEBUG_VALUE_INT32, DEBUG_VALUE_INT64, DebugCreate, IDebugBreakpoint, IDebugClient, IDebugControl,
+            IDebugDataSpaces, IDebugRegisters2, IDebugSystemObjects,
         },
     },
     core::{HSTRING, Interface, PCSTR},
 };
 
 const INITIAL_ATTACH_WAIT_TIMEOUT_MS: u32 = 10_000;
-const BREAKPOINT_MUTATION_WAIT_TIMEOUT_MS: u32 = 10_000;
-const RUNNING_EVENT_WAIT_TIMEOUT_MS: u32 = 1_000;
+const RUNNING_EVENT_WAIT_TIMEOUT_MS: u32 = 50;
 const IDLE_COMMAND_WAIT_TIMEOUT_MS: u64 = 50;
 const TRACE_INSTRUCTION_BYTE_WINDOW: usize = 16;
 
@@ -60,11 +59,11 @@ impl WindbgBackend {
         let trace_event_sink = self.trace_event_sink.clone();
         let (worker_ready_sender, worker_ready_receiver) = mpsc::channel();
         let thread_handle = thread::spawn(move || windbg_worker_main(process_info, trace_event_sink, worker_ready_sender));
-        let worker_ready = match worker_ready_receiver
+        let worker_command_sender = match worker_ready_receiver
             .recv()
             .map_err(|error| Self::plugin_error(format!("DbgEng worker exited before reporting attach status: {}", error)))?
         {
-            Ok(worker_ready) => worker_ready,
+            Ok(worker_command_sender) => worker_command_sender,
             Err(error) => {
                 let _ = thread_handle.join();
 
@@ -73,8 +72,7 @@ impl WindbgBackend {
         };
 
         self.worker_handle = Some(WindbgWorkerHandle {
-            command_sender: worker_ready.command_sender,
-            interrupt_control: worker_ready.interrupt_control,
+            command_sender: worker_command_sender,
             thread_handle: Some(thread_handle),
         });
 
@@ -176,23 +174,11 @@ impl Drop for WindbgBackend {
 
 struct WindbgWorkerHandle {
     command_sender: Sender<WindbgWorkerCommand>,
-    interrupt_control: SendableDebugControl,
     thread_handle: Option<JoinHandle<()>>,
 }
 
-struct WindbgWorkerReady {
-    command_sender: Sender<WindbgWorkerCommand>,
-    interrupt_control: SendableDebugControl,
-}
-
-struct SendableDebugControl(IDebugControl);
-
-// DbgEng supports SetInterrupt from another thread to break an active WaitForEvent.
-unsafe impl Send for SendableDebugControl {}
-
 impl WindbgWorkerHandle {
     fn pause(&self) -> Result<(), DebuggerPluginError> {
-        self.request_worker_interrupt("pause")?;
         self.request_worker_result(WindbgWorkerCommandKind::Pause)
     }
 
@@ -240,7 +226,6 @@ impl WindbgWorkerHandle {
     ) -> Result<DebuggerBreakpointDescriptor, DebuggerPluginError> {
         let (result_sender, result_receiver) = mpsc::channel();
 
-        self.request_worker_interrupt("set breakpoint")?;
         self.command_sender
             .send(WindbgWorkerCommand::SetBreakpoint {
                 address,
@@ -261,7 +246,6 @@ impl WindbgWorkerHandle {
     ) -> Result<(), DebuggerPluginError> {
         let (result_sender, result_receiver) = mpsc::channel();
 
-        self.request_worker_interrupt("remove breakpoint")?;
         self.command_sender
             .send(WindbgWorkerCommand::RemoveBreakpoint {
                 breakpoint_id: breakpoint_id.to_string(),
@@ -281,7 +265,6 @@ impl WindbgWorkerHandle {
     ) -> Result<(), DebuggerPluginError> {
         let (result_sender, result_receiver) = mpsc::channel();
 
-        self.request_worker_interrupt("update breakpoint")?;
         self.command_sender
             .send(WindbgWorkerCommand::SetBreakpointEnabled {
                 breakpoint_id: breakpoint_id.to_string(),
@@ -346,23 +329,6 @@ impl WindbgWorkerHandle {
         result_receiver
             .recv()
             .map_err(|error| WindbgBackend::plugin_error(format!("DbgEng worker exited before command completed: {}", error)))?
-    }
-
-    fn request_worker_interrupt(
-        &self,
-        context: &str,
-    ) -> Result<(), DebuggerPluginError> {
-        unsafe {
-            self.interrupt_control
-                .0
-                .SetInterrupt(DEBUG_INTERRUPT_ACTIVE)
-                .map_err(|error| {
-                    WindbgBackend::plugin_error(format!(
-                        "IDebugControl::SetInterrupt(DEBUG_INTERRUPT_ACTIVE) failed before requesting {}: {}",
-                        context, error
-                    ))
-                })
-        }
     }
 }
 
@@ -533,95 +499,15 @@ impl ActiveWindbgSession {
     }
 
     fn resume(&mut self) -> Result<(), DebuggerPluginError> {
-        self.set_execution_go()?;
+        unsafe {
+            self.control
+                .SetExecutionStatus(DEBUG_STATUS_GO)
+                .map_err(|error| WindbgBackend::plugin_error(format!("IDebugControl::SetExecutionStatus(DEBUG_STATUS_GO) failed: {}", error)))?;
+        }
 
         self.session_state = DebuggerSessionState::Running;
 
         Ok(())
-    }
-
-    fn set_execution_go(&self) -> Result<(), DebuggerPluginError> {
-        let go_result = unsafe { self.control.SetExecutionStatus(DEBUG_STATUS_GO) };
-
-        if go_result.is_ok() {
-            return Ok(());
-        }
-        if let Err(error) = &go_result {
-            if Self::is_target_already_executing_error(error) {
-                log::debug!("IDebugControl::SetExecutionStatus(DEBUG_STATUS_GO) reported the target is already executing.");
-                return Ok(());
-            }
-        }
-
-        let handled_result = unsafe { self.control.SetExecutionStatus(DEBUG_STATUS_GO_HANDLED) };
-
-        if handled_result.is_ok() {
-            log::debug!("IDebugControl::SetExecutionStatus(DEBUG_STATUS_GO) failed; continued with DEBUG_STATUS_GO_HANDLED instead.");
-            return Ok(());
-        }
-        if let Err(error) = &handled_result {
-            if Self::is_target_already_executing_error(error) {
-                log::debug!("IDebugControl::SetExecutionStatus(DEBUG_STATUS_GO_HANDLED) reported the target is already executing.");
-                return Ok(());
-            }
-        }
-
-        let not_handled_result = unsafe { self.control.SetExecutionStatus(DEBUG_STATUS_GO_NOT_HANDLED) };
-
-        if not_handled_result.is_ok() {
-            log::debug!("IDebugControl::SetExecutionStatus(DEBUG_STATUS_GO) failed; continued with DEBUG_STATUS_GO_NOT_HANDLED instead.");
-            return Ok(());
-        }
-        if let Err(error) = &not_handled_result {
-            if Self::is_target_already_executing_error(error) {
-                log::debug!("IDebugControl::SetExecutionStatus(DEBUG_STATUS_GO_NOT_HANDLED) reported the target is already executing.");
-                return Ok(());
-            }
-        }
-
-        let go_error = go_result
-            .err()
-            .map(|error| error.to_string())
-            .unwrap_or_else(|| String::from("unknown error"));
-        let handled_error = handled_result
-            .err()
-            .map(|error| error.to_string())
-            .unwrap_or_else(|| String::from("unknown error"));
-        let not_handled_error = not_handled_result
-            .err()
-            .map(|error| error.to_string())
-            .unwrap_or_else(|| String::from("unknown error"));
-
-        Err(WindbgBackend::plugin_error(format!(
-            "IDebugControl::SetExecutionStatus failed: DEBUG_STATUS_GO={}, DEBUG_STATUS_GO_HANDLED={}, DEBUG_STATUS_GO_NOT_HANDLED={}.",
-            go_error, handled_error, not_handled_error
-        )))
-    }
-
-    fn set_execution_go_handled(&self) -> Result<(), DebuggerPluginError> {
-        let handled_result = unsafe { self.control.SetExecutionStatus(DEBUG_STATUS_GO_HANDLED) };
-
-        if handled_result.is_ok() {
-            return Ok(());
-        }
-        if let Err(error) = &handled_result {
-            if Self::is_target_already_executing_error(error) {
-                log::debug!("IDebugControl::SetExecutionStatus(DEBUG_STATUS_GO_HANDLED) reported the target is already executing.");
-                return Ok(());
-            }
-        }
-
-        Err(WindbgBackend::plugin_error(format!(
-            "IDebugControl::SetExecutionStatus(DEBUG_STATUS_GO_HANDLED) failed: {}",
-            handled_result
-                .err()
-                .map(|error| error.to_string())
-                .unwrap_or_else(|| String::from("unknown error"))
-        )))
-    }
-
-    fn is_target_already_executing_error(error: &windows::core::Error) -> bool {
-        error.code().0 as u32 == 0x80070005
     }
 
     fn read_registers(&self) -> Result<DebuggerRegisterSnapshot, DebuggerPluginError> {
@@ -669,30 +555,6 @@ impl ActiveWindbgSession {
         kind: DebuggerBreakpointKind,
         label: Option<String>,
     ) -> Result<DebuggerBreakpointDescriptor, DebuggerPluginError> {
-        let resume_after_mutation = self.pause_for_breakpoint_mutation("set breakpoint")?;
-        let set_breakpoint_result = self.set_breakpoint_while_target_stopped(address, kind, label);
-        let resume_result = self.resume_after_breakpoint_mutation(resume_after_mutation, "set breakpoint");
-
-        match (set_breakpoint_result, resume_result) {
-            (Ok(breakpoint_descriptor), Ok(())) => Ok(breakpoint_descriptor),
-            (Ok(breakpoint_descriptor), Err(error)) => {
-                log::debug!("WinDbg set breakpoint but failed to resume target afterward: {}.", error);
-                Ok(breakpoint_descriptor)
-            }
-            (Err(error), Ok(())) => Err(error),
-            (Err(set_error), Err(resume_error)) => Err(WindbgBackend::plugin_error(format!(
-                "Failed to set breakpoint and failed to resume target afterward. Set error: {}. Resume error: {}.",
-                set_error, resume_error
-            ))),
-        }
-    }
-
-    fn set_breakpoint_while_target_stopped(
-        &mut self,
-        address: u64,
-        kind: DebuggerBreakpointKind,
-        label: Option<String>,
-    ) -> Result<DebuggerBreakpointDescriptor, DebuggerPluginError> {
         let breakpoint_type = Self::debug_breakpoint_type(&kind);
         let breakpoint = unsafe { self.control.AddBreakpoint(breakpoint_type, DEBUG_ANY_ID) }
             .map_err(|error| WindbgBackend::plugin_error(format!("IDebugControl::AddBreakpoint failed for 0x{:X}: {}", address, error)))?;
@@ -726,43 +588,19 @@ impl ActiveWindbgSession {
         &mut self,
         breakpoint_id: &str,
     ) -> Result<(), DebuggerPluginError> {
-        let resume_after_mutation = self.pause_for_breakpoint_mutation("remove breakpoint")?;
-        let remove_breakpoint_result = self.remove_breakpoint_while_target_stopped(breakpoint_id);
-        let resume_result = self.resume_after_breakpoint_mutation(resume_after_mutation, "remove breakpoint");
-
-        match (remove_breakpoint_result, resume_result) {
-            (Ok(()), Ok(())) => Ok(()),
-            (Ok(()), Err(error)) => {
-                log::debug!("WinDbg removed breakpoint {} but failed to resume target afterward: {}.", breakpoint_id, error);
-                Ok(())
-            }
-            (Err(error), Ok(())) => Err(error),
-            (Err(remove_error), Err(resume_error)) => Err(WindbgBackend::plugin_error(format!(
-                "Failed to remove breakpoint {} and failed to resume target afterward. Remove error: {}. Resume error: {}.",
-                breakpoint_id, remove_error, resume_error
-            ))),
-        }
-    }
-
-    fn remove_breakpoint_while_target_stopped(
-        &mut self,
-        breakpoint_id: &str,
-    ) -> Result<(), DebuggerPluginError> {
         let debug_breakpoint_id = Self::parse_breakpoint_id(breakpoint_id)?;
-        let disable_result = self.set_breakpoint_enabled_while_target_stopped(breakpoint_id, false);
+        let disable_result = self.set_breakpoint_enabled(breakpoint_id, false);
         let remove_result = self.remove_tracked_breakpoint(debug_breakpoint_id);
 
         if remove_result.is_ok() {
             self.breakpoint_labels.remove(&debug_breakpoint_id);
-            self.breakpoints_by_id.remove(&debug_breakpoint_id);
         }
 
         match (disable_result, remove_result) {
             (_, Ok(())) => Ok(()),
             (Ok(()), Err(error)) => {
                 self.breakpoint_labels.remove(&debug_breakpoint_id);
-                self.breakpoints_by_id.remove(&debug_breakpoint_id);
-                log::debug!("WinDbg disabled breakpoint {} but failed to clear it from DbgEng: {}.", breakpoint_id, error);
+                log::debug!("DbgEng disabled breakpoint {} but failed to clear it: {}.", breakpoint_id, error);
                 Ok(())
             }
             (Err(disable_error), Err(remove_error)) => Err(WindbgBackend::plugin_error(format!(
@@ -776,52 +614,14 @@ impl ActiveWindbgSession {
         &self,
         debug_breakpoint_id: u32,
     ) -> Result<(), DebuggerPluginError> {
-        let Some(stored_breakpoint) = self.breakpoints_by_id.get(&debug_breakpoint_id) else {
-            return self.execute_debugger_command(&format!("bc {}", debug_breakpoint_id), &format!("clear breakpoint {}", debug_breakpoint_id));
-        };
-
-        unsafe {
-            self.control
-                .RemoveBreakpoint(&stored_breakpoint.breakpoint)
-                .map_err(|error| {
-                    WindbgBackend::plugin_error(format!(
-                        "IDebugControl::RemoveBreakpoint({}) failed while clearing tracked breakpoint: {}",
-                        debug_breakpoint_id, error
-                    ))
-                })
+        if self.breakpoints_by_id.contains_key(&debug_breakpoint_id) {
+            return Ok(());
         }
+
+        self.execute_debugger_command(&format!("bc {}", debug_breakpoint_id), &format!("clear breakpoint {}", debug_breakpoint_id))
     }
 
     fn set_breakpoint_enabled(
-        &mut self,
-        breakpoint_id: &str,
-        is_enabled: bool,
-    ) -> Result<(), DebuggerPluginError> {
-        let context = if is_enabled { "enable breakpoint" } else { "disable breakpoint" };
-        let resume_after_mutation = self.pause_for_breakpoint_mutation(context)?;
-        let set_enabled_result = self.set_breakpoint_enabled_while_target_stopped(breakpoint_id, is_enabled);
-        let resume_result = self.resume_after_breakpoint_mutation(resume_after_mutation, context);
-
-        match (set_enabled_result, resume_result) {
-            (Ok(()), Ok(())) => Ok(()),
-            (Ok(()), Err(error)) => {
-                log::debug!(
-                    "WinDbg updated breakpoint {} enabled={} but failed to resume target afterward: {}.",
-                    breakpoint_id,
-                    is_enabled,
-                    error
-                );
-                Ok(())
-            }
-            (Err(error), Ok(())) => Err(error),
-            (Err(set_enabled_error), Err(resume_error)) => Err(WindbgBackend::plugin_error(format!(
-                "Failed to update breakpoint {} enabled={} and failed to resume target afterward. Update error: {}. Resume error: {}.",
-                breakpoint_id, is_enabled, set_enabled_error, resume_error
-            ))),
-        }
-    }
-
-    fn set_breakpoint_enabled_while_target_stopped(
         &mut self,
         breakpoint_id: &str,
         is_enabled: bool,
@@ -855,44 +655,6 @@ impl ActiveWindbgSession {
         stored_breakpoint.flags = updated_flags;
 
         Ok(())
-    }
-
-    fn pause_for_breakpoint_mutation(
-        &mut self,
-        context: &str,
-    ) -> Result<bool, DebuggerPluginError> {
-        if self.session_state != DebuggerSessionState::Running {
-            return Ok(false);
-        }
-
-        unsafe {
-            self.control
-                .SetInterrupt(DEBUG_INTERRUPT_ACTIVE)
-                .map_err(|error| {
-                    WindbgBackend::plugin_error(format!(
-                        "IDebugControl::SetInterrupt(DEBUG_INTERRUPT_ACTIVE) failed while trying to {}: {}",
-                        context, error
-                    ))
-                })?;
-        }
-
-        wait_for_required_debug_event(&self.control, BREAKPOINT_MUTATION_WAIT_TIMEOUT_MS, context)?;
-        self.session_state = DebuggerSessionState::Paused;
-
-        Ok(true)
-    }
-
-    fn resume_after_breakpoint_mutation(
-        &mut self,
-        resume_after_mutation: bool,
-        context: &str,
-    ) -> Result<(), DebuggerPluginError> {
-        if !resume_after_mutation {
-            return Ok(());
-        }
-
-        self.resume()
-            .map_err(|error| WindbgBackend::plugin_error(format!("Failed to resume target after trying to {}: {}", context, error)))
     }
 
     fn execute_debugger_command(
@@ -963,31 +725,14 @@ impl ActiveWindbgSession {
                 .map_err(|error| WindbgBackend::plugin_error(format!("IDebugControl::GetLastEventInformation failed: {}", error)))?;
         }
 
-        self.session_state = DebuggerSessionState::Paused;
-
         if debug_event_type != DEBUG_EVENT_BREAKPOINT {
             return Ok(());
         }
 
+        self.session_state = DebuggerSessionState::Paused;
         let breakpoint_descriptor = self.describe_breakpoint_by_id(breakpoint_event.Id)?;
         let mut backend_message = Self::decode_debug_event_description(&event_description_buffer, event_description_used);
         self.set_current_event_context(debug_event_process_id, debug_event_thread_id, &mut backend_message);
-        let should_auto_continue = matches!(
-            breakpoint_descriptor
-                .as_ref()
-                .map(DebuggerBreakpointDescriptor::get_kind),
-            Some(DebuggerBreakpointKind::HardwareData { .. })
-        );
-
-        if should_auto_continue {
-            if let Err(error) = self.set_execution_go_handled() {
-                backend_message = Some(match backend_message {
-                    Some(existing_message) => format!("{} Failed to mark breakpoint event handled: {}", existing_message, error),
-                    None => format!("Failed to mark breakpoint event handled: {}", error),
-                });
-            }
-        }
-
         let register_snapshot = match self.read_registers() {
             Ok(register_snapshot) => register_snapshot,
             Err(error) => {
@@ -1004,23 +749,23 @@ impl ActiveWindbgSession {
             &mut backend_message,
         );
         let instruction_bytes = self.read_instruction_bytes(trace_instruction_pointer);
-        let instruction_text = if instruction_bytes.is_empty() {
-            self.read_dbgeng_disassembly_text(trace_instruction_pointer)
-        } else {
-            None
-        };
 
         (self.trace_event_sink)(DebuggerTraceEvent::new(
             breakpoint_descriptor.clone(),
             register_snapshot,
             trace_instruction_pointer,
             instruction_bytes,
-            instruction_text,
+            None,
             backend_message,
         ));
 
-        if should_auto_continue {
-            self.session_state = DebuggerSessionState::Running;
+        if matches!(
+            breakpoint_descriptor
+                .as_ref()
+                .map(DebuggerBreakpointDescriptor::get_kind),
+            Some(DebuggerBreakpointKind::HardwareData { .. })
+        ) {
+            self.resume()?;
         }
 
         Ok(())
@@ -1197,73 +942,6 @@ impl ActiveWindbgSession {
 
         instruction_bytes.truncate(bytes_read as usize);
         instruction_bytes
-    }
-
-    fn read_dbgeng_disassembly_text(
-        &self,
-        instruction_pointer: Option<u64>,
-    ) -> Option<String> {
-        let instruction_pointer = instruction_pointer?;
-        let mut disassembly_buffer = [0u8; 256];
-        let mut disassembly_size = 0u32;
-        let mut end_offset = 0u64;
-
-        let disassemble_result = unsafe {
-            self.control.Disassemble(
-                instruction_pointer,
-                0,
-                Some(&mut disassembly_buffer),
-                Some(&mut disassembly_size),
-                &mut end_offset,
-            )
-        };
-
-        if let Err(error) = disassemble_result {
-            log::debug!(
-                "IDebugControl::Disassemble failed while reading instruction text at 0x{:X}: {}",
-                instruction_pointer,
-                error
-            );
-
-            return None;
-        }
-
-        let used_byte_count = disassembly_size
-            .saturating_sub(1)
-            .min(disassembly_buffer.len() as u32) as usize;
-        let disassembly_text = String::from_utf8_lossy(&disassembly_buffer[..used_byte_count])
-            .trim()
-            .to_string();
-
-        if disassembly_text.is_empty() {
-            None
-        } else {
-            Some(Self::trim_dbgeng_disassembly_text(&disassembly_text))
-        }
-    }
-
-    fn trim_dbgeng_disassembly_text(disassembly_text: &str) -> String {
-        let mut disassembly_parts = disassembly_text.split_whitespace();
-        let Some(first_part) = disassembly_parts.next() else {
-            return String::new();
-        };
-        let Some(second_part) = disassembly_parts.next() else {
-            return disassembly_text.trim().to_string();
-        };
-
-        if first_part.contains('`')
-            && second_part
-                .chars()
-                .all(|character| character.is_ascii_hexdigit())
-        {
-            let instruction_text = disassembly_parts.collect::<Vec<_>>().join(" ");
-
-            if !instruction_text.is_empty() {
-                return instruction_text;
-            }
-        }
-
-        disassembly_text.trim().to_string()
     }
 
     fn resolve_trace_instruction_pointer(
@@ -1515,7 +1193,7 @@ impl ActiveWindbgSession {
 fn windbg_worker_main(
     process_info: OpenedProcessInfo,
     trace_event_sink: DebuggerTraceEventSink,
-    worker_ready_sender: Sender<Result<WindbgWorkerReady, DebuggerPluginError>>,
+    worker_ready_sender: Sender<Result<Sender<WindbgWorkerCommand>, DebuggerPluginError>>,
 ) {
     let active_session = match ActiveWindbgSession::attach(&process_info, trace_event_sink) {
         Ok(active_session) => active_session,
@@ -1526,15 +1204,8 @@ fn windbg_worker_main(
         }
     };
     let (worker_command_sender, worker_command_receiver) = mpsc::channel();
-    let interrupt_control = SendableDebugControl(active_session.control.clone());
 
-    if worker_ready_sender
-        .send(Ok(WindbgWorkerReady {
-            command_sender: worker_command_sender,
-            interrupt_control,
-        }))
-        .is_err()
-    {
+    if worker_ready_sender.send(Ok(worker_command_sender)).is_err() {
         let _ = active_session.detach();
 
         return;
@@ -1548,36 +1219,17 @@ fn wait_for_worker_commands(
     worker_command_receiver: Receiver<WindbgWorkerCommand>,
 ) {
     loop {
-        if active_session.session_state == DebuggerSessionState::Running {
-            if let Err(error) = active_session.process_pending_debug_event() {
-                log::debug!("Failed to process pending DbgEng event: {}", error);
-            }
-
-            loop {
-                match worker_command_receiver.try_recv() {
-                    Ok(worker_command) => {
-                        if handle_worker_command(&mut active_session, worker_command) {
-                            return;
-                        }
-                    }
-                    Err(TryRecvError::Empty) => break,
-                    Err(TryRecvError::Disconnected) => {
-                        let _ = active_session.detach();
-                        return;
-                    }
-                }
-            }
-
-            continue;
-        }
-
         match worker_command_receiver.recv_timeout(Duration::from_millis(IDLE_COMMAND_WAIT_TIMEOUT_MS)) {
             Ok(worker_command) => {
                 if handle_worker_command(&mut active_session, worker_command) {
                     return;
                 }
             }
-            Err(RecvTimeoutError::Timeout) => {}
+            Err(RecvTimeoutError::Timeout) => {
+                if let Err(error) = active_session.process_pending_debug_event() {
+                    log::debug!("Failed to process pending DbgEng event: {}", error);
+                }
+            }
             Err(RecvTimeoutError::Disconnected) => break,
         }
     }

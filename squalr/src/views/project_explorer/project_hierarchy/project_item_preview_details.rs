@@ -102,12 +102,24 @@ impl ProjectItemPreviewDetails {
         project_item: &ProjectItem,
         virtual_snapshot_query_result: &VirtualSnapshotQueryResult,
     ) -> String {
+        let is_instruction_project_item = Self::is_instruction_project_item(project_item);
+        let existing_instruction_preview_value = if is_instruction_project_item {
+            let existing_preview_value = Self::read_project_item_preview_value(project_item);
+
+            if existing_preview_value.trim().is_empty() {
+                None
+            } else {
+                Some(existing_preview_value)
+            }
+        } else {
+            None
+        };
         let Some(memory_read_response) = virtual_snapshot_query_result.memory_read_response.as_ref() else {
-            return String::new();
+            return existing_instruction_preview_value.unwrap_or_default();
         };
 
         if !memory_read_response.success {
-            return String::new();
+            return existing_instruction_preview_value.unwrap_or_default();
         }
 
         let first_read_field_data_value = memory_read_response
@@ -116,7 +128,7 @@ impl ProjectItemPreviewDetails {
             .first()
             .and_then(|valued_struct_field| valued_struct_field.get_data_value());
         let Some(first_read_field_data_value) = first_read_field_data_value else {
-            return String::new();
+            return existing_instruction_preview_value.unwrap_or_default();
         };
 
         let default_anonymous_value_string_format = Self::read_project_item_preview_display_format(project_item)
@@ -127,12 +139,20 @@ impl ProjectItemPreviewDetails {
         engine_unprivileged_state
             .anonymize_value(first_read_field_data_value, default_anonymous_value_string_format)
             .map(|anonymous_value_string| {
-                DataValuePreviewFormatter::format_anonymous_value_preview(
+                let preview_value = DataValuePreviewFormatter::format_anonymous_value_preview(
                     &anonymous_value_string,
                     symbolic_field_container_type,
                     preview_was_truncated,
                     Self::PROJECT_ITEM_PREVIEW_FORMAT_OPTIONS,
-                )
+                );
+
+                if is_instruction_project_item {
+                    Self::first_disassembled_instruction_text(&preview_value)
+                        .map(str::to_string)
+                        .unwrap_or(preview_value)
+                } else {
+                    preview_value
+                }
             })
             .unwrap_or_default()
     }
@@ -219,6 +239,22 @@ impl ProjectItemPreviewDetails {
         normalize_instruction_data_type_id(symbolic_struct_namespace).filter(|data_type_id| matches!(data_type_id.as_str(), "i_x86" | "i_x64"))
     }
 
+    fn is_instruction_project_item(project_item: &ProjectItem) -> bool {
+        resolve_project_item_struct_layout_id(&ProjectSymbolCatalog::default(), project_item)
+            .and_then(|symbolic_struct_namespace| Self::normalize_instruction_data_type_id(&symbolic_struct_namespace))
+            .is_some()
+    }
+
+    fn first_disassembled_instruction_text(disassembly_text: &str) -> Option<&str> {
+        disassembly_text
+            .trim()
+            .trim_start_matches('[')
+            .trim_end_matches(']')
+            .split(';')
+            .map(str::trim)
+            .find(|instruction_text| !instruction_text.is_empty())
+    }
+
     fn build_instruction_preview_symbolic_struct_definition(data_type_id: &str) -> SymbolicStructDefinition {
         SymbolicStructDefinition::new_anonymous(vec![SymbolicFieldDefinition::new(
             DataTypeRef::new(data_type_id),
@@ -230,7 +266,23 @@ impl ProjectItemPreviewDetails {
 #[cfg(test)]
 mod tests {
     use super::ProjectItemPreviewDetails;
-    use squalr_engine_api::structures::data_values::container_type::ContainerType;
+    use crossbeam_channel::{Receiver, unbounded};
+    use squalr_engine_api::commands::memory::read::memory_read_response::MemoryReadResponse;
+    use squalr_engine_api::commands::privileged_command::PrivilegedCommand;
+    use squalr_engine_api::commands::privileged_command_response::PrivilegedCommandResponse;
+    use squalr_engine_api::commands::unprivileged_command::UnprivilegedCommand;
+    use squalr_engine_api::commands::unprivileged_command_response::UnprivilegedCommandResponse;
+    use squalr_engine_api::engine::engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings;
+    use squalr_engine_api::engine::engine_binding_error::EngineBindingError;
+    use squalr_engine_api::engine::engine_event_envelope::EngineEventEnvelope;
+    use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
+    use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
+    use squalr_engine_api::structures::data_values::{container_type::ContainerType, data_value::DataValue};
+    use squalr_engine_api::structures::projects::project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress;
+    use squalr_engine_api::structures::structs::valued_struct::ValuedStruct;
+    use squalr_engine_session::engine_unprivileged_state::{EngineUnprivilegedState, EngineUnprivilegedStateOptions};
+    use squalr_engine_session::virtual_snapshots::virtual_snapshot_query_result::VirtualSnapshotQueryResult;
+    use std::sync::{Arc, RwLock};
 
     #[test]
     fn instruction_project_item_preview_reads_instruction_byte_window() {
@@ -250,5 +302,99 @@ mod tests {
             ProjectItemPreviewDetails::normalize_instruction_data_type_id("i_x64[3]").as_deref(),
             Some("i_x64")
         );
+    }
+
+    #[test]
+    fn instruction_project_item_preview_uses_first_disassembled_instruction() {
+        let engine_unprivileged_state = create_engine_unprivileged_state();
+        let project_item =
+            ProjectItemTypeAddress::new_project_item("Instruction", 0x1234, "game.exe", "", DataValue::new(DataTypeRef::new("i_x64"), vec![0x90]));
+        let virtual_snapshot_query_result =
+            create_value_virtual_snapshot_query_result(DataValue::new(DataTypeRef::new("i_x64"), vec![0x90, 0x90, 0x90, 0x90]), true);
+
+        let preview_value = ProjectItemPreviewDetails::build_project_item_preview_value_from_virtual_snapshot_result(
+            &engine_unprivileged_state,
+            None,
+            &project_item,
+            &virtual_snapshot_query_result,
+        );
+
+        assert_eq!(preview_value, "nop");
+    }
+
+    #[test]
+    fn instruction_project_item_preview_keeps_existing_preview_on_failed_read() {
+        let engine_unprivileged_state = create_engine_unprivileged_state();
+        let mut project_item =
+            ProjectItemTypeAddress::new_project_item("Instruction", 0x1234, "game.exe", "", DataValue::new(DataTypeRef::new("i_x64"), vec![0x90]));
+        ProjectItemTypeAddress::set_field_freeze_data_value_interpreter(&mut project_item, "inc dword ptr [eax]");
+        let virtual_snapshot_query_result = create_value_virtual_snapshot_query_result(DataValue::new(DataTypeRef::new("i_x64"), Vec::new()), false);
+
+        let preview_value = ProjectItemPreviewDetails::build_project_item_preview_value_from_virtual_snapshot_result(
+            &engine_unprivileged_state,
+            None,
+            &project_item,
+            &virtual_snapshot_query_result,
+        );
+
+        assert_eq!(preview_value, "inc dword ptr [eax]");
+    }
+
+    fn create_engine_unprivileged_state() -> Arc<EngineUnprivilegedState> {
+        EngineUnprivilegedState::new_with_options(
+            Arc::new(RwLock::new(NoOpEngineBindings)),
+            EngineUnprivilegedStateOptions { enable_console_logging: false },
+        )
+    }
+
+    fn create_value_virtual_snapshot_query_result(
+        data_value: DataValue,
+        success: bool,
+    ) -> VirtualSnapshotQueryResult {
+        let valued_struct = if success {
+            ValuedStruct::new_anonymous(vec![data_value.to_named_valued_struct_field("value".to_string(), true)])
+        } else {
+            ValuedStruct::default()
+        };
+
+        VirtualSnapshotQueryResult {
+            memory_read_response: Some(MemoryReadResponse {
+                valued_struct,
+                address: 0,
+                success,
+            }),
+            resolved_address: Some(0x1234),
+            resolved_module_name: "game.exe".to_string(),
+            evaluated_pointer_path: String::new(),
+        }
+    }
+
+    struct NoOpEngineBindings;
+
+    impl EngineApiUnprivilegedBindings for NoOpEngineBindings {
+        fn dispatch_privileged_command(
+            &self,
+            _engine_command: PrivilegedCommand,
+            _callback: Box<dyn FnOnce(PrivilegedCommandResponse) + Send + Sync + 'static>,
+        ) -> Result<(), EngineBindingError> {
+            Err(EngineBindingError::unavailable("dispatching privileged commands in project item preview tests"))
+        }
+
+        fn dispatch_unprivileged_command(
+            &self,
+            _engine_command: UnprivilegedCommand,
+            _engine_execution_context: &Arc<dyn EngineExecutionContext>,
+            _callback: Box<dyn FnOnce(UnprivilegedCommandResponse) + Send + Sync + 'static>,
+        ) -> Result<(), EngineBindingError> {
+            Err(EngineBindingError::unavailable(
+                "dispatching unprivileged commands in project item preview tests",
+            ))
+        }
+
+        fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEventEnvelope>, EngineBindingError> {
+            let (_event_sender, event_receiver) = unbounded();
+
+            Ok(event_receiver)
+        }
     }
 }
