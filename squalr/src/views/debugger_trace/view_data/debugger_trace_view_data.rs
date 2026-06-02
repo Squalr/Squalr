@@ -8,6 +8,7 @@ use squalr_engine_api::{
 };
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
+use std::time::{Duration, Instant};
 
 #[derive(Clone, Debug, Default)]
 pub struct DebuggerTraceViewData {
@@ -21,6 +22,9 @@ struct DebuggerTraceViewState {
     selected_instruction_keys: Vec<DebuggerTraceInstructionKey>,
     pending_trace_start_request: Option<PendingDebuggerTraceStartRequest>,
     pending_trace_start_status_message: Option<String>,
+    pending_trace_start_operation_id: u64,
+    active_trace_start_operation_id: Option<u64>,
+    pending_trace_start_started_at: Option<Instant>,
     is_starting_pending_trace: bool,
     debugger_session_state: DebuggerSessionState,
 }
@@ -38,6 +42,12 @@ pub struct PendingDebuggerTraceStartRequest {
     size_in_bytes: u8,
     access: DebuggerDataBreakpointAccess,
     label: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+pub struct PendingDebuggerTraceStartOperation {
+    operation_id: u64,
+    request: PendingDebuggerTraceStartRequest,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -94,6 +104,16 @@ impl PendingDebuggerTraceStartRequest {
 
     pub fn get_label(&self) -> Option<&str> {
         self.label.as_deref()
+    }
+}
+
+impl PendingDebuggerTraceStartOperation {
+    pub fn get_operation_id(&self) -> u64 {
+        self.operation_id
+    }
+
+    pub fn into_request(self) -> PendingDebuggerTraceStartRequest {
+        self.request
     }
 }
 
@@ -169,6 +189,31 @@ impl DebuggerTraceViewData {
         }
     }
 
+    pub fn expire_stale_pending_trace_start(
+        &self,
+        timeout: Duration,
+    ) {
+        match self.inner.write() {
+            Ok(mut state) => {
+                let Some(pending_trace_start_started_at) = state.pending_trace_start_started_at else {
+                    return;
+                };
+
+                if !state.is_starting_pending_trace || pending_trace_start_started_at.elapsed() < timeout {
+                    return;
+                }
+
+                state.pending_trace_start_status_message = Some(String::from("Debugger trace start timed out. Try the action again."));
+                state.is_starting_pending_trace = false;
+                state.active_trace_start_operation_id = None;
+                state.pending_trace_start_started_at = None;
+            }
+            Err(error) => {
+                log::error!("Failed to expire stale debugger trace start prompt: {}", error);
+            }
+        }
+    }
+
     pub fn set_single_instruction_selection(
         &self,
         instruction_key: DebuggerTraceInstructionKey,
@@ -190,8 +235,11 @@ impl DebuggerTraceViewData {
     ) {
         match self.inner.write() {
             Ok(mut state) => {
+                state.pending_trace_start_operation_id = state.pending_trace_start_operation_id.wrapping_add(1);
                 state.pending_trace_start_request = Some(pending_trace_start_request);
                 state.pending_trace_start_status_message = None;
+                state.active_trace_start_operation_id = None;
+                state.pending_trace_start_started_at = None;
                 state.is_starting_pending_trace = false;
             }
             Err(error) => {
@@ -205,6 +253,8 @@ impl DebuggerTraceViewData {
             Ok(mut state) => {
                 state.pending_trace_start_request = None;
                 state.pending_trace_start_status_message = None;
+                state.active_trace_start_operation_id = None;
+                state.pending_trace_start_started_at = None;
                 state.is_starting_pending_trace = false;
             }
             Err(error) => {
@@ -213,7 +263,7 @@ impl DebuggerTraceViewData {
         }
     }
 
-    pub fn begin_pending_trace_start(&self) -> Option<PendingDebuggerTraceStartRequest> {
+    pub fn begin_pending_trace_start(&self) -> Option<PendingDebuggerTraceStartOperation> {
         match self.inner.write() {
             Ok(mut state) => {
                 if state.is_starting_pending_trace {
@@ -221,10 +271,16 @@ impl DebuggerTraceViewData {
                 }
 
                 let pending_trace_start_request = state.pending_trace_start_request.clone()?;
+                let operation_id = state.pending_trace_start_operation_id;
                 state.pending_trace_start_status_message = None;
+                state.active_trace_start_operation_id = Some(operation_id);
+                state.pending_trace_start_started_at = Some(Instant::now());
                 state.is_starting_pending_trace = true;
 
-                Some(pending_trace_start_request)
+                Some(PendingDebuggerTraceStartOperation {
+                    operation_id,
+                    request: pending_trace_start_request,
+                })
             }
             Err(error) => {
                 log::error!("Failed to begin debugger trace start prompt: {}", error);
@@ -233,17 +289,42 @@ impl DebuggerTraceViewData {
         }
     }
 
-    pub fn complete_pending_trace_start(&self) {
-        self.cancel_pending_trace_start();
+    pub fn complete_pending_trace_start(
+        &self,
+        operation_id: u64,
+    ) {
+        match self.inner.write() {
+            Ok(mut state) => {
+                if state.active_trace_start_operation_id != Some(operation_id) {
+                    return;
+                }
+
+                state.pending_trace_start_request = None;
+                state.pending_trace_start_status_message = None;
+                state.active_trace_start_operation_id = None;
+                state.pending_trace_start_started_at = None;
+                state.is_starting_pending_trace = false;
+            }
+            Err(error) => {
+                log::error!("Failed to complete debugger trace start prompt: {}", error);
+            }
+        }
     }
 
     pub fn fail_pending_trace_start(
         &self,
+        operation_id: u64,
         status_message: String,
     ) {
         match self.inner.write() {
             Ok(mut state) => {
+                if state.active_trace_start_operation_id != Some(operation_id) {
+                    return;
+                }
+
                 state.pending_trace_start_status_message = Some(status_message);
+                state.active_trace_start_operation_id = None;
+                state.pending_trace_start_started_at = None;
                 state.is_starting_pending_trace = false;
             }
             Err(error) => {

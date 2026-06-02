@@ -538,25 +538,11 @@ impl ActiveWindbgSession {
         &mut self,
         breakpoint_id: &str,
     ) -> Result<(), DebuggerPluginError> {
-        let should_resume_after_remove = self.session_state == DebuggerSessionState::Running;
-
-        if should_resume_after_remove {
-            self.pause()?;
-        }
-
         let debug_breakpoint_id = Self::parse_breakpoint_id(breakpoint_id)?;
         let remove_result = self.execute_debugger_command(&format!("bc {}", debug_breakpoint_id), &format!("clear breakpoint {}", breakpoint_id));
 
         if remove_result.is_ok() {
             self.breakpoint_labels.remove(&debug_breakpoint_id);
-        }
-
-        if should_resume_after_remove {
-            let resume_result = self.resume();
-
-            if let Err(error) = resume_result {
-                log::debug!("Failed to resume debuggee after breakpoint removal attempt: {}", error);
-            }
         }
 
         remove_result

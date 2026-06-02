@@ -172,6 +172,12 @@ Our current task, from `README.md`, is:
   - Trace rows no longer render `DebuggerTraceInstructionRecord::last_backend_message` as right-aligned preview text, since messages such as `Hit breakpoint 0` are backend diagnostics rather than useful row data.
   - The WinDbg backend now clears breakpoints through `IDebugControl::Execute("bc <id>")` after parsing the numeric breakpoint ID, avoiding the `GetBreakpointById`/`RemoveBreakpoint` COM wrapper removal path that led into the observed `Release` crash.
   - Live disposable-process smokes stopped trace sessions cleanly after this change, but Minesweeper/timer GUI behavior still needs human verification.
+- Debugger trace state-hardening slice completed:
+  - Owner reported basic actions often failed, including Stop Trace timing out with `IDebugControl::WaitForEvent timed out during pause after 10000 ms`, and that starting another `Find What Writes` while an earlier action was in flight could leave the trace takeover stuck on a spinner.
+  - WinDbg breakpoint removal no longer pauses/resumes around `bc <id>`. Trace stop now clears the breakpoint directly, avoiding the 10 second interrupt wait that was failing on running targets.
+  - The Debugger Trace pending-start flow now tracks an operation id so late callbacks from old attach/trace-start attempts cannot mutate or clear a newer prompt.
+  - The pending-start flow now handles failed command dispatch immediately and expires an in-flight spinner after 15 seconds with a retryable status message.
+  - Live service and command smokes stopped running trace sessions cleanly with the no-pause removal path. GUI behavior against the originally failing target still needs human verification.
 - Old C# Squalr debugger scope was small:
   - `FindWhatReads`, `FindWhatWrites`, and `FindWhatAccesses` set hardware data breakpoints.
   - `PauseExecution` and `ResumeExecution` interrupt/resume the debuggee.
@@ -209,8 +215,9 @@ Our current task, from `README.md`, is:
   - Human-verify DbgEng attach/detach, pause/resume, register read/write, breakpoint create/remove/list, trace sessions, and breakpoint trace emission from CLI/TUI/GUI command surfaces against a disposable local process.
   - Human-verify that GUI `Find What Writes` no longer leaves the target frozen after attach or after trace hits, and that closing Squalr detaches instead of killing the target.
   - Human-verify that GUI `Find What Writes` now arms the breakpoint at the resolved absolute runtime address for module-relative project items and that Stop Trace no longer reports `GetBreakpointById(0)` catastrophic failure.
-  - Human-verify that the Debugger Trace attach prompt renders Attach as the blue primary action, the active header renders Stop/Pause/Resume left-aligned with session text after the controls, and Stop Trace no longer crashes when attached to the Minesweeper timer target.
+  - Human-verify that the Debugger Trace attach prompt renders Attach as the blue primary action, the active header renders Stop/Pause/Resume left-aligned with session text after the controls, and Stop Trace no longer crashes or times out when attached to the Minesweeper timer target.
   - Human-verify that the Debugger Trace Instruction column shows only the single hit instruction and that trace rows no longer show stale backend preview text such as `Hit breakpoint 0`.
+  - Human-verify that starting another `Find What Reads/Writes/Accesses` while a prior prompt/action is in flight does not leave the takeover stuck on an unrecoverable spinner.
   - Human-verify that GUI `Find What Writes` reports the actual access instruction for Minesweeper timer-style cases, not the following post-trap instruction.
   - Human-verify that double-clicking a debugger trace row creates a module-relative `i_x86`/`i_x64` project item when the instruction lives inside a known module.
   - Decide whether to keep the three smoke examples separate or consolidate shared disposable-child helpers into test support.
@@ -365,6 +372,16 @@ Our current task, from `README.md`, is:
   - `cargo check -p squalr --locked` passed.
   - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
   - `cargo test -p squalr --locked default_layout_places_output_related_windows_in_same_tab_group -- --nocapture` passed.
+  - GUI behavior against the originally failing target still needs human verification after implementation and validation.
+- After debugger trace state hardening:
+  - `cargo fmt --all` completed with the existing `.rustfmt.toml` deprecation warnings for `fn_args_layout`.
+  - `cargo check -p squalr-plugin-debugger-windbg --locked` passed.
+  - `cargo check -p squalr --locked` passed.
+  - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
+  - `cargo run -p squalr-engine-session --example debugger_service_windbg_smoke --locked` passed on Windows against a disposable child process and stopped a running trace session cleanly without pause-before-remove.
+  - `cargo run -p squalr-engine --example debugger_command_windbg_smoke --locked` passed on Windows against a disposable child process and stopped a running trace session cleanly without pause-before-remove.
+  - `cargo test -p squalr --locked default_layout_places_output_related_windows_in_same_tab_group -- --nocapture` passed.
+  - `cargo run -p squalr-plugin-debugger-windbg --example windbg_smoke --locked` passed on Windows against a disposable child process.
   - GUI behavior against the originally failing target still needs human verification after implementation and validation.
 - References checked:
   - Local Rust workspace plugin/session/target architecture.
