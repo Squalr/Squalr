@@ -127,6 +127,15 @@ Our current task, from `README.md`, is:
   - Trace hits populate as row entries with instruction text/bytes, hit count, instruction address, backend message, and selected-row state.
   - Double-clicking a trace instruction creates an address project item at the instruction address using the selected project directory, matching the scan-results double-click add-to-project flow.
   - The current add-to-project representation is an ordinary `address` project item named `Instruction 0x...` with `u8` data type. A dedicated instruction/code project item type is still a future cleanup if the project schema should distinguish code locations from data addresses.
+- Debugger target-freeze mitigation slice completed:
+  - Owner reported that GUI debugger attach could freeze the target and closing Squalr could terminate the target process.
+  - Root cause: the DbgEng backend uses `DEBUG_ENGOPT_INITIAL_BREAK` to complete attach, but GUI trace-start did not resume after installing the trace breakpoint. Hardware data breakpoint hits also left the target paused after recording the trace row.
+  - `DebuggerService::start_trace_session` now resumes the debuggee after installing a trace data breakpoint, and attempts to resume if trace breakpoint setup fails after attach.
+  - Trace-session events now report the session as `Running` when the breakpoint maps to a trace session, since those hits are intended to be recorded and continued rather than treated as a user pause.
+  - The WinDbg worker now auto-continues after recording hardware data breakpoint events, while non-trace software breakpoint behavior can still pause.
+  - WinDbg detach now requests `DEBUG_STATUS_GO` before `DetachProcesses`/`EndSession(DEBUG_END_ACTIVE_DETACH)` to avoid leaving a stopped debuggee vulnerable during Squalr shutdown.
+  - A focused `DebuggerService` test now asserts that trace-start resumes the target once and that trace-hit aggregation continues after that resume.
+  - This mitigates the observed freeze/target-death path in live smokes, but still needs human verification through the GUI against the originally failing target.
 - Old C# Squalr debugger scope was small:
   - `FindWhatReads`, `FindWhatWrites`, and `FindWhatAccesses` set hardware data breakpoints.
   - `PauseExecution` and `ResumeExecution` interrupt/resume the debuggee.
@@ -162,6 +171,7 @@ Our current task, from `README.md`, is:
     - Consider adding the same find-what actions to the older Symbol Tree context menu once the Project Explorer path has human verification.
     - Consider adding module/offset enrichment to trace records instead of showing only absolute instruction addresses.
   - Human-verify DbgEng attach/detach, pause/resume, register read/write, breakpoint create/remove/list, trace sessions, and breakpoint trace emission from CLI/TUI/GUI command surfaces against a disposable local process.
+  - Human-verify that GUI `Find What Writes` no longer leaves the target frozen after attach or after trace hits, and that closing Squalr detaches instead of killing the target.
   - Decide whether to keep the three smoke examples separate or consolidate shared disposable-child helpers into test support.
   - Decide whether DbgEng trace byte capture should remain plugin-owned or be moved to a generic engine memory-provider enrichment path.
   - Defer any `dbgeng` crate adoption unless a later symbol/output-capture feature benefits from its helper API.
@@ -247,6 +257,19 @@ Our current task, from `README.md`, is:
   - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
   - Local source check found no remaining `Grid::new`, trace checkbox, `Add Selected to Project`, or auto-attach markers in `squalr/src/views/debugger_trace` or `squalr/src/views/project_explorer/project_hierarchy`.
   - This still needs human verification through the GUI against a disposable local process before it should be treated as release-ready.
+- After debugger target-freeze mitigation:
+  - `cargo fmt --all` completed with the existing `.rustfmt.toml` deprecation warnings for `fn_args_layout`.
+  - `cargo check -p squalr-plugin-debugger-windbg --locked` passed.
+  - `cargo check -p squalr-engine-session --locked` passed.
+  - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
+  - `cargo test -p squalr-plugin-debugger-windbg --locked -- --nocapture` passed.
+  - `cargo check -p squalr-engine --examples --locked` passed.
+  - `cargo run -p squalr-plugin-debugger-windbg --example windbg_smoke --locked` passed on Windows against a disposable child process.
+  - `cargo run -p squalr-engine-session --example debugger_service_windbg_smoke --locked` initially produced one `STATUS_ACCESS_VIOLATION` after the trace event, then passed on immediate rerun.
+  - `cargo run -p squalr-engine --example debugger_command_windbg_smoke --locked` passed on Windows against a disposable child process.
+  - Re-running `cargo run -p squalr-engine-session --example debugger_service_windbg_smoke --locked` three consecutive times passed on Windows against disposable child processes.
+  - `cargo check -p squalr --locked` passed.
+  - GUI behavior against the originally failing target still needs human verification after implementation and validation.
 - References checked:
   - Local Rust workspace plugin/session/target architecture.
   - Old C# implementation under `C:\Projects\Squalr\Squalr.Engine.Debugger`.

@@ -327,11 +327,24 @@ impl DebuggerService {
         let breakpoint_label = label
             .clone()
             .unwrap_or_else(|| format!("{} data trace at 0x{:X}", access.get_cli_label(), address));
-        let breakpoint = self.with_debugger_session(&active_session.session, |debugger_session| {
+        let breakpoint_result = self.with_debugger_session(&active_session.session, |debugger_session| {
             debugger_session
                 .set_breakpoint(address, DebuggerBreakpointKind::hardware_data(access, size_in_bytes), Some(breakpoint_label))
                 .map_err(|error| error.to_string())
-        })?;
+        });
+        let breakpoint = match breakpoint_result {
+            Ok(breakpoint) => breakpoint,
+            Err(error) => {
+                let _ = self.with_debugger_session(&active_session.session, |debugger_session| {
+                    debugger_session
+                        .resume()
+                        .map(|_| ())
+                        .map_err(|resume_error| resume_error.to_string())
+                });
+
+                return Err(error);
+            }
+        };
         let trace_session = DebuggerTraceSessionDescriptor::new(trace_session_id, address, size_in_bytes, access, breakpoint, label, true);
 
         self.trace_sessions
@@ -340,6 +353,11 @@ impl DebuggerService {
             .insert_session(trace_session.clone());
 
         self.emit_trace_session_updated(trace_session.clone(), Vec::new());
+
+        let resume_status = self.with_debugger_session(&active_session.session, |debugger_session| {
+            debugger_session.resume().map_err(|error| error.to_string())
+        })?;
+        self.emit_session_state_changed(resume_status, Some(active_session.plugin_id.clone()));
 
         Ok((trace_session, Vec::new()))
     }
@@ -497,6 +515,7 @@ impl DebuggerService {
             .map_err(|error| format!("Failed to read active debugger session: {}", error))?
             .as_ref()
             .map(|cached_session| CachedDebuggerSessionSnapshot {
+                plugin_id: cached_session.plugin_id.clone(),
                 session: cached_session.session.clone(),
             })
             .ok_or_else(|| String::from("No active debugger session."))
@@ -508,6 +527,7 @@ impl DebuggerService {
             .map_err(|error| format!("Failed to clear active debugger session: {}", error))?
             .take()
             .map(|cached_session| CachedDebuggerSessionSnapshot {
+                plugin_id: cached_session.plugin_id,
                 session: cached_session.session,
             })
             .ok_or_else(|| String::from("No active debugger session."))
@@ -559,10 +579,15 @@ impl DebuggerService {
                 .write()
                 .ok()
                 .and_then(|mut trace_sessions| trace_sessions.record_trace_event(&trace_event));
+            let session_state = if trace_session_update.is_some() {
+                DebuggerSessionState::Running
+            } else {
+                DebuggerSessionState::Paused
+            };
 
             event_emitter(
                 DebuggerSessionStateChangedEvent {
-                    session_state: DebuggerSessionState::Paused,
+                    session_state,
                     active_plugin_id: Some(active_plugin_id.clone()),
                 }
                 .to_engine_event(),
@@ -640,6 +665,7 @@ impl DebuggerService {
 }
 
 struct CachedDebuggerSessionSnapshot {
+    plugin_id: String,
     session: SharedDebuggerSession,
 }
 
@@ -672,6 +698,7 @@ mod tests {
         breakpoints: Vec<DebuggerBreakpointDescriptor>,
         registers: Vec<DebuggerRegisterValue>,
         trace_event_sink: Option<DebuggerTraceEventSink>,
+        resume_count: u32,
     }
 
     struct TestDebuggerPlugin {
@@ -902,6 +929,7 @@ mod tests {
         fn resume(&mut self) -> Result<DebuggerSessionState, DebuggerPluginError> {
             let session_state = self.mutate_backend(|backend| {
                 backend.state = DebuggerSessionState::Running;
+                backend.resume_count = backend.resume_count.saturating_add(1);
                 backend.state
             })?;
 
@@ -1134,6 +1162,13 @@ mod tests {
         assert_eq!(trace_session.get_access(), DebuggerDataBreakpointAccess::Write);
         assert!(trace_session.get_is_active());
         assert!(initial_records.is_empty());
+        assert_eq!(
+            debugger_backend
+                .lock()
+                .map(|backend| backend.resume_count)
+                .expect("Expected debugger backend lock."),
+            1
+        );
 
         debugger_service.resume().expect("Expected first trace hit.");
         debugger_service.resume().expect("Expected second trace hit.");
@@ -1146,13 +1181,13 @@ mod tests {
         assert_eq!(instruction_records[0].get_trace_session_id(), "trace-1");
         assert_eq!(instruction_records[0].get_instruction_address(), Some(0x401000));
         assert_eq!(instruction_records[0].get_instruction_text(), Some("test-disassembly-1"));
-        assert_eq!(instruction_records[0].get_hit_count(), 2);
+        assert_eq!(instruction_records[0].get_hit_count(), 3);
 
         let (stopped_trace_session, stopped_records) = debugger_service
             .stop_trace_session(trace_session.get_trace_session_id())
             .expect("Expected trace session to stop.");
         assert!(!stopped_trace_session.get_is_active());
-        assert_eq!(stopped_records[0].get_hit_count(), 2);
+        assert_eq!(stopped_records[0].get_hit_count(), 3);
         assert!(
             debugger_backend
                 .lock()
@@ -1178,6 +1213,6 @@ mod tests {
             })
             .expect("Expected emitted event lock to be available.");
 
-        assert_eq!(trace_hit_counts, vec![1, 2, 2]);
+        assert_eq!(trace_hit_counts, vec![1, 2, 3, 3]);
     }
 }

@@ -625,12 +625,21 @@ impl ActiveWindbgSession {
         let instruction_bytes = self.read_instruction_bytes(register_snapshot.get_instruction_pointer());
 
         (self.trace_event_sink)(DebuggerTraceEvent::new(
-            breakpoint_descriptor,
+            breakpoint_descriptor.clone(),
             register_snapshot,
             instruction_bytes,
             None,
             backend_message,
         ));
+
+        if matches!(
+            breakpoint_descriptor
+                .as_ref()
+                .map(DebuggerBreakpointDescriptor::get_kind),
+            Some(DebuggerBreakpointKind::HardwareData { .. })
+        ) {
+            self.resume()?;
+        }
 
         Ok(())
     }
@@ -1002,10 +1011,16 @@ impl ActiveWindbgSession {
     }
 
     fn detach(&self) -> Result<(), DebuggerPluginError> {
+        let resume_result = unsafe { self.control.SetExecutionStatus(DEBUG_STATUS_GO) }
+            .map_err(|error| WindbgBackend::plugin_error(format!("IDebugControl::SetExecutionStatus(DEBUG_STATUS_GO) before detach failed: {}", error)));
         let detach_processes_result =
             unsafe { self.client.DetachProcesses() }.map_err(|error| WindbgBackend::plugin_error(format!("IDebugClient::DetachProcesses failed: {}", error)));
         let end_session_result = unsafe { self.client.EndSession(DEBUG_END_ACTIVE_DETACH) }
             .map_err(|error| WindbgBackend::plugin_error(format!("IDebugClient::EndSession(DEBUG_END_ACTIVE_DETACH) failed: {}", error)));
+
+        if let Err(error) = resume_result {
+            log::debug!("{}", error);
+        }
 
         detach_processes_result?;
         end_session_result
