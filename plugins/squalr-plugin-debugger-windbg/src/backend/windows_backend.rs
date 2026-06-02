@@ -1,14 +1,19 @@
 use crate::constants::WINDBG_DEBUGGER_PLUGIN_ID;
-use squalr_engine_api::structures::debugger::{DebuggerRegisterSnapshot, DebuggerRegisterValue};
+use squalr_engine_api::structures::debugger::{
+    DebuggerBreakpointDescriptor, DebuggerBreakpointKind, DebuggerDataBreakpointAccess, DebuggerRegisterSnapshot, DebuggerRegisterValue,
+};
 use squalr_engine_api::{plugins::debugger::DebuggerPluginError, structures::processes::opened_process_info::OpenedProcessInfo};
 use std::{
+    collections::HashMap,
     sync::mpsc::{self, Receiver, Sender},
     thread::{self, JoinHandle},
 };
 use windows::{
     Win32::System::Diagnostics::Debug::Extensions::{
-        DEBUG_ATTACH_DEFAULT, DEBUG_END_ACTIVE_DETACH, DEBUG_INTERRUPT_ACTIVE, DEBUG_REGISTER_DESCRIPTION, DEBUG_STATUS_GO, DEBUG_VALUE, DEBUG_VALUE_INT8,
-        DEBUG_VALUE_INT16, DEBUG_VALUE_INT32, DEBUG_VALUE_INT64, DebugCreate, IDebugClient, IDebugControl, IDebugRegisters2,
+        DEBUG_ANY_ID, DEBUG_ATTACH_DEFAULT, DEBUG_BREAK_READ, DEBUG_BREAK_WRITE, DEBUG_BREAKPOINT_CODE, DEBUG_BREAKPOINT_DATA, DEBUG_BREAKPOINT_ENABLED,
+        DEBUG_BREAKPOINT_PARAMETERS, DEBUG_END_ACTIVE_DETACH, DEBUG_INTERRUPT_ACTIVE, DEBUG_REGISTER_DESCRIPTION, DEBUG_STATUS_GO, DEBUG_VALUE,
+        DEBUG_VALUE_INT8, DEBUG_VALUE_INT16, DEBUG_VALUE_INT32, DEBUG_VALUE_INT64, DebugCreate, IDebugBreakpoint, IDebugClient, IDebugControl,
+        IDebugRegisters2,
     },
     core::{HSTRING, Interface},
 };
@@ -96,8 +101,33 @@ impl WindbgBackend {
             .write_register(register_name, value)
     }
 
-    pub(crate) fn unavailable_error(&self) -> DebuggerPluginError {
-        DebuggerPluginError::new(WINDBG_DEBUGGER_PLUGIN_ID, "DbgEng debugger backend currently supports attach/detach only.")
+    pub(crate) fn set_breakpoint(
+        &self,
+        address: u64,
+        kind: DebuggerBreakpointKind,
+        label: Option<String>,
+    ) -> Result<DebuggerBreakpointDescriptor, DebuggerPluginError> {
+        self.worker_handle
+            .as_ref()
+            .ok_or_else(|| Self::plugin_error("Cannot set a breakpoint because there is no active DbgEng worker."))?
+            .set_breakpoint(address, kind, label)
+    }
+
+    pub(crate) fn remove_breakpoint(
+        &self,
+        breakpoint_id: &str,
+    ) -> Result<(), DebuggerPluginError> {
+        self.worker_handle
+            .as_ref()
+            .ok_or_else(|| Self::plugin_error("Cannot remove a breakpoint because there is no active DbgEng worker."))?
+            .remove_breakpoint(breakpoint_id)
+    }
+
+    pub(crate) fn list_breakpoints(&self) -> Result<Vec<DebuggerBreakpointDescriptor>, DebuggerPluginError> {
+        self.worker_handle
+            .as_ref()
+            .ok_or_else(|| Self::plugin_error("Cannot list breakpoints because there is no active DbgEng worker."))?
+            .list_breakpoints()
     }
 
     fn plugin_error(message: impl Into<String>) -> DebuggerPluginError {
@@ -159,6 +189,58 @@ impl WindbgWorkerHandle {
             .map_err(|error| WindbgBackend::plugin_error(format!("DbgEng worker exited before register write completed: {}", error)))?
     }
 
+    fn set_breakpoint(
+        &self,
+        address: u64,
+        kind: DebuggerBreakpointKind,
+        label: Option<String>,
+    ) -> Result<DebuggerBreakpointDescriptor, DebuggerPluginError> {
+        let (result_sender, result_receiver) = mpsc::channel();
+
+        self.command_sender
+            .send(WindbgWorkerCommand::SetBreakpoint {
+                address,
+                kind,
+                label,
+                result_sender,
+            })
+            .map_err(|error| WindbgBackend::plugin_error(format!("Failed to request DbgEng breakpoint set: {}", error)))?;
+
+        result_receiver
+            .recv()
+            .map_err(|error| WindbgBackend::plugin_error(format!("DbgEng worker exited before breakpoint set completed: {}", error)))?
+    }
+
+    fn remove_breakpoint(
+        &self,
+        breakpoint_id: &str,
+    ) -> Result<(), DebuggerPluginError> {
+        let (result_sender, result_receiver) = mpsc::channel();
+
+        self.command_sender
+            .send(WindbgWorkerCommand::RemoveBreakpoint {
+                breakpoint_id: breakpoint_id.to_string(),
+                result_sender,
+            })
+            .map_err(|error| WindbgBackend::plugin_error(format!("Failed to request DbgEng breakpoint removal: {}", error)))?;
+
+        result_receiver
+            .recv()
+            .map_err(|error| WindbgBackend::plugin_error(format!("DbgEng worker exited before breakpoint removal completed: {}", error)))?
+    }
+
+    fn list_breakpoints(&self) -> Result<Vec<DebuggerBreakpointDescriptor>, DebuggerPluginError> {
+        let (result_sender, result_receiver) = mpsc::channel();
+
+        self.command_sender
+            .send(WindbgWorkerCommand::ListBreakpoints { result_sender })
+            .map_err(|error| WindbgBackend::plugin_error(format!("Failed to request DbgEng breakpoint list: {}", error)))?;
+
+        result_receiver
+            .recv()
+            .map_err(|error| WindbgBackend::plugin_error(format!("DbgEng worker exited before breakpoint list completed: {}", error)))?
+    }
+
     fn detach(&mut self) -> Result<(), DebuggerPluginError> {
         let (detach_result_sender, detach_result_receiver) = mpsc::channel();
 
@@ -216,6 +298,19 @@ enum WindbgWorkerCommand {
         value: u64,
         result_sender: Sender<Result<DebuggerRegisterSnapshot, DebuggerPluginError>>,
     },
+    SetBreakpoint {
+        address: u64,
+        kind: DebuggerBreakpointKind,
+        label: Option<String>,
+        result_sender: Sender<Result<DebuggerBreakpointDescriptor, DebuggerPluginError>>,
+    },
+    RemoveBreakpoint {
+        breakpoint_id: String,
+        result_sender: Sender<Result<(), DebuggerPluginError>>,
+    },
+    ListBreakpoints {
+        result_sender: Sender<Result<Vec<DebuggerBreakpointDescriptor>, DebuggerPluginError>>,
+    },
     Detach {
         result_sender: Sender<Result<(), DebuggerPluginError>>,
     },
@@ -230,6 +325,7 @@ struct ActiveWindbgSession {
     client: IDebugClient,
     control: IDebugControl,
     registers: IDebugRegisters2,
+    breakpoint_labels: HashMap<u32, Option<String>>,
 }
 
 impl ActiveWindbgSession {
@@ -284,7 +380,12 @@ impl ActiveWindbgSession {
             )));
         }
 
-        Ok(Self { client, control, registers })
+        Ok(Self {
+            client,
+            control,
+            registers,
+            breakpoint_labels: HashMap::new(),
+        })
     }
 
     fn pause(&self) -> Result<(), DebuggerPluginError> {
@@ -347,6 +448,191 @@ impl ActiveWindbgSession {
         }
 
         self.read_registers()
+    }
+
+    fn set_breakpoint(
+        &mut self,
+        address: u64,
+        kind: DebuggerBreakpointKind,
+        label: Option<String>,
+    ) -> Result<DebuggerBreakpointDescriptor, DebuggerPluginError> {
+        let breakpoint_type = Self::debug_breakpoint_type(&kind);
+        let breakpoint = unsafe { self.control.AddBreakpoint(breakpoint_type, DEBUG_ANY_ID) }
+            .map_err(|error| WindbgBackend::plugin_error(format!("IDebugControl::AddBreakpoint failed for 0x{:X}: {}", address, error)))?;
+        let configure_result = self.configure_breakpoint(&breakpoint, address, &kind);
+
+        if let Err(error) = configure_result {
+            let _ = unsafe { self.control.RemoveBreakpoint(&breakpoint) };
+
+            return Err(error);
+        }
+
+        let breakpoint_id = unsafe { breakpoint.GetId() }.map_err(|error| {
+            WindbgBackend::plugin_error(format!(
+                "IDebugBreakpoint::GetId failed after creating breakpoint at 0x{:X}: {}",
+                address, error
+            ))
+        })?;
+        self.breakpoint_labels.insert(breakpoint_id, label.clone());
+
+        Ok(DebuggerBreakpointDescriptor::new(breakpoint_id.to_string(), address, kind, true, label))
+    }
+
+    fn remove_breakpoint(
+        &mut self,
+        breakpoint_id: &str,
+    ) -> Result<(), DebuggerPluginError> {
+        let debug_breakpoint_id = Self::parse_breakpoint_id(breakpoint_id)?;
+        let breakpoint = unsafe { self.control.GetBreakpointById(debug_breakpoint_id) }
+            .map_err(|error| WindbgBackend::plugin_error(format!("IDebugControl::GetBreakpointById({}) failed: {}", breakpoint_id, error)))?;
+
+        unsafe {
+            self.control
+                .RemoveBreakpoint(&breakpoint)
+                .map_err(|error| WindbgBackend::plugin_error(format!("IDebugControl::RemoveBreakpoint({}) failed: {}", breakpoint_id, error)))?;
+        }
+
+        self.breakpoint_labels.remove(&debug_breakpoint_id);
+
+        Ok(())
+    }
+
+    fn list_breakpoints(&self) -> Result<Vec<DebuggerBreakpointDescriptor>, DebuggerPluginError> {
+        let breakpoint_count = unsafe { self.control.GetNumberBreakpoints() }
+            .map_err(|error| WindbgBackend::plugin_error(format!("IDebugControl::GetNumberBreakpoints failed: {}", error)))?;
+        let mut breakpoints = Vec::new();
+
+        for breakpoint_ordinal in 0..breakpoint_count {
+            let breakpoint = unsafe { self.control.GetBreakpointByIndex(breakpoint_ordinal) }
+                .map_err(|error| WindbgBackend::plugin_error(format!("IDebugControl::GetBreakpointByIndex({}) failed: {}", breakpoint_ordinal, error)))?;
+
+            if let Some(breakpoint_descriptor) = self.describe_breakpoint(&breakpoint)? {
+                breakpoints.push(breakpoint_descriptor);
+            }
+        }
+
+        Ok(breakpoints)
+    }
+
+    fn configure_breakpoint(
+        &self,
+        breakpoint: &IDebugBreakpoint,
+        address: u64,
+        kind: &DebuggerBreakpointKind,
+    ) -> Result<(), DebuggerPluginError> {
+        unsafe {
+            breakpoint
+                .SetOffset(address)
+                .map_err(|error| WindbgBackend::plugin_error(format!("IDebugBreakpoint::SetOffset(0x{:X}) failed: {}", address, error)))?;
+        }
+
+        if let DebuggerBreakpointKind::HardwareData { access, size_in_bytes } = kind {
+            let data_size = Self::validate_data_breakpoint_size(*size_in_bytes)?;
+            let data_access = Self::debug_data_breakpoint_access(*access);
+
+            unsafe {
+                breakpoint
+                    .SetDataParameters(data_size, data_access)
+                    .map_err(|error| {
+                        WindbgBackend::plugin_error(format!(
+                            "IDebugBreakpoint::SetDataParameters(size={}, access={}) failed for 0x{:X}: {}",
+                            size_in_bytes, data_access, address, error
+                        ))
+                    })?;
+            }
+        }
+
+        unsafe {
+            breakpoint
+                .SetFlags(DEBUG_BREAKPOINT_ENABLED)
+                .map_err(|error| WindbgBackend::plugin_error(format!("IDebugBreakpoint::SetFlags(DEBUG_BREAKPOINT_ENABLED) failed: {}", error)))?;
+        }
+
+        Ok(())
+    }
+
+    fn describe_breakpoint(
+        &self,
+        breakpoint: &IDebugBreakpoint,
+    ) -> Result<Option<DebuggerBreakpointDescriptor>, DebuggerPluginError> {
+        let mut parameters = DEBUG_BREAKPOINT_PARAMETERS::default();
+
+        unsafe {
+            breakpoint
+                .GetParameters(&mut parameters)
+                .map_err(|error| WindbgBackend::plugin_error(format!("IDebugBreakpoint::GetParameters failed: {}", error)))?;
+        }
+
+        let Some(kind) = Self::breakpoint_kind_from_parameters(&parameters)? else {
+            return Ok(None);
+        };
+        let is_enabled = parameters.Flags & DEBUG_BREAKPOINT_ENABLED != 0;
+        let label = self.breakpoint_labels.get(&parameters.Id).cloned().flatten();
+
+        Ok(Some(DebuggerBreakpointDescriptor::new(
+            parameters.Id.to_string(),
+            parameters.Offset,
+            kind,
+            is_enabled,
+            label,
+        )))
+    }
+
+    fn debug_breakpoint_type(kind: &DebuggerBreakpointKind) -> u32 {
+        match kind {
+            DebuggerBreakpointKind::Software => DEBUG_BREAKPOINT_CODE,
+            DebuggerBreakpointKind::HardwareData { .. } => DEBUG_BREAKPOINT_DATA,
+        }
+    }
+
+    fn debug_data_breakpoint_access(access: DebuggerDataBreakpointAccess) -> u32 {
+        match access {
+            DebuggerDataBreakpointAccess::Read => DEBUG_BREAK_READ,
+            DebuggerDataBreakpointAccess::Write => DEBUG_BREAK_WRITE,
+            DebuggerDataBreakpointAccess::ReadWrite => DEBUG_BREAK_READ | DEBUG_BREAK_WRITE,
+        }
+    }
+
+    fn breakpoint_kind_from_parameters(parameters: &DEBUG_BREAKPOINT_PARAMETERS) -> Result<Option<DebuggerBreakpointKind>, DebuggerPluginError> {
+        match parameters.BreakType {
+            DEBUG_BREAKPOINT_CODE => Ok(Some(DebuggerBreakpointKind::Software)),
+            DEBUG_BREAKPOINT_DATA => Ok(Some(DebuggerBreakpointKind::hardware_data(
+                Self::data_breakpoint_access_from_debug(parameters.DataAccessType)?,
+                parameters.DataSize as u8,
+            ))),
+            _ => Ok(None),
+        }
+    }
+
+    fn data_breakpoint_access_from_debug(data_access_type: u32) -> Result<DebuggerDataBreakpointAccess, DebuggerPluginError> {
+        let has_read = data_access_type & DEBUG_BREAK_READ != 0;
+        let has_write = data_access_type & DEBUG_BREAK_WRITE != 0;
+
+        match (has_read, has_write) {
+            (true, true) => Ok(DebuggerDataBreakpointAccess::ReadWrite),
+            (true, false) => Ok(DebuggerDataBreakpointAccess::Read),
+            (false, true) => Ok(DebuggerDataBreakpointAccess::Write),
+            (false, false) => Err(WindbgBackend::plugin_error(format!(
+                "DbgEng data breakpoint access flags {} do not map to a Squalr access mode.",
+                data_access_type
+            ))),
+        }
+    }
+
+    fn validate_data_breakpoint_size(size_in_bytes: u8) -> Result<u32, DebuggerPluginError> {
+        match size_in_bytes {
+            1 | 2 | 4 | 8 => Ok(size_in_bytes as u32),
+            _ => Err(WindbgBackend::plugin_error(format!(
+                "Hardware data breakpoint size {} is unsupported. Expected 1, 2, 4, or 8 bytes.",
+                size_in_bytes
+            ))),
+        }
+    }
+
+    fn parse_breakpoint_id(breakpoint_id: &str) -> Result<u32, DebuggerPluginError> {
+        breakpoint_id
+            .parse::<u32>()
+            .map_err(|error| WindbgBackend::plugin_error(format!("Breakpoint id '{}' is not a valid DbgEng breakpoint id: {}", breakpoint_id, error)))
     }
 
     fn read_integer_registers(&self) -> Result<Vec<DebuggerRegisterValue>, DebuggerPluginError> {
@@ -493,7 +779,7 @@ fn windbg_worker_main(
 }
 
 fn wait_for_worker_commands(
-    active_session: ActiveWindbgSession,
+    mut active_session: ActiveWindbgSession,
     worker_command_receiver: Receiver<WindbgWorkerCommand>,
 ) {
     while let Ok(worker_command) = worker_command_receiver.recv() {
@@ -517,6 +803,23 @@ fn wait_for_worker_commands(
             } => {
                 let write_register_result = active_session.write_register(&register_name, value);
                 let _ = result_sender.send(write_register_result);
+            }
+            WindbgWorkerCommand::SetBreakpoint {
+                address,
+                kind,
+                label,
+                result_sender,
+            } => {
+                let set_breakpoint_result = active_session.set_breakpoint(address, kind, label);
+                let _ = result_sender.send(set_breakpoint_result);
+            }
+            WindbgWorkerCommand::RemoveBreakpoint { breakpoint_id, result_sender } => {
+                let remove_breakpoint_result = active_session.remove_breakpoint(&breakpoint_id);
+                let _ = result_sender.send(remove_breakpoint_result);
+            }
+            WindbgWorkerCommand::ListBreakpoints { result_sender } => {
+                let list_breakpoints_result = active_session.list_breakpoints();
+                let _ = result_sender.send(list_breakpoints_result);
             }
             WindbgWorkerCommand::Detach { result_sender } => {
                 let detach_result = active_session.detach();

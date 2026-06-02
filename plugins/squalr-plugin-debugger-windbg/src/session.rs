@@ -17,10 +17,6 @@ impl WindbgDebuggerSession {
             session_state: DebuggerSessionState::Detached,
         }
     }
-
-    fn unavailable(&self) -> DebuggerPluginError {
-        self.backend.unavailable_error()
-    }
 }
 
 impl DebuggerSession for WindbgDebuggerSession {
@@ -62,22 +58,22 @@ impl DebuggerSession for WindbgDebuggerSession {
 
     fn set_breakpoint(
         &mut self,
-        _address: u64,
-        _kind: DebuggerBreakpointKind,
-        _label: Option<String>,
+        address: u64,
+        kind: DebuggerBreakpointKind,
+        label: Option<String>,
     ) -> Result<DebuggerBreakpointDescriptor, DebuggerPluginError> {
-        Err(self.unavailable())
+        self.backend.set_breakpoint(address, kind, label)
     }
 
     fn remove_breakpoint(
         &mut self,
-        _breakpoint_id: &str,
+        breakpoint_id: &str,
     ) -> Result<(), DebuggerPluginError> {
-        Err(self.unavailable())
+        self.backend.remove_breakpoint(breakpoint_id)
     }
 
     fn list_breakpoints(&self) -> Result<Vec<DebuggerBreakpointDescriptor>, DebuggerPluginError> {
-        Err(self.unavailable())
+        self.backend.list_breakpoints()
     }
 
     fn read_registers(&self) -> Result<DebuggerRegisterSnapshot, DebuggerPluginError> {

@@ -74,7 +74,10 @@ Our current task, from `README.md`, is:
   - Added worker-thread commands for pause via `IDebugControl::SetInterrupt(DEBUG_INTERRUPT_ACTIVE)`, resume via `SetExecutionStatus(DEBUG_STATUS_GO)`, and register snapshots with `IDebugRegisters::GetInstructionOffset`/`GetStackOffset`.
   - Added named integer register enumeration through `IDebugRegisters2::GetDescriptionWide`/`GetValue`; vector/float registers are skipped until the generic register model can represent them.
   - Added named integer register writes through `GetIndexByNameWide`, preserving the current DbgEng integer register width before `SetValue`.
-  - Kept breakpoints returning explicit backend errors until the live attach path is verified.
+  - Added breakpoint create/remove/list through the same DbgEng worker thread using `IDebugControl::AddBreakpoint`, `GetBreakpointById`, `GetBreakpointByIndex`, and `RemoveBreakpoint`.
+  - Supports generic software breakpoints and hardware data breakpoints for 1, 2, 4, or 8 byte read/write/read-write access modes.
+  - Squalr breakpoint IDs map to DbgEng breakpoint IDs; labels are retained in the worker session for breakpoints created through Squalr.
+  - Breakpoint callbacks/event fanout are not implemented yet.
   - This needs human verification against a disposable local process before it should be treated as functional.
 - Old C# Squalr debugger scope was small:
   - `FindWhatReads`, `FindWhatWrites`, and `FindWhatAccesses` set hardware data breakpoints.
@@ -99,7 +102,7 @@ Our current task, from `README.md`, is:
   - `squalr-cli`/`squalr-tui`/`squalr`: command and basic UI surfaces.
 - Next implementation target:
   - Human-verify the DbgEng attach/detach path against a disposable local process.
-  - Add hardware data breakpoint create/remove/list and breakpoint callback event fanout.
+  - Add DbgEng breakpoint callback event fanout, including register snapshot capture and generic `DebuggerTraceEvent` emission.
   - Audit `dbgeng 0.5.1` against the direct `windows` binding implementation before committing to it as the long-term wrapper.
 - Key risks:
   - DbgEng threading rules and `WaitForEvent` serialization are the main complexity.
@@ -116,6 +119,10 @@ Our current task, from `README.md`, is:
 - `cargo test -p squalr-plugin-builtins --locked -- --nocapture` passed.
 - `cargo check -p squalr-plugin-debugger-windbg --locked` passed.
 - `cargo check -p squalr-engine --locked` passed.
+- After WinDbg breakpoint lifetime implementation:
+  - `cargo test -p squalr-plugin-debugger-windbg --locked -- --nocapture` passed.
+  - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
+  - `cargo check -p squalr-engine --locked` passed.
 - References checked:
   - Local Rust workspace plugin/session/target architecture.
   - Old C# implementation under `C:\Projects\Squalr\Squalr.Engine.Debugger`.

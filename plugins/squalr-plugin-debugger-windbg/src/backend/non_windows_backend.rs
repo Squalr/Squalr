@@ -1,5 +1,5 @@
 use crate::constants::WINDBG_DEBUGGER_PLUGIN_ID;
-use squalr_engine_api::structures::debugger::DebuggerRegisterSnapshot;
+use squalr_engine_api::structures::debugger::{DebuggerBreakpointDescriptor, DebuggerBreakpointKind, DebuggerRegisterSnapshot};
 use squalr_engine_api::{plugins::debugger::DebuggerPluginError, structures::processes::opened_process_info::OpenedProcessInfo};
 
 pub(crate) struct WindbgBackend {
@@ -36,6 +36,26 @@ impl WindbgBackend {
         _register_name: &str,
         _value: u64,
     ) -> Result<DebuggerRegisterSnapshot, DebuggerPluginError> {
+        Err(self.unavailable_error())
+    }
+
+    pub(crate) fn set_breakpoint(
+        &self,
+        _address: u64,
+        _kind: DebuggerBreakpointKind,
+        _label: Option<String>,
+    ) -> Result<DebuggerBreakpointDescriptor, DebuggerPluginError> {
+        Err(self.unavailable_error())
+    }
+
+    pub(crate) fn remove_breakpoint(
+        &self,
+        _breakpoint_id: &str,
+    ) -> Result<(), DebuggerPluginError> {
+        Err(self.unavailable_error())
+    }
+
+    pub(crate) fn list_breakpoints(&self) -> Result<Vec<DebuggerBreakpointDescriptor>, DebuggerPluginError> {
         Err(self.unavailable_error())
     }
 
