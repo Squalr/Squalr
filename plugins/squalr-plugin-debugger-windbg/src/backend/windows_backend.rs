@@ -17,7 +17,7 @@ use windows::{
         DEBUG_ANY_ID, DEBUG_ATTACH_DEFAULT, DEBUG_BREAK_READ, DEBUG_BREAK_WRITE, DEBUG_BREAKPOINT_CODE, DEBUG_BREAKPOINT_DATA, DEBUG_BREAKPOINT_ENABLED,
         DEBUG_BREAKPOINT_PARAMETERS, DEBUG_END_ACTIVE_DETACH, DEBUG_EVENT_BREAKPOINT, DEBUG_INTERRUPT_ACTIVE, DEBUG_LAST_EVENT_INFO_BREAKPOINT,
         DEBUG_REGISTER_DESCRIPTION, DEBUG_STATUS_GO, DEBUG_VALUE, DEBUG_VALUE_INT8, DEBUG_VALUE_INT16, DEBUG_VALUE_INT32, DEBUG_VALUE_INT64, DebugCreate,
-        IDebugBreakpoint, IDebugClient, IDebugControl, IDebugRegisters2,
+        IDebugBreakpoint, IDebugClient, IDebugControl, IDebugDataSpaces, IDebugRegisters2,
     },
     core::{HSTRING, Interface},
 };
@@ -25,6 +25,7 @@ use windows::{
 const INITIAL_ATTACH_WAIT_TIMEOUT_MS: u32 = 10_000;
 const RUNNING_EVENT_WAIT_TIMEOUT_MS: u32 = 50;
 const IDLE_COMMAND_WAIT_TIMEOUT_MS: u64 = 50;
+const TRACE_INSTRUCTION_BYTE_WINDOW: usize = 16;
 
 pub(crate) struct WindbgBackend {
     process_info: OpenedProcessInfo,
@@ -336,6 +337,7 @@ enum WindbgWorkerCommandKind {
 struct ActiveWindbgSession {
     client: IDebugClient,
     control: IDebugControl,
+    data_spaces: IDebugDataSpaces,
     registers: IDebugRegisters2,
     breakpoint_labels: HashMap<u32, Option<String>>,
     session_state: DebuggerSessionState,
@@ -371,6 +373,14 @@ impl ActiveWindbgSession {
                 error
             ))
         })?;
+        let data_spaces = client.cast::<IDebugDataSpaces>().map_err(|error| {
+            WindbgBackend::plugin_error(format!(
+                "IDebugClient could not be cast to IDebugDataSpaces while attaching to '{}' ({}): {}",
+                process_info.get_name(),
+                process_info.get_process_id(),
+                error
+            ))
+        })?;
 
         unsafe {
             client
@@ -400,6 +410,7 @@ impl ActiveWindbgSession {
         Ok(Self {
             client,
             control,
+            data_spaces,
             registers,
             breakpoint_labels: HashMap::new(),
             session_state: DebuggerSessionState::Attached,
@@ -582,12 +593,13 @@ impl ActiveWindbgSession {
         self.session_state = DebuggerSessionState::Paused;
         let breakpoint_descriptor = self.describe_breakpoint_by_id(breakpoint_event.Id)?;
         let register_snapshot = self.read_registers()?;
+        let instruction_bytes = self.read_instruction_bytes(register_snapshot.get_instruction_pointer());
         let backend_message = Self::decode_debug_event_description(&event_description_buffer, event_description_used);
 
         (self.trace_event_sink)(DebuggerTraceEvent::new(
             breakpoint_descriptor,
             register_snapshot,
-            Vec::new(),
+            instruction_bytes,
             None,
             backend_message,
         ));
@@ -677,6 +689,38 @@ impl ActiveWindbgSession {
         };
 
         self.describe_breakpoint(&breakpoint)
+    }
+
+    fn read_instruction_bytes(
+        &self,
+        instruction_pointer: Option<u64>,
+    ) -> Vec<u8> {
+        let Some(instruction_pointer) = instruction_pointer else {
+            return Vec::new();
+        };
+        let mut instruction_bytes = vec![0u8; TRACE_INSTRUCTION_BYTE_WINDOW];
+        let mut bytes_read = 0u32;
+        let read_result = unsafe {
+            self.data_spaces.ReadVirtual(
+                instruction_pointer,
+                instruction_bytes.as_mut_ptr().cast(),
+                instruction_bytes.len() as u32,
+                Some(&mut bytes_read),
+            )
+        };
+
+        if let Err(error) = read_result {
+            log::debug!(
+                "IDebugDataSpaces::ReadVirtual failed while reading instruction bytes at 0x{:X}: {}",
+                instruction_pointer,
+                error
+            );
+
+            return Vec::new();
+        }
+
+        instruction_bytes.truncate(bytes_read as usize);
+        instruction_bytes
     }
 
     fn debug_breakpoint_type(kind: &DebuggerBreakpointKind) -> u32 {
