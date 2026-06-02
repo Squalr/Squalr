@@ -356,11 +356,23 @@ impl EnginePrivilegedState {
         std::thread::spawn(move || {
             while let Ok(engine_event_envelope) = event_receiver.recv() {
                 match engine_event_envelope.into_engine_event() {
-                    EngineEvent::Process(ProcessEvent::ProcessChanged { .. }) => {
+                    EngineEvent::Process(ProcessEvent::ProcessChanged { process_changed_event }) => {
                         engine_privileged_state.invalidate_memory_view_runtime_state();
-                        engine_privileged_state
-                            .get_debugger_service()
-                            .clear_active_session();
+
+                        let debugger_service = engine_privileged_state.get_debugger_service();
+                        let should_clear_debugger_session = process_changed_event
+                            .process_info
+                            .as_ref()
+                            .map(|process_info| {
+                                debugger_service
+                                    .get_active_plugin_id_for_process(process_info)
+                                    .is_none()
+                            })
+                            .unwrap_or(true);
+
+                        if should_clear_debugger_session {
+                            debugger_service.clear_active_session();
+                        }
                     }
                     EngineEvent::Logging(_) => {}
                     _ => {}
