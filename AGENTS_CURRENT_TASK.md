@@ -33,7 +33,7 @@ Our current task, from `README.md`, is:
   - [x] Capture register values and instruction pointer.
   - [x] Read instruction bytes from the stopped debuggee.
   - [x] Resume execution and remove the breakpoint cleanly.
-  - [ ] Run the full engine/session command path live so trace bytes are enriched by `squalr-plugin-instructions-x86`.
+  - [x] Run the full engine/session path live so trace bytes are enriched by `squalr-plugin-instructions-x86`.
   - [ ] Repeat manual/human verification from CLI/TUI/GUI command surfaces.
 
 ## Important Information
@@ -93,6 +93,10 @@ Our current task, from `README.md`, is:
   - The DbgEng backend now selects the event process/thread through `IDebugSystemObjects` before register capture.
   - Register enumeration now skips unreadable/non-integer register ordinals instead of failing the entire snapshot.
   - Local smoke output showed attach, breakpoint creation/listing, trace receipt, `IP=0x...`, 16 instruction bytes, 235 registers, and clean detach. This is still a local disposable-process validation and needs human verification through the real frontend/command flow before release confidence.
+- Live debugger service smoke harness slice completed:
+  - Added `squalr-engine-session/examples/debugger_service_windbg_smoke.rs`, which enables the disabled-by-default WinDbg plugin in the builtin registry, routes attach/breakpoint/resume/remove/detach through `DebuggerService`, and waits on `EngineEvent::Debugger`.
+  - Local smoke output showed a generic trace event with `IP=0x...`, 16 instruction bytes, 235 registers, backend `"Hit breakpoint 0"`, and x64 disassembly text from `squalr-plugin-instructions-x86`.
+  - This validates live plugin-to-service trace fanout and engine-side disassembly enrichment against a disposable child process. CLI/TUI/GUI command surfaces still need human verification.
 - Old C# Squalr debugger scope was small:
   - `FindWhatReads`, `FindWhatWrites`, and `FindWhatAccesses` set hardware data breakpoints.
   - `PauseExecution` and `ResumeExecution` interrupt/resume the debuggee.
@@ -115,8 +119,8 @@ Our current task, from `README.md`, is:
   - `squalr-engine`: command executors that call the debugger service.
   - `squalr-cli`/`squalr-tui`/`squalr`: command and basic UI surfaces.
 - Next implementation target:
-  - Drive the same smoke scenario through `squalr-engine-session::DebuggerService`/engine commands so live trace bytes are enriched by the instruction-set plugin, not only by the plugin example.
   - Human-verify DbgEng attach/detach, pause/resume, register read/write, breakpoint create/remove/list, and breakpoint trace emission from CLI/TUI/GUI command surfaces against a disposable local process.
+  - Add or validate command-level smoke coverage through `squalr-engine` executors once there is a lightweight way to inject an opened disposable process without reaching into frontend state.
   - Decide whether DbgEng trace byte capture should remain plugin-owned or be moved to a generic engine memory-provider enrichment path.
   - Audit `dbgeng 0.5.1` against the direct `windows` binding implementation before committing to it as the long-term wrapper.
 - Key risks:
@@ -163,6 +167,11 @@ Our current task, from `README.md`, is:
   - `cargo test -p squalr-plugin-debugger-windbg --locked -- --nocapture` passed.
   - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
   - `cargo test -p squalr-plugin-builtins --locked -- --nocapture` passed.
+  - `cargo check -p squalr-engine --locked` passed.
+- After live debugger service smoke harness:
+  - `cargo check -p squalr-engine-session --examples --locked` passed.
+  - `cargo run -p squalr-engine-session --example debugger_service_windbg_smoke --locked` passed on Windows against a disposable child process and produced x64 disassembly text in the trace event.
+  - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
   - `cargo check -p squalr-engine --locked` passed.
 - References checked:
   - Local Rust workspace plugin/session/target architecture.
