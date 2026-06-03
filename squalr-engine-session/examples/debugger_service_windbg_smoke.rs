@@ -216,11 +216,49 @@ fn run_smoke_against_child(child_process: &mut std::process::Child) -> Result<()
         second_trace_event.get_instruction_text(),
     );
 
+    let (second_paused_trace_session, second_paused_instruction_records) = debugger_service.pause_trace_session(second_trace_session.get_trace_session_id())?;
+    println!(
+        "Paused restarted trace collection for {} at {} instruction record(s).",
+        second_paused_trace_session.get_trace_session_id(),
+        second_paused_instruction_records.len()
+    );
+
     let (second_stopped_trace_session, second_instruction_records) = debugger_service.stop_trace_session(second_trace_session.get_trace_session_id())?;
     println!(
-        "Stopped restarted trace session {} with {} instruction record(s).",
+        "Stopped paused restarted trace session {} with {} instruction record(s).",
         second_stopped_trace_session.get_trace_session_id(),
         second_instruction_records.len()
+    );
+
+    let (third_trace_session, _) = debugger_service.start_trace_session(
+        target_address,
+        8,
+        DebuggerDataBreakpointAccess::Write,
+        Some(String::from("session-windbg-smoke-write-pause-stop-restart")),
+    )?;
+    println!(
+        "Restarted after pause-stop as trace session {} at {:#x}.",
+        third_trace_session.get_trace_session_id(),
+        third_trace_session.get_address()
+    );
+
+    let third_instruction_records =
+        wait_for_trace_session_hit_count(&debugger_service, third_trace_session.get_trace_session_id(), 1, Duration::from_secs(10))?;
+    let third_trace_event = third_instruction_records
+        .first()
+        .ok_or_else(|| String::from("Pause-stop restarted trace did not record any instruction records."))?;
+    println!(
+        "Pause-stop restart trace record: instruction_address={}, bytes={}, instruction={:?}.",
+        format_optional_address(third_trace_event.get_instruction_address()),
+        third_trace_event.get_instruction_bytes().len(),
+        third_trace_event.get_instruction_text(),
+    );
+
+    let (third_stopped_trace_session, third_instruction_records) = debugger_service.stop_trace_session(third_trace_session.get_trace_session_id())?;
+    println!(
+        "Stopped pause-stop restarted trace session {} with {} instruction record(s).",
+        third_stopped_trace_session.get_trace_session_id(),
+        third_instruction_records.len()
     );
 
     debugger_service.detach()?;

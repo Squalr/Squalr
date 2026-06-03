@@ -544,6 +544,21 @@ Our current task, from `README.md`, is:
   - `cargo test -p squalr --locked instruction_project_item_preview -- --nocapture` passed.
   - `cargo check -p squalr --locked` passed.
   - GUI behavior against winmine still needs human verification after implementation and validation.
+- After pause-stop restart and remaining instruction `??` correction:
+  - Reproduced the DbgEng restart failure in the live service smoke: after a stopped trace, a fresh `AddBreakpoint` while the target was running could fail catastrophically, and a retained disabled data breakpoint could re-enable without producing hits.
+  - DbgEng hardware data breakpoint stop now retires the tracked breakpoint from Squalr collection without disabling/removing the live DbgEng breakpoint. Future matching trace sessions reuse the live breakpoint id, avoiding the dead restart state after stop or pause-stop.
+  - DbgEng breakpoint mutation paths now have an internal break/resume guard for non-retired breakpoint add/remove/enable/disable operations, with early-return paths structured so the target is resumed after an internal mutation break.
+  - The service smoke now validates initial hit, collection pause/resume, stop/restart, hit, pause, stop while paused, restart again, and another hit.
+  - Debugger trace event enrichment now uses instruction-set `disassemble_block` instead of string `disassemble` plus splitting, and rejects `??`/`[??]` as meaningful instruction text.
+  - Project hierarchy row previews no longer replace an empty instruction-item preview with `??`; non-instruction address/pointer items still use the existing `??` placeholder.
+  - `cargo fmt --all` completed with the existing `.rustfmt.toml` deprecation warnings for `fn_args_layout`.
+  - `cargo check -p squalr-plugin-debugger-windbg --locked` passed.
+  - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
+  - `cargo test -p squalr --locked preview_ -- --nocapture` passed.
+  - `cargo check -p squalr --locked` passed.
+  - `cargo run -p squalr-engine-session --example debugger_service_windbg_smoke --locked` passed on Windows against a disposable child process and covered pause-stop-restart.
+  - `cargo run -p squalr-engine --example debugger_command_windbg_smoke --locked` passed on Windows against a disposable child process.
+  - GUI behavior against winmine still needs human verification after implementation and validation.
 - References checked:
   - Local Rust workspace plugin/session/target architecture.
   - Old C# implementation under `C:\Projects\Squalr\Squalr.Engine.Debugger`.

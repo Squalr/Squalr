@@ -11,15 +11,18 @@ use crate::views::project_explorer::project_hierarchy::view_data::{
     project_hierarchy_tree_model::ProjectHierarchyTreeModel,
 };
 use eframe::egui::Pos2;
+use squalr_engine::services::projects::project_item_symbol_resolution::resolve_project_item_struct_layout_id;
 use squalr_engine_api::commands::project_items::list::project_items_list_request::ProjectItemsListRequest;
 use squalr_engine_api::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
+use squalr_engine_api::plugins::instruction_set::normalize_instruction_data_type_id;
 use squalr_engine_api::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
 use squalr_engine_api::structures::projects::project_info::ProjectInfo;
 use squalr_engine_api::structures::projects::project_items::built_in_types::{
     project_item_type_address::ProjectItemTypeAddress, project_item_type_pointer::ProjectItemTypePointer,
 };
 use squalr_engine_api::structures::projects::project_items::{project_item::ProjectItem, project_item_ref::ProjectItemRef};
+use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
 use squalr_engine_api::structures::settings::scan_settings::ScanSettings;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -1315,14 +1318,31 @@ impl ProjectHierarchyViewData {
         if project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
             let preview_value = Self::read_string_field(project_item, ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE);
 
-            if preview_value.is_empty() { "??".to_string() } else { preview_value }
+            Self::format_empty_preview_placeholder(project_item, preview_value)
         } else if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
             let preview_value = Self::read_string_field(project_item, ProjectItemTypePointer::PROPERTY_FREEZE_DISPLAY_VALUE);
 
-            if preview_value.is_empty() { "??".to_string() } else { preview_value }
+            Self::format_empty_preview_placeholder(project_item, preview_value)
         } else {
             String::new()
         }
+    }
+
+    fn format_empty_preview_placeholder(
+        project_item: &ProjectItem,
+        preview_value: String,
+    ) -> String {
+        if !preview_value.is_empty() || Self::is_instruction_project_item(project_item) {
+            preview_value
+        } else {
+            String::from("??")
+        }
+    }
+
+    fn is_instruction_project_item(project_item: &ProjectItem) -> bool {
+        resolve_project_item_struct_layout_id(&ProjectSymbolCatalog::default(), project_item)
+            .and_then(|symbolic_struct_namespace| normalize_instruction_data_type_id(&symbolic_struct_namespace))
+            .is_some()
     }
 
     fn build_preview_path(project_item: &ProjectItem) -> String {
@@ -1489,5 +1509,29 @@ impl ProjectHierarchyViewData {
             .unwrap_or_else(|_| Path::new(""));
 
         renamed_project_item_path.join(renamed_child_suffix)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ProjectHierarchyViewData;
+    use squalr_engine_api::structures::{
+        data_types::data_type_ref::DataTypeRef, data_values::data_value::DataValue,
+        projects::project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress,
+    };
+
+    #[test]
+    fn instruction_project_item_empty_preview_stays_empty() {
+        let project_item =
+            ProjectItemTypeAddress::new_project_item("Instruction", 0x1234, "game.exe", "", DataValue::new(DataTypeRef::new("i_x64"), vec![0x90]));
+
+        assert_eq!(ProjectHierarchyViewData::build_preview_value(&project_item), "");
+    }
+
+    #[test]
+    fn data_project_item_empty_preview_uses_unknown_placeholder() {
+        let project_item = ProjectItemTypeAddress::new_project_item("Value", 0x1234, "game.exe", "", DataValue::new(DataTypeRef::new("u32"), vec![0; 4]));
+
+        assert_eq!(ProjectHierarchyViewData::build_preview_value(&project_item), "??");
     }
 }

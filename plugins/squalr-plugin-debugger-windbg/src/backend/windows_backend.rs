@@ -28,6 +28,7 @@ use windows::{
 };
 
 const INITIAL_ATTACH_WAIT_TIMEOUT_MS: u32 = 10_000;
+const BREAKPOINT_MUTATION_WAIT_TIMEOUT_MS: u32 = 2_000;
 const RUNNING_EVENT_WAIT_TIMEOUT_MS: u32 = 50;
 const IDLE_COMMAND_WAIT_TIMEOUT_MS: u64 = 50;
 const TRACE_INSTRUCTION_BYTE_WINDOW: usize = 16;
@@ -565,39 +566,58 @@ impl ActiveWindbgSession {
         kind: DebuggerBreakpointKind,
         label: Option<String>,
     ) -> Result<DebuggerBreakpointDescriptor, DebuggerPluginError> {
-        if let Some(reused_breakpoint_descriptor) = self.reuse_disabled_breakpoint(address, &kind, label.clone())? {
-            return Ok(reused_breakpoint_descriptor);
+        let should_resume_after_mutation = self.pause_for_breakpoint_mutation("set breakpoint")?;
+        let set_breakpoint_result = match self.reuse_disabled_breakpoint(address, &kind, label.clone()) {
+            Ok(Some(reused_breakpoint_descriptor)) => Ok(reused_breakpoint_descriptor),
+            Ok(None) => {
+                let breakpoint_type = Self::debug_breakpoint_type(&kind);
+                match unsafe { self.control.AddBreakpoint(breakpoint_type, DEBUG_ANY_ID) } {
+                    Ok(breakpoint) => {
+                        let configure_result = self.configure_breakpoint(&breakpoint, address, &kind);
+
+                        if let Err(error) = configure_result {
+                            let _ = unsafe { self.control.RemoveBreakpoint(&breakpoint) };
+
+                            Err(error)
+                        } else {
+                            match unsafe { breakpoint.GetId() } {
+                                Ok(breakpoint_id) => {
+                                    self.breakpoint_labels.insert(breakpoint_id, label.clone());
+                                    self.breakpoints_by_id.insert(
+                                        breakpoint_id,
+                                        StoredWindbgBreakpoint {
+                                            breakpoint,
+                                            address,
+                                            kind: kind.clone(),
+                                            flags: DEBUG_BREAKPOINT_ENABLED,
+                                        },
+                                    );
+
+                                    Ok(DebuggerBreakpointDescriptor::new(breakpoint_id.to_string(), address, kind, true, label))
+                                }
+                                Err(error) => Err(WindbgBackend::plugin_error(format!(
+                                    "IDebugBreakpoint::GetId failed after creating breakpoint at 0x{:X}: {}",
+                                    address, error
+                                ))),
+                            }
+                        }
+                    }
+                    Err(error) => Err(WindbgBackend::plugin_error(format!(
+                        "IDebugControl::AddBreakpoint failed for 0x{:X}: {}",
+                        address, error
+                    ))),
+                }
+            }
+            Err(error) => Err(error),
+        };
+
+        let resume_result = self.resume_after_breakpoint_mutation(should_resume_after_mutation, "set breakpoint");
+
+        match (set_breakpoint_result, resume_result) {
+            (Ok(breakpoint_descriptor), Ok(())) => Ok(breakpoint_descriptor),
+            (Err(error), _) => Err(error),
+            (Ok(_), Err(error)) => Err(error),
         }
-
-        let breakpoint_type = Self::debug_breakpoint_type(&kind);
-        let breakpoint = unsafe { self.control.AddBreakpoint(breakpoint_type, DEBUG_ANY_ID) }
-            .map_err(|error| WindbgBackend::plugin_error(format!("IDebugControl::AddBreakpoint failed for 0x{:X}: {}", address, error)))?;
-        let configure_result = self.configure_breakpoint(&breakpoint, address, &kind);
-
-        if let Err(error) = configure_result {
-            let _ = unsafe { self.control.RemoveBreakpoint(&breakpoint) };
-
-            return Err(error);
-        }
-
-        let breakpoint_id = unsafe { breakpoint.GetId() }.map_err(|error| {
-            WindbgBackend::plugin_error(format!(
-                "IDebugBreakpoint::GetId failed after creating breakpoint at 0x{:X}: {}",
-                address, error
-            ))
-        })?;
-        self.breakpoint_labels.insert(breakpoint_id, label.clone());
-        self.breakpoints_by_id.insert(
-            breakpoint_id,
-            StoredWindbgBreakpoint {
-                breakpoint,
-                address,
-                kind: kind.clone(),
-                flags: DEBUG_BREAKPOINT_ENABLED,
-            },
-        );
-
-        Ok(DebuggerBreakpointDescriptor::new(breakpoint_id.to_string(), address, kind, true, label))
     }
 
     fn reuse_disabled_breakpoint(
@@ -610,7 +630,7 @@ impl ActiveWindbgSession {
             .breakpoints_by_id
             .iter()
             .find_map(|(debug_breakpoint_id, stored_breakpoint)| {
-                if stored_breakpoint.address == address && stored_breakpoint.kind == *kind && stored_breakpoint.flags & DEBUG_BREAKPOINT_ENABLED == 0 {
+                if stored_breakpoint.address == address && stored_breakpoint.kind == *kind {
                     Some(*debug_breakpoint_id)
                 } else {
                     None
@@ -620,7 +640,16 @@ impl ActiveWindbgSession {
             return Ok(None);
         };
 
-        self.set_breakpoint_enabled(&debug_breakpoint_id.to_string(), true)?;
+        let is_already_enabled = self
+            .breakpoints_by_id
+            .get(&debug_breakpoint_id)
+            .map(|stored_breakpoint| stored_breakpoint.flags & DEBUG_BREAKPOINT_ENABLED != 0)
+            .unwrap_or(false);
+
+        if !is_already_enabled {
+            self.set_breakpoint_enabled(&debug_breakpoint_id.to_string(), true)?;
+        }
+
         self.breakpoint_labels
             .insert(debug_breakpoint_id, label.clone());
 
@@ -638,36 +667,95 @@ impl ActiveWindbgSession {
         breakpoint_id: &str,
     ) -> Result<(), DebuggerPluginError> {
         let debug_breakpoint_id = Self::parse_breakpoint_id(breakpoint_id)?;
-        let disable_result = self.set_breakpoint_enabled(breakpoint_id, false);
-        let remove_result = self.remove_tracked_breakpoint(debug_breakpoint_id);
-
-        if remove_result.is_ok() {
+        if self
+            .breakpoints_by_id
+            .get(&debug_breakpoint_id)
+            .map(|stored_breakpoint| matches!(stored_breakpoint.kind, DebuggerBreakpointKind::HardwareData { .. }))
+            .unwrap_or(false)
+        {
             self.breakpoint_labels.remove(&debug_breakpoint_id);
+            log::debug!(
+                "Retiring DbgEng hardware data breakpoint {} without disabling it so future trace sessions can reuse the live breakpoint.",
+                breakpoint_id
+            );
+
+            return Ok(());
         }
 
-        match (disable_result, remove_result) {
-            (_, Ok(())) => Ok(()),
-            (Ok(()), Err(error)) => {
+        let should_resume_after_mutation = self.pause_for_breakpoint_mutation("remove breakpoint")?;
+        let disable_result = self.set_breakpoint_enabled(breakpoint_id, false);
+
+        let remove_breakpoint_result = match disable_result {
+            Ok(()) => match self.remove_tracked_breakpoint(debug_breakpoint_id) {
+                Ok(()) => {
+                    self.breakpoint_labels.remove(&debug_breakpoint_id);
+                    Ok(())
+                }
+                Err(remove_error) => {
+                    self.breakpoint_labels.remove(&debug_breakpoint_id);
+                    log::warn!(
+                        "DbgEng disabled breakpoint {} but failed to remove it; dropping it from the reuse cache so future traces use a fresh breakpoint: {}.",
+                        breakpoint_id,
+                        remove_error
+                    );
+                    Ok(())
+                }
+            },
+            Err(disable_error) if self.breakpoints_by_id.contains_key(&debug_breakpoint_id) => {
+                if let Some(stored_breakpoint) = self.breakpoints_by_id.get_mut(&debug_breakpoint_id) {
+                    stored_breakpoint.flags &= !DEBUG_BREAKPOINT_ENABLED;
+                }
                 self.breakpoint_labels.remove(&debug_breakpoint_id);
-                log::debug!("DbgEng disabled breakpoint {} but failed to clear it: {}.", breakpoint_id, error);
+                log::warn!(
+                    "DbgEng failed to disable tracked breakpoint {} during stop; marking it disabled for reuse to avoid stale AddBreakpoint state: {}.",
+                    breakpoint_id,
+                    disable_error
+                );
                 Ok(())
             }
-            (Err(disable_error), Err(remove_error)) => Err(WindbgBackend::plugin_error(format!(
-                "Failed to disable or clear breakpoint {}. Disable error: {}. Clear error: {}.",
-                breakpoint_id, disable_error, remove_error
-            ))),
+            Err(disable_error) => {
+                let clear_result = self.execute_debugger_command(&format!("bc {}", debug_breakpoint_id), &format!("clear breakpoint {}", debug_breakpoint_id));
+
+                match clear_result {
+                    Ok(()) => {
+                        self.breakpoint_labels.remove(&debug_breakpoint_id);
+                        Ok(())
+                    }
+                    Err(clear_error) => Err(WindbgBackend::plugin_error(format!(
+                        "Failed to disable or clear breakpoint {}. Disable error: {}. Clear error: {}.",
+                        breakpoint_id, disable_error, clear_error
+                    ))),
+                }
+            }
+        };
+
+        let resume_result = self.resume_after_breakpoint_mutation(should_resume_after_mutation, "remove breakpoint");
+
+        match (remove_breakpoint_result, resume_result) {
+            (Ok(()), Ok(())) => Ok(()),
+            (Err(error), _) => Err(error),
+            (Ok(()), Err(error)) => Err(error),
         }
     }
 
     fn remove_tracked_breakpoint(
-        &self,
+        &mut self,
         debug_breakpoint_id: u32,
     ) -> Result<(), DebuggerPluginError> {
-        if self.breakpoints_by_id.contains_key(&debug_breakpoint_id) {
-            return Ok(());
-        }
+        let Some(stored_breakpoint) = self.breakpoints_by_id.remove(&debug_breakpoint_id) else {
+            return self.execute_debugger_command(&format!("bc {}", debug_breakpoint_id), &format!("clear breakpoint {}", debug_breakpoint_id));
+        };
 
-        self.execute_debugger_command(&format!("bc {}", debug_breakpoint_id), &format!("clear breakpoint {}", debug_breakpoint_id))
+        unsafe {
+            self.control
+                .RemoveBreakpoint(&stored_breakpoint.breakpoint)
+                .map_err(|error| {
+                    WindbgBackend::plugin_error(format!(
+                        "IDebugControl::RemoveBreakpoint failed while trying to remove breakpoint {}: {}",
+                        debug_breakpoint_id, error
+                    ))
+                })
+        }
     }
 
     fn set_breakpoint_enabled(
@@ -676,34 +764,77 @@ impl ActiveWindbgSession {
         is_enabled: bool,
     ) -> Result<(), DebuggerPluginError> {
         let debug_breakpoint_id = Self::parse_breakpoint_id(breakpoint_id)?;
-        let stored_breakpoint = self
+        let operation_label = if is_enabled { "enable breakpoint" } else { "disable breakpoint" };
+        let should_resume_after_mutation = self.pause_for_breakpoint_mutation(operation_label)?;
+        let set_enabled_result = self
             .breakpoints_by_id
             .get_mut(&debug_breakpoint_id)
-            .ok_or_else(|| WindbgBackend::plugin_error(format!("Breakpoint {} is not tracked by the WinDbg worker.", breakpoint_id)))?;
-        let updated_flags = if is_enabled {
-            stored_breakpoint.flags | DEBUG_BREAKPOINT_ENABLED
-        } else {
-            stored_breakpoint.flags & !DEBUG_BREAKPOINT_ENABLED
-        };
+            .ok_or_else(|| WindbgBackend::plugin_error(format!("Breakpoint {} is not tracked by the WinDbg worker.", breakpoint_id)))
+            .and_then(|stored_breakpoint| {
+                let updated_flags = if is_enabled {
+                    stored_breakpoint.flags | DEBUG_BREAKPOINT_ENABLED
+                } else {
+                    stored_breakpoint.flags & !DEBUG_BREAKPOINT_ENABLED
+                };
+
+                unsafe {
+                    stored_breakpoint
+                        .breakpoint
+                        .SetFlags(updated_flags)
+                        .map_err(|error| {
+                            WindbgBackend::plugin_error(format!(
+                                "IDebugBreakpoint::SetFlags({:#X}) failed while trying to {} breakpoint {}: {}",
+                                updated_flags,
+                                if is_enabled { "enable" } else { "disable" },
+                                breakpoint_id,
+                                error
+                            ))
+                        })
+                }?;
+
+                stored_breakpoint.flags = updated_flags;
+
+                Ok(())
+            });
+        let resume_result = self.resume_after_breakpoint_mutation(should_resume_after_mutation, operation_label);
+
+        match (set_enabled_result, resume_result) {
+            (Ok(()), Ok(())) => Ok(()),
+            (Err(error), _) => Err(error),
+            (Ok(()), Err(error)) => Err(error),
+        }
+    }
+
+    fn pause_for_breakpoint_mutation(
+        &mut self,
+        context: &str,
+    ) -> Result<bool, DebuggerPluginError> {
+        if self.session_state != DebuggerSessionState::Running {
+            return Ok(false);
+        }
 
         unsafe {
-            stored_breakpoint
-                .breakpoint
-                .SetFlags(updated_flags)
-                .map_err(|error| {
-                    WindbgBackend::plugin_error(format!(
-                        "IDebugBreakpoint::SetFlags({:#X}) failed while trying to {} breakpoint {}: {}",
-                        updated_flags,
-                        if is_enabled { "enable" } else { "disable" },
-                        breakpoint_id,
-                        error
-                    ))
-                })
-        }?;
+            self.control
+                .SetInterrupt(DEBUG_INTERRUPT_ACTIVE)
+                .map_err(|error| WindbgBackend::plugin_error(format!("IDebugControl::SetInterrupt failed before {}: {}", context, error)))?;
+        }
+        wait_for_required_debug_event(&self.control, BREAKPOINT_MUTATION_WAIT_TIMEOUT_MS, context)?;
+        self.session_state = DebuggerSessionState::Paused;
 
-        stored_breakpoint.flags = updated_flags;
+        Ok(true)
+    }
 
-        Ok(())
+    fn resume_after_breakpoint_mutation(
+        &mut self,
+        should_resume_after_mutation: bool,
+        context: &str,
+    ) -> Result<(), DebuggerPluginError> {
+        if !should_resume_after_mutation {
+            return Ok(());
+        }
+
+        self.resume()
+            .map_err(|error| WindbgBackend::plugin_error(format!("Failed to resume target after {}: {}", context, error)))
     }
 
     fn execute_debugger_command(
@@ -1272,6 +1403,10 @@ fn wait_for_worker_commands(
     worker_command_receiver: Receiver<WindbgWorkerCommand>,
 ) {
     loop {
+        if let Err(error) = active_session.process_pending_debug_event() {
+            log::debug!("Failed to process pending DbgEng event before worker command poll: {}", error);
+        }
+
         match worker_command_receiver.recv_timeout(Duration::from_millis(IDLE_COMMAND_WAIT_TIMEOUT_MS)) {
             Ok(worker_command) => {
                 if handle_worker_command(&mut active_session, worker_command) {
@@ -1279,9 +1414,7 @@ fn wait_for_worker_commands(
                 }
             }
             Err(RecvTimeoutError::Timeout) => {
-                if let Err(error) = active_session.process_pending_debug_event() {
-                    log::debug!("Failed to process pending DbgEng event: {}", error);
-                }
+                continue;
             }
             Err(RecvTimeoutError::Disconnected) => break,
         }

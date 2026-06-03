@@ -700,12 +700,12 @@ impl DebuggerService {
             .find_instruction_set(target_architecture.get_instruction_set_id())
             .and_then(|instruction_set| {
                 instruction_set
-                    .disassemble(trace_event.get_instruction_bytes())
+                    .disassemble_block(trace_event.get_instruction_bytes(), 0)
                     .ok()
-            });
-        let instruction_text = instruction_text
-            .as_deref()
-            .and_then(Self::first_disassembled_instruction_text);
+            })
+            .and_then(|instructions| instructions.into_iter().next())
+            .map(|instruction| instruction.text)
+            .filter(|instruction_text| Self::is_meaningful_instruction_text(instruction_text));
 
         if instruction_text.is_none() {
             return trace_event;
@@ -716,22 +716,19 @@ impl DebuggerService {
             trace_event.get_register_snapshot().clone(),
             trace_event.get_instruction_address(),
             trace_event.get_instruction_bytes().to_vec(),
-            instruction_text.map(String::from),
+            instruction_text,
             trace_event.get_backend_message().map(String::from),
         )
     }
 
-    fn first_disassembled_instruction_text(disassembly_text: &str) -> Option<&str> {
-        let trimmed_disassembly_text = disassembly_text.trim();
+    fn is_meaningful_instruction_text(instruction_text: &str) -> bool {
+        let normalized_instruction_text = instruction_text
+            .trim()
+            .trim_start_matches('[')
+            .trim_end_matches(']')
+            .trim();
 
-        if trimmed_disassembly_text.is_empty() {
-            return None;
-        }
-
-        trimmed_disassembly_text
-            .split(';')
-            .map(str::trim)
-            .find(|instruction_text| !instruction_text.is_empty())
+        !normalized_instruction_text.is_empty() && normalized_instruction_text != "??"
     }
 
     fn clear_trace_sessions(&self) {
@@ -772,7 +769,7 @@ mod tests {
         plugins::{
             Plugin, PluginCapability, PluginMetadata, PluginPackage, PluginPermission,
             debugger::{DebuggerPlugin, DebuggerPluginError, DebuggerSession, DebuggerTraceEventSink},
-            instruction_set::{InstructionSet, InstructionSetPlugin},
+            instruction_set::{DisassembledInstruction, InstructionSet, InstructionSetPlugin},
         },
         structures::{
             debugger::{
@@ -845,6 +842,38 @@ mod tests {
             instruction_bytes: &[u8],
         ) -> Result<String, String> {
             Ok(format!("{}-{}", self.disassembly_prefix, instruction_bytes.len()))
+        }
+
+        fn disassemble_block(
+            &self,
+            instruction_bytes: &[u8],
+            base_address: u64,
+        ) -> Result<Vec<DisassembledInstruction>, String> {
+            let mut instructions = Vec::new();
+
+            if instruction_bytes.first() == Some(&0xCC) {
+                instructions.push(DisassembledInstruction {
+                    address: base_address,
+                    length: 1,
+                    bytes: vec![0xCC],
+                    text: String::from("??"),
+                    branch_target_address: None,
+                    is_control_flow: false,
+                });
+            }
+
+            if !instruction_bytes.is_empty() {
+                instructions.push(DisassembledInstruction {
+                    address: base_address + instructions.len() as u64,
+                    length: instruction_bytes.len(),
+                    bytes: instruction_bytes.to_vec(),
+                    text: format!("{}-block-{}", self.disassembly_prefix, instruction_bytes.len()),
+                    branch_target_address: None,
+                    is_control_flow: false,
+                });
+            }
+
+            Ok(instructions)
         }
     }
 
@@ -1137,16 +1166,11 @@ mod tests {
     }
 
     #[test]
-    fn trace_disassembly_display_uses_first_instruction_only() {
-        assert_eq!(
-            DebuggerService::first_disassembled_instruction_text("mov [rsp+18h], rax; jmp short 00000059h; mov rcx, [rsp+8]"),
-            Some("mov [rsp+18h], rax")
-        );
-        assert_eq!(
-            DebuggerService::first_disassembled_instruction_text(" ; ; add eax, ebx ; ret"),
-            Some("add eax, ebx")
-        );
-        assert_eq!(DebuggerService::first_disassembled_instruction_text("   "), None);
+    fn trace_disassembly_rejects_unknown_instruction_text() {
+        assert!(DebuggerService::is_meaningful_instruction_text("mov [rsp+18h], rax"));
+        assert!(!DebuggerService::is_meaningful_instruction_text("??"));
+        assert!(!DebuggerService::is_meaningful_instruction_text("[??]"));
+        assert!(!DebuggerService::is_meaningful_instruction_text("   "));
     }
 
     #[test]
@@ -1156,7 +1180,27 @@ mod tests {
 
         let enriched_trace_event = DebuggerService::enrich_trace_event_with_disassembly(&plugin_registry, &TargetArchitecture::arm64(), trace_event);
 
-        assert_eq!(enriched_trace_event.get_instruction_text(), Some("arm64-disassembly-1"));
+        assert_eq!(enriched_trace_event.get_instruction_text(), Some("arm64-disassembly-block-1"));
+    }
+
+    #[test]
+    fn trace_disassembly_uses_block_decoder_first_instruction() {
+        let plugin_registry = PluginRegistry::from_plugin_packages(vec![Arc::new(TestInstructionSetPlugin::new())]);
+        let trace_event = DebuggerTraceEvent::new(None, DebuggerRegisterSnapshot::default(), Some(0x4000), vec![0x90, 0x90], None, None);
+
+        let enriched_trace_event = DebuggerService::enrich_trace_event_with_disassembly(&plugin_registry, &TargetArchitecture::x64(), trace_event);
+
+        assert_eq!(enriched_trace_event.get_instruction_text(), Some("test-disassembly-block-2"));
+    }
+
+    #[test]
+    fn trace_disassembly_does_not_use_unknown_block_instruction() {
+        let plugin_registry = PluginRegistry::from_plugin_packages(vec![Arc::new(TestInstructionSetPlugin::new())]);
+        let trace_event = DebuggerTraceEvent::new(None, DebuggerRegisterSnapshot::default(), Some(0x4000), vec![0xCC], None, None);
+
+        let enriched_trace_event = DebuggerService::enrich_trace_event_with_disassembly(&plugin_registry, &TargetArchitecture::x64(), trace_event);
+
+        assert_eq!(enriched_trace_event.get_instruction_text(), None);
     }
 
     #[test]
@@ -1291,7 +1335,7 @@ mod tests {
             })
             .expect("Expected emitted event lock to be available.");
 
-        assert_eq!(trace_event_texts, vec![String::from("test-disassembly-1")]);
+        assert_eq!(trace_event_texts, vec![String::from("test-disassembly-block-1")]);
     }
 
     #[test]
@@ -1377,7 +1421,7 @@ mod tests {
         assert_eq!(instruction_records.len(), 1);
         assert_eq!(instruction_records[0].get_trace_session_id(), "trace-1");
         assert_eq!(instruction_records[0].get_instruction_address(), Some(0x401000));
-        assert_eq!(instruction_records[0].get_instruction_text(), Some("test-disassembly-1"));
+        assert_eq!(instruction_records[0].get_instruction_text(), Some("test-disassembly-block-1"));
         assert_eq!(instruction_records[0].get_hit_count(), 3);
 
         let (stopped_trace_session, stopped_records) = debugger_service
@@ -1416,6 +1460,53 @@ mod tests {
             .expect("Expected emitted event lock to be available.");
 
         assert_eq!(trace_hit_counts, vec![1, 1, 1, 2, 3]);
+    }
+
+    #[test]
+    fn service_can_restart_trace_session_after_pause_then_stop() {
+        let debugger_backend = Arc::new(Mutex::new(TestDebuggerBackend::default()));
+        let plugin_registry = Arc::new(PluginRegistry::from_plugin_packages(vec![
+            Arc::new(TestDebuggerPlugin::new("test.debugger", "Game.exe", debugger_backend.clone())),
+            Arc::new(TestInstructionSetPlugin::new()),
+        ]));
+        let debugger_service = DebuggerService::new(plugin_registry, Arc::new(|_engine_event| {}));
+        let opened_process_info = OpenedProcessInfo::new(99, String::from("Game.exe"), 1234, Bitness::Bit64, None);
+
+        debugger_service
+            .attach(&opened_process_info, Some("test.debugger"))
+            .expect("Expected debugger plugin to attach.");
+        let (trace_session, _) = debugger_service
+            .start_trace_session(0x5000, 4, DebuggerDataBreakpointAccess::Write, Some(String::from("health")))
+            .expect("Expected trace session to start.");
+        debugger_service.resume().expect("Expected initial trace hit.");
+        debugger_service
+            .pause_trace_session(trace_session.get_trace_session_id())
+            .expect("Expected trace collection to pause.");
+        debugger_service
+            .stop_trace_session(trace_session.get_trace_session_id())
+            .expect("Expected paused trace session to stop.");
+
+        let (trace_sessions_after_stop, instruction_records_after_stop) = debugger_service
+            .list_trace_sessions()
+            .expect("Expected trace session list after pause-stop.");
+        assert!(trace_sessions_after_stop.is_empty());
+        assert!(instruction_records_after_stop.is_empty());
+
+        let (restarted_trace_session, restarted_records) = debugger_service
+            .start_trace_session(0x5000, 4, DebuggerDataBreakpointAccess::Write, Some(String::from("health restart")))
+            .expect("Expected trace session to restart after pause-stop.");
+        assert!(restarted_records.is_empty());
+
+        let (restarted_trace_sessions, restarted_instruction_records) = debugger_service
+            .list_trace_sessions()
+            .expect("Expected restarted trace session list.");
+        assert_eq!(restarted_trace_sessions.len(), 1);
+        assert_eq!(
+            restarted_trace_sessions[0].get_trace_session_id(),
+            restarted_trace_session.get_trace_session_id()
+        );
+        assert_eq!(restarted_instruction_records.len(), 1);
+        assert_eq!(restarted_instruction_records[0].get_hit_count(), 1);
     }
 
     #[test]
