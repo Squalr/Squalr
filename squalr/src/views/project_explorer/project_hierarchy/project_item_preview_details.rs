@@ -173,8 +173,8 @@ impl ProjectItemPreviewDetails {
         engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
         symbolic_struct_namespace: &str,
     ) -> Option<SymbolicStructDefinition> {
-        if let Some(instruction_data_type_id) = Self::normalize_instruction_data_type_id(symbolic_struct_namespace) {
-            return Some(Self::build_instruction_preview_symbolic_struct_definition(&instruction_data_type_id));
+        if Self::normalize_instruction_data_type_id(symbolic_struct_namespace).is_some() {
+            return Some(Self::build_instruction_preview_symbolic_struct_definition());
         }
 
         let symbolic_struct_definition = engine_unprivileged_state.resolve_struct_layout_definition(symbolic_struct_namespace)?;
@@ -247,9 +247,9 @@ impl ProjectItemPreviewDetails {
             .unwrap_or_default()
     }
 
-    fn build_instruction_preview_symbolic_struct_definition(data_type_id: &str) -> SymbolicStructDefinition {
+    fn build_instruction_preview_symbolic_struct_definition() -> SymbolicStructDefinition {
         SymbolicStructDefinition::new_anonymous(vec![SymbolicFieldDefinition::new(
-            DataTypeRef::new(data_type_id),
+            DataTypeRef::new("u8"),
             ContainerType::ArrayFixed(Self::INSTRUCTION_PREVIEW_BYTE_COUNT),
         )])
     }
@@ -268,6 +268,7 @@ mod tests {
     use squalr_engine_api::engine::engine_binding_error::EngineBindingError;
     use squalr_engine_api::engine::engine_event_envelope::EngineEventEnvelope;
     use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
+    use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
     use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
     use squalr_engine_api::structures::data_values::{container_type::ContainerType, data_value::DataValue};
     use squalr_engine_api::structures::projects::project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress;
@@ -278,14 +279,15 @@ mod tests {
 
     #[test]
     fn instruction_project_item_preview_reads_instruction_byte_window() {
-        let symbolic_struct_definition = ProjectItemPreviewDetails::build_instruction_preview_symbolic_struct_definition("i_x64");
+        let symbolic_struct_definition = ProjectItemPreviewDetails::build_instruction_preview_symbolic_struct_definition();
         let preview_field = symbolic_struct_definition
             .get_fields()
             .first()
             .expect("Expected instruction preview definition to contain one field.");
 
-        assert_eq!(preview_field.get_data_type_ref().get_data_type_id(), "i_x64");
+        assert_eq!(preview_field.get_data_type_ref().get_data_type_id(), "u8");
         assert_eq!(preview_field.get_container_type(), ContainerType::ArrayFixed(16));
+        assert_eq!(symbolic_struct_definition.get_size_in_bytes(&SymbolRegistry::new()), 16);
     }
 
     #[test]

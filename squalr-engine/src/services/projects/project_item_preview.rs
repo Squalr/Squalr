@@ -289,7 +289,7 @@ fn build_project_item_preview_read_definition(
         return Some(ProjectItemPreviewReadDefinition {
             layout_key: format!("{}|instruction-preview:16", instruction_data_type_id),
             symbolic_struct_definition: SymbolicStructDefinition::new_anonymous(vec![SymbolicFieldDefinition::new(
-                DataTypeRef::new(&instruction_data_type_id),
+                DataTypeRef::new("u8"),
                 ContainerType::ArrayFixed(16),
             )]),
             symbolic_field_container_type: ContainerType::None,
@@ -576,6 +576,7 @@ mod tests {
     use squalr_engine_api::engine::engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings;
     use squalr_engine_api::engine::engine_binding_error::EngineBindingError;
     use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
+    use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
     use squalr_engine_api::structures::data_types::built_in_types::{
         u16::data_type_u16::DataTypeU16, u32::data_type_u32::DataTypeU32, u64::data_type_u64::DataTypeU64,
     };
@@ -1148,8 +1149,14 @@ mod tests {
             .first()
             .expect("Expected instruction preview field.");
 
-        assert_eq!(preview_field.get_data_type_ref().get_data_type_id(), "i_x64");
+        assert_eq!(preview_field.get_data_type_ref().get_data_type_id(), "u8");
         assert_eq!(preview_field.get_container_type(), ContainerType::ArrayFixed(16));
+        assert_eq!(
+            project_item_preview_read_definition
+                .symbolic_struct_definition
+                .get_size_in_bytes(&SymbolRegistry::new()),
+            16
+        );
         assert_eq!(project_item_preview_read_definition.symbolic_field_container_type, ContainerType::None);
         assert_eq!(
             project_item_preview_read_definition

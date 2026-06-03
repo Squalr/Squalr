@@ -559,6 +559,15 @@ Our current task, from `README.md`, is:
   - `cargo run -p squalr-engine-session --example debugger_service_windbg_smoke --locked` passed on Windows against a disposable child process and covered pause-stop-restart.
   - `cargo run -p squalr-engine --example debugger_command_windbg_smoke --locked` passed on Windows against a disposable child process.
   - GUI behavior against winmine still needs human verification after implementation and validation.
+- After fixing blank instruction project previews:
+  - Root cause: instruction preview read definitions used the instruction data type itself (`i_*[16]`). Instruction data types have variable-length values and their default value is empty, so struct sizing materialized the preview field as a zero-byte read and the disassembler received no bytes.
+  - Engine and GUI project preview paths now read a raw `u8[16]` byte window for instruction previews, while still using the original `i_*` project data type to select the instruction-set plugin for `disassemble_block`.
+  - Added regression assertions that instruction preview definitions resolve to a real 16-byte read window.
+  - `cargo fmt --all` completed with the existing `.rustfmt.toml` deprecation warnings for `fn_args_layout`.
+  - `cargo test -p squalr-engine --locked project_item_preview -- --nocapture` passed.
+  - `cargo test -p squalr --locked instruction_project_item_preview -- --nocapture` passed.
+  - `cargo check -p squalr --locked` passed.
+  - GUI behavior against winmine still needs human verification after implementation and validation.
 - References checked:
   - Local Rust workspace plugin/session/target architecture.
   - Old C# implementation under `C:\Projects\Squalr\Squalr.Engine.Debugger`.
