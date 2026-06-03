@@ -147,9 +147,7 @@ impl ProjectItemPreviewDetails {
                 );
 
                 if is_instruction_project_item {
-                    Self::first_disassembled_instruction_text(&preview_value)
-                        .map(str::to_string)
-                        .unwrap_or(preview_value)
+                    Self::resolve_instruction_preview_value(&preview_value, existing_instruction_preview_value.as_deref())
                 } else {
                     preview_value
                 }
@@ -255,6 +253,32 @@ impl ProjectItemPreviewDetails {
             .find(|instruction_text| !instruction_text.is_empty())
     }
 
+    fn resolve_instruction_preview_value(
+        preview_value: &str,
+        existing_instruction_preview_value: Option<&str>,
+    ) -> String {
+        let first_instruction_text = Self::first_disassembled_instruction_text(preview_value);
+
+        if first_instruction_text
+            .map(Self::is_unknown_instruction_preview_value)
+            .unwrap_or(true)
+        {
+            return existing_instruction_preview_value.unwrap_or("").to_string();
+        }
+
+        first_instruction_text.unwrap_or_default().to_string()
+    }
+
+    fn is_unknown_instruction_preview_value(instruction_text: &str) -> bool {
+        let normalized_instruction_text = instruction_text
+            .trim()
+            .trim_start_matches('[')
+            .trim_end_matches(']')
+            .trim();
+
+        normalized_instruction_text.is_empty() || normalized_instruction_text == "??"
+    }
+
     fn build_instruction_preview_symbolic_struct_definition(data_type_id: &str) -> SymbolicStructDefinition {
         SymbolicStructDefinition::new_anonymous(vec![SymbolicFieldDefinition::new(
             DataTypeRef::new(data_type_id),
@@ -338,6 +362,18 @@ mod tests {
         );
 
         assert_eq!(preview_value, "inc dword ptr [eax]");
+    }
+
+    #[test]
+    fn instruction_project_item_preview_keeps_existing_preview_on_unknown_disassembly() {
+        assert_eq!(
+            ProjectItemPreviewDetails::resolve_instruction_preview_value("??", Some("inc dword ptr [eax]")),
+            "inc dword ptr [eax]"
+        );
+        assert_eq!(
+            ProjectItemPreviewDetails::resolve_instruction_preview_value("[??]", Some("inc dword ptr [eax]")),
+            "inc dword ptr [eax]"
+        );
     }
 
     fn create_engine_unprivileged_state() -> Arc<EngineUnprivilegedState> {

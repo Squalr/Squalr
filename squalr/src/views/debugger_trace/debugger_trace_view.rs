@@ -657,11 +657,21 @@ impl DebuggerTraceView {
             pointer_offsets: None,
             initial_preview_value: Some(Self::instruction_text(instruction_record)),
         };
+        let app_context = self.app_context.clone();
+        let project_hierarchy_view_data = self.project_hierarchy_view_data.clone();
+        let project_hierarchy_view_data_for_refresh = project_hierarchy_view_data.clone();
 
-        project_items_create_request.send(&self.app_context.engine_unprivileged_state, |project_items_create_response| {
+        project_items_create_request.send(&self.app_context.engine_unprivileged_state, move |project_items_create_response| {
             if !project_items_create_response.success {
                 log::warn!("Debugger trace add-to-project command failed.");
+                return;
             }
+
+            if let Some(mut project_hierarchy_view_data) = project_hierarchy_view_data.write("Debugger trace select created instruction project item") {
+                project_hierarchy_view_data.select_created_project_item(&project_items_create_response.created_project_item_path);
+            }
+
+            ProjectHierarchyViewData::refresh_project_items(project_hierarchy_view_data_for_refresh, app_context);
         });
     }
 

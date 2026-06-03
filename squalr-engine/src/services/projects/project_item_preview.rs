@@ -146,6 +146,17 @@ fn refresh_address_project_item_display_value(
         ProjectItemTypeAddress::set_field_freeze_data_value_interpreter(project_item, "");
         return;
     };
+    let existing_instruction_preview_value = if project_item_preview_read_definition.show_first_instruction_only {
+        let existing_preview_value = ProjectItemTypeAddress::get_field_freeze_data_value_interpreter(project_item);
+
+        if existing_preview_value.trim().is_empty() {
+            None
+        } else {
+            Some(existing_preview_value)
+        }
+    } else {
+        None
+    };
 
     refresh_project_item_display_value_from_memory_read(
         engine_unprivileged_state,
@@ -153,6 +164,7 @@ fn refresh_address_project_item_display_value(
         address,
         &module_name,
         &project_item_preview_read_definition,
+        existing_instruction_preview_value.as_deref(),
         |freeze_display_value| {
             ProjectItemTypeAddress::set_field_freeze_data_value_interpreter(project_item, freeze_display_value);
         },
@@ -207,6 +219,7 @@ fn refresh_pointer_project_item_display_value(
         resolved_address,
         &resolved_module_name,
         &project_item_preview_read_definition,
+        None,
         |freeze_display_value| {
             ProjectItemTypePointer::set_field_freeze_data_value_interpreter(project_item, freeze_display_value);
         },
@@ -219,6 +232,7 @@ fn refresh_project_item_display_value_from_memory_read<SetDisplayValue>(
     address: u64,
     module_name: &str,
     project_item_preview_read_definition: &ProjectItemPreviewReadDefinition,
+    existing_instruction_preview_value: Option<&str>,
     set_display_value: SetDisplayValue,
 ) where
     SetDisplayValue: FnOnce(&str),
@@ -231,12 +245,12 @@ fn refresh_project_item_display_value_from_memory_read<SetDisplayValue>(
         &project_item_preview_read_definition.layout_key,
         &project_item_preview_read_definition.symbolic_struct_definition,
     ) else {
-        set_display_value("");
+        set_display_value(existing_instruction_preview_value.unwrap_or(""));
         return;
     };
 
     if !memory_read_response.success {
-        set_display_value("");
+        set_display_value(existing_instruction_preview_value.unwrap_or(""));
         return;
     }
 
@@ -246,7 +260,7 @@ fn refresh_project_item_display_value_from_memory_read<SetDisplayValue>(
         .first()
         .and_then(|valued_struct_field| valued_struct_field.get_data_value());
     let Some(first_read_field_data_value) = first_read_field_data_value else {
-        set_display_value("");
+        set_display_value(existing_instruction_preview_value.unwrap_or(""));
         return;
     };
 
@@ -263,9 +277,7 @@ fn refresh_project_item_display_value_from_memory_read<SetDisplayValue>(
             );
 
             if project_item_preview_read_definition.show_first_instruction_only {
-                first_disassembled_instruction_text(&preview_value)
-                    .map(str::to_string)
-                    .unwrap_or(preview_value)
+                resolve_instruction_preview_value(&preview_value, existing_instruction_preview_value)
             } else {
                 preview_value
             }
@@ -354,6 +366,32 @@ fn first_disassembled_instruction_text(disassembly_text: &str) -> Option<&str> {
         .split(';')
         .map(str::trim)
         .find(|instruction_text| !instruction_text.is_empty())
+}
+
+fn resolve_instruction_preview_value(
+    preview_value: &str,
+    existing_instruction_preview_value: Option<&str>,
+) -> String {
+    let first_instruction_text = first_disassembled_instruction_text(preview_value);
+
+    if first_instruction_text
+        .map(is_unknown_instruction_preview_value)
+        .unwrap_or(true)
+    {
+        return existing_instruction_preview_value.unwrap_or("").to_string();
+    }
+
+    first_instruction_text.unwrap_or_default().to_string()
+}
+
+fn is_unknown_instruction_preview_value(instruction_text: &str) -> bool {
+    let normalized_instruction_text = instruction_text
+        .trim()
+        .trim_start_matches('[')
+        .trim_end_matches(']')
+        .trim();
+
+    normalized_instruction_text.is_empty() || normalized_instruction_text == "??"
 }
 
 fn evaluate_pointer_for_preview(
@@ -556,7 +594,7 @@ mod tests {
     use super::{
         DataValuePreviewFormatter, PROJECT_ITEM_PREVIEW_FORMAT_OPTIONS, ProjectItemPreviewRefreshSession, build_project_item_preview_read_definition,
         evaluate_pointer_for_preview, refresh_address_project_item_display_value, refresh_pointer_project_item_display_value,
-        refresh_project_item_display_values_with_session,
+        refresh_project_item_display_values_with_session, resolve_instruction_preview_value,
     };
     use crossbeam_channel::{Receiver, unbounded};
     use squalr_engine_api::commands::memory::memory_command::MemoryCommand;
@@ -1171,6 +1209,12 @@ mod tests {
             ProjectItemTypeAddress::get_field_freeze_data_value_interpreter(&mut address_project_item),
             "nop"
         );
+    }
+
+    #[test]
+    fn instruction_preview_keeps_existing_value_when_decode_returns_unknown() {
+        assert_eq!(resolve_instruction_preview_value("??", Some("inc dword ptr [rax]")), "inc dword ptr [rax]");
+        assert_eq!(resolve_instruction_preview_value("[??]", Some("inc dword ptr [rax]")), "inc dword ptr [rax]");
     }
 
     #[test]

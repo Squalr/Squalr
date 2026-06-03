@@ -9,7 +9,7 @@ use squalr_engine_api::{
     commands::{
         debugger::{
             attach::debugger_attach_request::DebuggerAttachRequest, detach::debugger_detach_request::DebuggerDetachRequest,
-            registers_read::debugger_registers_read_request::DebuggerRegistersReadRequest,
+            registers_read::debugger_registers_read_request::DebuggerRegistersReadRequest, trace_list::debugger_trace_list_request::DebuggerTraceListRequest,
             trace_pause::debugger_trace_pause_request::DebuggerTracePauseRequest, trace_resume::debugger_trace_resume_request::DebuggerTraceResumeRequest,
             trace_start::debugger_trace_start_request::DebuggerTraceStartRequest, trace_stop::debugger_trace_stop_request::DebuggerTraceStopRequest,
         },
@@ -185,6 +185,21 @@ fn run_smoke_against_child(child_process: &mut std::process::Child) -> Result<()
         trace_session.get_trace_session_id(),
         trace_pause_response.instruction_records.len()
     );
+    let paused_hit_count = trace_pause_response
+        .instruction_records
+        .first()
+        .map(|instruction_record| instruction_record.get_hit_count())
+        .unwrap_or(0);
+    thread::sleep(Duration::from_millis(250));
+    let hit_count_while_paused = list_maximum_trace_hit_count(&engine_privileged_state, trace_session.get_trace_session_id())?;
+
+    if hit_count_while_paused != paused_hit_count {
+        return Err(format!(
+            "Trace collection recorded hits while paused: before={}, after={}.",
+            paused_hit_count, hit_count_while_paused
+        )
+        .into());
+    }
 
     let trace_resume_response = DebuggerTraceResumeRequest {
         trace_session_id: trace_session.get_trace_session_id().to_string(),
@@ -196,6 +211,13 @@ fn run_smoke_against_child(child_process: &mut std::process::Child) -> Result<()
         trace_session.get_trace_session_id(),
         trace_resume_response.instruction_records.len()
     );
+    wait_for_trace_session_hit_count(
+        &engine_privileged_state,
+        trace_session.get_trace_session_id(),
+        paused_hit_count.saturating_add(1),
+        Duration::from_secs(10),
+    )?;
+    println!("Resume captured a new trace hit.");
 
     let trace_stop_response = DebuggerTraceStopRequest {
         trace_session_id: trace_session.get_trace_session_id().to_string(),
@@ -207,6 +229,31 @@ fn run_smoke_against_child(child_process: &mut std::process::Child) -> Result<()
         trace_session.get_trace_session_id(),
         trace_stop_response.instruction_records.len()
     );
+
+    let restarted_trace_start_response = DebuggerTraceStartRequest {
+        address: target_address,
+        size_in_bytes: 8,
+        access: DebuggerDataBreakpointAccess::Write,
+        label: Some(String::from("command-windbg-smoke-write-restart")),
+    }
+    .execute(&engine_privileged_state);
+    require_status(&restarted_trace_start_response.status, "debugger restarted trace start")?;
+    let restarted_trace_session = restarted_trace_start_response
+        .trace_session
+        .ok_or_else(|| String::from("Restarted trace start response did not include a trace session descriptor."))?;
+    wait_for_trace_session_hit_count(
+        &engine_privileged_state,
+        restarted_trace_session.get_trace_session_id(),
+        1,
+        Duration::from_secs(10),
+    )?;
+    println!("Restarted trace session {} captured a hit.", restarted_trace_session.get_trace_session_id());
+
+    let restarted_trace_stop_response = DebuggerTraceStopRequest {
+        trace_session_id: restarted_trace_session.get_trace_session_id().to_string(),
+    }
+    .execute(&engine_privileged_state);
+    require_status(&restarted_trace_stop_response.status, "debugger restarted trace stop")?;
 
     let detach_response = DebuggerDetachRequest {}.execute(&engine_privileged_state);
     require_status(&detach_response.status, "debugger detach")?;
@@ -222,6 +269,51 @@ fn create_smoke_engine_privileged_state() -> Result<Arc<EnginePrivilegedState>, 
     engine_os_providers.process_query = Arc::new(NoOpProcessQueryProvider);
 
     Ok(EnginePrivilegedState::new(engine_bindings, engine_os_providers)?)
+}
+
+#[cfg(windows)]
+fn list_maximum_trace_hit_count(
+    engine_privileged_state: &Arc<EnginePrivilegedState>,
+    trace_session_id: &str,
+) -> Result<u64, Box<dyn Error>> {
+    let trace_list_response = DebuggerTraceListRequest {}.execute(engine_privileged_state);
+    require_status(&trace_list_response.status, "debugger trace list")?;
+
+    Ok(trace_list_response
+        .instruction_records
+        .iter()
+        .filter(|instruction_record| instruction_record.get_trace_session_id() == trace_session_id)
+        .map(|instruction_record| instruction_record.get_hit_count())
+        .max()
+        .unwrap_or(0))
+}
+
+#[cfg(windows)]
+fn wait_for_trace_session_hit_count(
+    engine_privileged_state: &Arc<EnginePrivilegedState>,
+    trace_session_id: &str,
+    minimum_hit_count: u64,
+    timeout: Duration,
+) -> Result<(), Box<dyn Error>> {
+    let wait_started_at = Instant::now();
+
+    loop {
+        let maximum_hit_count = list_maximum_trace_hit_count(engine_privileged_state, trace_session_id)?;
+
+        if maximum_hit_count >= minimum_hit_count {
+            return Ok(());
+        }
+
+        if wait_started_at.elapsed() >= timeout {
+            return Err(format!(
+                "Timed out waiting for trace session {} to reach hit count {}.",
+                trace_session_id, minimum_hit_count
+            )
+            .into());
+        }
+
+        thread::sleep(Duration::from_millis(50));
+    }
 }
 
 #[cfg(windows)]

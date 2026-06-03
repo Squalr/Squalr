@@ -944,6 +944,11 @@ impl CodeViewerViewData {
         } else {
             instruction_data_type_id.to_string()
         };
+        let initial_preview_value = instruction_lines
+            .iter()
+            .find(|instruction_line| instruction_line.address == selection_start_address)
+            .map(|instruction_line| instruction_line.text.trim().to_string())
+            .filter(|instruction_text| !instruction_text.is_empty());
 
         Some(ProjectItemsCreateRequest {
             parent_directory_path: target_directory_path.unwrap_or_default(),
@@ -953,7 +958,7 @@ impl CodeViewerViewData {
             module_name: Some(project_item_module_name),
             data_type_id: Some(resolved_data_type_id),
             pointer_offsets: None,
-            initial_preview_value: None,
+            initial_preview_value,
         })
     }
 

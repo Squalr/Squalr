@@ -145,12 +145,44 @@ fn run_smoke_against_child(child_process: &mut std::process::Child) -> Result<()
         paused_trace_session.get_trace_session_id(),
         paused_instruction_records.len()
     );
+    let paused_hit_count = paused_instruction_records
+        .first()
+        .map(|instruction_record| instruction_record.get_hit_count())
+        .unwrap_or(0);
+    thread::sleep(Duration::from_millis(250));
+    let (_, instruction_records_while_paused) = debugger_service.list_trace_sessions()?;
+    let hit_count_while_paused = instruction_records_while_paused
+        .first()
+        .map(|instruction_record| instruction_record.get_hit_count())
+        .unwrap_or(0);
+
+    if hit_count_while_paused != paused_hit_count {
+        return Err(format!(
+            "Trace collection recorded hits while paused: before={}, after={}.",
+            paused_hit_count, hit_count_while_paused
+        )
+        .into());
+    }
 
     let (resumed_trace_session, resumed_instruction_records) = debugger_service.resume_trace_session(trace_session.get_trace_session_id())?;
     println!(
         "Resumed trace collection for {} at {} instruction record(s).",
         resumed_trace_session.get_trace_session_id(),
         resumed_instruction_records.len()
+    );
+    let resumed_instruction_records = wait_for_trace_session_hit_count(
+        &debugger_service,
+        trace_session.get_trace_session_id(),
+        paused_hit_count.saturating_add(1),
+        Duration::from_secs(10),
+    )?;
+    println!(
+        "Resume captured {} instruction record(s), first hit count {}.",
+        resumed_instruction_records.len(),
+        resumed_instruction_records
+            .first()
+            .map(|instruction_record| instruction_record.get_hit_count())
+            .unwrap_or(0)
     );
 
     let (stopped_trace_session, instruction_records) = debugger_service.stop_trace_session(trace_session.get_trace_session_id())?;
@@ -172,18 +204,16 @@ fn run_smoke_against_child(child_process: &mut std::process::Child) -> Result<()
         second_trace_session.get_address()
     );
 
-    let second_trace_event = wait_for_trace_event(&engine_event_receiver, Duration::from_secs(10))?;
+    let second_instruction_records =
+        wait_for_trace_session_hit_count(&debugger_service, second_trace_session.get_trace_session_id(), 1, Duration::from_secs(10))?;
+    let second_trace_event = second_instruction_records
+        .first()
+        .ok_or_else(|| String::from("Restarted trace did not record any instruction records."))?;
     println!(
-        "Restart trace event: IP={}, instruction_address={}, bytes={}, instruction={:?}, backend={:?}.",
-        format_optional_address(
-            second_trace_event
-                .get_register_snapshot()
-                .get_instruction_pointer()
-        ),
+        "Restart trace record: instruction_address={}, bytes={}, instruction={:?}.",
         format_optional_address(second_trace_event.get_instruction_address()),
         second_trace_event.get_instruction_bytes().len(),
         second_trace_event.get_instruction_text(),
-        second_trace_event.get_backend_message()
     );
 
     let (second_stopped_trace_session, second_instruction_records) = debugger_service.stop_trace_session(second_trace_session.get_trace_session_id())?;
@@ -197,6 +227,43 @@ fn run_smoke_against_child(child_process: &mut std::process::Child) -> Result<()
     println!("Detached cleanly through the session service.");
 
     Ok(())
+}
+
+#[cfg(windows)]
+fn wait_for_trace_session_hit_count(
+    debugger_service: &DebuggerService,
+    trace_session_id: &str,
+    minimum_hit_count: u64,
+    timeout: Duration,
+) -> Result<Vec<squalr_engine_api::structures::debugger::DebuggerTraceInstructionRecord>, Box<dyn Error>> {
+    let wait_started_at = Instant::now();
+
+    loop {
+        let (_, instruction_records) = debugger_service.list_trace_sessions()?;
+        let session_instruction_records = instruction_records
+            .into_iter()
+            .filter(|instruction_record| instruction_record.get_trace_session_id() == trace_session_id)
+            .collect::<Vec<_>>();
+        let maximum_hit_count = session_instruction_records
+            .iter()
+            .map(|instruction_record| instruction_record.get_hit_count())
+            .max()
+            .unwrap_or(0);
+
+        if maximum_hit_count >= minimum_hit_count {
+            return Ok(session_instruction_records);
+        }
+
+        if wait_started_at.elapsed() >= timeout {
+            return Err(format!(
+                "Timed out waiting for trace session {} to reach hit count {}.",
+                trace_session_id, minimum_hit_count
+            )
+            .into());
+        }
+
+        thread::sleep(Duration::from_millis(50));
+    }
 }
 
 #[cfg(windows)]

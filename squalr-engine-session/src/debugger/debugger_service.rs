@@ -141,26 +141,6 @@ impl DebuggerTraceSessionStore {
         Ok((trace_session.descriptor.clone(), trace_session.instruction_records.clone()))
     }
 
-    fn get_active_breakpoint_id(
-        &self,
-        trace_session_id: &str,
-    ) -> Result<String, String> {
-        let trace_session = self
-            .sessions
-            .get(trace_session_id)
-            .ok_or_else(|| format!("Debugger trace session '{}' does not exist.", trace_session_id))?;
-
-        if !trace_session.descriptor.get_is_active() {
-            return Err(format!("Debugger trace session '{}' is stopped.", trace_session_id));
-        }
-
-        Ok(trace_session
-            .descriptor
-            .get_breakpoint()
-            .get_breakpoint_id()
-            .to_string())
-    }
-
     fn list_sessions(&self) -> (Vec<DebuggerTraceSessionDescriptor>, Vec<DebuggerTraceInstructionRecord>) {
         let mut trace_sessions = self
             .sessions
@@ -538,14 +518,6 @@ impl DebuggerService {
         trace_session_id: &str,
         is_enabled: bool,
     ) -> Result<(DebuggerTraceSessionDescriptor, Vec<DebuggerTraceInstructionRecord>), String> {
-        let breakpoint_id = self
-            .trace_sessions
-            .read()
-            .map_err(|error| format!("Failed to read debugger trace sessions: {}", error))?
-            .get_active_breakpoint_id(trace_session_id)?;
-
-        self.set_breakpoint_enabled(&breakpoint_id, is_enabled)?;
-
         let (trace_session, instruction_records) = self
             .trace_sessions
             .write()
@@ -682,7 +654,13 @@ impl DebuggerService {
                 .write()
                 .ok()
                 .and_then(|mut trace_sessions| trace_sessions.record_trace_event(&trace_event));
-            let session_state = if trace_session_update.is_some() {
+            let session_state = if trace_session_update.is_some()
+                || matches!(
+                    trace_event
+                        .get_breakpoint()
+                        .map(DebuggerBreakpointDescriptor::get_kind),
+                    Some(DebuggerBreakpointKind::HardwareData { .. })
+                ) {
                 DebuggerSessionState::Running
             } else {
                 DebuggerSessionState::Paused
@@ -1362,6 +1340,13 @@ mod tests {
             .expect("Expected trace collection to pause.");
         assert!(paused_trace_session.get_is_active());
         assert!(!paused_trace_session.get_breakpoint().get_is_enabled());
+        assert!(
+            debugger_backend
+                .lock()
+                .map(|backend| backend.breakpoints[0].get_is_enabled())
+                .expect("Expected debugger backend lock."),
+            "Collection pause should not disable the backend breakpoint."
+        );
         assert_eq!(paused_records.len(), 1);
         assert_eq!(paused_records[0].get_hit_count(), 1);
 
