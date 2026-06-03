@@ -462,7 +462,7 @@ Our current task, from `README.md`, is:
   - The prior DbgEng disassembly-text fallback and cross-thread/retained COM mutation experiment were reverted because it reintroduced wrong-instruction attribution and could crash in `IUnknown::Release` after pause then stop.
   - Exact trace attribution is back on the byte-based path: DbgEng reports the post-trap IP, then the engine walks back to the access instruction with `GetNearInstruction` plus instruction bytes. The command and service smokes both reported `lock xadd [rcx], rax` instead of a neighboring instruction.
   - Trace stop now disables tracked breakpoints and removes the trace label without calling `bc` or releasing the tracked `IDebugBreakpoint` wrapper during the stop action. Untracked breakpoint IDs still fall back to `bc`.
-  - Project Explorer instruction previews now use the first disassembled instruction from the refreshed byte window and preserve a non-empty seeded instruction preview if the live virtual snapshot read fails, preventing the `??` fallback for trace-created instruction items when we already have instruction text.
+  - Superseded: this checkpoint briefly preserved a non-empty seeded instruction preview when live preview failed, but that masked decode/read failures and has since been removed.
   - `cargo fmt --all` completed with the existing `.rustfmt.toml` deprecation warnings for `fn_args_layout`.
   - `cargo check -p squalr-plugin-debugger-windbg --locked` passed.
   - `cargo run -p squalr-engine-session --example debugger_service_windbg_smoke --locked` passed on Windows against a disposable child process and exercised attach, trace hit, collection pause/resume, stop, and detach.
@@ -523,7 +523,7 @@ Our current task, from `README.md`, is:
   - Service tests now assert collection pause does not disable the backend breakpoint.
   - Code Viewer add-instruction-to-project now seeds `initial_preview_value` from the selected instruction text.
   - Debugger Trace double-click add-to-project now refreshes/selects the created project item after a successful create command.
-  - Engine and GUI project item preview paths now preserve an existing non-empty instruction preview when the live disassembly preview returns an unknown decode such as `??` or `[??]`.
+  - Superseded: the earlier instruction-preview fallback that preserved existing text on `??`/`[??]` was wrong because it masked live decode failures.
   - Strengthened both DbgEng smoke examples to prove: initial hit, collection pause without new record counts, collection resume with a new hit, stop clearing records, restart after stop, and a new hit after restart.
   - `cargo fmt --all` completed with the existing `.rustfmt.toml` deprecation warnings for `fn_args_layout`.
   - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
@@ -532,6 +532,17 @@ Our current task, from `README.md`, is:
   - `cargo check -p squalr --locked` passed.
   - `cargo run -p squalr-engine-session --example debugger_service_windbg_smoke --locked` passed on Windows against a disposable child process and covered pause/resume/restart hit-count behavior.
   - `cargo run -p squalr-engine --example debugger_command_windbg_smoke --locked` passed on Windows against a disposable child process and covered command-dispatched pause/resume/restart hit-count behavior.
+  - GUI behavior against winmine still needs human verification after implementation and validation.
+- After replacing the instruction preview fallback with real block disassembly:
+  - Removed the stale-preview preservation path for instruction project items. Failed live memory reads now clear the preview instead of keeping old text.
+  - Engine and GUI instruction previews now read the instruction byte window and call the enabled instruction-set plugin's `disassemble_block`, then display the first decoded instruction.
+  - Added `instruction_set_id_from_instruction_data_type_id` so `i_*` project data types map to instruction-set plugin ids without hard-coding x86/x64.
+  - Added an engine execution-context instruction-set lookup so engine-side project preview refresh can use the same plugin registry as the GUI.
+  - `cargo fmt --all` completed with the existing `.rustfmt.toml` deprecation warnings for `fn_args_layout`.
+  - `cargo test -p squalr-engine-api --locked instruction_set_id_from_instruction_data_type_id -- --nocapture` passed.
+  - `cargo test -p squalr-engine --locked project_item_preview -- --nocapture` passed.
+  - `cargo test -p squalr --locked instruction_project_item_preview -- --nocapture` passed.
+  - `cargo check -p squalr --locked` passed.
   - GUI behavior against winmine still needs human verification after implementation and validation.
 - References checked:
   - Local Rust workspace plugin/session/target architecture.

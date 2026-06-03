@@ -27,6 +27,7 @@ use squalr_engine_api::events::project_items::project_items_event::ProjectItemsE
 use squalr_engine_api::events::registry::registry_event::RegistryEvent;
 use squalr_engine_api::events::scan_results::scan_results_event::ScanResultsEvent;
 use squalr_engine_api::events::trackable_task::trackable_task_event::TrackableTaskEvent;
+use squalr_engine_api::plugins::instruction_set::InstructionSet;
 use squalr_engine_api::registries::symbols::symbol_registry_error::SymbolRegistryError;
 use squalr_engine_api::registries::symbols::{data_type_descriptor::DataTypeDescriptor, privileged_registry_catalog::PrivilegedRegistryCatalog};
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
@@ -180,6 +181,13 @@ impl EngineExecutionContext for EngineUnprivilegedState {
                 })
                 .unwrap_or_default()
             })
+    }
+
+    fn find_instruction_set(
+        &self,
+        instruction_set_id: &str,
+    ) -> Option<Arc<dyn InstructionSet>> {
+        self.plugin_registry.find_instruction_set(instruction_set_id)
     }
 }
 

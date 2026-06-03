@@ -4,6 +4,7 @@ use crate::{
         unprivileged_command_response::UnprivilegedCommandResponse,
     },
     engine::engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings,
+    plugins::instruction_set::InstructionSet,
     registries::symbols::{data_type_descriptor::DataTypeDescriptor, symbol_registry_error::SymbolRegistryError},
     structures::{
         data_types::data_type_ref::DataTypeRef,
@@ -111,4 +112,12 @@ pub trait EngineExecutionContext: Send + Sync {
         &self,
         symbolic_struct_ref_id: &str,
     ) -> Option<SymbolicStructDefinition>;
+
+    /// Finds an enabled instruction-set provider by id.
+    fn find_instruction_set(
+        &self,
+        _instruction_set_id: &str,
+    ) -> Option<Arc<dyn InstructionSet>> {
+        None
+    }
 }

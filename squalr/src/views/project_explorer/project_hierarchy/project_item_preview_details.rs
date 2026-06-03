@@ -2,7 +2,7 @@ use squalr_engine::services::projects::project_item_symbol_resolution::{
     resolve_address_target_runtime_pointer_with_optional_catalog, resolve_project_item_struct_layout_id,
 };
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
-use squalr_engine_api::plugins::instruction_set::normalize_instruction_data_type_id;
+use squalr_engine_api::plugins::instruction_set::{instruction_set_id_from_instruction_data_type_id, normalize_instruction_data_type_id};
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::{
     anonymous_value_string_format::AnonymousValueStringFormat,
@@ -102,24 +102,12 @@ impl ProjectItemPreviewDetails {
         project_item: &ProjectItem,
         virtual_snapshot_query_result: &VirtualSnapshotQueryResult,
     ) -> String {
-        let is_instruction_project_item = Self::is_instruction_project_item(project_item);
-        let existing_instruction_preview_value = if is_instruction_project_item {
-            let existing_preview_value = Self::read_project_item_preview_value(project_item);
-
-            if existing_preview_value.trim().is_empty() {
-                None
-            } else {
-                Some(existing_preview_value)
-            }
-        } else {
-            None
-        };
         let Some(memory_read_response) = virtual_snapshot_query_result.memory_read_response.as_ref() else {
-            return existing_instruction_preview_value.unwrap_or_default();
+            return String::new();
         };
 
         if !memory_read_response.success {
-            return existing_instruction_preview_value.unwrap_or_default();
+            return String::new();
         }
 
         let first_read_field_data_value = memory_read_response
@@ -128,8 +116,12 @@ impl ProjectItemPreviewDetails {
             .first()
             .and_then(|valued_struct_field| valued_struct_field.get_data_value());
         let Some(first_read_field_data_value) = first_read_field_data_value else {
-            return existing_instruction_preview_value.unwrap_or_default();
+            return String::new();
         };
+
+        if let Some(instruction_set_id) = Self::resolve_project_item_instruction_set_id(project_item) {
+            return Self::format_instruction_preview_from_bytes(engine_unprivileged_state, &instruction_set_id, first_read_field_data_value.get_value_bytes());
+        }
 
         let default_anonymous_value_string_format = Self::read_project_item_preview_display_format(project_item)
             .unwrap_or_else(|| engine_unprivileged_state.get_default_anonymous_value_string_format(first_read_field_data_value.get_data_type_ref()));
@@ -146,11 +138,7 @@ impl ProjectItemPreviewDetails {
                     Self::PROJECT_ITEM_PREVIEW_FORMAT_OPTIONS,
                 );
 
-                if is_instruction_project_item {
-                    Self::resolve_instruction_preview_value(&preview_value, existing_instruction_preview_value.as_deref())
-                } else {
-                    preview_value
-                }
+                preview_value
             })
             .unwrap_or_default()
     }
@@ -237,46 +225,26 @@ impl ProjectItemPreviewDetails {
         normalize_instruction_data_type_id(symbolic_struct_namespace)
     }
 
-    fn is_instruction_project_item(project_item: &ProjectItem) -> bool {
-        resolve_project_item_struct_layout_id(&ProjectSymbolCatalog::default(), project_item)
-            .and_then(|symbolic_struct_namespace| Self::normalize_instruction_data_type_id(&symbolic_struct_namespace))
-            .is_some()
+    fn resolve_project_item_instruction_set_id(project_item: &ProjectItem) -> Option<String> {
+        let symbolic_struct_namespace = resolve_project_item_struct_layout_id(&ProjectSymbolCatalog::default(), project_item)?;
+        let instruction_data_type_id = Self::normalize_instruction_data_type_id(&symbolic_struct_namespace)?;
+
+        instruction_set_id_from_instruction_data_type_id(&instruction_data_type_id)
     }
 
-    fn first_disassembled_instruction_text(disassembly_text: &str) -> Option<&str> {
-        disassembly_text
-            .trim()
-            .trim_start_matches('[')
-            .trim_end_matches(']')
-            .split(';')
-            .map(str::trim)
-            .find(|instruction_text| !instruction_text.is_empty())
-    }
-
-    fn resolve_instruction_preview_value(
-        preview_value: &str,
-        existing_instruction_preview_value: Option<&str>,
+    fn format_instruction_preview_from_bytes(
+        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
+        instruction_set_id: &str,
+        instruction_bytes: &[u8],
     ) -> String {
-        let first_instruction_text = Self::first_disassembled_instruction_text(preview_value);
-
-        if first_instruction_text
-            .map(Self::is_unknown_instruction_preview_value)
-            .unwrap_or(true)
-        {
-            return existing_instruction_preview_value.unwrap_or("").to_string();
-        }
-
-        first_instruction_text.unwrap_or_default().to_string()
-    }
-
-    fn is_unknown_instruction_preview_value(instruction_text: &str) -> bool {
-        let normalized_instruction_text = instruction_text
-            .trim()
-            .trim_start_matches('[')
-            .trim_end_matches(']')
-            .trim();
-
-        normalized_instruction_text.is_empty() || normalized_instruction_text == "??"
+        engine_unprivileged_state
+            .get_plugin_registry()
+            .find_instruction_set(instruction_set_id)
+            .and_then(|instruction_set| instruction_set.disassemble_block(instruction_bytes, 0).ok())
+            .and_then(|instructions| instructions.into_iter().next())
+            .map(|instruction| instruction.text)
+            .filter(|instruction_text| !instruction_text.trim().is_empty())
+            .unwrap_or_default()
     }
 
     fn build_instruction_preview_symbolic_struct_definition(data_type_id: &str) -> SymbolicStructDefinition {
@@ -347,7 +315,7 @@ mod tests {
     }
 
     #[test]
-    fn instruction_project_item_preview_keeps_existing_preview_on_failed_read() {
+    fn instruction_project_item_preview_clears_on_failed_read() {
         let engine_unprivileged_state = create_engine_unprivileged_state();
         let mut project_item =
             ProjectItemTypeAddress::new_project_item("Instruction", 0x1234, "game.exe", "", DataValue::new(DataTypeRef::new("i_x64"), vec![0x90]));
@@ -361,19 +329,25 @@ mod tests {
             &virtual_snapshot_query_result,
         );
 
-        assert_eq!(preview_value, "inc dword ptr [eax]");
+        assert_eq!(preview_value, "");
     }
 
     #[test]
-    fn instruction_project_item_preview_keeps_existing_preview_on_unknown_disassembly() {
-        assert_eq!(
-            ProjectItemPreviewDetails::resolve_instruction_preview_value("??", Some("inc dword ptr [eax]")),
-            "inc dword ptr [eax]"
+    fn instruction_project_item_preview_disassembles_byte_window_as_block() {
+        let engine_unprivileged_state = create_engine_unprivileged_state();
+        let project_item =
+            ProjectItemTypeAddress::new_project_item("Instruction", 0x1234, "game.exe", "", DataValue::new(DataTypeRef::new("i_x64"), vec![0x90]));
+        let virtual_snapshot_query_result =
+            create_value_virtual_snapshot_query_result(DataValue::new(DataTypeRef::new("i_x64"), vec![0xFF, 0x00, 0x90, 0x90]), true);
+
+        let preview_value = ProjectItemPreviewDetails::build_project_item_preview_value_from_virtual_snapshot_result(
+            &engine_unprivileged_state,
+            None,
+            &project_item,
+            &virtual_snapshot_query_result,
         );
-        assert_eq!(
-            ProjectItemPreviewDetails::resolve_instruction_preview_value("[??]", Some("inc dword ptr [eax]")),
-            "inc dword ptr [eax]"
-        );
+
+        assert_eq!(preview_value, "inc dword [rax]");
     }
 
     fn create_engine_unprivileged_state() -> Arc<EngineUnprivilegedState> {
