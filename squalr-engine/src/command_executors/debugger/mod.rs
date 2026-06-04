@@ -32,6 +32,7 @@ use squalr_engine_api::commands::debugger::trace_stop::debugger_trace_stop_reque
 use squalr_engine_api::commands::debugger::trace_stop::debugger_trace_stop_response::DebuggerTraceStopResponse;
 use squalr_engine_api::commands::privileged_command_response::{PrivilegedCommandResponse, TypedPrivilegedCommandResponse};
 use squalr_engine_api::structures::debugger::{DebuggerCommandStatus, DebuggerSessionState};
+use squalr_engine_api::structures::memory::normalized_region::NormalizedRegion;
 use std::sync::Arc;
 
 fn failure_status(error_message: impl Into<String>) -> DebuggerCommandStatus {
@@ -209,6 +210,38 @@ impl PrivilegedCommandRequestExecutor for DebuggerBreakpointSetRequest {
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
+        if matches!(self.kind, squalr_engine_api::structures::debugger::DebuggerBreakpointKind::Software) {
+            if let Some(opened_process_info) = engine_privileged_state
+                .get_process_manager()
+                .get_opened_process()
+            {
+                let breakpoint_region = NormalizedRegion::new(self.address, 1);
+
+                match engine_privileged_state
+                    .get_patch_service()
+                    .find_active_overlap(&opened_process_info, &breakpoint_region)
+                {
+                    Ok(Some(conflicting_patch)) => {
+                        return DebuggerBreakpointSetResponse {
+                            status: failure_status(format!(
+                                "Software breakpoint at 0x{:X} overlaps active patch '{}'.",
+                                self.address,
+                                conflicting_patch.get_patch_id()
+                            )),
+                            breakpoint: None,
+                        };
+                    }
+                    Ok(None) => {}
+                    Err(error_message) => {
+                        return DebuggerBreakpointSetResponse {
+                            status: failure_status(error_message),
+                            breakpoint: None,
+                        };
+                    }
+                }
+            }
+        }
+
         match engine_privileged_state
             .get_debugger_service()
             .set_breakpoint(self.address, self.kind.clone(), self.label.clone())

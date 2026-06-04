@@ -568,6 +568,20 @@ Our current task, from `README.md`, is:
   - `cargo test -p squalr --locked instruction_project_item_preview -- --nocapture` passed.
   - `cargo check -p squalr --locked` passed.
   - GUI behavior against winmine still needs human verification after implementation and validation.
+- After adding the privileged patch service:
+  - Added engine API patch descriptors, patch kinds, patch command status, and privileged patch commands for apply, restore-by-id, restore-at-address, and list.
+  - Added `PatchService` beside debugger/memory-view session services. It stores active patches per opened process, tracks half-open patch ranges with absolute `NormalizedRegion` values, records original bytes before writes, rejects overlapping active patches, and refuses restore if target bytes no longer match the recorded patch bytes.
+  - Added command executors and CLI response handling for the patch command family.
+  - Added software-breakpoint conflict checks in both directions: patch apply rejects active software breakpoints in the patch byte range, and software breakpoint set rejects active patch ranges.
+  - GUI context menu actions for NOP/int3/restore are still pending. The backend patch service and command surface need human verification after implementation and validation.
+  - `cargo fmt --all` completed with the existing `.rustfmt.toml` deprecation warnings for `fn_args_layout`.
+  - `cargo test -p squalr-engine-session --locked patch_service -- --nocapture` passed.
+  - `cargo check -p squalr-engine-api --locked` passed.
+  - `cargo check -p squalr-engine-session --locked` passed.
+  - `cargo check -p squalr-engine --locked` passed.
+  - `cargo check -p squalr-cli --locked` passed.
+  - `cargo check -p squalr --locked` passed.
+  - `cargo check -p squalr-tui --locked` passed.
 - References checked:
   - Local Rust workspace plugin/session/target architecture.
   - Old C# implementation under `C:\Projects\Squalr\Squalr.Engine.Debugger`.

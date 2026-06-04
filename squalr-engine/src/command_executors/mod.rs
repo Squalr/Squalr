@@ -1,5 +1,6 @@
 pub mod debugger;
 pub mod memory;
+pub mod patches;
 pub mod plugins;
 pub mod pointer_scan;
 pub mod privileged_command_executor;
