@@ -692,22 +692,13 @@ impl DebuggerTraceView {
             context_menu_target.get_position(),
             |user_interface, should_close| {
                 if user_interface
-                    .add(
-                        ToolbarMenuItemView::new(
-                            self.app_context.clone(),
-                            Self::REPLACE_WITH_NO_OPERATION_LABEL,
-                            Self::REPLACE_WITH_NO_OPERATION_ID,
-                            &None,
-                            context_menu_width,
-                        )
-                        .icon(
-                            self.app_context
-                                .theme
-                                .icon_library
-                                .icon_handle_project_cpu_instruction
-                                .clone(),
-                        ),
-                    )
+                    .add(ToolbarMenuItemView::new(
+                        self.app_context.clone(),
+                        Self::REPLACE_WITH_NO_OPERATION_LABEL,
+                        Self::REPLACE_WITH_NO_OPERATION_ID,
+                        &None,
+                        context_menu_width,
+                    ))
                     .clicked()
                 {
                     self.replace_instruction_record_with_no_operation(instruction_record, snapshot_selected_instruction_keys);
@@ -715,22 +706,13 @@ impl DebuggerTraceView {
                 }
 
                 if user_interface
-                    .add(
-                        ToolbarMenuItemView::new(
-                            self.app_context.clone(),
-                            Self::RESTORE_ORIGINAL_CODE_LABEL,
-                            Self::RESTORE_ORIGINAL_CODE_ID,
-                            &None,
-                            context_menu_width,
-                        )
-                        .icon(
-                            self.app_context
-                                .theme
-                                .icon_library
-                                .icon_handle_project_cpu_instruction
-                                .clone(),
-                        ),
-                    )
+                    .add(ToolbarMenuItemView::new(
+                        self.app_context.clone(),
+                        Self::RESTORE_ORIGINAL_CODE_LABEL,
+                        Self::RESTORE_ORIGINAL_CODE_ID,
+                        &None,
+                        context_menu_width,
+                    ))
                     .clicked()
                 {
                     self.restore_instruction_record_original_code(instruction_record);

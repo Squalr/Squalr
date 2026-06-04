@@ -532,15 +532,7 @@ impl<'lifetime> ProjectHierarchyProjectItemContextMenuView<'lifetime> {
         frame_actions: &mut Vec<ProjectHierarchyFrameAction>,
     ) {
         if !user_interface
-            .add(
-                ToolbarMenuItemView::new(self.app_context.clone(), label, id, &None, project_item_menu_width).icon(
-                    self.app_context
-                        .theme
-                        .icon_library
-                        .icon_handle_project_cpu_instruction
-                        .clone(),
-                ),
-            )
+            .add(ToolbarMenuItemView::new(self.app_context.clone(), label, id, &None, project_item_menu_width))
             .clicked()
         {
             return;
@@ -593,22 +585,13 @@ impl<'lifetime> ProjectHierarchyProjectItemContextMenuView<'lifetime> {
         frame_actions: &mut Vec<ProjectHierarchyFrameAction>,
     ) {
         if !user_interface
-            .add(
-                ToolbarMenuItemView::new(
-                    self.app_context.clone(),
-                    Self::PROJECT_ITEM_CTX_REPLACE_WITH_NO_OPERATION_LABEL,
-                    Self::PROJECT_ITEM_CTX_REPLACE_WITH_NO_OPERATION_ID,
-                    &None,
-                    project_item_menu_width,
-                )
-                .icon(
-                    self.app_context
-                        .theme
-                        .icon_library
-                        .icon_handle_project_cpu_instruction
-                        .clone(),
-                ),
-            )
+            .add(ToolbarMenuItemView::new(
+                self.app_context.clone(),
+                Self::PROJECT_ITEM_CTX_REPLACE_WITH_NO_OPERATION_LABEL,
+                Self::PROJECT_ITEM_CTX_REPLACE_WITH_NO_OPERATION_ID,
+                &None,
+                project_item_menu_width,
+            ))
             .clicked()
         {
             return;
@@ -645,22 +628,13 @@ impl<'lifetime> ProjectHierarchyProjectItemContextMenuView<'lifetime> {
         frame_actions: &mut Vec<ProjectHierarchyFrameAction>,
     ) {
         if !user_interface
-            .add(
-                ToolbarMenuItemView::new(
-                    self.app_context.clone(),
-                    Self::PROJECT_ITEM_CTX_RESTORE_ORIGINAL_CODE_LABEL,
-                    Self::PROJECT_ITEM_CTX_RESTORE_ORIGINAL_CODE_ID,
-                    &None,
-                    project_item_menu_width,
-                )
-                .icon(
-                    self.app_context
-                        .theme
-                        .icon_library
-                        .icon_handle_project_cpu_instruction
-                        .clone(),
-                ),
-            )
+            .add(ToolbarMenuItemView::new(
+                self.app_context.clone(),
+                Self::PROJECT_ITEM_CTX_RESTORE_ORIGINAL_CODE_LABEL,
+                Self::PROJECT_ITEM_CTX_RESTORE_ORIGINAL_CODE_ID,
+                &None,
+                project_item_menu_width,
+            ))
             .clicked()
         {
             return;

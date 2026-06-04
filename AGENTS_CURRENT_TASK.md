@@ -605,6 +605,11 @@ Our current task, from `README.md`, is:
   - `cargo check -p squalr-cli --locked` passed.
   - `cargo check -p squalr-tui --locked` passed.
   - GUI behavior against winmine/the originally failing flow needs human verification after implementation and validation.
+- After removing early context-menu icons:
+  - Removed icons from the Project Explorer `Find What Reads`, `Find What Writes`, `Find What Accesses`, `Replace with Code That Does Nothing`, and `Restore Original Code` context-menu rows.
+  - Removed icons from the Debugger Trace `Replace with Code That Does Nothing` and `Restore Original Code` context-menu rows.
+  - `cargo fmt --all` completed with the existing `.rustfmt.toml` deprecation warnings for `fn_args_layout`.
+  - `cargo check -p squalr --locked` passed.
 - References checked:
   - Local Rust workspace plugin/session/target architecture.
   - Old C# implementation under `C:\Projects\Squalr\Squalr.Engine.Debugger`.
