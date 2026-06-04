@@ -10,8 +10,10 @@ use crate::{
         debugger_trace_view::DebuggerTraceView,
         view_data::debugger_trace_view_data::{DebuggerTraceViewData, PendingDebuggerTraceStartRequest},
     },
+    views::instruction_patch_action::InstructionPatchAction,
     views::memory_viewer::{memory_viewer_view::MemoryViewerView, view_data::memory_viewer_view_data::MemoryViewerViewData},
     views::pointer_scanner::{pointer_scanner_view::PointerScannerView, view_data::pointer_scanner_view_data::PointerScannerViewData},
+    views::process_selector::view_data::process_selector_view_data::ProcessSelectorViewData,
     views::project_explorer::{
         project_explorer_view::ProjectExplorerView,
         project_hierarchy::{
@@ -53,6 +55,7 @@ pub struct ProjectHierarchyView {
     code_viewer_view_data: Dependency<CodeViewerViewData>,
     memory_viewer_view_data: Dependency<MemoryViewerViewData>,
     pointer_scanner_view_data: Dependency<PointerScannerViewData>,
+    process_selector_view_data: Dependency<ProcessSelectorViewData>,
     struct_viewer_view_data: Dependency<StructViewerViewData>,
     debugger_trace_view_data: Dependency<DebuggerTraceViewData>,
 }
@@ -75,6 +78,9 @@ impl ProjectHierarchyView {
         let pointer_scanner_view_data = app_context
             .dependency_container
             .get_dependency::<PointerScannerViewData>();
+        let process_selector_view_data = app_context
+            .dependency_container
+            .get_dependency::<ProcessSelectorViewData>();
         let debugger_trace_view_data = app_context
             .dependency_container
             .get_dependency::<DebuggerTraceViewData>();
@@ -87,6 +93,7 @@ impl ProjectHierarchyView {
             code_viewer_view_data,
             memory_viewer_view_data,
             pointer_scanner_view_data,
+            process_selector_view_data,
             struct_viewer_view_data,
             debugger_trace_view_data,
         }
@@ -668,6 +675,13 @@ impl Widget for ProjectHierarchyView {
 
                 self.start_debugger_trace_for_address(address, &module_name, size_in_bytes, access, label);
             }
+            ProjectHierarchyFrameAction::ReplaceInstructionWithNoOperation { address, module_name, label } => {
+                if has_blocking_take_over {
+                    return response;
+                }
+
+                self.replace_instruction_with_no_operation(address, module_name, label);
+            }
             ProjectHierarchyFrameAction::PromoteToSymbol {
                 project_item_paths,
                 overwrite_conflicting_symbols,
@@ -913,6 +927,21 @@ impl ProjectHierarchyView {
         DebuggerTraceViewData::request_trace_start(
             self.debugger_trace_view_data.clone(),
             PendingDebuggerTraceStartRequest::new(resolved_target_address, size_in_bytes, access, label),
+        );
+    }
+
+    fn replace_instruction_with_no_operation(
+        &self,
+        address: u64,
+        module_name: String,
+        label: Option<String>,
+    ) {
+        InstructionPatchAction::replace_instruction_at_address_with_no_operation(
+            self.app_context.clone(),
+            self.process_selector_view_data.clone(),
+            address,
+            module_name,
+            label,
         );
     }
 

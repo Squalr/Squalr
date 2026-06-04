@@ -2,6 +2,7 @@ pub mod code_viewer;
 pub mod context_menu_labels;
 pub mod debugger_trace;
 pub mod element_scanner;
+pub mod instruction_patch_action;
 pub mod main_window;
 pub mod memory_viewer;
 pub mod output;

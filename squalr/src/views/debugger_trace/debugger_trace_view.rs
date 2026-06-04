@@ -1,11 +1,17 @@
 use crate::{
     app_context::AppContext,
-    ui::widgets::controls::{groupbox::GroupBox, icon_button::IconButtonView},
+    ui::widgets::controls::{
+        context_menu::context_menu::{ContextMenu, ContextMenuSizing},
+        groupbox::GroupBox,
+        icon_button::IconButtonView,
+        toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView,
+    },
     views::{
         debugger_trace::{
             debugger_trace_entry_view::DebuggerTraceEntryView,
             view_data::debugger_trace_view_data::{DebuggerTraceInstructionKey, DebuggerTraceViewData, PendingDebuggerTraceStartRequest},
         },
+        instruction_patch_action::InstructionPatchAction,
         process_selector::view_data::process_selector_view_data::ProcessSelectorViewData,
         project_explorer::project_hierarchy::{
             project_hierarchy_module_address_resolver::ProjectHierarchyModuleAddressResolver, view_data::project_hierarchy_view_data::ProjectHierarchyViewData,
@@ -47,6 +53,8 @@ pub struct DebuggerTraceView {
 impl DebuggerTraceView {
     pub const WINDOW_ID: &'static str = "window_debugger_trace";
     const PENDING_TRACE_START_TIMEOUT: Duration = Duration::from_secs(15);
+    const REPLACE_WITH_NO_OPERATION_LABEL: &'static str = "Replace with Code That Does Nothing";
+    const REPLACE_WITH_NO_OPERATION_ID: &'static str = "debugger_trace_ctx_replace_with_nop";
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let debugger_trace_view_data = app_context
@@ -627,10 +635,113 @@ impl DebuggerTraceView {
                 }
             }
 
+            if row_response.secondary_clicked() {
+                if let Some(debugger_trace_view_data) = self
+                    .debugger_trace_view_data
+                    .read("Debugger trace instruction context menu")
+                {
+                    debugger_trace_view_data.show_instruction_context_menu(
+                        instruction_key.clone(),
+                        row_response
+                            .hover_pos()
+                            .unwrap_or(row_response.rect.left_bottom()),
+                    );
+                }
+            }
+
             if row_response.double_clicked() {
                 self.add_instruction_record_to_project(instruction_record);
             }
         }
+    }
+
+    fn show_instruction_context_menu(
+        &self,
+        user_interface: &mut Ui,
+        snapshot_instruction_records: &[DebuggerTraceInstructionRecord],
+        snapshot_selected_instruction_keys: &[DebuggerTraceInstructionKey],
+        snapshot_context_menu_target: Option<&crate::views::debugger_trace::view_data::debugger_trace_view_data::DebuggerTraceInstructionContextMenuTarget>,
+    ) {
+        let Some(context_menu_target) = snapshot_context_menu_target else {
+            return;
+        };
+        let Some(instruction_record) = snapshot_instruction_records
+            .iter()
+            .find(|instruction_record| DebuggerTraceInstructionKey::from_record(instruction_record) == *context_menu_target.get_instruction_key())
+        else {
+            if let Some(debugger_trace_view_data) = self
+                .debugger_trace_view_data
+                .read("Debugger trace hide stale instruction context menu")
+            {
+                debugger_trace_view_data.hide_instruction_context_menu();
+            }
+            return;
+        };
+        let context_menu_labels = [Self::REPLACE_WITH_NO_OPERATION_LABEL];
+        let context_menu_width = ContextMenuSizing::width_for_labels(self.app_context.as_ref(), user_interface, context_menu_labels);
+        let mut open = true;
+
+        ContextMenu::new(
+            self.app_context.clone(),
+            "debugger_trace_instruction_context_menu",
+            context_menu_target.get_position(),
+            |user_interface, should_close| {
+                if user_interface
+                    .add(
+                        ToolbarMenuItemView::new(
+                            self.app_context.clone(),
+                            Self::REPLACE_WITH_NO_OPERATION_LABEL,
+                            Self::REPLACE_WITH_NO_OPERATION_ID,
+                            &None,
+                            context_menu_width,
+                        )
+                        .icon(
+                            self.app_context
+                                .theme
+                                .icon_library
+                                .icon_handle_project_cpu_instruction
+                                .clone(),
+                        ),
+                    )
+                    .clicked()
+                {
+                    self.replace_instruction_record_with_no_operation(instruction_record, snapshot_selected_instruction_keys);
+                    *should_close = true;
+                }
+            },
+        )
+        .width(context_menu_width)
+        .corner_radius(8)
+        .show(user_interface, &mut open);
+
+        if !open {
+            if let Some(debugger_trace_view_data) = self
+                .debugger_trace_view_data
+                .read("Debugger trace close instruction context menu")
+            {
+                debugger_trace_view_data.hide_instruction_context_menu();
+            }
+        }
+    }
+
+    fn replace_instruction_record_with_no_operation(
+        &self,
+        instruction_record: &DebuggerTraceInstructionRecord,
+        _selected_instruction_keys: &[DebuggerTraceInstructionKey],
+    ) {
+        let Some(instruction_address) = instruction_record.get_instruction_address() else {
+            log::warn!("Cannot replace debugger trace instruction without an instruction address.");
+            return;
+        };
+
+        InstructionPatchAction::replace_known_instruction_with_no_operation(
+            self.app_context.clone(),
+            self.process_selector_view_data.clone(),
+            instruction_address,
+            String::new(),
+            instruction_record.get_instruction_bytes().to_vec(),
+            Some(Self::instruction_text(instruction_record)),
+        );
     }
 
     fn add_instruction_record_to_project(
@@ -784,6 +895,13 @@ impl Widget for DebuggerTraceView {
                             );
                         }
                     });
+
+                self.show_instruction_context_menu(
+                    user_interface,
+                    &snapshot.instruction_records,
+                    &snapshot.selected_instruction_keys,
+                    snapshot.instruction_context_menu_target.as_ref(),
+                );
             })
             .response;
 

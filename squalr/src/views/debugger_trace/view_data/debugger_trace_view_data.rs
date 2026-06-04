@@ -1,3 +1,4 @@
+use eframe::egui::Pos2;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::{
     events::debugger::trace_session_updated::debugger_trace_session_updated_event::DebuggerTraceSessionUpdatedEvent,
@@ -24,6 +25,7 @@ struct DebuggerTraceViewState {
     pending_trace_start_started_at: Option<Instant>,
     is_starting_pending_trace: bool,
     pending_control_trace_session_ids: HashSet<String>,
+    instruction_context_menu_target: Option<DebuggerTraceInstructionContextMenuTarget>,
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -31,6 +33,12 @@ pub struct DebuggerTraceInstructionKey {
     trace_session_id: String,
     instruction_address: Option<u64>,
     instruction_bytes: Vec<u8>,
+}
+
+#[derive(Clone, Debug)]
+pub struct DebuggerTraceInstructionContextMenuTarget {
+    instruction_key: DebuggerTraceInstructionKey,
+    position: Pos2,
 }
 
 #[derive(Clone, Debug)]
@@ -56,6 +64,7 @@ pub struct DebuggerTraceSnapshot {
     pub pending_trace_start_status_message: Option<String>,
     pub is_starting_pending_trace: bool,
     pub pending_control_trace_session_ids: HashSet<String>,
+    pub instruction_context_menu_target: Option<DebuggerTraceInstructionContextMenuTarget>,
 }
 
 impl DebuggerTraceInstructionKey {
@@ -69,6 +78,23 @@ impl DebuggerTraceInstructionKey {
 
     pub fn get_trace_session_id(&self) -> &str {
         &self.trace_session_id
+    }
+}
+
+impl DebuggerTraceInstructionContextMenuTarget {
+    pub fn new(
+        instruction_key: DebuggerTraceInstructionKey,
+        position: Pos2,
+    ) -> Self {
+        Self { instruction_key, position }
+    }
+
+    pub fn get_instruction_key(&self) -> &DebuggerTraceInstructionKey {
+        &self.instruction_key
+    }
+
+    pub fn get_position(&self) -> Pos2 {
+        self.position
     }
 }
 
@@ -227,6 +253,34 @@ impl DebuggerTraceViewData {
             }
             Err(error) => {
                 log::error!("Failed to set debugger trace instruction selection: {}", error);
+            }
+        }
+    }
+
+    pub fn show_instruction_context_menu(
+        &self,
+        instruction_key: DebuggerTraceInstructionKey,
+        position: Pos2,
+    ) {
+        match self.inner.write() {
+            Ok(mut state) => {
+                state.selected_instruction_keys.clear();
+                state.selected_instruction_keys.push(instruction_key.clone());
+                state.instruction_context_menu_target = Some(DebuggerTraceInstructionContextMenuTarget::new(instruction_key, position));
+            }
+            Err(error) => {
+                log::error!("Failed to show debugger trace instruction context menu: {}", error);
+            }
+        }
+    }
+
+    pub fn hide_instruction_context_menu(&self) {
+        match self.inner.write() {
+            Ok(mut state) => {
+                state.instruction_context_menu_target = None;
+            }
+            Err(error) => {
+                log::error!("Failed to hide debugger trace instruction context menu: {}", error);
             }
         }
     }
@@ -392,6 +446,7 @@ impl DebuggerTraceViewState {
             pending_trace_start_status_message: self.pending_trace_start_status_message.clone(),
             is_starting_pending_trace: self.is_starting_pending_trace,
             pending_control_trace_session_ids: self.pending_control_trace_session_ids.clone(),
+            instruction_context_menu_target: self.instruction_context_menu_target.clone(),
         }
     }
 
@@ -408,15 +463,26 @@ impl DebuggerTraceViewState {
 
         self.selected_instruction_keys
             .retain(|selected_instruction_key| valid_instruction_keys.contains(selected_instruction_key));
+        if self
+            .instruction_context_menu_target
+            .as_ref()
+            .is_some_and(|context_menu_target| !valid_instruction_keys.contains(context_menu_target.get_instruction_key()))
+        {
+            self.instruction_context_menu_target = None;
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::DebuggerTraceViewData;
+    use eframe::egui::pos2;
     use squalr_engine_api::{
         events::debugger::trace_session_updated::debugger_trace_session_updated_event::DebuggerTraceSessionUpdatedEvent,
-        structures::debugger::{DebuggerBreakpointDescriptor, DebuggerBreakpointKind, DebuggerDataBreakpointAccess, DebuggerTraceSessionDescriptor},
+        structures::debugger::{
+            DebuggerBreakpointDescriptor, DebuggerBreakpointKind, DebuggerDataBreakpointAccess, DebuggerRegisterSnapshot, DebuggerTraceEvent,
+            DebuggerTraceInstructionRecord, DebuggerTraceSessionDescriptor,
+        },
     };
 
     #[test]
@@ -439,6 +505,30 @@ mod tests {
 
         assert!(snapshot.trace_sessions.is_empty());
         assert!(snapshot.instruction_records.is_empty());
+    }
+
+    #[test]
+    fn instruction_context_menu_target_is_exposed_in_snapshot() {
+        let debugger_trace_view_data = DebuggerTraceViewData::new();
+        let trace_event = DebuggerTraceEvent::new(
+            None,
+            DebuggerRegisterSnapshot::default(),
+            Some(0x401000),
+            vec![0x90],
+            Some(String::from("nop")),
+            None,
+        );
+        let instruction_record = DebuggerTraceInstructionRecord::new("trace-1", &trace_event);
+        let instruction_key = super::DebuggerTraceInstructionKey::from_record(&instruction_record);
+
+        debugger_trace_view_data.show_instruction_context_menu(instruction_key.clone(), pos2(12.0, 34.0));
+        let snapshot = debugger_trace_view_data.get_snapshot();
+        let context_menu_target = snapshot
+            .instruction_context_menu_target
+            .expect("Expected debugger trace instruction context menu target.");
+
+        assert_eq!(context_menu_target.get_instruction_key(), &instruction_key);
+        assert_eq!(context_menu_target.get_position(), pos2(12.0, 34.0));
     }
 
     fn create_trace_session(is_active: bool) -> DebuggerTraceSessionDescriptor {
