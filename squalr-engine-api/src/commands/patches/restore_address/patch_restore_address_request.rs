@@ -3,12 +3,15 @@ use crate::commands::patches::patches_response::PatchesResponse;
 use crate::commands::patches::restore_address::patch_restore_address_response::PatchRestoreAddressResponse;
 use crate::commands::privileged_command::PrivilegedCommand;
 use crate::commands::privileged_command_request::PrivilegedCommandRequest;
+use crate::structures::patches::PatchKind;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PatchRestoreAddressRequest {
     pub address: u64,
     pub module_name: String,
+    #[serde(default)]
+    pub expected_kind: Option<PatchKind>,
 }
 
 impl PrivilegedCommandRequest for PatchRestoreAddressRequest {

@@ -47,6 +47,10 @@ pub enum ProjectHierarchyFrameAction {
         module_name: String,
         label: Option<String>,
     },
+    RestoreInstructionOriginalCode {
+        address: u64,
+        module_name: String,
+    },
     PromoteToSymbol {
         project_item_paths: Vec<PathBuf>,
         overwrite_conflicting_symbols: bool,

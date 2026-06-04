@@ -125,24 +125,35 @@ impl PatchService {
         os_providers: &EngineOsProviders,
         address: u64,
         module_name: &str,
+        expected_kind: Option<PatchKind>,
     ) -> Result<PatchDescriptor, String> {
         let absolute_address = Self::resolve_absolute_address(opened_process_info, os_providers, address, module_name)?;
         let mut state = self.lock_state()?;
 
         Self::ensure_process_scope(&mut state, opened_process_info);
 
-        let Some(patch_id) = state
+        let Some(active_patch_match) = state
             .patches_by_id
             .values()
             .find(|patch_descriptor| {
                 patch_descriptor.get_is_active() && Self::region_contains_address_half_open(patch_descriptor.get_region(), absolute_address)
             })
-            .map(|patch_descriptor| patch_descriptor.get_patch_id().to_string())
+            .map(|patch_descriptor| (patch_descriptor.get_patch_id().to_string(), patch_descriptor.get_kind()))
         else {
             return Err(format!("No active patch contains address 0x{:X}.", absolute_address));
         };
+        let (active_patch_id, active_patch_kind) = active_patch_match;
 
-        Self::restore_patch_by_id_locked(&mut state, opened_process_info, os_providers, &patch_id)
+        if let Some(expected_kind) = expected_kind {
+            if active_patch_kind != expected_kind {
+                return Err(format!(
+                    "Active patch '{}' at 0x{:X} has kind {:?}, not {:?}.",
+                    active_patch_id, absolute_address, active_patch_kind, expected_kind
+                ));
+            }
+        }
+
+        Self::restore_patch_by_id_locked(&mut state, opened_process_info, os_providers, &active_patch_id)
     }
 
     pub fn list_patches(
@@ -625,10 +636,23 @@ mod tests {
             .expect("Expected module-relative patch application to succeed.");
 
         let restored_patch = patch_service
-            .restore_patch_at_address(&opened_process_info, &os_providers, 0x2, "game.exe")
+            .restore_patch_at_address(&opened_process_info, &os_providers, 0x2, "game.exe", None)
             .expect("Expected address-based patch restore to succeed.");
 
         assert!(!restored_patch.get_is_active());
         assert_eq!(test_memory.bytes(), vec![0x90, 0x40, 0x41, 0x42, 0x43, 0x44]);
+    }
+
+    #[test]
+    fn restore_patch_at_address_rejects_unexpected_patch_kind() {
+        let (patch_service, opened_process_info, os_providers, test_memory) = create_test_context();
+        patch_service
+            .apply_patch(&opened_process_info, &os_providers, 0x1001, "", &[0x90, 0x90], PatchKind::Code, None)
+            .expect("Expected patch application to succeed.");
+
+        let restore_result = patch_service.restore_patch_at_address(&opened_process_info, &os_providers, 0x1001, "", Some(PatchKind::NoOperation));
+
+        assert!(restore_result.is_err());
+        assert_eq!(test_memory.bytes(), vec![0x90, 0x90, 0x90, 0x42, 0x43, 0x44]);
     }
 }

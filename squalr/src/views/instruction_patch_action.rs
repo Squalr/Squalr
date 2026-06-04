@@ -2,7 +2,7 @@ use crate::{app_context::AppContext, views::process_selector::view_data::process
 use squalr_engine_api::{
     commands::{
         memory::read::{memory_read_request::MemoryReadRequest, memory_read_response::MemoryReadResponse},
-        patches::apply::patch_apply_request::PatchApplyRequest,
+        patches::{apply::patch_apply_request::PatchApplyRequest, restore_address::patch_restore_address_request::PatchRestoreAddressRequest},
         privileged_command_request::PrivilegedCommandRequest,
     },
     dependency_injection::dependency::Dependency,
@@ -74,6 +74,29 @@ impl InstructionPatchAction {
         });
     }
 
+    pub fn restore_no_operation_patch_at_address(
+        app_context: Arc<AppContext>,
+        address: u64,
+        module_name: String,
+    ) {
+        PatchRestoreAddressRequest {
+            address,
+            module_name,
+            expected_kind: Some(PatchKind::NoOperation),
+        }
+        .send(&app_context.engine_unprivileged_state, |patch_restore_address_response| {
+            if !patch_restore_address_response.status.get_success() {
+                log::warn!(
+                    "Restore original code failed: {}.",
+                    patch_restore_address_response
+                        .status
+                        .get_message()
+                        .unwrap_or("unknown error")
+                );
+            }
+        });
+    }
+
     fn get_instruction_set(
         app_context: &Arc<AppContext>,
         process_selector_view_data: Dependency<ProcessSelectorViewData>,
@@ -121,7 +144,7 @@ impl InstructionPatchAction {
             address,
             module_name,
             patched_bytes,
-            kind: PatchKind::Code,
+            kind: PatchKind::NoOperation,
             label,
         }
         .send(&app_context.engine_unprivileged_state, |patch_apply_response| {

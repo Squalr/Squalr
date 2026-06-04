@@ -55,6 +55,8 @@ impl DebuggerTraceView {
     const PENDING_TRACE_START_TIMEOUT: Duration = Duration::from_secs(15);
     const REPLACE_WITH_NO_OPERATION_LABEL: &'static str = "Replace with Code That Does Nothing";
     const REPLACE_WITH_NO_OPERATION_ID: &'static str = "debugger_trace_ctx_replace_with_nop";
+    const RESTORE_ORIGINAL_CODE_LABEL: &'static str = "Restore Original Code";
+    const RESTORE_ORIGINAL_CODE_ID: &'static str = "debugger_trace_ctx_restore_original_code";
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let debugger_trace_view_data = app_context
@@ -677,7 +679,10 @@ impl DebuggerTraceView {
             }
             return;
         };
-        let context_menu_labels = [Self::REPLACE_WITH_NO_OPERATION_LABEL];
+        let context_menu_labels = [
+            Self::REPLACE_WITH_NO_OPERATION_LABEL,
+            Self::RESTORE_ORIGINAL_CODE_LABEL,
+        ];
         let context_menu_width = ContextMenuSizing::width_for_labels(self.app_context.as_ref(), user_interface, context_menu_labels);
         let mut open = true;
 
@@ -706,6 +711,29 @@ impl DebuggerTraceView {
                     .clicked()
                 {
                     self.replace_instruction_record_with_no_operation(instruction_record, snapshot_selected_instruction_keys);
+                    *should_close = true;
+                }
+
+                if user_interface
+                    .add(
+                        ToolbarMenuItemView::new(
+                            self.app_context.clone(),
+                            Self::RESTORE_ORIGINAL_CODE_LABEL,
+                            Self::RESTORE_ORIGINAL_CODE_ID,
+                            &None,
+                            context_menu_width,
+                        )
+                        .icon(
+                            self.app_context
+                                .theme
+                                .icon_library
+                                .icon_handle_project_cpu_instruction
+                                .clone(),
+                        ),
+                    )
+                    .clicked()
+                {
+                    self.restore_instruction_record_original_code(instruction_record);
                     *should_close = true;
                 }
             },
@@ -742,6 +770,18 @@ impl DebuggerTraceView {
             instruction_record.get_instruction_bytes().to_vec(),
             Some(Self::instruction_text(instruction_record)),
         );
+    }
+
+    fn restore_instruction_record_original_code(
+        &self,
+        instruction_record: &DebuggerTraceInstructionRecord,
+    ) {
+        let Some(instruction_address) = instruction_record.get_instruction_address() else {
+            log::warn!("Cannot restore debugger trace instruction without an instruction address.");
+            return;
+        };
+
+        InstructionPatchAction::restore_no_operation_patch_at_address(self.app_context.clone(), instruction_address, String::new());
     }
 
     fn add_instruction_record_to_project(

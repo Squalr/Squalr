@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 pub enum PatchKind {
     #[default]
     Code,
+    NoOperation,
     SoftwareBreakpoint,
     Generic,
 }

@@ -87,6 +87,8 @@ impl<'lifetime> ProjectHierarchyProjectItemContextMenuView<'lifetime> {
     const PROJECT_ITEM_CTX_FIND_ACCESSES_ID: &'static str = "project_hierarchy_ctx_find_accesses";
     const PROJECT_ITEM_CTX_REPLACE_WITH_NO_OPERATION_LABEL: &'static str = "Replace with Code That Does Nothing";
     const PROJECT_ITEM_CTX_REPLACE_WITH_NO_OPERATION_ID: &'static str = "project_hierarchy_ctx_replace_with_nop";
+    const PROJECT_ITEM_CTX_RESTORE_ORIGINAL_CODE_LABEL: &'static str = "Restore Original Code";
+    const PROJECT_ITEM_CTX_RESTORE_ORIGINAL_CODE_ID: &'static str = "project_hierarchy_ctx_restore_original_code";
     const PROJECT_ITEM_CTX_PROMOTE_TO_SYMBOL_LABEL: &'static str = "Promote to Symbol";
     const PROJECT_ITEM_CTX_PROMOTE_TO_SYMBOL_ID: &'static str = "project_hierarchy_ctx_promote_to_symbol";
     const PROJECT_ITEM_CTX_STRIP_SYMBOL_INFORMATION_ID: &'static str = "project_hierarchy_ctx_strip_symbol_information";
@@ -214,6 +216,7 @@ impl<'lifetime> ProjectHierarchyProjectItemContextMenuView<'lifetime> {
         }
         if can_replace_with_no_operation {
             project_item_menu_labels.push(Self::PROJECT_ITEM_CTX_REPLACE_WITH_NO_OPERATION_LABEL);
+            project_item_menu_labels.push(Self::PROJECT_ITEM_CTX_RESTORE_ORIGINAL_CODE_LABEL);
         }
         if can_promote_project_item_paths {
             project_item_menu_labels.push(Self::PROJECT_ITEM_CTX_PROMOTE_TO_SYMBOL_LABEL);
@@ -507,6 +510,13 @@ impl<'lifetime> ProjectHierarchyProjectItemContextMenuView<'lifetime> {
                 should_close,
                 frame_actions,
             );
+            self.show_restore_original_code_context_menu_item(
+                user_interface,
+                tree_entry_project_item_path,
+                project_item_menu_width,
+                should_close,
+                frame_actions,
+            );
         }
     }
 
@@ -621,6 +631,54 @@ impl<'lifetime> ProjectHierarchyProjectItemContextMenuView<'lifetime> {
         } else {
             log::error!(
                 "Failed to resolve replace-with-no-operation target for project item: {:?}.",
+                tree_entry_project_item_path
+            );
+        }
+    }
+
+    fn show_restore_original_code_context_menu_item(
+        &self,
+        user_interface: &mut Ui,
+        tree_entry_project_item_path: &Path,
+        project_item_menu_width: f32,
+        should_close: &mut bool,
+        frame_actions: &mut Vec<ProjectHierarchyFrameAction>,
+    ) {
+        if !user_interface
+            .add(
+                ToolbarMenuItemView::new(
+                    self.app_context.clone(),
+                    Self::PROJECT_ITEM_CTX_RESTORE_ORIGINAL_CODE_LABEL,
+                    Self::PROJECT_ITEM_CTX_RESTORE_ORIGINAL_CODE_ID,
+                    &None,
+                    project_item_menu_width,
+                )
+                .icon(
+                    self.app_context
+                        .theme
+                        .icon_library
+                        .icon_handle_project_cpu_instruction
+                        .clone(),
+                ),
+            )
+            .clicked()
+        {
+            return;
+        }
+
+        let engine_execution_context: Arc<dyn EngineExecutionContext> = self.app_context.engine_unprivileged_state.clone();
+        let project_symbol_catalog = self
+            .opened_project_info
+            .map(|opened_project_info| opened_project_info.get_project_symbol_catalog());
+
+        if let Some((address, module_name)) =
+            resolve_project_item_runtime_value_target(&engine_execution_context, project_symbol_catalog, &self.tree_entry.project_item)
+        {
+            frame_actions.push(ProjectHierarchyFrameAction::RestoreInstructionOriginalCode { address, module_name });
+            *should_close = true;
+        } else {
+            log::error!(
+                "Failed to resolve restore-original-code target for project item: {:?}.",
                 tree_entry_project_item_path
             );
         }

@@ -585,7 +585,7 @@ Our current task, from `README.md`, is:
 - After adding GUI replace-with-no-operation actions:
   - Added a Debugger Trace instruction row context menu with `Replace with Code That Does Nothing`.
   - Augmented the Project Explorer project-item context menu with `Replace with Code That Does Nothing` for items that already resolve as instruction/code entries.
-  - Both GUI actions route through the privileged patch command surface with `PatchKind::Code`.
+  - Superseded: these actions initially used `PatchKind::Code`; no-op replacement now uses `PatchKind::NoOperation` so restore UX can reject unrelated code/software-breakpoint patches.
   - No-op bytes come from the enabled target instruction-set plugin via `build_no_operation_fill` rather than hard-coded x86 bytes.
   - Project Explorer reads a 16-byte instruction window and decodes the first instruction length before patching, so it patches only the current instruction. Debugger Trace uses the trace record bytes and still asks the instruction plugin for the first decoded length when possible.
   - GUI behavior against winmine/the originally failing flow needs human verification after implementation and validation.
@@ -593,6 +593,18 @@ Our current task, from `README.md`, is:
   - `cargo test -p squalr --locked instruction_context_menu_target_is_exposed_in_snapshot -- --nocapture` passed.
   - `cargo check -p squalr --locked` passed.
   - `cargo test -p squalr-engine-session --locked patch_service -- --nocapture` passed.
+- After adding no-op restore actions:
+  - Added `PatchKind::NoOperation` and made GUI no-op replacement record patches with that kind.
+  - Extended restore-by-address with an optional expected patch kind. The Project Explorer and Debugger Trace `Restore Original Code` actions pass `Some(PatchKind::NoOperation)`, so these user-facing restore actions only revert no-op replacements and reject software breakpoints or unrelated code patches.
+  - Added `Restore Original Code` to the Debugger Trace row context menu and Project Explorer instruction-item context menu.
+  - `cargo fmt --all` completed with the existing `.rustfmt.toml` deprecation warnings for `fn_args_layout`.
+  - `cargo check -p squalr-engine-api --locked` passed.
+  - `cargo test -p squalr-engine-session --locked patch_service -- --nocapture` passed.
+  - `cargo check -p squalr --locked` passed.
+  - `cargo check -p squalr-engine --locked` passed.
+  - `cargo check -p squalr-cli --locked` passed.
+  - `cargo check -p squalr-tui --locked` passed.
+  - GUI behavior against winmine/the originally failing flow needs human verification after implementation and validation.
 - References checked:
   - Local Rust workspace plugin/session/target architecture.
   - Old C# implementation under `C:\Projects\Squalr\Squalr.Engine.Debugger`.

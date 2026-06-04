@@ -682,6 +682,13 @@ impl Widget for ProjectHierarchyView {
 
                 self.replace_instruction_with_no_operation(address, module_name, label);
             }
+            ProjectHierarchyFrameAction::RestoreInstructionOriginalCode { address, module_name } => {
+                if has_blocking_take_over {
+                    return response;
+                }
+
+                self.restore_instruction_original_code(address, module_name);
+            }
             ProjectHierarchyFrameAction::PromoteToSymbol {
                 project_item_paths,
                 overwrite_conflicting_symbols,
@@ -943,6 +950,14 @@ impl ProjectHierarchyView {
             module_name,
             label,
         );
+    }
+
+    fn restore_instruction_original_code(
+        &self,
+        address: u64,
+        module_name: String,
+    ) {
+        InstructionPatchAction::restore_no_operation_patch_at_address(self.app_context.clone(), address, module_name);
     }
 
     fn focus_debugger_trace_window(&self) {

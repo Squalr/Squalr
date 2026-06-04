@@ -146,6 +146,7 @@ impl PrivilegedCommandRequestExecutor for PatchRestoreAddressRequest {
                 engine_privileged_state.get_os_providers(),
                 self.address,
                 &self.module_name,
+                self.expected_kind,
             ) {
             Ok(patch) => PatchRestoreAddressResponse {
                 status: PatchCommandStatus::success(),
