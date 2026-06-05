@@ -106,6 +106,34 @@ mod tests {
     }
 
     #[test]
+    fn i_x86_data_type_supports_disassembler_style_sized_memory_dec_instruction() {
+        let data_type = DataTypeInstructionX86::new();
+        let assembled_value = data_type
+            .deanonymize_value_string(&AnonymousValueString::new(
+                String::from("dec dword [100579Ch]"),
+                AnonymousValueStringFormat::String,
+                ContainerType::None,
+            ))
+            .expect("Expected x86 disassembler-style sized memory dec instruction to assemble.");
+
+        assert_eq!(assembled_value.get_value_bytes(), &[0xFF, 0x0D, 0x9C, 0x57, 0x00, 0x01]);
+    }
+
+    #[test]
+    fn i_x64_data_type_supports_disassembler_style_sized_memory_dec_instruction() {
+        let data_type = DataTypeInstructionX64::new();
+        let assembled_value = data_type
+            .deanonymize_value_string(&AnonymousValueString::new(
+                String::from("dec dword [100579Ch]"),
+                AnonymousValueStringFormat::String,
+                ContainerType::None,
+            ))
+            .expect("Expected x64 disassembler-style sized memory dec instruction to assemble.");
+
+        assert!(!assembled_value.get_value_bytes().is_empty());
+    }
+
+    #[test]
     fn i_x86_data_type_supports_implicit_dword_memory_inc_shorthand() {
         let data_type = DataTypeInstructionX86::new();
         let assembled_value = data_type

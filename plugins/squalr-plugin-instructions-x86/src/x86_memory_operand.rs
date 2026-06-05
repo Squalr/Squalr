@@ -249,9 +249,27 @@ fn parse_memory_displacement(term_text: &str) -> Option<i64> {
         .or_else(|| term_text.strip_prefix("0X"))
     {
         i64::from_str_radix(hexadecimal_digits, 16).ok()
+    } else if let Some(hexadecimal_digits) = parse_hexadecimal_suffix_digits(term_text) {
+        i64::from_str_radix(hexadecimal_digits, 16).ok()
     } else {
         term_text.parse::<i64>().ok()
     }
+}
+
+fn parse_hexadecimal_suffix_digits(term_text: &str) -> Option<&str> {
+    let hexadecimal_digits = term_text
+        .strip_suffix('h')
+        .or_else(|| term_text.strip_suffix('H'))?;
+    let first_digit = hexadecimal_digits.chars().next()?;
+
+    if !first_digit.is_ascii_digit() {
+        return None;
+    }
+
+    hexadecimal_digits
+        .chars()
+        .all(|term_character| term_character.is_ascii_hexdigit())
+        .then_some(hexadecimal_digits)
 }
 
 fn resolve_displacement_size(
@@ -298,6 +316,19 @@ mod tests {
             Bitness::Bit32,
         )
         .expect("Expected x86 absolute memory operand to parse.");
+
+        assert_eq!(parsed_operand.base, Register::None);
+        assert_eq!(parsed_operand.displacement, 0x100579c);
+        assert_eq!(parsed_operand.displ_size, 4);
+    }
+
+    #[test]
+    fn parse_memory_operand_supports_intel_hex_suffix_absolute_addresses() {
+        let parsed_operand = parse_memory_operand(
+            &InstructionMemoryOperand::new(Some(InstructionMemoryOperandSize::Dword), "100579Ch"),
+            Bitness::Bit32,
+        )
+        .expect("Expected Intel hex-suffixed memory operand to parse.");
 
         assert_eq!(parsed_operand.base, Register::None);
         assert_eq!(parsed_operand.displacement, 0x100579c);

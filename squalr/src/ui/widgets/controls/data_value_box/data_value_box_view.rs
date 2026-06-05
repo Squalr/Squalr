@@ -13,6 +13,7 @@ pub struct DataValueBoxView<'lifetime> {
     app_context: Arc<AppContext>,
     anonymous_value_string: &'lifetime mut AnonymousValueString,
     validation_data_type: &'lifetime DataTypeRef,
+    custom_validation: Option<Box<dyn Fn(&AnonymousValueString) -> bool + 'lifetime>>,
     validation_scan_compare_type: Option<ScanCompareType>,
     display_values: Option<&'lifetime [AnonymousValueString]>,
     allowed_anonymous_value_string_formats: Option<Vec<AnonymousValueStringFormat>>,
@@ -64,6 +65,7 @@ impl<'lifetime> DataValueBoxView<'lifetime> {
             app_context,
             anonymous_value_string,
             validation_data_type,
+            custom_validation: None,
             validation_scan_compare_type: None,
             display_values: None,
             allowed_anonymous_value_string_formats: None,
@@ -105,6 +107,14 @@ impl<'lifetime> DataValueBoxView<'lifetime> {
         validation_scan_compare_type: ScanCompareType,
     ) -> Self {
         self.validation_scan_compare_type = Some(validation_scan_compare_type);
+        self
+    }
+
+    pub fn custom_validation(
+        mut self,
+        custom_validation: impl Fn(&AnonymousValueString) -> bool + 'lifetime,
+    ) -> Self {
+        self.custom_validation = Some(Box::new(custom_validation));
         self
     }
 
@@ -278,6 +288,8 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
         let theme = &self.app_context.theme;
         let is_valid = if self.skip_validation {
             true
+        } else if let Some(custom_validation) = self.custom_validation.as_ref() {
+            custom_validation(self.anonymous_value_string)
         } else {
             match self.validation_scan_compare_type {
                 Some(scan_compare_type) => self

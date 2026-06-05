@@ -39,6 +39,13 @@ Our current task, from `README.md`, is:
   - [ ] Repeat manual/human verification from CLI/TUI/GUI command surfaces.
 
 ## Important Information
+- After fixing Details Viewer instruction and pointer-offset takeover validation:
+  - Instruction takeover editing no longer skips `DataValueBoxView` validation, and Commit/Enter only submit when the same instruction data type validation used by deanonymize succeeds.
+  - The shared instruction parser now accepts Intel-style hex suffix immediates such as `100579Ch` only when the token starts with a digit, so register names like `ah` remain identifiers.
+  - The x86 memory operand lowering path now accepts Intel-style hex suffix displacements such as `[100579Ch]`, fixing the reported `dec dword [100579Ch]` edit for x86/x64 instruction data types.
+  - Pointer-offset takeover rows now use numeric offset validation instead of UTF-8 validation, reject plain string garbage such as `asedasdasd`, render invalid rows in the normal error color, and disable Accept while any row is invalid.
+  - Validation passed: `cargo fmt --all` with existing `fn_args_layout` deprecation warnings; `cargo test -p squalr-engine-api --locked parse_instruction_sequence_ -- --nocapture`; `cargo test -p squalr-plugin-instructions-x86 --locked -- --nocapture`; `cargo test -p squalr --locked pointer_offset_display_value_ -- --nocapture`; `cargo check -p squalr --locked`; `git diff --check` with only CRLF conversion warnings.
+  - GUI behavior against the originally failing Details Viewer edit flow still needs human verification after implementation and validation.
 - After renaming the built-in debugger plugin package:
   - Replaced the DbgEng-named plugin package with `plugins/squalr-plugin-debuggers-native`.
   - Renamed the public crate/type/plugin id to `squalr-plugin-debuggers-native`, `NativeDebuggersPlugin`, and `builtin.debuggers.native`.

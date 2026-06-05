@@ -23,7 +23,10 @@ use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::{
     engine::engine_execution_context::EngineExecutionContext,
     structures::{
-        data_types::{built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8, data_type_ref::DataTypeRef},
+        data_types::{
+            built_in_types::{i64::data_type_i64::DataTypeI64, string::utf8::data_type_string_utf8::DataTypeStringUtf8},
+            data_type_ref::DataTypeRef,
+        },
         data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
         memory::{pointer::Pointer, pointer_chain_segment::PointerChainSegment},
         pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
@@ -164,7 +167,7 @@ impl StructViewerView {
         let pointer_offset_text = pointer_offset_value.get_anonymous_value_string().trim();
 
         match pointer_offset_value.get_anonymous_value_string_format() {
-            AnonymousValueStringFormat::String => PointerChainSegment::from_str(pointer_offset_text).ok(),
+            AnonymousValueStringFormat::String => None,
             AnonymousValueStringFormat::Binary => {
                 Self::parse_pointer_offset_with_radix(pointer_offset_text, 2, Some("0b")).map(PointerChainSegment::new_offset)
             }
@@ -227,7 +230,13 @@ impl StructViewerView {
     }
 
     fn pointer_offset_data_type_ref() -> DataTypeRef {
-        DataTypeRef::new(DataTypeStringUtf8::DATA_TYPE_ID)
+        DataTypeRef::new(DataTypeI64::DATA_TYPE_ID)
+    }
+
+    fn pointer_offset_values_are_valid(pointer_offset_values: &[AnonymousValueString]) -> bool {
+        pointer_offset_values
+            .iter()
+            .all(|pointer_offset_value| Self::parse_pointer_offset_display_value(pointer_offset_value).is_some())
     }
 
     fn render_pointer_offset_icon_button(
@@ -354,14 +363,13 @@ impl StructViewerView {
                         &data_value_box_id,
                     )
                     .allowed_anonymous_value_string_formats(vec![
-                        AnonymousValueStringFormat::String,
                         AnonymousValueStringFormat::Binary,
                         AnonymousValueStringFormat::Decimal,
                         AnonymousValueStringFormat::Hexadecimal,
                         AnonymousValueStringFormat::Address,
                     ])
+                    .custom_validation(|pointer_offset_value| Self::parse_pointer_offset_display_value(pointer_offset_value).is_some())
                     .normalize_value_format(false)
-                    .skip_validation()
                     .use_format_text_colors(false)
                     .width(Self::POINTER_OFFSET_VALUE_BOX_WIDTH)
                     .height(Self::POINTER_OFFSET_FIELD_ROW_HEIGHT),
@@ -480,6 +488,7 @@ impl StructViewerView {
                     let button_spacing = 12.0;
                     let total_button_row_width = button_size.x * 2.0 + button_spacing;
                     let side_spacing = ((user_interface.available_width() - total_button_row_width) * 0.5).max(0.0);
+                    let can_save_offsets = Self::pointer_offset_values_are_valid(&pointer_offset_values);
 
                     user_interface.horizontal(|user_interface| {
                         user_interface.add_space(side_spacing);
@@ -495,13 +504,13 @@ impl StructViewerView {
                             *should_cancel_take_over = true;
                         }
 
-                        let accept_response = user_interface.add_sized(
-                            button_size,
-                            EguiButton::new(RichText::new("Accept").color(theme.foreground))
-                                .fill(theme.background_control_primary)
-                                .stroke(Stroke::new(1.0, theme.background_control_primary_dark)),
-                        );
-                        if accept_response.clicked() {
+                        let accept_button = EguiButton::new(RichText::new("Accept").color(theme.foreground))
+                            .fill(theme.background_control_primary)
+                            .stroke(Stroke::new(1.0, theme.background_control_primary_dark));
+                        let accept_response = user_interface
+                            .add_enabled_ui(can_save_offsets, |user_interface| user_interface.add_sized(button_size, accept_button))
+                            .inner;
+                        if accept_response.clicked() && can_save_offsets {
                             should_save_offsets = true;
                         }
                     });
@@ -509,11 +518,18 @@ impl StructViewerView {
             );
         });
 
-        if should_save_offsets {
-            let mut pointer_offsets = pointer_offset_values
+        if should_save_offsets && Self::pointer_offset_values_are_valid(&pointer_offset_values) {
+            let Some(mut pointer_offsets) = pointer_offset_values
                 .iter()
-                .filter_map(Self::parse_pointer_offset_display_value)
-                .collect::<Vec<PointerChainSegment>>();
+                .map(Self::parse_pointer_offset_display_value)
+                .collect::<Option<Vec<PointerChainSegment>>>()
+            else {
+                log::warn!("Failed to commit pointer offset edit because one or more offsets are invalid.");
+                user_interface
+                    .ctx()
+                    .data_mut(|data| data.insert_temp(pointer_offsets_storage_id, pointer_offset_values));
+                return;
+            };
             if pointer_offsets.is_empty() {
                 pointer_offsets.push(PointerChainSegment::new_offset(0));
             }
@@ -547,6 +563,7 @@ impl StructViewerView {
             .unwrap_or_else(|| initial_value_edit.clone());
         let instruction_editor_id = format!("struct_viewer_instruction_editor_{}", valued_struct_field.get_name());
         let mut should_save_instruction = false;
+        let mut is_instruction_edit_valid = false;
 
         self.render_take_over_panel(user_interface, "Edit instruction", |user_interface| {
             user_interface.add(
@@ -563,7 +580,6 @@ impl StructViewerView {
                             "",
                             &instruction_editor_id,
                         )
-                        .skip_validation()
                         .width(editor_width)
                         .height(32.0),
                     );
@@ -579,6 +595,10 @@ impl StructViewerView {
                     let button_spacing = 12.0;
                     let total_button_row_width = button_size.x * 2.0 + button_spacing;
                     let side_spacing = ((user_interface.available_width() - total_button_row_width) * 0.5).max(0.0);
+                    is_instruction_edit_valid = self
+                        .app_context
+                        .engine_unprivileged_state
+                        .validate_value_string(validation_data_type_ref, &instruction_edit);
 
                     user_interface.horizontal(|user_interface| {
                         user_interface.add_space(side_spacing);
@@ -594,13 +614,13 @@ impl StructViewerView {
                             *should_cancel_take_over = true;
                         }
 
-                        let commit_response = user_interface.add_sized(
-                            button_size,
-                            EguiButton::new(RichText::new("Commit").color(theme.foreground))
-                                .fill(theme.background_control_primary)
-                                .stroke(Stroke::new(1.0, theme.background_control_primary_dark)),
-                        );
-                        if commit_response.clicked() {
+                        let commit_button = EguiButton::new(RichText::new("Commit").color(theme.foreground))
+                            .fill(theme.background_control_primary)
+                            .stroke(Stroke::new(1.0, theme.background_control_primary_dark));
+                        let commit_response = user_interface
+                            .add_enabled_ui(is_instruction_edit_valid, |user_interface| user_interface.add_sized(button_size, commit_button))
+                            .inner;
+                        if commit_response.clicked() && is_instruction_edit_valid {
                             should_save_instruction = true;
                         }
                     });
@@ -608,11 +628,11 @@ impl StructViewerView {
             );
         });
 
-        if DataValueBoxView::consume_commit_on_enter(user_interface, &instruction_editor_id) {
+        if DataValueBoxView::consume_commit_on_enter(user_interface, &instruction_editor_id) && is_instruction_edit_valid {
             should_save_instruction = true;
         }
 
-        if should_save_instruction {
+        if should_save_instruction && is_instruction_edit_valid {
             match self
                 .app_context
                 .engine_unprivileged_state
@@ -835,6 +855,34 @@ impl StructViewerView {
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::StructViewerView;
+    use squalr_engine_api::structures::{
+        data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
+        memory::pointer_chain_segment::PointerChainSegment,
+    };
+
+    #[test]
+    fn pointer_offset_display_value_rejects_plain_string_text() {
+        let pointer_offset_value = AnonymousValueString::new(String::from("asedasdasd"), AnonymousValueStringFormat::String, ContainerType::None);
+
+        assert_eq!(StructViewerView::parse_pointer_offset_display_value(&pointer_offset_value), None);
+        assert!(!StructViewerView::pointer_offset_values_are_valid(&[pointer_offset_value]));
+    }
+
+    #[test]
+    fn pointer_offset_display_value_accepts_signed_hex_offsets() {
+        let pointer_offset_value = AnonymousValueString::new(String::from("-0x10"), AnonymousValueStringFormat::Hexadecimal, ContainerType::None);
+
+        assert_eq!(
+            StructViewerView::parse_pointer_offset_display_value(&pointer_offset_value),
+            Some(PointerChainSegment::Offset(-0x10))
+        );
+        assert!(StructViewerView::pointer_offset_values_are_valid(&[pointer_offset_value]));
     }
 }
 impl Widget for StructViewerView {
