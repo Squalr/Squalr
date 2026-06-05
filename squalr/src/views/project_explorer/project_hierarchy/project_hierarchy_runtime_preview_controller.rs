@@ -23,7 +23,7 @@ pub struct ProjectHierarchyRuntimePreviewController {
 impl ProjectHierarchyRuntimePreviewController {
     const MIN_PROJECT_READ_INTERVAL_MS: u64 = 50;
     const MAX_PROJECT_READ_INTERVAL_MS: u64 = 5_000;
-    const PROJECT_ITEM_PREVIEW_VIRTUAL_SNAPSHOT_ID: &'static str = "project_hierarchy_preview";
+    pub const PROJECT_ITEM_PREVIEW_VIRTUAL_SNAPSHOT_ID: &'static str = "project_hierarchy_preview";
 
     pub fn new(
         app_context: Arc<AppContext>,
@@ -129,7 +129,7 @@ impl ProjectHierarchyRuntimePreviewController {
         self.apply_project_item_virtual_snapshot_results();
     }
 
-    fn apply_project_item_virtual_snapshot_results(&self) {
+    pub fn apply_project_item_virtual_snapshot_results(&self) {
         let Some(virtual_snapshot) = self
             .app_context
             .engine_unprivileged_state

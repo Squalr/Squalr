@@ -127,6 +127,10 @@ impl Widget for ProjectHierarchyView {
             .ctx()
             .request_repaint_after(project_read_interval);
 
+        runtime_preview_controller.apply_project_item_virtual_snapshot_results();
+        self.app_context
+            .engine_unprivileged_state
+            .request_virtual_snapshot_refresh(ProjectHierarchyRuntimePreviewController::PROJECT_ITEM_PREVIEW_VIRTUAL_SNAPSHOT_ID);
         runtime_preview_controller.refresh_if_project_preview_values_stale(project_read_interval);
 
         let project_hierarchy_toolbar_view = self.project_hierarchy_toolbar_view.clone();

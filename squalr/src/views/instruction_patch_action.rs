@@ -1,4 +1,10 @@
-use crate::{app_context::AppContext, views::process_selector::view_data::process_selector_view_data::ProcessSelectorViewData};
+use crate::{
+    app_context::AppContext,
+    views::{
+        process_selector::view_data::process_selector_view_data::ProcessSelectorViewData,
+        project_explorer::project_hierarchy::project_hierarchy_runtime_preview_controller::ProjectHierarchyRuntimePreviewController,
+    },
+};
 use squalr_engine_api::{
     commands::{
         patches::{
@@ -40,12 +46,15 @@ impl InstructionPatchAction {
         address: u64,
         module_name: String,
     ) {
+        let engine_unprivileged_state = app_context.engine_unprivileged_state.clone();
+        let refresh_engine_unprivileged_state = engine_unprivileged_state.clone();
+
         PatchRestoreAddressRequest {
             address,
             module_name,
             expected_kind: Some(PatchKind::NoOperation),
         }
-        .send(&app_context.engine_unprivileged_state, |patch_restore_address_response| {
+        .send(&engine_unprivileged_state, move |patch_restore_address_response| {
             if !patch_restore_address_response.status.get_success() {
                 log::warn!(
                     "Restore original code failed: {}.",
@@ -54,6 +63,9 @@ impl InstructionPatchAction {
                         .get_message()
                         .unwrap_or("unknown error")
                 );
+            } else {
+                refresh_engine_unprivileged_state
+                    .force_virtual_snapshot_refresh(ProjectHierarchyRuntimePreviewController::PROJECT_ITEM_PREVIEW_VIRTUAL_SNAPSHOT_ID);
             }
         });
     }
@@ -64,7 +76,10 @@ impl InstructionPatchAction {
         module_name: String,
         label: Option<String>,
     ) {
-        PatchNoOperationRequest { address, module_name, label }.send(&app_context.engine_unprivileged_state, |patch_apply_response| {
+        let engine_unprivileged_state = app_context.engine_unprivileged_state.clone();
+        let refresh_engine_unprivileged_state = engine_unprivileged_state.clone();
+
+        PatchNoOperationRequest { address, module_name, label }.send(&engine_unprivileged_state, move |patch_apply_response| {
             if !patch_apply_response.status.get_success() {
                 log::warn!(
                     "Replace with no-operation patch failed: {}.",
@@ -73,6 +88,9 @@ impl InstructionPatchAction {
                         .get_message()
                         .unwrap_or("unknown error")
                 );
+            } else {
+                refresh_engine_unprivileged_state
+                    .force_virtual_snapshot_refresh(ProjectHierarchyRuntimePreviewController::PROJECT_ITEM_PREVIEW_VIRTUAL_SNAPSHOT_ID);
             }
         });
     }

@@ -653,6 +653,17 @@ Our current task, from `README.md`, is:
   - `cargo test -p squalr --locked instruction_alias_label_is_preserved -- --nocapture` passed.
   - `git diff --check` passed.
   - Darwin-specific `sysctl.proc_cputype` behavior still needs human verification on macOS.
+- After fixing stale project instruction previews after no-op/restore patches:
+  - Root cause: Project Explorer row previews are backed by a GUI virtual snapshot. Successful NOP/restore patch commands did not invalidate that snapshot, and the view only applied completed async preview reads when starting a new periodic refresh, so the preview could keep showing pre-patch instruction text.
+  - Added forced virtual-snapshot refresh support in `EngineUnprivilegedState`; forced refresh marks the snapshot dirty and bypasses the normal preview interval when the snapshot is idle.
+  - If a forced refresh is requested while a preview read is already in flight, the snapshot is marked dirty so a post-patch read is required after the in-flight result completes.
+  - Project Explorer now applies completed preview snapshot results every frame and asks the snapshot layer every frame whether a dirty refresh is pending.
+  - Successful instruction NOP and restore actions now force-refresh the Project Explorer preview virtual snapshot.
+  - `cargo fmt --all` completed with the existing `.rustfmt.toml` deprecation warnings for `fn_args_layout`.
+  - `cargo test -p squalr-engine-session --locked virtual_snapshot -- --nocapture` passed.
+  - `cargo test -p squalr --locked instruction_project_item_preview -- --nocapture` passed.
+  - `cargo check -p squalr --locked` passed.
+  - GUI behavior against the reported paused-trace NOP flow needs human verification after implementation and validation.
 - References checked:
   - Local Rust workspace plugin/session/target architecture.
   - Old C# implementation under `C:\Projects\Squalr\Squalr.Engine.Debugger`.

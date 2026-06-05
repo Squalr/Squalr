@@ -469,14 +469,35 @@ impl EngineUnprivilegedState {
         self: &Arc<Self>,
         virtual_snapshot_id: &str,
     ) {
+        self.request_virtual_snapshot_refresh_with_mode(virtual_snapshot_id, false);
+    }
+
+    pub fn force_virtual_snapshot_refresh(
+        self: &Arc<Self>,
+        virtual_snapshot_id: &str,
+    ) {
+        self.request_virtual_snapshot_refresh_with_mode(virtual_snapshot_id, true);
+    }
+
+    fn request_virtual_snapshot_refresh_with_mode(
+        self: &Arc<Self>,
+        virtual_snapshot_id: &str,
+        force_refresh: bool,
+    ) {
         let (queries, refresh_query_version) = match self.virtual_snapshots.write() {
             Ok(mut virtual_snapshots) => {
                 let Some(virtual_snapshot) = virtual_snapshots.get_mut(virtual_snapshot_id) else {
                     return;
                 };
                 let now = Instant::now();
+                let should_refresh = if force_refresh {
+                    virtual_snapshot.mark_dirty();
+                    virtual_snapshot.can_force_refresh()
+                } else {
+                    virtual_snapshot.should_refresh(now)
+                };
 
-                if !virtual_snapshot.should_refresh(now) {
+                if !should_refresh {
                     return;
                 }
 
