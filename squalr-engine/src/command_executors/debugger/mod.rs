@@ -105,7 +105,7 @@ fn set_software_breakpoint_patch(
     ) {
         Ok(patch) => DebuggerBreakpointSetResponse {
             status: DebuggerCommandStatus::success(),
-            breakpoint: Some(DebuggerBreakpointDescriptor::new(
+            breakpoint: Some(DebuggerBreakpointDescriptor::new_memory_patch(
                 format!("{}{}", PATCH_SOFTWARE_BREAKPOINT_ID_PREFIX, patch.get_patch_id()),
                 patch.get_region().get_base_address(),
                 DebuggerBreakpointKind::Software,
@@ -389,7 +389,7 @@ impl PrivilegedCommandRequestExecutor for DebuggerBreakpointListRequest {
                             .into_iter()
                             .filter(|patch| patch.get_kind() == PatchKind::SoftwareBreakpoint)
                             .map(|patch| {
-                                DebuggerBreakpointDescriptor::new(
+                                DebuggerBreakpointDescriptor::new_memory_patch(
                                     format!("{}{}", PATCH_SOFTWARE_BREAKPOINT_ID_PREFIX, patch.get_patch_id()),
                                     patch.get_region().get_base_address(),
                                     DebuggerBreakpointKind::Software,

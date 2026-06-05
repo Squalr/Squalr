@@ -1,7 +1,7 @@
 use crate::process_query::process_query_error::ProcessQueryError;
 use crate::process_query::process_query_options::ProcessQueryOptions;
 use crate::process_query::process_queryer::ProcessQueryer;
-use libc::{PROC_PIDPATHINFO_MAXSIZE, c_void, proc_pidpath};
+use libc::{PROC_PIDPATHINFO_MAXSIZE, c_void, proc_pidpath, size_t, sysctl, sysctlnametomib};
 use mach2::kern_return::KERN_SUCCESS;
 use mach2::mach_port::mach_port_deallocate;
 use mach2::port::{MACH_PORT_NULL, mach_port_name_t, mach_port_t};
@@ -14,8 +14,9 @@ use squalr_engine_api::structures::processes::process_icon::ProcessIcon;
 use squalr_engine_api::structures::processes::process_info::ProcessInfo;
 use squalr_engine_api::structures::processes::target_architecture::{Endianness, TargetArchitecture};
 use std::collections::HashSet;
+use std::ffi::CString;
 use std::fs;
-use std::os::raw::c_int;
+use std::os::raw::{c_int, c_uint};
 use std::path::{Path, PathBuf};
 use sysinfo::{Pid, ProcessRefreshKind, RefreshKind, System};
 
@@ -155,10 +156,57 @@ impl MacOsProcessQuery {
     }
 
     fn get_process_target_architecture(process_id: u32) -> TargetArchitecture {
-        Self::get_process_executable_path(&Pid::from_u32(process_id))
-            .and_then(|executable_path| fs::read(executable_path).ok())
-            .and_then(|executable_bytes| Self::parse_mach_target_architecture_from_bytes(&executable_bytes))
+        Self::query_live_process_cpu_type(process_id)
+            .map(|cpu_type| Self::target_architecture_from_mach_cpu_type(cpu_type, Endianness::Little))
+            .or_else(|| {
+                Self::get_process_executable_path(&Pid::from_u32(process_id))
+                    .and_then(|executable_path| fs::read(executable_path).ok())
+                    .and_then(|executable_bytes| Self::parse_mach_target_architecture_from_bytes(&executable_bytes))
+            })
             .unwrap_or_else(Self::default_target_architecture)
+    }
+
+    fn query_live_process_cpu_type(process_id: u32) -> Option<i32> {
+        let sysctl_name = CString::new("sysctl.proc_cputype").ok()?;
+        let mut management_information_base = [0 as c_int; 8];
+        let mut management_information_base_len = management_information_base.len() as size_t;
+
+        if unsafe {
+            sysctlnametomib(
+                sysctl_name.as_ptr(),
+                management_information_base.as_mut_ptr(),
+                &mut management_information_base_len,
+            )
+        } != 0
+        {
+            return None;
+        }
+
+        if management_information_base_len >= management_information_base.len() as size_t {
+            return None;
+        }
+
+        management_information_base[management_information_base_len as usize] = process_id as c_int;
+        management_information_base_len += 1;
+
+        let mut cpu_type: c_int = 0;
+        let mut cpu_type_size = std::mem::size_of::<c_int>() as size_t;
+
+        if unsafe {
+            sysctl(
+                management_information_base.as_mut_ptr(),
+                management_information_base_len as c_uint,
+                &mut cpu_type as *mut c_int as *mut c_void,
+                &mut cpu_type_size,
+                std::ptr::null_mut(),
+                0,
+            )
+        } != 0
+        {
+            return None;
+        }
+
+        Some(cpu_type)
     }
 
     fn parse_mach_target_architecture_from_bytes(executable_bytes: &[u8]) -> Option<TargetArchitecture> {

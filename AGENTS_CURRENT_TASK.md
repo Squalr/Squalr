@@ -635,6 +635,24 @@ Our current task, from `README.md`, is:
   - Removed icons from the Debugger Trace `Replace with Code That Does Nothing` and `Restore Original Code` context-menu rows.
   - `cargo fmt --all` completed with the existing `.rustfmt.toml` deprecation warnings for `fn_args_layout`.
   - `cargo check -p squalr --locked` passed.
+- After addressing the remaining architecture/debugger review items:
+  - Patch-backed software breakpoint descriptors now carry an explicit `MemoryPatch` mechanism, while debugger backend breakpoints default to `Debugger`.
+  - Added a first-instruction-length hook to the instruction-set trait so no-op replacement can patch by decoded length without requiring full mnemonic support on fixed-width ISAs.
+  - ARM-family instructions now expose first-class `thumb` / `i_thumb` support with Thumb16 NOP/BKPT/BX/B/MOVS handling, Thumb-2 32-bit length detection, and Thumb NOP/breakpoint patch bytes.
+  - ARM, ARM64, and PowerPC report 4-byte instruction length even when the built-in disassembler does not know the exact mnemonic, so no-op replacement can still operate on fixed-width instructions.
+  - `TargetArchitecture` now exposes `thumb()` and an ARM32 interworking-address helper that selects Thumb when address bit 0 is set and clears that state bit for the real code address.
+  - macOS target architecture detection now asks the native provider for the live process CPU type via `sysctl.proc_cputype` before falling back to Mach-O header parsing.
+  - `cargo fmt --all` completed with the existing `.rustfmt.toml` deprecation warnings for `fn_args_layout`.
+  - `cargo test -p squalr-plugin-instructions-arm --locked -- --nocapture` passed.
+  - `cargo test -p squalr-plugin-instructions-powerpc --locked -- --nocapture` passed.
+  - `cargo test -p squalr-engine --locked no_operation_patch -- --nocapture` passed.
+  - `cargo test -p squalr-engine-api --locked target_architecture -- --nocapture` passed.
+  - `cargo test -p squalr-engine-api --locked instruction_set_id_from_instruction_data_type_id -- --nocapture` passed.
+  - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
+  - `cargo test -p squalr-plugin-debugger-dbgeng --locked -- --nocapture` passed.
+  - `cargo test -p squalr --locked instruction_alias_label_is_preserved -- --nocapture` passed.
+  - `git diff --check` passed.
+  - Darwin-specific `sysctl.proc_cputype` behavior still needs human verification on macOS.
 - References checked:
   - Local Rust workspace plugin/session/target architecture.
   - Old C# implementation under `C:\Projects\Squalr\Squalr.Engine.Debugger`.

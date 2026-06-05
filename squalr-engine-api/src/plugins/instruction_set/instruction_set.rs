@@ -50,6 +50,18 @@ pub trait InstructionSet: Debug + Send + Sync {
         }])
     }
 
+    fn get_first_instruction_length(
+        &self,
+        instruction_bytes: &[u8],
+    ) -> Result<usize, String> {
+        self.disassemble_block(instruction_bytes, 0)?
+            .into_iter()
+            .next()
+            .map(|instruction| instruction.length)
+            .filter(|instruction_length| *instruction_length > 0 && *instruction_length <= instruction_bytes.len())
+            .ok_or_else(|| String::from("The instruction length could not be decoded."))
+    }
+
     fn build_no_operation_fill(
         &self,
         byte_count: usize,

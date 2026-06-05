@@ -1,6 +1,13 @@
 use crate::structures::debugger::debugger_breakpoint_kind::DebuggerBreakpointKind;
 use serde::{Deserialize, Serialize};
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub enum DebuggerBreakpointMechanism {
+    #[default]
+    Debugger,
+    MemoryPatch,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct DebuggerBreakpointDescriptor {
     breakpoint_id: String,
@@ -8,6 +15,8 @@ pub struct DebuggerBreakpointDescriptor {
     kind: DebuggerBreakpointKind,
     is_enabled: bool,
     label: Option<String>,
+    #[serde(default)]
+    mechanism: DebuggerBreakpointMechanism,
 }
 
 impl DebuggerBreakpointDescriptor {
@@ -24,6 +33,24 @@ impl DebuggerBreakpointDescriptor {
             kind,
             is_enabled,
             label,
+            mechanism: DebuggerBreakpointMechanism::Debugger,
+        }
+    }
+
+    pub fn new_memory_patch(
+        breakpoint_id: impl Into<String>,
+        address: u64,
+        kind: DebuggerBreakpointKind,
+        is_enabled: bool,
+        label: Option<String>,
+    ) -> Self {
+        Self {
+            breakpoint_id: breakpoint_id.into(),
+            address,
+            kind,
+            is_enabled,
+            label,
+            mechanism: DebuggerBreakpointMechanism::MemoryPatch,
         }
     }
 
@@ -37,6 +64,10 @@ impl DebuggerBreakpointDescriptor {
 
     pub fn get_kind(&self) -> &DebuggerBreakpointKind {
         &self.kind
+    }
+
+    pub fn get_mechanism(&self) -> DebuggerBreakpointMechanism {
+        self.mechanism
     }
 
     pub fn get_is_enabled(&self) -> bool {

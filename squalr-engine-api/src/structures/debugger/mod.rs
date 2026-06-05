@@ -9,7 +9,7 @@ pub mod debugger_trace_event;
 pub mod debugger_trace_instruction_record;
 pub mod debugger_trace_session_descriptor;
 
-pub use debugger_breakpoint_descriptor::DebuggerBreakpointDescriptor;
+pub use debugger_breakpoint_descriptor::{DebuggerBreakpointDescriptor, DebuggerBreakpointMechanism};
 pub use debugger_breakpoint_kind::DebuggerBreakpointKind;
 pub use debugger_command_status::DebuggerCommandStatus;
 pub use debugger_data_breakpoint_access::DebuggerDataBreakpointAccess;

@@ -85,6 +85,17 @@ impl InstructionSet for PowerPc32BeInstructionSet {
         Ok(format_decoded_instruction_sequence(&decoded_instructions, instruction_bytes.len()))
     }
 
+    fn get_first_instruction_length(
+        &self,
+        instruction_bytes: &[u8],
+    ) -> Result<usize, String> {
+        if instruction_bytes.len() < 4 {
+            Err(String::from("PowerPC32 BE instruction length decoding requires at least 4 bytes."))
+        } else {
+            Ok(4)
+        }
+    }
+
     fn build_no_operation_fill(
         &self,
         byte_count: usize,

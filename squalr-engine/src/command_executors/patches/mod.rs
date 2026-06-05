@@ -94,17 +94,11 @@ impl PrivilegedCommandRequestExecutor for PatchNoOperationRequest {
                     };
                 }
             };
-        let instruction_byte_count = match instruction_set
-            .disassemble_block(&instruction_bytes, 0)
-            .ok()
-            .and_then(|instructions| instructions.into_iter().next())
-            .map(|instruction| instruction.length)
-            .filter(|instruction_byte_count| *instruction_byte_count > 0 && *instruction_byte_count <= instruction_bytes.len())
-        {
-            Some(instruction_byte_count) => instruction_byte_count,
-            None => {
+        let instruction_byte_count = match instruction_set.get_first_instruction_length(&instruction_bytes) {
+            Ok(instruction_byte_count) => instruction_byte_count,
+            Err(error_message) => {
                 return PatchNoOperationResponse {
-                    status: failure_status("The instruction length could not be decoded."),
+                    status: failure_status(error_message),
                     patch: None,
                 };
             }
@@ -471,9 +465,7 @@ mod tests {
         engine_privileged_state::EnginePrivilegedState,
         os::{
             ProcessQueryError, ProcessQueryOptions,
-            engine_os_provider::{
-                EngineOsProviders, MemoryQueryProvider, MemoryReadProvider, MemoryWriteProvider, ProcessQueryProvider,
-            },
+            engine_os_provider::{EngineOsProviders, MemoryQueryProvider, MemoryReadProvider, MemoryWriteProvider, ProcessQueryProvider},
         },
     };
     use std::sync::{Arc, Mutex, RwLock};
@@ -743,6 +735,29 @@ mod tests {
     }
 
     #[test]
+    fn no_operation_patch_replaces_fixed_width_instruction_without_full_disassembly() {
+        let test_memory = TestMemory::new(0x1000, vec![0xAA, 0xBB, 0xCC, 0xDD]);
+        let opened_process_info =
+            OpenedProcessInfo::new(1, String::from("arm64-target"), 1, Bitness::Bit64, None).with_target_architecture(TargetArchitecture::arm64());
+        let engine_privileged_state = create_test_engine_privileged_state(opened_process_info, vec![NormalizedRegion::new(0x1000, 0x4)], test_memory.clone());
+        let patch_no_operation_request = PatchNoOperationRequest {
+            address: 0x1000,
+            module_name: String::new(),
+            label: None,
+        };
+
+        let patch_no_operation_response = patch_no_operation_request.execute(&engine_privileged_state);
+
+        assert!(
+            patch_no_operation_response.status.get_success(),
+            "Expected fixed-width no-operation patch to succeed: {:?}.",
+            patch_no_operation_response.status.get_message()
+        );
+        assert_eq!(test_memory.read_lengths(), vec![4, 4]);
+        assert_eq!(test_memory.written_bytes(), vec![vec![0x1F, 0x20, 0x03, 0xD5]]);
+    }
+
+    #[test]
     fn no_operation_patch_clamps_instruction_read_to_remaining_region_size() {
         let test_memory = TestMemory::new(0x1000, vec![0xAA, 0xBB, 0x90]);
         let opened_process_info =
@@ -763,5 +778,51 @@ mod tests {
         );
         assert_eq!(test_memory.read_lengths(), vec![1, 1]);
         assert_eq!(test_memory.written_bytes(), vec![vec![0x90]]);
+    }
+
+    #[test]
+    fn no_operation_patch_replaces_thumb16_instruction_with_two_byte_nop() {
+        let test_memory = TestMemory::new(0x1000, vec![0x70, 0x47, 0xAA, 0xBB]);
+        let opened_process_info =
+            OpenedProcessInfo::new(1, String::from("thumb-target"), 1, Bitness::Bit32, None).with_target_architecture(TargetArchitecture::thumb());
+        let engine_privileged_state = create_test_engine_privileged_state(opened_process_info, vec![NormalizedRegion::new(0x1000, 0x4)], test_memory.clone());
+        let patch_no_operation_request = PatchNoOperationRequest {
+            address: 0x1000,
+            module_name: String::new(),
+            label: None,
+        };
+
+        let patch_no_operation_response = patch_no_operation_request.execute(&engine_privileged_state);
+
+        assert!(
+            patch_no_operation_response.status.get_success(),
+            "Expected Thumb16 no-operation patch to succeed: {:?}.",
+            patch_no_operation_response.status.get_message()
+        );
+        assert_eq!(test_memory.read_lengths(), vec![4, 2]);
+        assert_eq!(test_memory.written_bytes(), vec![vec![0x00, 0xBF]]);
+    }
+
+    #[test]
+    fn no_operation_patch_replaces_thumb32_instruction_with_four_byte_nop_fill() {
+        let test_memory = TestMemory::new(0x1000, vec![0x00, 0xF0, 0x00, 0x80]);
+        let opened_process_info =
+            OpenedProcessInfo::new(1, String::from("thumb-target"), 1, Bitness::Bit32, None).with_target_architecture(TargetArchitecture::thumb());
+        let engine_privileged_state = create_test_engine_privileged_state(opened_process_info, vec![NormalizedRegion::new(0x1000, 0x4)], test_memory.clone());
+        let patch_no_operation_request = PatchNoOperationRequest {
+            address: 0x1000,
+            module_name: String::new(),
+            label: None,
+        };
+
+        let patch_no_operation_response = patch_no_operation_request.execute(&engine_privileged_state);
+
+        assert!(
+            patch_no_operation_response.status.get_success(),
+            "Expected Thumb32 no-operation patch to succeed: {:?}.",
+            patch_no_operation_response.status.get_message()
+        );
+        assert_eq!(test_memory.read_lengths(), vec![4, 4]);
+        assert_eq!(test_memory.written_bytes(), vec![vec![0x00, 0xBF, 0x00, 0xBF]]);
     }
 }

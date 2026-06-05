@@ -56,6 +56,18 @@ impl TargetArchitecture {
         Self::new("arm", "i_arm", Bitness::Bit32, Endianness::Little)
     }
 
+    pub fn thumb() -> Self {
+        Self::new("thumb", "i_thumb", Bitness::Bit32, Endianness::Little)
+    }
+
+    pub fn arm32_from_interworking_address(address: u64) -> (Self, u64) {
+        if address & 1 == 0 {
+            (Self::arm(), address)
+        } else {
+            (Self::thumb(), address & !1)
+        }
+    }
+
     pub fn arm64() -> Self {
         Self::new("arm64", "i_arm64", Bitness::Bit64, Endianness::Little)
     }
@@ -84,5 +96,27 @@ impl TargetArchitecture {
 impl Default for TargetArchitecture {
     fn default() -> Self {
         Self::x64()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::TargetArchitecture;
+
+    #[test]
+    fn arm32_interworking_address_selects_thumb_and_clears_state_bit() {
+        let (target_architecture, normalized_address) = TargetArchitecture::arm32_from_interworking_address(0x1001);
+
+        assert_eq!(target_architecture.get_instruction_set_id(), "thumb");
+        assert_eq!(target_architecture.get_instruction_data_type_id(), "i_thumb");
+        assert_eq!(normalized_address, 0x1000);
+    }
+
+    #[test]
+    fn arm32_interworking_address_selects_arm_for_aligned_address() {
+        let (target_architecture, normalized_address) = TargetArchitecture::arm32_from_interworking_address(0x1000);
+
+        assert_eq!(target_architecture.get_instruction_set_id(), "arm");
+        assert_eq!(normalized_address, 0x1000);
     }
 }
