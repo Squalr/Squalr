@@ -4,7 +4,7 @@ use squalr_engine_api::plugins::PluginPackage;
 use squalr_plugin_binary_symbols::BinarySymbolsPlugin;
 use squalr_plugin_data_types_24bit::TwentyFourBitDataTypesPlugin;
 #[cfg(windows)]
-use squalr_plugin_debugger_windbg::WindbgDebuggerPlugin;
+use squalr_plugin_debugger_dbgeng::DbgEngDebuggerPlugin;
 use squalr_plugin_instructions_arm::ArmFamilyInstructionsPlugin;
 use squalr_plugin_instructions_powerpc::PowerPcFamilyInstructionsPlugin;
 use squalr_plugin_instructions_x86::X86FamilyInstructionsPlugin;
@@ -21,7 +21,7 @@ pub fn get_builtin_plugin_packages() -> Vec<Arc<dyn PluginPackage>> {
     ];
 
     #[cfg(windows)]
-    plugin_packages.push(Arc::new(WindbgDebuggerPlugin::new()));
+    plugin_packages.push(Arc::new(DbgEngDebuggerPlugin::new()));
 
     plugin_packages
 }
@@ -139,12 +139,12 @@ mod tests {
 
     #[cfg(windows)]
     #[test]
-    fn builtins_include_windbg_debugger_plugin_package_on_windows() {
+    fn builtins_include_dbgeng_debugger_plugin_package_on_windows() {
         let plugins = get_builtin_plugin_packages();
         let plugin = plugins
             .iter()
-            .find(|plugin| plugin.metadata().get_plugin_id() == "builtin.debugger.windbg")
-            .expect("Expected the WinDbg debugger package to be registered on Windows.");
+            .find(|plugin| plugin.metadata().get_plugin_id() == "builtin.debugger.dbgeng")
+            .expect("Expected the DbgEng debugger package to be registered on Windows.");
 
         assert!(
             plugin

@@ -76,6 +76,7 @@ struct PointerPreviewEvaluation {
 }
 
 const PROJECT_ITEM_PREVIEW_FORMAT_OPTIONS: DataValuePreviewFormatOptions = DataValuePreviewFormatOptions::new(4, 96, 96);
+const FALLBACK_INSTRUCTION_PREVIEW_BYTE_COUNT: u64 = 16;
 
 pub fn refresh_project_item_display_values(
     engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
@@ -286,11 +287,18 @@ fn build_project_item_preview_read_definition(
 ) -> Option<ProjectItemPreviewReadDefinition> {
     if let Some(instruction_data_type_id) = normalize_instruction_preview_data_type_id(symbolic_struct_namespace) {
         let instruction_set_id = instruction_set_id_from_instruction_data_type_id(&instruction_data_type_id);
+        let instruction_preview_byte_count = instruction_set_id
+            .as_deref()
+            .and_then(|instruction_set_id| engine_unprivileged_state.find_instruction_set(instruction_set_id))
+            .map(|instruction_set| instruction_set.get_max_instruction_size() as u64)
+            .filter(|instruction_preview_byte_count| *instruction_preview_byte_count > 0)
+            .unwrap_or(FALLBACK_INSTRUCTION_PREVIEW_BYTE_COUNT);
+
         return Some(ProjectItemPreviewReadDefinition {
-            layout_key: format!("{}|instruction-preview:16", instruction_data_type_id),
+            layout_key: format!("{}|instruction-preview:{}", instruction_data_type_id, instruction_preview_byte_count),
             symbolic_struct_definition: SymbolicStructDefinition::new_anonymous(vec![SymbolicFieldDefinition::new(
                 DataTypeRef::new("u8"),
-                ContainerType::ArrayFixed(16),
+                ContainerType::ArrayFixed(instruction_preview_byte_count),
             )]),
             symbolic_field_container_type: ContainerType::None,
             preview_was_truncated: false,
@@ -1150,12 +1158,12 @@ mod tests {
             .expect("Expected instruction preview field.");
 
         assert_eq!(preview_field.get_data_type_ref().get_data_type_id(), "u8");
-        assert_eq!(preview_field.get_container_type(), ContainerType::ArrayFixed(16));
+        assert_eq!(preview_field.get_container_type(), ContainerType::ArrayFixed(15));
         assert_eq!(
             project_item_preview_read_definition
                 .symbolic_struct_definition
                 .get_size_in_bytes(&SymbolRegistry::new()),
-            16
+            15
         );
         assert_eq!(project_item_preview_read_definition.symbolic_field_container_type, ContainerType::None);
         assert_eq!(

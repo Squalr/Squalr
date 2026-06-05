@@ -257,6 +257,10 @@ impl InstructionSet for X86InstructionSet {
         self.inner.display_name
     }
 
+    fn get_max_instruction_size(&self) -> usize {
+        15
+    }
+
     fn assemble(
         &self,
         assembly_source: &str,
@@ -502,6 +506,10 @@ impl InstructionSet for X64InstructionSet {
 
     fn get_display_name(&self) -> &str {
         self.inner.display_name
+    }
+
+    fn get_max_instruction_size(&self) -> usize {
+        15
     }
 
     fn assemble(

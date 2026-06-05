@@ -1,13 +1,13 @@
-use crate::constants::WINDBG_DEBUGGER_PLUGIN_ID;
+use crate::constants::DBGENG_DEBUGGER_PLUGIN_ID;
 use squalr_engine_api::plugins::debugger::DebuggerTraceEventSink;
 use squalr_engine_api::structures::debugger::{DebuggerBreakpointDescriptor, DebuggerBreakpointKind, DebuggerRegisterSnapshot};
 use squalr_engine_api::{plugins::debugger::DebuggerPluginError, structures::processes::opened_process_info::OpenedProcessInfo};
 
-pub(crate) struct WindbgBackend {
+pub(crate) struct DbgEngBackend {
     _process_info: OpenedProcessInfo,
 }
 
-impl WindbgBackend {
+impl DbgEngBackend {
     pub(crate) fn new(
         process_info: OpenedProcessInfo,
         _trace_event_sink: DebuggerTraceEventSink,
@@ -72,6 +72,6 @@ impl WindbgBackend {
     }
 
     pub(crate) fn unavailable_error(&self) -> DebuggerPluginError {
-        DebuggerPluginError::new(WINDBG_DEBUGGER_PLUGIN_ID, "WinDbg DbgEng debugger backend is only available on Windows.")
+        DebuggerPluginError::new(DBGENG_DEBUGGER_PLUGIN_ID, "DbgEng debugger backend is only available on Windows.")
     }
 }

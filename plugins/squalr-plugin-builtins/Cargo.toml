@@ -14,4 +14,4 @@ squalr-plugin-memory-view-dolphin = { path = "../squalr-plugin-memory-view-dolph
 squalr-plugin-binary-symbols = { path = "../squalr-plugin-binary-symbols" }
 
 [target.'cfg(windows)'.dependencies]
-squalr-plugin-debugger-windbg = { path = "../squalr-plugin-debugger-windbg" }
+squalr-plugin-debugger-dbgeng = { path = "../squalr-plugin-debugger-dbgeng" }

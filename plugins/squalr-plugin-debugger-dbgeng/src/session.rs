@@ -1,30 +1,30 @@
-use crate::{backend::WindbgBackend, constants::WINDBG_DEBUGGER_PLUGIN_ID};
+use crate::{backend::DbgEngBackend, constants::DBGENG_DEBUGGER_PLUGIN_ID};
 use squalr_engine_api::{
     plugins::debugger::{DebuggerPluginError, DebuggerSession, DebuggerTraceEventSink},
     structures::debugger::{DebuggerBreakpointDescriptor, DebuggerBreakpointKind, DebuggerRegisterSnapshot, DebuggerSessionState},
     structures::processes::opened_process_info::OpenedProcessInfo,
 };
 
-pub(crate) struct WindbgDebuggerSession {
-    backend: WindbgBackend,
+pub(crate) struct DbgEngDebuggerSession {
+    backend: DbgEngBackend,
     session_state: DebuggerSessionState,
 }
 
-impl WindbgDebuggerSession {
+impl DbgEngDebuggerSession {
     pub(crate) fn new(
         process_info: OpenedProcessInfo,
         trace_event_sink: DebuggerTraceEventSink,
     ) -> Self {
         Self {
-            backend: WindbgBackend::new(process_info, trace_event_sink),
+            backend: DbgEngBackend::new(process_info, trace_event_sink),
             session_state: DebuggerSessionState::Detached,
         }
     }
 }
 
-impl DebuggerSession for WindbgDebuggerSession {
+impl DebuggerSession for DbgEngDebuggerSession {
     fn plugin_id(&self) -> &str {
-        WINDBG_DEBUGGER_PLUGIN_ID
+        DBGENG_DEBUGGER_PLUGIN_ID
     }
 
     fn get_state(&self) -> DebuggerSessionState {

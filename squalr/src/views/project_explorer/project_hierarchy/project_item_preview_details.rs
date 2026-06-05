@@ -28,7 +28,7 @@ pub struct ProjectItemPreviewDetails;
 
 impl ProjectItemPreviewDetails {
     const PROJECT_ITEM_PREVIEW_FORMAT_OPTIONS: DataValuePreviewFormatOptions = DataValuePreviewFormatOptions::new(4, 96, 96);
-    const INSTRUCTION_PREVIEW_BYTE_COUNT: u64 = 16;
+    const FALLBACK_INSTRUCTION_PREVIEW_BYTE_COUNT: u64 = 16;
 
     pub fn copy_project_item_preview_fields(
         source_project_item: &ProjectItem,
@@ -173,8 +173,11 @@ impl ProjectItemPreviewDetails {
         engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
         symbolic_struct_namespace: &str,
     ) -> Option<SymbolicStructDefinition> {
-        if Self::normalize_instruction_data_type_id(symbolic_struct_namespace).is_some() {
-            return Some(Self::build_instruction_preview_symbolic_struct_definition());
+        if let Some(instruction_data_type_id) = Self::normalize_instruction_data_type_id(symbolic_struct_namespace) {
+            return Some(Self::build_instruction_preview_symbolic_struct_definition(
+                engine_unprivileged_state,
+                &instruction_data_type_id,
+            ));
         }
 
         let symbolic_struct_definition = engine_unprivileged_state.resolve_struct_layout_definition(symbolic_struct_namespace)?;
@@ -247,10 +250,24 @@ impl ProjectItemPreviewDetails {
             .unwrap_or_default()
     }
 
-    fn build_instruction_preview_symbolic_struct_definition() -> SymbolicStructDefinition {
+    fn build_instruction_preview_symbolic_struct_definition(
+        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
+        instruction_data_type_id: &str,
+    ) -> SymbolicStructDefinition {
+        let instruction_preview_byte_count = instruction_set_id_from_instruction_data_type_id(instruction_data_type_id)
+            .as_deref()
+            .and_then(|instruction_set_id| {
+                engine_unprivileged_state
+                    .get_plugin_registry()
+                    .find_instruction_set(instruction_set_id)
+            })
+            .map(|instruction_set| instruction_set.get_max_instruction_size() as u64)
+            .filter(|instruction_preview_byte_count| *instruction_preview_byte_count > 0)
+            .unwrap_or(Self::FALLBACK_INSTRUCTION_PREVIEW_BYTE_COUNT);
+
         SymbolicStructDefinition::new_anonymous(vec![SymbolicFieldDefinition::new(
             DataTypeRef::new("u8"),
-            ContainerType::ArrayFixed(Self::INSTRUCTION_PREVIEW_BYTE_COUNT),
+            ContainerType::ArrayFixed(instruction_preview_byte_count),
         )])
     }
 }
@@ -279,15 +296,16 @@ mod tests {
 
     #[test]
     fn instruction_project_item_preview_reads_instruction_byte_window() {
-        let symbolic_struct_definition = ProjectItemPreviewDetails::build_instruction_preview_symbolic_struct_definition();
+        let engine_unprivileged_state = create_engine_unprivileged_state();
+        let symbolic_struct_definition = ProjectItemPreviewDetails::build_instruction_preview_symbolic_struct_definition(&engine_unprivileged_state, "i_x64");
         let preview_field = symbolic_struct_definition
             .get_fields()
             .first()
             .expect("Expected instruction preview definition to contain one field.");
 
         assert_eq!(preview_field.get_data_type_ref().get_data_type_id(), "u8");
-        assert_eq!(preview_field.get_container_type(), ContainerType::ArrayFixed(16));
-        assert_eq!(symbolic_struct_definition.get_size_in_bytes(&SymbolRegistry::new()), 16);
+        assert_eq!(preview_field.get_container_type(), ContainerType::ArrayFixed(15));
+        assert_eq!(symbolic_struct_definition.get_size_in_bytes(&SymbolRegistry::new()), 15);
     }
 
     #[test]

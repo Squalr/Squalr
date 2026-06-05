@@ -1,6 +1,6 @@
 use crate::{
-    constants::{WINDBG_DEBUGGER_PLUGIN_DESCRIPTION, WINDBG_DEBUGGER_PLUGIN_DISPLAY_NAME, WINDBG_DEBUGGER_PLUGIN_ID},
-    session::WindbgDebuggerSession,
+    constants::{DBGENG_DEBUGGER_PLUGIN_DESCRIPTION, DBGENG_DEBUGGER_PLUGIN_DISPLAY_NAME, DBGENG_DEBUGGER_PLUGIN_ID},
+    session::DbgEngDebuggerSession,
 };
 use squalr_engine_api::{
     plugins::{
@@ -10,17 +10,17 @@ use squalr_engine_api::{
     structures::processes::opened_process_info::OpenedProcessInfo,
 };
 
-pub struct WindbgDebuggerPlugin {
+pub struct DbgEngDebuggerPlugin {
     metadata: PluginMetadata,
 }
 
-impl WindbgDebuggerPlugin {
+impl DbgEngDebuggerPlugin {
     pub fn new() -> Self {
         Self {
             metadata: PluginMetadata::new_with_permissions(
-                WINDBG_DEBUGGER_PLUGIN_ID,
-                WINDBG_DEBUGGER_PLUGIN_DISPLAY_NAME,
-                WINDBG_DEBUGGER_PLUGIN_DESCRIPTION,
+                DBGENG_DEBUGGER_PLUGIN_ID,
+                DBGENG_DEBUGGER_PLUGIN_DISPLAY_NAME,
+                DBGENG_DEBUGGER_PLUGIN_DESCRIPTION,
                 vec![PluginCapability::Debugger],
                 vec![
                     PluginPermission::AttachDebugger,
@@ -36,25 +36,25 @@ impl WindbgDebuggerPlugin {
     }
 }
 
-impl Default for WindbgDebuggerPlugin {
+impl Default for DbgEngDebuggerPlugin {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Plugin for WindbgDebuggerPlugin {
+impl Plugin for DbgEngDebuggerPlugin {
     fn metadata(&self) -> &PluginMetadata {
         &self.metadata
     }
 }
 
-impl PluginPackage for WindbgDebuggerPlugin {
+impl PluginPackage for DbgEngDebuggerPlugin {
     fn as_debugger_plugin(&self) -> Option<&dyn DebuggerPlugin> {
         Some(self)
     }
 }
 
-impl DebuggerPlugin for WindbgDebuggerPlugin {
+impl DebuggerPlugin for DbgEngDebuggerPlugin {
     fn can_attach(
         &self,
         process_info: &OpenedProcessInfo,
@@ -69,6 +69,6 @@ impl DebuggerPlugin for WindbgDebuggerPlugin {
         process_info: &OpenedProcessInfo,
         trace_event_sink: DebuggerTraceEventSink,
     ) -> Result<Box<dyn DebuggerSession>, DebuggerPluginError> {
-        Ok(Box::new(WindbgDebuggerSession::new(process_info.clone(), trace_event_sink)))
+        Ok(Box::new(DbgEngDebuggerSession::new(process_info.clone(), trace_event_sink)))
     }
 }

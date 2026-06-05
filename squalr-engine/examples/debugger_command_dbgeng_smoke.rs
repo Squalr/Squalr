@@ -98,7 +98,7 @@ fn run_smoke_against_child(child_process: &mut std::process::Child) -> Result<()
     let (target_process_id, target_address) = parse_child_ready_line(&child_ready_line)?;
     let opened_process_info = OpenedProcessInfo::new(
         target_process_id,
-        String::from("debugger_command_windbg_smoke_child"),
+        String::from("debugger_command_dbgeng_smoke_child"),
         u64::from(target_process_id),
         Bitness::Bit64,
         None,
@@ -108,8 +108,8 @@ fn run_smoke_against_child(child_process: &mut std::process::Child) -> Result<()
 
     let plugin_registry = engine_privileged_state.get_plugin_registry();
 
-    if !plugin_registry.is_plugin_enabled("builtin.debugger.windbg") && !plugin_registry.set_plugin_enabled("builtin.debugger.windbg", true) {
-        return Err(String::from("Failed to enable builtin.debugger.windbg for command smoke validation.").into());
+    if !plugin_registry.is_plugin_enabled("builtin.debugger.dbgeng") && !plugin_registry.set_plugin_enabled("builtin.debugger.dbgeng", true) {
+        return Err(String::from("Failed to enable builtin.debugger.dbgeng for command smoke validation.").into());
     }
 
     engine_privileged_state
@@ -118,7 +118,7 @@ fn run_smoke_against_child(child_process: &mut std::process::Child) -> Result<()
 
     println!("Executing debugger commands for child process {target_process_id} at {target_address:#x}.");
     let attach_response = DebuggerAttachRequest {
-        plugin_id: Some(String::from("builtin.debugger.windbg")),
+        plugin_id: Some(String::from("builtin.debugger.dbgeng")),
     }
     .execute(&engine_privileged_state);
     require_status(&attach_response.status, "debugger attach")?;
@@ -146,7 +146,7 @@ fn run_smoke_against_child(child_process: &mut std::process::Child) -> Result<()
         address: target_address,
         size_in_bytes: 8,
         access: DebuggerDataBreakpointAccess::Write,
-        label: Some(String::from("command-windbg-smoke-write")),
+        label: Some(String::from("command-dbgeng-smoke-write")),
     }
     .execute(&engine_privileged_state);
     require_status(&trace_start_response.status, "debugger trace start")?;
@@ -234,7 +234,7 @@ fn run_smoke_against_child(child_process: &mut std::process::Child) -> Result<()
         address: target_address,
         size_in_bytes: 8,
         access: DebuggerDataBreakpointAccess::Write,
-        label: Some(String::from("command-windbg-smoke-write-restart")),
+        label: Some(String::from("command-dbgeng-smoke-write-restart")),
     }
     .execute(&engine_privileged_state);
     require_status(&restarted_trace_start_response.status, "debugger restarted trace start")?;
@@ -406,7 +406,7 @@ impl EngineApiPrivilegedBindings for CapturingEngineBindings {
         _callback: Box<dyn FnOnce(PrivilegedCommandResponse) + Send + Sync + 'static>,
     ) -> Result<(), EngineBindingError> {
         Err(EngineBindingError::unavailable(
-            "dispatching internal commands in the WinDbg command smoke example",
+            "dispatching internal commands in the DbgEng command smoke example",
         ))
     }
 
@@ -442,7 +442,7 @@ impl ProcessQueryProvider for NoOpProcessQueryProvider {
         &self,
         _process_info: &ProcessInfo,
     ) -> Result<OpenedProcessInfo, ProcessQueryError> {
-        Err(ProcessQueryError::internal("open_process", "not used by the WinDbg command smoke example"))
+        Err(ProcessQueryError::internal("open_process", "not used by the DbgEng command smoke example"))
     }
 
     fn close_process(
@@ -455,5 +455,5 @@ impl ProcessQueryProvider for NoOpProcessQueryProvider {
 
 #[cfg(not(windows))]
 fn main() {
-    println!("The WinDbg command smoke example is only available on Windows.");
+    println!("The DbgEng command smoke example is only available on Windows.");
 }

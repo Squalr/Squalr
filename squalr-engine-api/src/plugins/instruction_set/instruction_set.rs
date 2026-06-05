@@ -15,6 +15,10 @@ pub trait InstructionSet: Debug + Send + Sync {
 
     fn get_display_name(&self) -> &str;
 
+    fn get_max_instruction_size(&self) -> usize {
+        16
+    }
+
     fn assemble(
         &self,
         assembly_source: &str,

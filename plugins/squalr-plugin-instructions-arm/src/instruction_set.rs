@@ -49,6 +49,10 @@ impl InstructionSet for Arm32InstructionSet {
         "ARM"
     }
 
+    fn get_max_instruction_size(&self) -> usize {
+        4
+    }
+
     fn assemble(
         &self,
         assembly_source: &str,
@@ -82,6 +86,10 @@ impl InstructionSet for Arm64InstructionSet {
 
     fn get_display_name(&self) -> &str {
         "ARM64"
+    }
+
+    fn get_max_instruction_size(&self) -> usize {
+        4
     }
 
     fn assemble(

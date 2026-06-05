@@ -12,15 +12,15 @@ Our current task, from `README.md`, is:
 - [x] Treat the debugger as engine-level workflow with plugin-owned platform behavior:
   - The engine owns debugger commands, responses, events, permissions, and Squalr-facing data types.
   - Plugins own platform-specific attach/control/breakpoint/register implementations.
-  - The Windows reference implementation should be DbgEng/WinDbg-backed behind the same generic debugger interface future Linux/macOS/emulator/remote implementations would use.
-- [x] Design a debugger extension surface in `squalr-engine-api::plugins` before implementing a WinDbg plugin:
+  - The Windows reference implementation should be DbgEng-backed behind the same generic debugger interface future Linux/macOS/emulator/remote implementations would use.
+- [x] Design a debugger extension surface in `squalr-engine-api::plugins` before implementing a DbgEng plugin:
   - Add `PluginCapability::Debugger` plus permissions such as attach/detach debugger, control target execution, read/write registers, and manage breakpoints.
   - Add engine-owned debugger API models for attach/detach, pause/resume, breakpoint create/remove/list, register snapshots, instruction pointers, and memory-access trace events.
   - Add command models under `squalr-engine-api::commands` so CLI/TUI/GUI can drive the debugger without directly calling plugin internals.
 - [x] Add a session-side debugger service/router next to memory-view routing, not inside `MemoryViewPlugin`.
   - Memory-view plugins route address spaces, page bounds, reads, writes, and modules.
   - Debugger plugins need long-lived process control state, a serialized event loop, breakpoint lifetime management, and event fanout.
-- [ ] Implement a Windows-only builtin plugin crate, likely `plugins/squalr-plugin-debugger-windbg`.
+- [ ] Implement a Windows-only builtin plugin crate, likely `plugins/squalr-plugin-debugger-dbgeng`.
   - Gate it behind `cfg(windows)` and keep non-Windows debugger support as an empty/no-op capability.
   - Prefer a thin internal wrapper around `dbgeng.dll` first, then decide whether to use the current `dbgeng` crate after a small proof of concept.
 - [x] MVP UI should be command-first, then GUI:
@@ -38,6 +38,12 @@ Our current task, from `README.md`, is:
   - [ ] Repeat manual/human verification from CLI/TUI/GUI command surfaces.
 
 ## Important Information
+- After DbgEng naming cleanup and bounded instruction reads:
+  - Renamed the Windows debugger plugin crate, plugin id, Rust types, and smoke examples to `dbgeng`. The plugin id is now `builtin.debugger.dbgeng`, and the crate is `plugins/squalr-plugin-debugger-dbgeng`.
+  - Added `InstructionSet::get_max_instruction_size`; x86/x64 report 15 bytes, ARM/ARM64 report 4 bytes, and PowerPC32 BE reports 4 bytes.
+  - Privileged no-op patching now reads `min(target_instruction_set_max_size, remaining_readable_region_size)` before disassembling the first instruction and applying the no-op fill. Focused tests cover ARM64 max-size clamping and x64 page-end clamping.
+  - Engine and GUI instruction project previews now size their raw byte windows from the instruction plugin max size instead of hard-coded `u8[16]`.
+  - Validation passed: `cargo fmt --all` with existing `fn_args_layout` deprecation warnings; `cargo check -p squalr-engine-api --locked`; `cargo check -p squalr-plugin-debugger-dbgeng --locked`; `cargo check -p squalr-plugin-builtins --locked`; `cargo check -p squalr-engine --locked`; `cargo check -p squalr --locked`; `cargo check -p squalr-cli --locked`; `cargo check -p squalr-tui --locked`; `cargo test -p squalr-engine --locked no_operation_patch_ -- --nocapture`; `cargo test -p squalr-engine --locked project_item_preview -- --nocapture`; `cargo test -p squalr --locked instruction_project_item_preview -- --nocapture`; `cargo test -p squalr-plugin-debugger-dbgeng --locked -- --nocapture`.
 - After addressing remaining self-review items 2-5:
   - Privileged no-op patching no longer accepts or trusts frontend instruction-byte hints. `PatchNoOperationRequest` now carries only address/module/label, and the executor always rereads the live instruction window before decoding the first instruction and building the no-op fill.
   - Software breakpoints are now user-visible patch-service patches: debugger breakpoint set for `Software` asks the target instruction-set plugin for breakpoint bytes, records `PatchKind::SoftwareBreakpoint`, lists them with `patch:<patch_id>` breakpoint IDs, and removes them by restoring through `PatchService`. Hardware data breakpoints remain debugger-plugin owned.
@@ -53,8 +59,8 @@ Our current task, from `README.md`, is:
   - Debugger trace events and instruction records now preserve target architecture provenance. Debugger Trace add-to-project uses the record architecture first instead of inferring from the current process selector state.
   - Android and Linux process open paths now derive target architecture from ELF headers when possible. Android falls back to ARM64 instead of x64. macOS now defaults from target host architecture instead of hard-coding x64.
   - TUI Code Viewer now stores opened-process target architecture and decodes through the plugin registry instead of directly constructing x86/x64 instruction sets. The direct `squalr-plugin-instructions-x86` TUI dependency was removed.
-  - WinDbg debugger plugin selection now rejects non-x86-family target architectures.
-  - Validation passed: `cargo fmt --all` with the existing `fn_args_layout` deprecation warnings; `cargo check -p squalr-engine-api --locked`; `cargo check -p squalr-engine --locked`; `cargo check -p squalr-cli --locked`; `cargo check -p squalr-tui --locked`; `cargo check -p squalr --locked`; `cargo check -p squalr-engine-targets-native --target aarch64-linux-android --locked`; `cargo test -p squalr-engine-api --locked no_operation_patch_response_round_trips_through_privileged_response -- --nocapture`; `cargo test -p squalr-engine-api --locked trace_instruction_record_preserves_event_target_architecture -- --nocapture`; `cargo test -p squalr-engine-api --locked opened_process_info -- --nocapture`; `cargo test -p squalr-engine-session --locked patch_service -- --nocapture`; `cargo test -p squalr-engine-session --locked debugger -- --nocapture`; `cargo test -p squalr-plugin-debugger-windbg --locked plugin_rejects_non_x86_family_targets -- --nocapture`; `cargo test -p squalr --locked instruction_context_menu_target_is_exposed_in_snapshot -- --nocapture`; `cargo test -p squalr-tui --locked visible_row_entries_decode_x86_bytes -- --nocapture`.
+  - DbgEng debugger plugin selection now rejects non-x86-family target architectures.
+  - Validation passed: `cargo fmt --all` with the existing `fn_args_layout` deprecation warnings; `cargo check -p squalr-engine-api --locked`; `cargo check -p squalr-engine --locked`; `cargo check -p squalr-cli --locked`; `cargo check -p squalr-tui --locked`; `cargo check -p squalr --locked`; `cargo check -p squalr-engine-targets-native --target aarch64-linux-android --locked`; `cargo test -p squalr-engine-api --locked no_operation_patch_response_round_trips_through_privileged_response -- --nocapture`; `cargo test -p squalr-engine-api --locked trace_instruction_record_preserves_event_target_architecture -- --nocapture`; `cargo test -p squalr-engine-api --locked opened_process_info -- --nocapture`; `cargo test -p squalr-engine-session --locked patch_service -- --nocapture`; `cargo test -p squalr-engine-session --locked debugger -- --nocapture`; `cargo test -p squalr-plugin-debugger-dbgeng --locked plugin_rejects_non_x86_family_targets -- --nocapture`; `cargo test -p squalr --locked instruction_context_menu_target_is_exposed_in_snapshot -- --nocapture`; `cargo test -p squalr-tui --locked visible_row_entries_decode_x86_bytes -- --nocapture`.
   - Android ELF parser unit tests are compiled into the Android target-provider module, but need device/target-runner execution for runtime verification from this Windows host.
   - GUI behavior against the originally failing target and no-op/restore flows still needs human verification after implementation and validation.
 - `README.md` explicitly says core Squalr is not currently building a debugger, but the library layering table names debuggers as custom target integrators. That supports a plugin-backed implementation instead of hard-coding debugger behavior into scanning or target access.
@@ -64,7 +70,7 @@ Our current task, from `README.md`, is:
 - Existing plugin permissions are symbol-store/window plus read/write process memory. Debugging needs stronger and more explicit permissions because attach, pause, resume, register writes, and breakpoints can control the target.
 - Existing `MemoryViewPlugin` is the closest pattern, but it is insufficient as the debugger API. It owns virtual pages/modules/reads/writes. A debugger owns a process debug session and asynchronous events.
 - `EngineOsProviders::with_memory_view_routing` is the best local precedent for routing plugin-backed behavior through session state. A parallel debugger router/service should cache the active debugger instance per opened process and clear it on process close.
-- The native Windows target backend already uses Win32 APIs for `OpenProcess`, `ReadProcessMemory`, `WriteProcessMemory`, `VirtualProtectEx`, `VirtualQueryEx`, and module enumeration. WinDbg integration can initially reuse normal memory reads/writes and only add debugger-specific operations.
+- The native Windows target backend already uses Win32 APIs for `OpenProcess`, `ReadProcessMemory`, `WriteProcessMemory`, `VirtualProtectEx`, `VirtualQueryEx`, and module enumeration. DbgEng integration can initially reuse normal memory reads/writes and only add debugger-specific operations.
 - DbgEng is the desired first implementation for Windows. It should be treated as the reference plugin, not as the shape of the generic API.
 - Generic debugger commands/types should use Squalr concepts:
   - `DebuggerAttach`, `DebuggerDetach`, `DebuggerPause`, `DebuggerResume`.
@@ -83,14 +89,14 @@ Our current task, from `README.md`, is:
   - Added `EnginePrivilegedState::get_debugger_service()` and clear the debugger session when the opened process changes.
   - Wired `squalr-engine` debugger command executors into `DebuggerService` for attach, detach, pause, resume, breakpoint set/remove/list, and register read/write.
   - Added focused tests for debugger service routing/events and debugger plugin registry selection/enablement.
-- WinDbg plugin scaffold slice completed:
-  - Added `plugins/squalr-plugin-debugger-windbg` as a workspace crate with debugger capability metadata and explicit debugger permissions.
+- DbgEng plugin scaffold slice completed:
+  - Added `plugins/squalr-plugin-debugger-dbgeng` as a workspace crate with debugger capability metadata and explicit debugger permissions.
   - Registered it through `squalr-plugin-builtins` only on Windows via `cfg(windows)`.
   - The plugin was initially disabled by default until the DbgEng attach/event-loop proof was functional; it is now enabled by default on Windows after live trace smokes passed.
   - Added Windows/non-Windows backend modules.
   - Updated builtin and plugin-registry tests to account for the Windows-only debugger package.
 - Initial DbgEng backend slice completed:
-  - Added direct `windows 0.62.2` bindings for `Win32_System_Diagnostics_Debug_Extensions` in the WinDbg plugin crate.
+  - Added direct `windows 0.62.2` bindings for `Win32_System_Diagnostics_Debug_Extensions` in the DbgEng plugin crate.
   - Implemented a worker-thread attach path using `DebugCreate<IDebugClient>`, `IDebugClient::AttachProcess`, and `IDebugControl::WaitForEvent`.
   - Implemented detach through the worker thread using `IDebugClient::DetachProcesses` plus `EndSession(DEBUG_END_ACTIVE_DETACH)`.
   - Added worker-thread commands for pause via `IDebugControl::SetInterrupt(DEBUG_INTERRUPT_ACTIVE)`, resume via `SetExecutionStatus(DEBUG_STATUS_GO)`, and register snapshots with `IDebugRegisters::GetInstructionOffset`/`GetStackOffset`.
@@ -101,13 +107,13 @@ Our current task, from `README.md`, is:
   - Squalr breakpoint IDs map to DbgEng breakpoint IDs; labels are retained in the worker session for breakpoints created through Squalr.
   - Added a generic `DebuggerTraceEventSink` to the debugger plugin trait so plugins can emit Squalr trace events without depending on engine transport.
   - `DebuggerService` now wraps plugin trace events into `DebuggerTraceRecordedEvent` for the existing engine event stream.
-  - The WinDbg worker now alternates command handling with short `WaitForEvent` calls while running, uses `GetLastEventInformation` to identify breakpoint stops, captures a register snapshot, and emits `DebuggerTraceEvent`.
+  - The DbgEng worker now alternates command handling with short `WaitForEvent` calls while running, uses `GetLastEventInformation` to identify breakpoint stops, captures a register snapshot, and emits `DebuggerTraceEvent`.
   - Trace events currently include breakpoint descriptor, registers, DbgEng backend message, and a 16-byte instruction window read through `IDebugDataSpaces::ReadVirtual`.
   - `DebuggerService` enriches trace events with disassembly by selecting the enabled instruction-set plugin for the opened process bitness (`x86`/`x64` for now).
   - Plugin trace emission also emits a `DebuggerSessionState::Paused` event so frontends do not keep showing the target as running after a breakpoint stop.
   - This still needs human verification through real frontend/command flows before it should be treated as release-ready.
-- Live WinDbg smoke harness slice completed:
-  - Added `plugins/squalr-plugin-debugger-windbg/examples/windbg_smoke.rs`, which spawns a disposable child process, prints a known `AtomicU64` address, attaches with the generic debugger plugin API, sets a hardware write breakpoint, resumes, waits for a generic trace event, removes the breakpoint, and detaches.
+- Live DbgEng smoke harness slice completed:
+  - Added `plugins/squalr-plugin-debugger-dbgeng/examples/dbgeng_smoke.rs`, which spawns a disposable child process, prints a known `AtomicU64` address, attaches with the generic debugger plugin API, sets a hardware write breakpoint, resumes, waits for a generic trace event, removes the breakpoint, and detaches.
   - The DbgEng backend now enables `DEBUG_ENGOPT_INITIAL_BREAK` before `AttachProcess`; without this, `WaitForEvent` could time out without completing the attach.
   - The DbgEng backend now distinguishes `S_OK` from `S_FALSE` for `WaitForEvent`; the `windows` projection treats `S_FALSE` as `Ok(())`, but Microsoft documents it as timeout.
   - The DbgEng backend now selects the event process/thread through `IDebugSystemObjects` before register capture.
@@ -115,11 +121,11 @@ Our current task, from `README.md`, is:
   - Attach now selects the initial break event context before the worker reports ready, so an explicit register read immediately after attach can capture IP/SP/registers.
   - Local smoke output showed attach-time IP/SP/registers, breakpoint creation/listing, trace receipt, breakpoint IP, 16 instruction bytes, 235 registers, and clean detach. This is still a local disposable-process validation and needs human verification through the real frontend/command flow before release confidence.
 - Live debugger service smoke harness slice completed:
-  - Added `squalr-engine-session/examples/debugger_service_windbg_smoke.rs`, which enables the disabled-by-default WinDbg plugin in the builtin registry, routes attach/breakpoint/resume/remove/detach through `DebuggerService`, and waits on `EngineEvent::Debugger`.
+  - Added `squalr-engine-session/examples/debugger_service_dbgeng_smoke.rs`, which enables the disabled-by-default DbgEng plugin in the builtin registry, routes attach/breakpoint/resume/remove/detach through `DebuggerService`, and waits on `EngineEvent::Debugger`.
   - Local smoke output showed a generic trace event with `IP=0x...`, 16 instruction bytes, 235 registers, backend `"Hit breakpoint 0"`, and x64 disassembly text from `squalr-plugin-instructions-x86`.
   - This validates live plugin-to-service trace fanout and engine-side disassembly enrichment against a disposable child process. CLI/TUI/GUI command surfaces still need human verification.
 - Live debugger command smoke harness slice completed:
-  - Added `squalr-engine/examples/debugger_command_windbg_smoke.rs`, which creates an `EnginePrivilegedState`, injects a disposable child as the opened process, enables `builtin.debugger.windbg`, executes the real debugger request executors, and waits on an engine event subscription for the trace.
+  - Added `squalr-engine/examples/debugger_command_dbgeng_smoke.rs`, which creates an `EnginePrivilegedState`, injects a disposable child as the opened process, enables `builtin.debugger.dbgeng`, executes the real debugger request executors, and waits on an engine event subscription for the trace.
   - Local smoke output showed command-level attach, attach-time register read, hardware breakpoint set/list/remove, resume, enriched trace event, and detach.
   - This exposed and fixed a process-change race: the privileged internal event hook used to clear the debugger session for every `ProcessChanged` event, so a delayed opened-process event could detach a freshly attached debugger. The hook now preserves the session when the event names the same process as the active debugger session.
   - This still needs human verification through real CLI/TUI/GUI command surfaces because the smoke injects opened process state directly.
@@ -151,16 +157,16 @@ Our current task, from `README.md`, is:
   - Root cause: the DbgEng backend uses `DEBUG_ENGOPT_INITIAL_BREAK` to complete attach, but GUI trace-start did not resume after installing the trace breakpoint. Hardware data breakpoint hits also left the target paused after recording the trace row.
   - `DebuggerService::start_trace_session` now resumes the debuggee after installing a trace data breakpoint, and attempts to resume if trace breakpoint setup fails after attach.
   - Trace-session events now report the session as `Running` when the breakpoint maps to a trace session, since those hits are intended to be recorded and continued rather than treated as a user pause.
-  - The WinDbg worker now auto-continues after recording hardware data breakpoint events, while non-trace software breakpoint behavior can still pause.
-  - WinDbg detach now requests `DEBUG_STATUS_GO` before `DetachProcesses`/`EndSession(DEBUG_END_ACTIVE_DETACH)` to avoid leaving a stopped debuggee vulnerable during Squalr shutdown.
+  - The DbgEng worker now auto-continues after recording hardware data breakpoint events, while non-trace software breakpoint behavior can still pause.
+  - DbgEng detach now requests `DEBUG_STATUS_GO` before `DetachProcesses`/`EndSession(DEBUG_END_ACTIVE_DETACH)` to avoid leaving a stopped debuggee vulnerable during Squalr shutdown.
   - A focused `DebuggerService` test now asserts that trace-start resumes the target once and that trace-hit aggregation continues after that resume.
   - This mitigates the observed freeze/target-death path in live smokes, but still needs human verification through the GUI against the originally failing target.
 - Debugger trace default/stop-path correction slice completed:
-  - Owner reported that the WinDbg plugin should be enabled by default, trace breakpoints were not hitting, and Stop Trace could fail with `IDebugControl::GetBreakpointById(0)` catastrophic failure while the target was likely still running.
-  - `builtin.debugger.windbg` is now enabled by default on Windows, and plugin/builtin tests expect the default-enabled state.
+  - Owner reported that the DbgEng plugin should be enabled by default, trace breakpoints were not hitting, and Stop Trace could fail with `IDebugControl::GetBreakpointById(0)` catastrophic failure while the target was likely still running.
+  - `builtin.debugger.dbgeng` is now enabled by default on Windows, and plugin/builtin tests expect the default-enabled state.
   - Project-item `Find What Reads/Writes/Accesses` now preserves the resolved module name through the frame action and resolves module-relative project addresses to absolute runtime addresses before queuing the trace start. The previous GUI path dropped the module name and could arm a hardware breakpoint at the module-relative offset instead of the runtime address.
-  - WinDbg breakpoint removal now interrupts the debuggee before `GetBreakpointById`/`RemoveBreakpoint` when the session is running, then attempts to resume afterward. This targets the Stop Trace failure path, where trace stop removes the backing breakpoint while the trace session has already resumed the target.
-  - The service and command WinDbg smoke examples now use `start_trace_session`/`stop_trace_session` instead of raw breakpoint set/remove, so live validation covers the same abstraction used by the GUI trace flow.
+  - DbgEng breakpoint removal now interrupts the debuggee before `GetBreakpointById`/`RemoveBreakpoint` when the session is running, then attempts to resume afterward. This targets the Stop Trace failure path, where trace stop removes the backing breakpoint while the trace session has already resumed the target.
+  - The service and command DbgEng smoke examples now use `start_trace_session`/`stop_trace_session` instead of raw breakpoint set/remove, so live validation covers the same abstraction used by the GUI trace flow.
   - Live disposable-process smokes passed for plugin, session-service trace stop, and command-executor trace stop. The originally failing GUI target still needs human verification.
 - Debugger trace row polish slice completed:
   - Owner reported that the trace session header had text below/around the Stop button and that the Instruction column showed too many disassembled instructions.
@@ -172,9 +178,9 @@ Our current task, from `README.md`, is:
   - Owner reported that Minesweeper `Find What Writes` surfaced a `call` instruction instead of the expected write instruction such as `inc`.
   - Root cause: x86/x64 hardware data breakpoints report after the memory access instruction has executed, so the captured register IP can point at the following instruction.
   - Added an explicit `instruction_address` to `DebuggerTraceEvent`; trace instruction records now group/display by that attributed address instead of always using the raw register snapshot IP.
-  - The WinDbg backend now uses `IDebugControl::GetNearInstruction(post_trap_ip, -1)` for hardware data breakpoints, reads instruction bytes from that resolved access-instruction address, and falls back to the raw IP with a backend diagnostic if attribution fails.
+  - The DbgEng backend now uses `IDebugControl::GetNearInstruction(post_trap_ip, -1)` for hardware data breakpoints, reads instruction bytes from that resolved access-instruction address, and falls back to the raw IP with a backend diagnostic if attribution fails.
   - Register snapshots still retain the real post-trap IP for context, while the trace row and disassembly use the attributed access instruction address.
-  - Live WinDbg command/service smokes now show `IP=...`, `instruction_address=...`, and a write instruction such as `lock xadd [rcx], rax`. Minesweeper GUI behavior still needs human verification.
+  - Live DbgEng command/service smokes now show `IP=...`, `instruction_address=...`, and a write instruction such as `lock xadd [rcx], rax`. Minesweeper GUI behavior still needs human verification.
 - Debugger trace add-to-project correction slice completed:
   - Owner reported that double-clicking a trace instruction added an absolute `u8` address item instead of a module-relative instruction item.
   - `ProjectHierarchyModuleAddressResolver` now exposes absolute-address-to-project-item resolution by querying current modules and converting contained addresses to `module_name + offset`.
@@ -189,11 +195,11 @@ Our current task, from `README.md`, is:
   - The Pause control dispatches the engine-owned `DebuggerPauseRequest`; Stop Trace still dispatches `DebuggerTraceStopRequest`.
   - The trace view now listens for `DebuggerSessionStateChangedEvent`; after a pause, the Pause control is replaced with a Resume control using the existing `right_arrows.png` icon and dispatches `DebuggerResumeRequest`.
   - Trace rows no longer render `DebuggerTraceInstructionRecord::last_backend_message` as right-aligned preview text, since messages such as `Hit breakpoint 0` are backend diagnostics rather than useful row data.
-  - The WinDbg backend now clears breakpoints through `IDebugControl::Execute("bc <id>")` after parsing the numeric breakpoint ID, avoiding the `GetBreakpointById`/`RemoveBreakpoint` COM wrapper removal path that led into the observed `Release` crash.
+  - The DbgEng backend now clears breakpoints through `IDebugControl::Execute("bc <id>")` after parsing the numeric breakpoint ID, avoiding the `GetBreakpointById`/`RemoveBreakpoint` COM wrapper removal path that led into the observed `Release` crash.
   - Live disposable-process smokes stopped trace sessions cleanly after this change, but Minesweeper/timer GUI behavior still needs human verification.
 - Debugger trace state-hardening slice completed:
   - Owner reported basic actions often failed, including Stop Trace timing out with `IDebugControl::WaitForEvent timed out during pause after 10000 ms`, and that starting another `Find What Writes` while an earlier action was in flight could leave the trace takeover stuck on a spinner.
-  - WinDbg breakpoint removal no longer pauses/resumes around `bc <id>`. Trace stop now clears the breakpoint directly, avoiding the 10 second interrupt wait that was failing on running targets.
+  - DbgEng breakpoint removal no longer pauses/resumes around `bc <id>`. Trace stop now clears the breakpoint directly, avoiding the 10 second interrupt wait that was failing on running targets.
   - The Debugger Trace pending-start flow now tracks an operation id so late callbacks from old attach/trace-start attempts cannot mutate or clear a newer prompt.
   - The pending-start flow now handles failed command dispatch immediately and expires an in-flight spinner after 15 seconds with a retryable status message.
   - Live service and command smokes stopped running trace sessions cleanly with the no-pause removal path. GUI behavior against the originally failing target still needs human verification.
@@ -213,16 +219,16 @@ Our current task, from `README.md`, is:
   - The workspace already uses both `windows-sys 0.61.2` in `squalr-engine-targets-native` and `windows 0.61.3` in `squalr-engine`, so dependency/version alignment must be checked in the proof of concept.
   - Microsoft docs confirm `IDebugClient` supports attach/detach/callback registration and that `WaitForEvent` drives the debugger event model.
 - `dbgeng 0.5.1` crate audit:
-  - It depends on `windows 0.62`, matching the direct WinDbg plugin dependency version closely enough that dependency alignment is viable.
+  - It depends on `windows 0.62`, matching the direct DbgEng plugin dependency version closely enough that dependency alignment is viable.
   - It exposes a `DebugClient::new(&IUnknown)` wrapper over `IDebugControl3`, `IDebugRegisters`, `IDebugDataSpaces4`, and `IDebugSymbols3`.
   - It provides helpers for command execution/captured output, register lookup/value conversion, virtual memory reads, symbol lookup, debuggee/processor metadata, MSR reads, and synthetic modules.
   - It does not appear to own `DebugCreate`, `AttachProcess`, `WaitForEvent`, event callbacks, breakpoint creation/removal, data breakpoint configuration, detach/end-session, or worker-thread/event-loop serialization.
   - It uses `anyhow` and has a few internal `unwrap()`/assert-style helpers, so adopting it directly would not remove the need for Squalr-specific error mapping.
-  - Recommendation: keep the current direct `windows` DbgEng implementation for the attach/control/breakpoint/event-loop core. Consider selectively borrowing or wrapping `dbgeng`-style helper ideas later for command output capture, symbol helpers, and register value conversion, but do not switch the WinDbg plugin to `dbgeng` as the primary backend yet.
+  - Recommendation: keep the current direct `windows` DbgEng implementation for the attach/control/breakpoint/event-loop core. Consider selectively borrowing or wrapping `dbgeng`-style helper ideas later for command output capture, symbol helpers, and register value conversion, but do not switch the DbgEng plugin to `dbgeng` as the primary backend yet.
 - Recommended MVP architecture:
   - `squalr-engine-api`: debugger plugin trait, generic command/response/event models, generic debugger data types, permission/capability additions.
   - `squalr-engine-session`: active debugger service/router with event channel, process-close cleanup, plugin selection, plugin enablement checks, and plugin trace-event fanout.
-  - `plugins/squalr-plugin-debugger-windbg`: Windows-only DbgEng implementation with hardware data breakpoints and register snapshots.
+  - `plugins/squalr-plugin-debugger-dbgeng`: Windows-only DbgEng implementation with hardware data breakpoints and register snapshots.
   - `squalr-engine`: command executors that call the debugger service.
   - `squalr-cli`/`squalr-tui`/`squalr`: command and basic UI surfaces.
 - Debugger trace collection pause/resume correction completed:
@@ -231,14 +237,14 @@ Our current task, from `README.md`, is:
   - Added generic debugger-session breakpoint enable/disable support.
   - `DebuggerService` now pauses trace collection by disabling the trace session's backing breakpoint and resumes collection by re-enabling it, while leaving debugger execution state alone.
   - Disabled trace sessions ignore late or in-flight trace events so row hit counts do not increment while collection is paused.
-  - The WinDbg plugin originally used textual DbgEng worker commands `bd <breakpoint_id>` and `be <breakpoint_id>`, but GUI testing showed `IDebugControl::Execute` can fail with `0x80040205` while the target is running.
+  - The DbgEng plugin originally used textual DbgEng worker commands `bd <breakpoint_id>` and `be <breakpoint_id>`, but GUI testing showed `IDebugControl::Execute` can fail with `0x80040205` while the target is running.
   - GUI testing then showed `IDebugControl::GetBreakpointById(0)` could still fail with catastrophic failure while the trace target was running.
-  - WinDbg collection pause/resume now retains the `IDebugBreakpoint` interface returned from `AddBreakpoint` and caches the current breakpoint flags in the serialized worker session. Pause/resume calls `IDebugBreakpoint::SetFlags` on that retained interface instead of resolving the breakpoint by ID while the target is running.
-  - GUI testing later showed Stop Trace could still hit `IDebugControl::Execute("bc <id>")` with `0x80040205` even though collection stopped. WinDbg breakpoint removal now disables the retained breakpoint first, then attempts `bc`; if disable succeeds and `bc` fails, the trace stop is treated as successful and the cleanup failure is logged.
+  - DbgEng collection pause/resume now retains the `IDebugBreakpoint` interface returned from `AddBreakpoint` and caches the current breakpoint flags in the serialized worker session. Pause/resume calls `IDebugBreakpoint::SetFlags` on that retained interface instead of resolving the breakpoint by ID while the target is running.
+  - GUI testing later showed Stop Trace could still hit `IDebugControl::Execute("bc <id>")` with `0x80040205` even though collection stopped. DbgEng breakpoint removal now disables the retained breakpoint first, then attempts `bc`; if disable succeeds and `bc` fails, the trace stop is treated as successful and the cleanup failure is logged.
   - `DebuggerService::stop_trace_session` now marks and emits the trace as stopped before backend breakpoint cleanup, so UI state is not blocked by DbgEng cleanup exceptions.
   - The Debugger Trace window no longer listens to global debugger session state for its pause/resume button. The header now derives `Collecting`, `Collection Paused`, or `Stopped` from the trace descriptor and uses collection-specific tooltips.
   - Debugger Trace Stop/Pause/Resume controls are single-flight per trace session and render disabled while a trace control command is pending or after the trace session has stopped.
-  - Session and command WinDbg smoke examples now exercise pause/resume collection before stopping the trace.
+  - Session and command DbgEng smoke examples now exercise pause/resume collection before stopping the trace.
   - GUI behavior against the originally failing target still needs human verification.
 - Debugger instruction project-item preview correction completed:
   - Owner reported trace-created instruction project items showed `??` as their Project Explorer preview.
@@ -278,24 +284,24 @@ Our current task, from `README.md`, is:
 ## Validation
 - `cargo test -p squalr-engine-api --locked` passed.
 - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
-- `cargo test -p squalr-plugin-debugger-windbg --locked -- --nocapture` passed.
+- `cargo test -p squalr-plugin-debugger-dbgeng --locked -- --nocapture` passed.
 - `cargo test -p squalr-plugin-builtins --locked -- --nocapture` passed.
-- `cargo check -p squalr-plugin-debugger-windbg --locked` passed.
+- `cargo check -p squalr-plugin-debugger-dbgeng --locked` passed.
 - `cargo check -p squalr-engine --locked` passed.
-- After WinDbg breakpoint lifetime implementation:
-  - `cargo test -p squalr-plugin-debugger-windbg --locked -- --nocapture` passed.
+- After DbgEng breakpoint lifetime implementation:
+  - `cargo test -p squalr-plugin-debugger-dbgeng --locked -- --nocapture` passed.
   - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
   - `cargo check -p squalr-engine --locked` passed.
-- After plugin trace-event sink and WinDbg breakpoint trace loop:
+- After plugin trace-event sink and DbgEng breakpoint trace loop:
   - `cargo test -p squalr-engine-api --locked` passed.
-  - `cargo check -p squalr-plugin-debugger-windbg --locked` passed.
+  - `cargo check -p squalr-plugin-debugger-dbgeng --locked` passed.
   - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
-  - `cargo test -p squalr-plugin-debugger-windbg --locked -- --nocapture` passed.
+  - `cargo test -p squalr-plugin-debugger-dbgeng --locked -- --nocapture` passed.
   - `cargo test -p squalr-plugin-builtins --locked -- --nocapture` passed.
   - `cargo check -p squalr-engine --locked` passed.
-- After WinDbg instruction-byte trace capture:
-  - `cargo check -p squalr-plugin-debugger-windbg --locked` passed.
-  - `cargo test -p squalr-plugin-debugger-windbg --locked -- --nocapture` passed.
+- After DbgEng instruction-byte trace capture:
+  - `cargo check -p squalr-plugin-debugger-dbgeng --locked` passed.
+  - `cargo test -p squalr-plugin-debugger-dbgeng --locked -- --nocapture` passed.
   - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
   - `cargo check -p squalr-engine --locked` passed.
 - After engine-side debugger trace disassembly enrichment:
@@ -305,31 +311,31 @@ Our current task, from `README.md`, is:
 - After paused-state emission for debugger traces:
   - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
   - `cargo check -p squalr-engine --locked` passed.
-- After live WinDbg smoke harness and DbgEng event-context fixes:
-  - `cargo check -p squalr-plugin-debugger-windbg --examples --locked` passed.
-  - `cargo run -p squalr-plugin-debugger-windbg --example windbg_smoke --locked` passed on Windows against a disposable child process.
-  - `cargo test -p squalr-plugin-debugger-windbg --locked -- --nocapture` passed.
+- After live DbgEng smoke harness and DbgEng event-context fixes:
+  - `cargo check -p squalr-plugin-debugger-dbgeng --examples --locked` passed.
+  - `cargo run -p squalr-plugin-debugger-dbgeng --example dbgeng_smoke --locked` passed on Windows against a disposable child process.
+  - `cargo test -p squalr-plugin-debugger-dbgeng --locked -- --nocapture` passed.
   - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
   - `cargo test -p squalr-plugin-builtins --locked -- --nocapture` passed.
   - `cargo check -p squalr-engine --locked` passed.
 - After live debugger service smoke harness:
   - `cargo check -p squalr-engine-session --examples --locked` passed.
-  - `cargo run -p squalr-engine-session --example debugger_service_windbg_smoke --locked` passed on Windows against a disposable child process and produced x64 disassembly text in the trace event.
+  - `cargo run -p squalr-engine-session --example debugger_service_dbgeng_smoke --locked` passed on Windows against a disposable child process and produced x64 disassembly text in the trace event.
   - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
   - `cargo check -p squalr-engine --locked` passed.
 - After attach-time DbgEng event-context selection:
-  - `cargo check -p squalr-plugin-debugger-windbg --examples --locked` passed.
-  - `cargo run -p squalr-plugin-debugger-windbg --example windbg_smoke --locked` passed on Windows and showed attach-time IP/SP/register capture plus breakpoint trace capture.
-  - `cargo run -p squalr-engine-session --example debugger_service_windbg_smoke --locked` passed on Windows and still produced disassembly text in the trace event.
-  - `cargo test -p squalr-plugin-debugger-windbg --locked -- --nocapture` passed.
+  - `cargo check -p squalr-plugin-debugger-dbgeng --examples --locked` passed.
+  - `cargo run -p squalr-plugin-debugger-dbgeng --example dbgeng_smoke --locked` passed on Windows and showed attach-time IP/SP/register capture plus breakpoint trace capture.
+  - `cargo run -p squalr-engine-session --example debugger_service_dbgeng_smoke --locked` passed on Windows and still produced disassembly text in the trace event.
+  - `cargo test -p squalr-plugin-debugger-dbgeng --locked -- --nocapture` passed.
   - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
   - `cargo check -p squalr-engine --locked` passed.
-- After command-level WinDbg smoke harness and process-change hook fix:
+- After command-level DbgEng smoke harness and process-change hook fix:
   - `cargo check -p squalr-engine --examples --locked` passed.
-  - `cargo run -p squalr-engine --example debugger_command_windbg_smoke --locked` passed on Windows against a disposable child process and produced x64 disassembly text in the trace event.
+  - `cargo run -p squalr-engine --example debugger_command_dbgeng_smoke --locked` passed on Windows against a disposable child process and produced x64 disassembly text in the trace event.
   - `cargo test -p squalr-engine-session --locked -- --nocapture` passed.
   - `cargo test -p squalr-engine --locked debugger -- --nocapture` passed, with no matching tests.
-  - `cargo test -p squalr-plugin-debugger-windbg --locked -- --nocapture` passed.
+  - `cargo test -p squalr-plugin-debugger-dbgeng --locked -- --nocapture` passed.
   - `cargo check -p squalr-engine --locked` passed.
 - After `dbgeng 0.5.1` crate audit:
   - `cargo info dbgeng@0.5.1` completed and downloaded the crate source.
@@ -351,28 +357,28 @@ Our current task, from `README.md`, is:
   - This still needs human verification through the GUI against a disposable local process before it should be treated as release-ready.
 - After debugger target-freeze mitigation:
   - `cargo fmt --all` completed with the existing `.rustfmt.toml` deprecation warnings for `fn_args_layout`.
-  - `cargo check -p squalr-plugin-debugger-windbg --locked` passed.
+  - `cargo check -p squalr-plugin-debugger-dbgeng --locked` passed.
   - `cargo check -p squalr-engine-session --locked` passed.
   - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
-  - `cargo test -p squalr-plugin-debugger-windbg --locked -- --nocapture` passed.
+  - `cargo test -p squalr-plugin-debugger-dbgeng --locked -- --nocapture` passed.
   - `cargo check -p squalr-engine --examples --locked` passed.
-  - `cargo run -p squalr-plugin-debugger-windbg --example windbg_smoke --locked` passed on Windows against a disposable child process.
-  - `cargo run -p squalr-engine-session --example debugger_service_windbg_smoke --locked` initially produced one `STATUS_ACCESS_VIOLATION` after the trace event, then passed on immediate rerun.
-  - `cargo run -p squalr-engine --example debugger_command_windbg_smoke --locked` passed on Windows against a disposable child process.
-  - Re-running `cargo run -p squalr-engine-session --example debugger_service_windbg_smoke --locked` three consecutive times passed on Windows against disposable child processes.
+  - `cargo run -p squalr-plugin-debugger-dbgeng --example dbgeng_smoke --locked` passed on Windows against a disposable child process.
+  - `cargo run -p squalr-engine-session --example debugger_service_dbgeng_smoke --locked` initially produced one `STATUS_ACCESS_VIOLATION` after the trace event, then passed on immediate rerun.
+  - `cargo run -p squalr-engine --example debugger_command_dbgeng_smoke --locked` passed on Windows against a disposable child process.
+  - Re-running `cargo run -p squalr-engine-session --example debugger_service_dbgeng_smoke --locked` three consecutive times passed on Windows against disposable child processes.
   - `cargo check -p squalr --locked` passed.
   - GUI behavior against the originally failing target still needs human verification after implementation and validation.
 - After debugger trace default/stop-path correction:
   - `cargo fmt --all` completed with the existing `.rustfmt.toml` deprecation warnings for `fn_args_layout`.
-  - `cargo check -p squalr-plugin-debugger-windbg --locked` passed.
+  - `cargo check -p squalr-plugin-debugger-dbgeng --locked` passed.
   - `cargo check -p squalr-plugin-builtins --locked` passed.
   - `cargo check -p squalr --locked` passed.
-  - `cargo test -p squalr-plugin-debugger-windbg --locked -- --nocapture` passed.
+  - `cargo test -p squalr-plugin-debugger-dbgeng --locked -- --nocapture` passed.
   - `cargo test -p squalr-plugin-builtins --locked -- --nocapture` passed.
   - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
-  - `cargo run -p squalr-plugin-debugger-windbg --example windbg_smoke --locked` passed on Windows against a disposable child process.
-  - `cargo run -p squalr-engine-session --example debugger_service_windbg_smoke --locked` passed on Windows against a disposable child process and stopped a running trace session cleanly with one instruction record.
-  - `cargo run -p squalr-engine --example debugger_command_windbg_smoke --locked` passed on Windows against a disposable child process and stopped a running trace session cleanly with one instruction record.
+  - `cargo run -p squalr-plugin-debugger-dbgeng --example dbgeng_smoke --locked` passed on Windows against a disposable child process.
+  - `cargo run -p squalr-engine-session --example debugger_service_dbgeng_smoke --locked` passed on Windows against a disposable child process and stopped a running trace session cleanly with one instruction record.
+  - `cargo run -p squalr-engine --example debugger_command_dbgeng_smoke --locked` passed on Windows against a disposable child process and stopped a running trace session cleanly with one instruction record.
   - `cargo test -p squalr --locked default_layout_places_output_related_windows_in_same_tab_group -- --nocapture` passed.
   - GUI behavior against the originally failing target still needs human verification after implementation and validation.
 - After debugger trace row polish:
@@ -380,18 +386,18 @@ Our current task, from `README.md`, is:
   - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
   - `cargo check -p squalr --locked` passed.
   - `cargo test -p squalr --locked default_layout_places_output_related_windows_in_same_tab_group -- --nocapture` passed.
-  - `cargo run -p squalr-engine --example debugger_command_windbg_smoke --locked` passed on Windows against a disposable child process and printed a single-instruction trace text.
+  - `cargo run -p squalr-engine --example debugger_command_dbgeng_smoke --locked` passed on Windows against a disposable child process and printed a single-instruction trace text.
   - GUI behavior still needs human verification after implementation and validation.
 - After debugger trace instruction attribution:
   - `cargo fmt --all` completed with the existing `.rustfmt.toml` deprecation warnings for `fn_args_layout`.
   - `cargo test -p squalr-engine-api --locked debugger -- --nocapture` passed.
   - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
-  - `cargo check -p squalr-plugin-debugger-windbg --locked` passed.
+  - `cargo check -p squalr-plugin-debugger-dbgeng --locked` passed.
   - `cargo check -p squalr --locked` passed.
-  - `cargo run -p squalr-engine --example debugger_command_windbg_smoke --locked` passed on Windows against a disposable child process and showed post-trap `IP` plus prior `instruction_address=...` with `lock xadd [rcx], rax`.
-  - `cargo run -p squalr-plugin-debugger-windbg --example windbg_smoke --locked` passed on Windows against a disposable child process and showed separate post-trap IP and attributed instruction address.
-  - `cargo run -p squalr-engine-session --example debugger_service_windbg_smoke --locked` passed on Windows against a disposable child process and showed `lock xadd [rcx], rax`.
-  - `cargo test -p squalr-plugin-debugger-windbg --locked -- --nocapture` passed.
+  - `cargo run -p squalr-engine --example debugger_command_dbgeng_smoke --locked` passed on Windows against a disposable child process and showed post-trap `IP` plus prior `instruction_address=...` with `lock xadd [rcx], rax`.
+  - `cargo run -p squalr-plugin-debugger-dbgeng --example dbgeng_smoke --locked` passed on Windows against a disposable child process and showed separate post-trap IP and attributed instruction address.
+  - `cargo run -p squalr-engine-session --example debugger_service_dbgeng_smoke --locked` passed on Windows against a disposable child process and showed `lock xadd [rcx], rax`.
+  - `cargo test -p squalr-plugin-debugger-dbgeng --locked -- --nocapture` passed.
   - GUI behavior still needs human verification after implementation and validation.
 - After debugger trace add-to-project correction:
   - `cargo fmt --all` completed with the existing `.rustfmt.toml` deprecation warnings for `fn_args_layout`.
@@ -402,14 +408,14 @@ Our current task, from `README.md`, is:
   - GUI behavior still needs human verification after implementation and validation.
 - After debugger trace attach/pause/stop polish:
   - `cargo fmt --all` completed with the existing `.rustfmt.toml` deprecation warnings for `fn_args_layout`.
-  - `cargo check -p squalr-plugin-debugger-windbg --locked` passed.
+  - `cargo check -p squalr-plugin-debugger-dbgeng --locked` passed.
   - `cargo check -p squalr --locked` passed.
   - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
   - `cargo test -p squalr --locked default_layout_places_output_related_windows_in_same_tab_group -- --nocapture` passed.
-  - `cargo test -p squalr-plugin-debugger-windbg --locked -- --nocapture` passed.
-  - `cargo run -p squalr-engine-session --example debugger_service_windbg_smoke --locked` passed on Windows against a disposable child process and stopped a running trace session cleanly with one instruction record.
-  - `cargo run -p squalr-engine --example debugger_command_windbg_smoke --locked` passed on Windows against a disposable child process and stopped a running trace session cleanly with one instruction record.
-  - `cargo run -p squalr-plugin-debugger-windbg --example windbg_smoke --locked` passed on Windows against a disposable child process.
+  - `cargo test -p squalr-plugin-debugger-dbgeng --locked -- --nocapture` passed.
+  - `cargo run -p squalr-engine-session --example debugger_service_dbgeng_smoke --locked` passed on Windows against a disposable child process and stopped a running trace session cleanly with one instruction record.
+  - `cargo run -p squalr-engine --example debugger_command_dbgeng_smoke --locked` passed on Windows against a disposable child process and stopped a running trace session cleanly with one instruction record.
+  - `cargo run -p squalr-plugin-debugger-dbgeng --example dbgeng_smoke --locked` passed on Windows against a disposable child process.
   - GUI behavior against the originally failing target still needs human verification after implementation and validation.
 - After debugger trace pause/resume toggle polish:
   - `cargo fmt --all` completed with the existing `.rustfmt.toml` deprecation warnings for `fn_args_layout`.
@@ -419,62 +425,62 @@ Our current task, from `README.md`, is:
   - GUI behavior against the originally failing target still needs human verification after implementation and validation.
 - After debugger trace state hardening:
   - `cargo fmt --all` completed with the existing `.rustfmt.toml` deprecation warnings for `fn_args_layout`.
-  - `cargo check -p squalr-plugin-debugger-windbg --locked` passed.
+  - `cargo check -p squalr-plugin-debugger-dbgeng --locked` passed.
   - `cargo check -p squalr --locked` passed.
   - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
-  - `cargo run -p squalr-engine-session --example debugger_service_windbg_smoke --locked` passed on Windows against a disposable child process and stopped a running trace session cleanly without pause-before-remove.
-  - `cargo run -p squalr-engine --example debugger_command_windbg_smoke --locked` passed on Windows against a disposable child process and stopped a running trace session cleanly without pause-before-remove.
+  - `cargo run -p squalr-engine-session --example debugger_service_dbgeng_smoke --locked` passed on Windows against a disposable child process and stopped a running trace session cleanly without pause-before-remove.
+  - `cargo run -p squalr-engine --example debugger_command_dbgeng_smoke --locked` passed on Windows against a disposable child process and stopped a running trace session cleanly without pause-before-remove.
   - `cargo test -p squalr --locked default_layout_places_output_related_windows_in_same_tab_group -- --nocapture` passed.
-  - `cargo run -p squalr-plugin-debugger-windbg --example windbg_smoke --locked` passed on Windows against a disposable child process.
+  - `cargo run -p squalr-plugin-debugger-dbgeng --example dbgeng_smoke --locked` passed on Windows against a disposable child process.
   - GUI behavior against the originally failing target still needs human verification after implementation and validation.
 - After debugger trace collection pause/resume correction:
   - `cargo check -p squalr-engine-api --locked` passed.
   - `cargo check -p squalr-engine-session --locked` passed.
-  - `cargo check -p squalr-plugin-debugger-windbg --locked` passed.
+  - `cargo check -p squalr-plugin-debugger-dbgeng --locked` passed.
   - `cargo check -p squalr --locked` passed.
   - `cargo fmt --all` completed with the existing `.rustfmt.toml` deprecation warnings for `fn_args_layout`.
   - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed and now asserts paused trace collection ignores target trace events.
-  - `cargo test -p squalr-plugin-debugger-windbg --locked -- --nocapture` passed.
+  - `cargo test -p squalr-plugin-debugger-dbgeng --locked -- --nocapture` passed.
   - `cargo test -p squalr --locked default_layout_places_output_related_windows_in_same_tab_group -- --nocapture` passed.
   - `cargo check -p squalr-engine --examples --locked` passed.
   - `cargo check -p squalr-engine-session --examples --locked` passed.
-  - `cargo run -p squalr-engine-session --example debugger_service_windbg_smoke --locked` passed on Windows against a disposable child process and exercised trace collection pause/resume before stop.
-  - `cargo run -p squalr-engine --example debugger_command_windbg_smoke --locked` passed on Windows against a disposable child process and exercised trace collection pause/resume before stop.
-  - `cargo run -p squalr-plugin-debugger-windbg --example windbg_smoke --locked` passed on Windows against a disposable child process.
+  - `cargo run -p squalr-engine-session --example debugger_service_dbgeng_smoke --locked` passed on Windows against a disposable child process and exercised trace collection pause/resume before stop.
+  - `cargo run -p squalr-engine --example debugger_command_dbgeng_smoke --locked` passed on Windows against a disposable child process and exercised trace collection pause/resume before stop.
+  - `cargo run -p squalr-plugin-debugger-dbgeng --example dbgeng_smoke --locked` passed on Windows against a disposable child process.
   - GUI behavior against the originally failing target still needs human verification after implementation and validation.
 - After DbgEng breakpoint flag pause and instruction preview correction:
-  - `cargo check -p squalr-plugin-debugger-windbg --locked` passed.
+  - `cargo check -p squalr-plugin-debugger-dbgeng --locked` passed.
   - `cargo check -p squalr --locked` passed.
-  - `cargo run -p squalr-engine-session --example debugger_service_windbg_smoke --locked` passed on Windows against a disposable child process and exercised trace collection pause/resume with direct breakpoint flag changes.
-  - `cargo run -p squalr-engine --example debugger_command_windbg_smoke --locked` passed on Windows against a disposable child process and exercised trace collection pause/resume with direct breakpoint flag changes.
+  - `cargo run -p squalr-engine-session --example debugger_service_dbgeng_smoke --locked` passed on Windows against a disposable child process and exercised trace collection pause/resume with direct breakpoint flag changes.
+  - `cargo run -p squalr-engine --example debugger_command_dbgeng_smoke --locked` passed on Windows against a disposable child process and exercised trace collection pause/resume with direct breakpoint flag changes.
   - `cargo fmt --all` completed with the existing `.rustfmt.toml` deprecation warnings for `fn_args_layout`.
   - `cargo test -p squalr --locked instruction_project_item_preview_reads_instruction_byte_window -- --nocapture` passed.
   - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
-  - `cargo test -p squalr-plugin-debugger-windbg --locked -- --nocapture` passed.
+  - `cargo test -p squalr-plugin-debugger-dbgeng --locked -- --nocapture` passed.
   - `cargo test -p squalr --locked default_layout_places_output_related_windows_in_same_tab_group -- --nocapture` passed.
   - GUI behavior against the originally failing target and instruction project item still needs human verification after implementation and validation.
 - After retained DbgEng breakpoint handles and trace-created instruction preview seeding:
   - `cargo check -p squalr-engine-api --locked` passed.
   - `cargo test -p squalr-engine --locked create_address_item_uses_initial_preview_value_when_provided -- --nocapture` passed.
-  - `cargo check -p squalr-plugin-debugger-windbg --locked` passed.
+  - `cargo check -p squalr-plugin-debugger-dbgeng --locked` passed.
   - `cargo check -p squalr --locked` passed.
   - `cargo test -p squalr --locked instruction_project_item_preview -- --nocapture` passed.
   - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
   - `cargo fmt --all` completed with the existing `.rustfmt.toml` deprecation warnings for `fn_args_layout`.
-  - `cargo run -p squalr-engine-session --example debugger_service_windbg_smoke --locked` passed on Windows against a disposable child process and exercised trace collection pause/resume plus trace stop without `GetBreakpointById`.
-  - `cargo run -p squalr-engine --example debugger_command_windbg_smoke --locked` passed on Windows against a disposable child process and exercised trace collection pause/resume plus trace stop without `GetBreakpointById`.
-  - `cargo run -p squalr-plugin-debugger-windbg --example windbg_smoke --locked` passed on Windows against a disposable child process.
-  - `cargo test -p squalr-plugin-debugger-windbg --locked -- --nocapture` passed.
+  - `cargo run -p squalr-engine-session --example debugger_service_dbgeng_smoke --locked` passed on Windows against a disposable child process and exercised trace collection pause/resume plus trace stop without `GetBreakpointById`.
+  - `cargo run -p squalr-engine --example debugger_command_dbgeng_smoke --locked` passed on Windows against a disposable child process and exercised trace collection pause/resume plus trace stop without `GetBreakpointById`.
+  - `cargo run -p squalr-plugin-debugger-dbgeng --example dbgeng_smoke --locked` passed on Windows against a disposable child process.
+  - `cargo test -p squalr-plugin-debugger-dbgeng --locked -- --nocapture` passed.
   - GUI behavior against the originally failing target and instruction project item still needs human verification after implementation and validation.
 - After Stop Trace cleanup tolerance and engine instruction preview refresh:
   - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed and now asserts trace stop succeeds even when backend breakpoint cleanup fails.
   - `cargo test -p squalr-engine --locked project_item_preview -- --nocapture` passed and now asserts instruction project previews read a 16-byte instruction window and disassemble to a first-instruction preview such as `nop`.
-  - `cargo check -p squalr-plugin-debugger-windbg --locked` passed.
+  - `cargo check -p squalr-plugin-debugger-dbgeng --locked` passed.
   - `cargo fmt --all` completed with the existing `.rustfmt.toml` deprecation warnings for `fn_args_layout`.
   - `cargo check -p squalr --locked` passed.
-  - `cargo test -p squalr-plugin-debugger-windbg --locked -- --nocapture` passed.
-  - `cargo run -p squalr-engine-session --example debugger_service_windbg_smoke --locked` passed on Windows against a disposable child process and stopped a trace session cleanly.
-  - `cargo run -p squalr-engine --example debugger_command_windbg_smoke --locked` passed on Windows against a disposable child process and stopped a trace session cleanly.
+  - `cargo test -p squalr-plugin-debugger-dbgeng --locked -- --nocapture` passed.
+  - `cargo run -p squalr-engine-session --example debugger_service_dbgeng_smoke --locked` passed on Windows against a disposable child process and stopped a trace session cleanly.
+  - `cargo run -p squalr-engine --example debugger_command_dbgeng_smoke --locked` passed on Windows against a disposable child process and stopped a trace session cleanly.
   - `cargo test -p squalr --locked default_layout_places_output_related_windows_in_same_tab_group -- --nocapture` passed.
   - GUI behavior against the originally failing target and instruction project item still needs human verification after implementation and validation.
 - After reverting the unsafe DbgEng fallback and stabilizing trace stop:
@@ -483,15 +489,15 @@ Our current task, from `README.md`, is:
   - Trace stop now disables tracked breakpoints and removes the trace label without calling `bc` or releasing the tracked `IDebugBreakpoint` wrapper during the stop action. Untracked breakpoint IDs still fall back to `bc`.
   - Superseded: this checkpoint briefly preserved a non-empty seeded instruction preview when live preview failed, but that masked decode/read failures and has since been removed.
   - `cargo fmt --all` completed with the existing `.rustfmt.toml` deprecation warnings for `fn_args_layout`.
-  - `cargo check -p squalr-plugin-debugger-windbg --locked` passed.
-  - `cargo run -p squalr-engine-session --example debugger_service_windbg_smoke --locked` passed on Windows against a disposable child process and exercised attach, trace hit, collection pause/resume, stop, and detach.
-  - `cargo run -p squalr-engine --example debugger_command_windbg_smoke --locked` passed on Windows against a disposable child process and exercised attach, trace hit, collection pause/resume, stop, and detach.
+  - `cargo check -p squalr-plugin-debugger-dbgeng --locked` passed.
+  - `cargo run -p squalr-engine-session --example debugger_service_dbgeng_smoke --locked` passed on Windows against a disposable child process and exercised attach, trace hit, collection pause/resume, stop, and detach.
+  - `cargo run -p squalr-engine --example debugger_command_dbgeng_smoke --locked` passed on Windows against a disposable child process and exercised attach, trace hit, collection pause/resume, stop, and detach.
   - `cargo test -p squalr --locked instruction_project_item_preview -- --nocapture` passed.
   - `cargo test -p squalr-engine --locked project_item_preview -- --nocapture` passed.
   - `cargo check -p squalr --locked` passed.
   - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
-  - `cargo test -p squalr-plugin-debugger-windbg --locked -- --nocapture` passed.
-  - `cargo run -p squalr-plugin-debugger-windbg --example windbg_smoke --locked` passed on Windows against a disposable child process.
+  - `cargo test -p squalr-plugin-debugger-dbgeng --locked -- --nocapture` passed.
+  - `cargo run -p squalr-plugin-debugger-dbgeng --example dbgeng_smoke --locked` passed on Windows against a disposable child process.
   - GUI behavior against the originally failing target and instruction project item still needs human verification after implementation and validation.
 - After DbgEng restart-after-stop and stop-clears-trace correction:
   - Reproduced the restart shape in the service smoke: after Stop Trace, starting a new trace on the same attached DbgEng session previously hit stale disabled-breakpoint state and/or an already-running `SetExecutionStatus(DEBUG_STATUS_GO)` failure.
@@ -500,13 +506,13 @@ Our current task, from `README.md`, is:
   - Stop Trace now removes the trace session from the session store and returns/emits an empty instruction record list, matching the intended "complete trace shutdown" behavior.
   - The GUI trace view data now removes inactive trace sessions and their instruction records when it receives the final inactive trace update, so the grid clears after Stop Trace.
   - `cargo fmt --all` completed with the existing `.rustfmt.toml` deprecation warnings for `fn_args_layout`.
-  - `cargo run -p squalr-engine-session --example debugger_service_windbg_smoke --locked` passed on Windows against a disposable child process and now covers start, hit, pause/resume collection, stop with zero returned records, restart on the same address, second hit, second stop, and detach.
+  - `cargo run -p squalr-engine-session --example debugger_service_dbgeng_smoke --locked` passed on Windows against a disposable child process and now covers start, hit, pause/resume collection, stop with zero returned records, restart on the same address, second hit, second stop, and detach.
   - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
   - `cargo test -p squalr --locked inactive_trace_update_removes_session_and_records_from_snapshot -- --nocapture` passed.
-  - `cargo check -p squalr-plugin-debugger-windbg --locked` passed.
+  - `cargo check -p squalr-plugin-debugger-dbgeng --locked` passed.
   - `cargo check -p squalr --locked` passed.
-  - `cargo run -p squalr-engine --example debugger_command_windbg_smoke --locked` passed on Windows against a disposable child process and now reports Stop Trace with zero returned records.
-  - `cargo test -p squalr-plugin-debugger-windbg --locked -- --nocapture` passed.
+  - `cargo run -p squalr-engine --example debugger_command_dbgeng_smoke --locked` passed on Windows against a disposable child process and now reports Stop Trace with zero returned records.
+  - `cargo test -p squalr-plugin-debugger-dbgeng --locked -- --nocapture` passed.
   - GUI behavior against the originally failing target still needs human verification after implementation and validation.
 - After target-architecture ISA selection:
   - Added `TargetArchitecture` to `OpenedProcessInfo` with instruction-set id, instruction data-type id, pointer width, and endianness. Existing constructors default to x86/x64 from pointer width for compatibility, while remote/plugin paths can override with `with_target_architecture`.
@@ -533,8 +539,8 @@ Our current task, from `README.md`, is:
   - `cargo test -p squalr-engine --locked project_item_preview -- --nocapture` passed.
   - `cargo test -p squalr --locked instruction_project_item_preview -- --nocapture` passed.
   - `cargo test -p squalr --locked instruction_alias_label_is_preserved -- --nocapture` passed.
-  - `cargo run -p squalr-engine-session --example debugger_service_windbg_smoke --locked` passed on Windows against a disposable child process.
-  - `cargo run -p squalr-engine --example debugger_command_windbg_smoke --locked` passed on Windows against a disposable child process.
+  - `cargo run -p squalr-engine-session --example debugger_service_dbgeng_smoke --locked` passed on Windows against a disposable child process.
+  - `cargo run -p squalr-engine --example debugger_command_dbgeng_smoke --locked` passed on Windows against a disposable child process.
   - GUI behavior against the originally failing target still needs human verification after implementation and validation.
 - After debugger trace collection-state and instruction-preview fixes:
   - Trace collection pause/resume is now engine-owned gating only. It no longer calls the debugger backend to disable/re-enable the hardware data breakpoint, so pause means "stop collecting records" while the target and breakpoint remain running.
@@ -549,8 +555,8 @@ Our current task, from `README.md`, is:
   - `cargo test -p squalr-engine --locked project_item_preview -- --nocapture` passed.
   - `cargo test -p squalr --locked instruction_project_item_preview -- --nocapture` passed.
   - `cargo check -p squalr --locked` passed.
-  - `cargo run -p squalr-engine-session --example debugger_service_windbg_smoke --locked` passed on Windows against a disposable child process and covered pause/resume/restart hit-count behavior.
-  - `cargo run -p squalr-engine --example debugger_command_windbg_smoke --locked` passed on Windows against a disposable child process and covered command-dispatched pause/resume/restart hit-count behavior.
+  - `cargo run -p squalr-engine-session --example debugger_service_dbgeng_smoke --locked` passed on Windows against a disposable child process and covered pause/resume/restart hit-count behavior.
+  - `cargo run -p squalr-engine --example debugger_command_dbgeng_smoke --locked` passed on Windows against a disposable child process and covered command-dispatched pause/resume/restart hit-count behavior.
   - GUI behavior against winmine still needs human verification after implementation and validation.
 - After replacing the instruction preview fallback with real block disassembly:
   - Removed the stale-preview preservation path for instruction project items. Failed live memory reads now clear the preview instead of keeping old text.
@@ -571,12 +577,12 @@ Our current task, from `README.md`, is:
   - Debugger trace event enrichment now uses instruction-set `disassemble_block` instead of string `disassemble` plus splitting, and rejects `??`/`[??]` as meaningful instruction text.
   - Project hierarchy row previews no longer replace an empty instruction-item preview with `??`; non-instruction address/pointer items still use the existing `??` placeholder.
   - `cargo fmt --all` completed with the existing `.rustfmt.toml` deprecation warnings for `fn_args_layout`.
-  - `cargo check -p squalr-plugin-debugger-windbg --locked` passed.
+  - `cargo check -p squalr-plugin-debugger-dbgeng --locked` passed.
   - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed.
   - `cargo test -p squalr --locked preview_ -- --nocapture` passed.
   - `cargo check -p squalr --locked` passed.
-  - `cargo run -p squalr-engine-session --example debugger_service_windbg_smoke --locked` passed on Windows against a disposable child process and covered pause-stop-restart.
-  - `cargo run -p squalr-engine --example debugger_command_windbg_smoke --locked` passed on Windows against a disposable child process.
+  - `cargo run -p squalr-engine-session --example debugger_service_dbgeng_smoke --locked` passed on Windows against a disposable child process and covered pause-stop-restart.
+  - `cargo run -p squalr-engine --example debugger_command_dbgeng_smoke --locked` passed on Windows against a disposable child process.
   - GUI behavior against winmine still needs human verification after implementation and validation.
 - After fixing blank instruction project previews:
   - Root cause: instruction preview read definitions used the instruction data type itself (`i_*[16]`). Instruction data types have variable-length values and their default value is empty, so struct sizing materialized the preview field as a zero-byte read and the disassembler received no bytes.

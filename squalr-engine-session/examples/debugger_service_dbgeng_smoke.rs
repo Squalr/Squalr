@@ -80,15 +80,15 @@ fn run_smoke_against_child(child_process: &mut std::process::Child) -> Result<()
     let (target_process_id, target_address) = parse_child_ready_line(&child_ready_line)?;
     let process_info = OpenedProcessInfo::new(
         target_process_id,
-        String::from("debugger_service_windbg_smoke_child"),
+        String::from("debugger_service_dbgeng_smoke_child"),
         u64::from(target_process_id),
         Bitness::Bit64,
         None,
     );
     let plugin_registry = Arc::new(PluginRegistry::new());
 
-    if !plugin_registry.is_plugin_enabled("builtin.debugger.windbg") && !plugin_registry.set_plugin_enabled("builtin.debugger.windbg", true) {
-        return Err(String::from("Failed to enable builtin.debugger.windbg for smoke validation.").into());
+    if !plugin_registry.is_plugin_enabled("builtin.debugger.dbgeng") && !plugin_registry.set_plugin_enabled("builtin.debugger.dbgeng", true) {
+        return Err(String::from("Failed to enable builtin.debugger.dbgeng for smoke validation.").into());
     }
 
     let (engine_event_sender, engine_event_receiver) = mpsc::channel::<EngineEvent>();
@@ -100,7 +100,7 @@ fn run_smoke_against_child(child_process: &mut std::process::Child) -> Result<()
     );
 
     println!("Attaching session service to child process {target_process_id} at {target_address:#x}.");
-    let attach_status = debugger_service.attach(&process_info, Some("builtin.debugger.windbg"))?;
+    let attach_status = debugger_service.attach(&process_info, Some("builtin.debugger.dbgeng"))?;
     println!(
         "Attached through {}.",
         attach_status
@@ -112,7 +112,7 @@ fn run_smoke_against_child(child_process: &mut std::process::Child) -> Result<()
         target_address,
         8,
         DebuggerDataBreakpointAccess::Write,
-        Some(String::from("session-windbg-smoke-write")),
+        Some(String::from("session-dbgeng-smoke-write")),
     )?;
     println!(
         "Trace session {} armed at {:#x}.",
@@ -196,7 +196,7 @@ fn run_smoke_against_child(child_process: &mut std::process::Child) -> Result<()
         target_address,
         8,
         DebuggerDataBreakpointAccess::Write,
-        Some(String::from("session-windbg-smoke-write-restart")),
+        Some(String::from("session-dbgeng-smoke-write-restart")),
     )?;
     println!(
         "Restarted trace session {} at {:#x}.",
@@ -234,7 +234,7 @@ fn run_smoke_against_child(child_process: &mut std::process::Child) -> Result<()
         target_address,
         8,
         DebuggerDataBreakpointAccess::Write,
-        Some(String::from("session-windbg-smoke-write-pause-stop-restart")),
+        Some(String::from("session-dbgeng-smoke-write-pause-stop-restart")),
     )?;
     println!(
         "Restarted after pause-stop as trace session {} at {:#x}.",
@@ -348,5 +348,5 @@ fn format_optional_address(address: Option<u64>) -> String {
 
 #[cfg(not(windows))]
 fn main() {
-    println!("The WinDbg session smoke example is only available on Windows.");
+    println!("The DbgEng session smoke example is only available on Windows.");
 }

@@ -8,7 +8,7 @@ use squalr_engine_api::{
     },
 };
 #[cfg(windows)]
-use squalr_plugin_debugger_windbg::WindbgDebuggerPlugin;
+use squalr_plugin_debugger_dbgeng::DbgEngDebuggerPlugin;
 #[cfg(windows)]
 use std::{
     error::Error,
@@ -80,7 +80,7 @@ fn run_smoke_against_child(child_process: &mut std::process::Child) -> Result<()
     let (target_process_id, target_address) = parse_child_ready_line(&child_ready_line)?;
     let process_info = OpenedProcessInfo::new(
         target_process_id,
-        String::from("windbg_smoke_child"),
+        String::from("dbgeng_smoke_child"),
         u64::from(target_process_id),
         Bitness::Bit64,
         None,
@@ -91,7 +91,7 @@ fn run_smoke_against_child(child_process: &mut std::process::Child) -> Result<()
         let _ = trace_event_sender.send(trace_event);
     });
 
-    let plugin = WindbgDebuggerPlugin::new();
+    let plugin = DbgEngDebuggerPlugin::new();
     let mut debugger_session = plugin.create_session(&process_info, trace_event_sink)?;
 
     println!("Attaching to child process {target_process_id} at {target_address:#x}.");
@@ -107,7 +107,7 @@ fn run_smoke_against_child(child_process: &mut std::process::Child) -> Result<()
     let breakpoint_descriptor = debugger_session.set_breakpoint(
         target_address,
         DebuggerBreakpointKind::hardware_data(DebuggerDataBreakpointAccess::Write, 8),
-        Some(String::from("windbg-smoke-write")),
+        Some(String::from("dbgeng-smoke-write")),
     )?;
     println!(
         "Breakpoint {} armed at {:#x}.",
@@ -173,7 +173,7 @@ fn wait_for_trace_event(
         }
 
         if wait_started_at.elapsed() >= timeout {
-            return Err(String::from("Timed out waiting for a WinDbg breakpoint trace event.").into());
+            return Err(String::from("Timed out waiting for a DbgEng breakpoint trace event.").into());
         }
     }
 }
@@ -187,5 +187,5 @@ fn format_optional_address(address: Option<u64>) -> String {
 
 #[cfg(not(windows))]
 fn main() {
-    println!("The WinDbg smoke example is only available on Windows.");
+    println!("The DbgEng smoke example is only available on Windows.");
 }

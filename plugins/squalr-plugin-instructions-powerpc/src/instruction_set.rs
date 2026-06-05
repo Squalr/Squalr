@@ -29,6 +29,10 @@ impl InstructionSet for PowerPc32BeInstructionSet {
         "PowerPC32 BE"
     }
 
+    fn get_max_instruction_size(&self) -> usize {
+        4
+    }
+
     fn assemble(
         &self,
         assembly_source: &str,

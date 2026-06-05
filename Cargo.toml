@@ -5,7 +5,7 @@ members = [
     "plugins/squalr-plugin-instructions-arm",
     "plugins/squalr-plugin-instructions-powerpc",
     "plugins/squalr-plugin-instructions-x86",
-    "plugins/squalr-plugin-debugger-windbg",
+    "plugins/squalr-plugin-debugger-dbgeng",
     "plugins/squalr-plugin-memory-view-dolphin",
     "plugins/squalr-plugin-binary-symbols",
     "squalr-tests",
