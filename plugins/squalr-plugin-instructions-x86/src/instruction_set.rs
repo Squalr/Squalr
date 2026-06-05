@@ -286,6 +286,10 @@ impl InstructionSet for X86InstructionSet {
     ) -> Result<Vec<u8>, String> {
         Ok(vec![0x90; byte_count])
     }
+
+    fn build_software_breakpoint(&self) -> Result<Vec<u8>, String> {
+        Ok(vec![0xCC])
+    }
 }
 
 #[derive(Debug)]
@@ -528,6 +532,10 @@ impl InstructionSet for X64InstructionSet {
         byte_count: usize,
     ) -> Result<Vec<u8>, String> {
         Ok(vec![0x90; byte_count])
+    }
+
+    fn build_software_breakpoint(&self) -> Result<Vec<u8>, String> {
+        Ok(vec![0xCC])
     }
 }
 

@@ -15,9 +15,9 @@ pub use plugin::PowerPcFamilyInstructionsPlugin;
 
 #[cfg(test)]
 mod tests {
-    use crate::{DataTypeInstructionPowerPc32Be, PowerPcFamilyInstructionsPlugin};
+    use crate::{DataTypeInstructionPowerPc32Be, PowerPc32BeInstructionSet, PowerPcFamilyInstructionsPlugin};
     use squalr_engine_api::{
-        plugins::{Plugin, PluginCapability},
+        plugins::{Plugin, PluginCapability, instruction_set::InstructionSet},
         structures::{
             data_types::data_type::DataType,
             data_values::{
@@ -67,6 +67,16 @@ mod tests {
             .expect("Expected PowerPC bytes to disassemble.");
 
         assert_eq!(anonymous_value_string.get_anonymous_value_string(), "li r3, 5; lwz r4, 16(r3); mr r4, r3");
+    }
+
+    #[test]
+    fn powerpc_instruction_set_builds_software_breakpoint() {
+        assert_eq!(
+            PowerPc32BeInstructionSet::new()
+                .build_software_breakpoint()
+                .as_deref(),
+            Ok(&[0x7F, 0xE0, 0x00, 0x08][..])
+        );
     }
 
     #[test]

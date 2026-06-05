@@ -21,9 +21,9 @@ pub use squalr_engine_api::plugins::instruction_set::DisassembledInstruction;
 
 #[cfg(test)]
 mod tests {
-    use crate::{DataTypeInstructionX64, DataTypeInstructionX86, X86FamilyInstructionsPlugin, X86InstructionSet};
+    use crate::{DataTypeInstructionX64, DataTypeInstructionX86, X64InstructionSet, X86FamilyInstructionsPlugin, X86InstructionSet};
     use squalr_engine_api::{
-        plugins::{Plugin, PluginCapability},
+        plugins::{Plugin, PluginCapability, instruction_set::InstructionSet},
         structures::{
             data_types::data_type::DataType,
             data_values::{
@@ -315,6 +315,12 @@ mod tests {
             .expect("Expected instruction bytes to format as hex.");
 
         assert_eq!(anonymous_value_string.get_anonymous_value_string(), "90 C3");
+    }
+
+    #[test]
+    fn x86_family_instruction_sets_build_software_breakpoints() {
+        assert_eq!(X86InstructionSet::new().build_software_breakpoint().as_deref(), Ok(&[0xCC][..]));
+        assert_eq!(X64InstructionSet::new().build_software_breakpoint().as_deref(), Ok(&[0xCC][..]));
     }
 
     #[test]

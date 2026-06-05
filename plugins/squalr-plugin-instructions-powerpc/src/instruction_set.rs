@@ -106,6 +106,10 @@ impl InstructionSet for PowerPc32BeInstructionSet {
 
         Ok(fill_bytes)
     }
+
+    fn build_software_breakpoint(&self) -> Result<Vec<u8>, String> {
+        Ok(0x7FE0_0008_u32.to_be_bytes().to_vec())
+    }
 }
 
 fn encode_instruction(

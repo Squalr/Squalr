@@ -31,9 +31,11 @@ use squalr_engine_api::commands::debugger::trace_start::debugger_trace_start_res
 use squalr_engine_api::commands::debugger::trace_stop::debugger_trace_stop_request::DebuggerTraceStopRequest;
 use squalr_engine_api::commands::debugger::trace_stop::debugger_trace_stop_response::DebuggerTraceStopResponse;
 use squalr_engine_api::commands::privileged_command_response::{PrivilegedCommandResponse, TypedPrivilegedCommandResponse};
-use squalr_engine_api::structures::debugger::{DebuggerCommandStatus, DebuggerSessionState};
-use squalr_engine_api::structures::memory::normalized_region::NormalizedRegion;
+use squalr_engine_api::structures::debugger::{DebuggerBreakpointDescriptor, DebuggerBreakpointKind, DebuggerCommandStatus, DebuggerSessionState};
+use squalr_engine_api::structures::patches::PatchKind;
 use std::sync::Arc;
+
+const PATCH_SOFTWARE_BREAKPOINT_ID_PREFIX: &str = "patch:";
 
 fn failure_status(error_message: impl Into<String>) -> DebuggerCommandStatus {
     DebuggerCommandStatus::failure(error_message)
@@ -41,6 +43,81 @@ fn failure_status(error_message: impl Into<String>) -> DebuggerCommandStatus {
 
 fn no_opened_process_status() -> DebuggerCommandStatus {
     failure_status("No opened process to debug.")
+}
+
+fn set_software_breakpoint_patch(
+    engine_privileged_state: &Arc<EnginePrivilegedState>,
+    address: u64,
+    label: Option<String>,
+) -> DebuggerBreakpointSetResponse {
+    let Some(opened_process_info) = engine_privileged_state
+        .get_process_manager()
+        .get_opened_process()
+    else {
+        return DebuggerBreakpointSetResponse {
+            status: no_opened_process_status(),
+            breakpoint: None,
+        };
+    };
+    let instruction_set_id = opened_process_info
+        .get_target_architecture()
+        .get_instruction_set_id()
+        .to_string();
+    let Some(instruction_set) = engine_privileged_state
+        .get_plugin_registry()
+        .find_instruction_set(&instruction_set_id)
+    else {
+        return DebuggerBreakpointSetResponse {
+            status: failure_status(format!(
+                "No instruction set plugin is enabled for target architecture '{}'.",
+                instruction_set_id
+            )),
+            breakpoint: None,
+        };
+    };
+    let breakpoint_bytes = match instruction_set.build_software_breakpoint() {
+        Ok(breakpoint_bytes) if !breakpoint_bytes.is_empty() => breakpoint_bytes,
+        Ok(_) => {
+            return DebuggerBreakpointSetResponse {
+                status: failure_status(format!(
+                    "Instruction set plugin '{}' produced an empty software breakpoint.",
+                    instruction_set_id
+                )),
+                breakpoint: None,
+            };
+        }
+        Err(error_message) => {
+            return DebuggerBreakpointSetResponse {
+                status: failure_status(error_message),
+                breakpoint: None,
+            };
+        }
+    };
+
+    match engine_privileged_state.get_patch_service().apply_patch(
+        &opened_process_info,
+        engine_privileged_state.get_os_providers(),
+        address,
+        "",
+        &breakpoint_bytes,
+        PatchKind::SoftwareBreakpoint,
+        label.clone(),
+    ) {
+        Ok(patch) => DebuggerBreakpointSetResponse {
+            status: DebuggerCommandStatus::success(),
+            breakpoint: Some(DebuggerBreakpointDescriptor::new(
+                format!("{}{}", PATCH_SOFTWARE_BREAKPOINT_ID_PREFIX, patch.get_patch_id()),
+                patch.get_region().get_base_address(),
+                DebuggerBreakpointKind::Software,
+                patch.get_is_active(),
+                label,
+            )),
+        },
+        Err(error_message) => DebuggerBreakpointSetResponse {
+            status: failure_status(error_message),
+            breakpoint: None,
+        },
+    }
 }
 
 impl PrivilegedCommandExecutor for DebuggerCommand {
@@ -210,36 +287,8 @@ impl PrivilegedCommandRequestExecutor for DebuggerBreakpointSetRequest {
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
-        if matches!(self.kind, squalr_engine_api::structures::debugger::DebuggerBreakpointKind::Software) {
-            if let Some(opened_process_info) = engine_privileged_state
-                .get_process_manager()
-                .get_opened_process()
-            {
-                let breakpoint_region = NormalizedRegion::new(self.address, 1);
-
-                match engine_privileged_state
-                    .get_patch_service()
-                    .find_active_overlap(&opened_process_info, &breakpoint_region)
-                {
-                    Ok(Some(conflicting_patch)) => {
-                        return DebuggerBreakpointSetResponse {
-                            status: failure_status(format!(
-                                "Software breakpoint at 0x{:X} overlaps active patch '{}'.",
-                                self.address,
-                                conflicting_patch.get_patch_id()
-                            )),
-                            breakpoint: None,
-                        };
-                    }
-                    Ok(None) => {}
-                    Err(error_message) => {
-                        return DebuggerBreakpointSetResponse {
-                            status: failure_status(error_message),
-                            breakpoint: None,
-                        };
-                    }
-                }
-            }
+        if matches!(self.kind, DebuggerBreakpointKind::Software) {
+            return set_software_breakpoint_patch(engine_privileged_state, self.address, self.label.clone());
         }
 
         match engine_privileged_state
@@ -265,6 +314,32 @@ impl PrivilegedCommandRequestExecutor for DebuggerBreakpointRemoveRequest {
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
+        if let Some(patch_id) = self
+            .breakpoint_id
+            .strip_prefix(PATCH_SOFTWARE_BREAKPOINT_ID_PREFIX)
+        {
+            let Some(opened_process_info) = engine_privileged_state
+                .get_process_manager()
+                .get_opened_process()
+            else {
+                return DebuggerBreakpointRemoveResponse {
+                    status: no_opened_process_status(),
+                };
+            };
+
+            return match engine_privileged_state
+                .get_patch_service()
+                .restore_patch(&opened_process_info, engine_privileged_state.get_os_providers(), patch_id)
+            {
+                Ok(_) => DebuggerBreakpointRemoveResponse {
+                    status: DebuggerCommandStatus::success(),
+                },
+                Err(error_message) => DebuggerBreakpointRemoveResponse {
+                    status: failure_status(error_message),
+                },
+            };
+        }
+
         match engine_privileged_state
             .get_debugger_service()
             .remove_breakpoint(&self.breakpoint_id)
@@ -286,18 +361,67 @@ impl PrivilegedCommandRequestExecutor for DebuggerBreakpointListRequest {
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
-        match engine_privileged_state
+        let mut breakpoints = match engine_privileged_state
             .get_debugger_service()
             .list_breakpoints()
         {
-            Ok(breakpoints) => DebuggerBreakpointListResponse {
-                status: DebuggerCommandStatus::success(),
-                breakpoints,
-            },
-            Err(error_message) => DebuggerBreakpointListResponse {
-                status: failure_status(error_message),
-                breakpoints: Vec::new(),
-            },
+            Ok(breakpoints) => breakpoints,
+            Err(error_message) if error_message == "No active debugger session." => Vec::new(),
+            Err(error_message) => {
+                return DebuggerBreakpointListResponse {
+                    status: failure_status(error_message),
+                    breakpoints: Vec::new(),
+                };
+            }
+        };
+
+        if let Some(opened_process_info) = engine_privileged_state
+            .get_process_manager()
+            .get_opened_process()
+        {
+            match engine_privileged_state
+                .get_patch_service()
+                .list_patches(&opened_process_info)
+            {
+                Ok(patches) => {
+                    breakpoints.extend(
+                        patches
+                            .into_iter()
+                            .filter(|patch| patch.get_kind() == PatchKind::SoftwareBreakpoint)
+                            .map(|patch| {
+                                DebuggerBreakpointDescriptor::new(
+                                    format!("{}{}", PATCH_SOFTWARE_BREAKPOINT_ID_PREFIX, patch.get_patch_id()),
+                                    patch.get_region().get_base_address(),
+                                    DebuggerBreakpointKind::Software,
+                                    patch.get_is_active(),
+                                    patch.get_label().map(ToString::to_string),
+                                )
+                            }),
+                    );
+                }
+                Err(error_message) => {
+                    return DebuggerBreakpointListResponse {
+                        status: failure_status(error_message),
+                        breakpoints: Vec::new(),
+                    };
+                }
+            }
+        }
+
+        breakpoints.sort_by(|left_breakpoint, right_breakpoint| {
+            left_breakpoint
+                .get_address()
+                .cmp(&right_breakpoint.get_address())
+                .then_with(|| {
+                    left_breakpoint
+                        .get_breakpoint_id()
+                        .cmp(right_breakpoint.get_breakpoint_id())
+                })
+        });
+
+        DebuggerBreakpointListResponse {
+            status: DebuggerCommandStatus::success(),
+            breakpoints,
         }
     }
 }

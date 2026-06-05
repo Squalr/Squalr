@@ -56,4 +56,8 @@ pub trait InstructionSet: Debug + Send + Sync {
 
         Err(format!("{} does not expose a no-operation fill pattern.", self.get_display_name()))
     }
+
+    fn build_software_breakpoint(&self) -> Result<Vec<u8>, String> {
+        Err(format!("{} does not expose a software breakpoint instruction.", self.get_display_name()))
+    }
 }

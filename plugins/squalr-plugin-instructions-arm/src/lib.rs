@@ -15,9 +15,9 @@ pub use plugin::ArmFamilyInstructionsPlugin;
 
 #[cfg(test)]
 mod tests {
-    use crate::{ArmFamilyInstructionsPlugin, DataTypeInstructionArm, DataTypeInstructionArm64};
+    use crate::{Arm32InstructionSet, Arm64InstructionSet, ArmFamilyInstructionsPlugin, DataTypeInstructionArm, DataTypeInstructionArm64};
     use squalr_engine_api::{
-        plugins::{Plugin, PluginCapability},
+        plugins::{Plugin, PluginCapability, instruction_set::InstructionSet},
         structures::{
             data_types::data_type::DataType,
             data_values::{
@@ -76,6 +76,22 @@ mod tests {
             .expect("Expected ARM64 bytes to disassemble.");
 
         assert_eq!(anonymous_value_string.get_anonymous_value_string(), "ldr x0, [x1, #16]; str x0, [x1, #16]");
+    }
+
+    #[test]
+    fn arm_family_instruction_sets_build_software_breakpoints() {
+        assert_eq!(
+            Arm32InstructionSet::new()
+                .build_software_breakpoint()
+                .as_deref(),
+            Ok(&[0x70, 0x00, 0x20, 0xE1][..])
+        );
+        assert_eq!(
+            Arm64InstructionSet::new()
+                .build_software_breakpoint()
+                .as_deref(),
+            Ok(&[0x00, 0x00, 0x20, 0xD4][..])
+        );
     }
 
     #[test]

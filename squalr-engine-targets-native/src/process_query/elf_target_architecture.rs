@@ -31,7 +31,7 @@ pub(crate) fn parse_elf_target_architecture_from_bytes(executable_bytes: &[u8]) 
         (ELF_MACHINE_ARM, Bitness::Bit32, Endianness::Little) => Some(TargetArchitecture::arm()),
         (ELF_MACHINE_AARCH64, Bitness::Bit64, Endianness::Little) => Some(TargetArchitecture::arm64()),
         (ELF_MACHINE_POWERPC, Bitness::Bit32, Endianness::Big) => Some(TargetArchitecture::power_pc32_be()),
-        _ => Some(TargetArchitecture::default_for_bitness(elf_header.bitness)),
+        _ => Some(TargetArchitecture::unknown(elf_header.bitness, elf_header.endianness)),
     }
 }
 
@@ -112,5 +112,15 @@ mod tests {
     fn parse_elf_bitness_reads_class_header() {
         assert_eq!(parse_elf_bitness_from_bytes(&elf_header(1, 1, 3_u16.to_le_bytes())), Some(Bitness::Bit32));
         assert_eq!(parse_elf_bitness_from_bytes(&elf_header(2, 1, 62_u16.to_le_bytes())), Some(Bitness::Bit64));
+    }
+
+    #[test]
+    fn parse_elf_target_architecture_keeps_unknown_machine_unknown() {
+        let target_architecture =
+            parse_elf_target_architecture_from_bytes(&elf_header(2, 1, 999_u16.to_le_bytes())).expect("Expected unknown ELF header to parse.");
+
+        assert_eq!(target_architecture.get_instruction_set_id(), "unknown");
+        assert_eq!(target_architecture.get_instruction_data_type_id(), "i_unknown");
+        assert_eq!(target_architecture.get_pointer_width(), Bitness::Bit64);
     }
 }

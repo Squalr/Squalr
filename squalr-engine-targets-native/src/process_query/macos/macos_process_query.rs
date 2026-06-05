@@ -8,11 +8,13 @@ use mach2::port::{MACH_PORT_NULL, mach_port_name_t, mach_port_t};
 use mach2::traps::{mach_task_self, task_for_pid};
 use objc::runtime::Object;
 use objc::{class, msg_send, sel, sel_impl};
+use squalr_engine_api::structures::memory::bitness::Bitness;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::processes::process_icon::ProcessIcon;
 use squalr_engine_api::structures::processes::process_info::ProcessInfo;
-use squalr_engine_api::structures::processes::target_architecture::TargetArchitecture;
+use squalr_engine_api::structures::processes::target_architecture::{Endianness, TargetArchitecture};
 use std::collections::HashSet;
+use std::fs;
 use std::os::raw::c_int;
 use std::path::{Path, PathBuf};
 use sysinfo::{Pid, ProcessRefreshKind, RefreshKind, System};
@@ -56,6 +58,18 @@ const MAX_PROCESS_ICON_EDGE_PX: u32 = 24;
 const CG_IMAGE_ALPHA_PREMULTIPLIED_LAST: u32 = 1;
 const CG_BITMAP_BYTE_ORDER_32_BIG: u32 = 4 << 12;
 const CG_BITMAP_INFO_RGBA8_PREMULTIPLIED_LAST: u32 = CG_IMAGE_ALPHA_PREMULTIPLIED_LAST | CG_BITMAP_BYTE_ORDER_32_BIG;
+const MACH_MAGIC_32_LE: [u8; 4] = [0xCE, 0xFA, 0xED, 0xFE];
+const MACH_MAGIC_64_LE: [u8; 4] = [0xCF, 0xFA, 0xED, 0xFE];
+const MACH_MAGIC_32_BE: [u8; 4] = [0xFE, 0xED, 0xFA, 0xCE];
+const MACH_MAGIC_64_BE: [u8; 4] = [0xFE, 0xED, 0xFA, 0xCF];
+const FAT_MAGIC_BE: [u8; 4] = [0xCA, 0xFE, 0xBA, 0xBE];
+const FAT_MAGIC_LE: [u8; 4] = [0xBE, 0xBA, 0xFE, 0xCA];
+const MACH_CPU_ARCH_ABI64: i32 = 0x0100_0000;
+const MACH_CPU_TYPE_X86: i32 = 7;
+const MACH_CPU_TYPE_ARM: i32 = 12;
+const MACH_CPU_TYPE_POWERPC: i32 = 18;
+const MACH_CPU_TYPE_X64: i32 = MACH_CPU_ARCH_ABI64 | MACH_CPU_TYPE_X86;
+const MACH_CPU_TYPE_ARM64: i32 = MACH_CPU_ARCH_ABI64 | MACH_CPU_TYPE_ARM;
 
 #[link(name = "AppKit", kind = "framework")]
 unsafe extern "C" {}
@@ -137,6 +151,90 @@ impl MacOsProcessQuery {
         #[cfg(not(target_arch = "aarch64"))]
         {
             TargetArchitecture::x64()
+        }
+    }
+
+    fn get_process_target_architecture(process_id: u32) -> TargetArchitecture {
+        Self::get_process_executable_path(&Pid::from_u32(process_id))
+            .and_then(|executable_path| fs::read(executable_path).ok())
+            .and_then(|executable_bytes| Self::parse_mach_target_architecture_from_bytes(&executable_bytes))
+            .unwrap_or_else(Self::default_target_architecture)
+    }
+
+    fn parse_mach_target_architecture_from_bytes(executable_bytes: &[u8]) -> Option<TargetArchitecture> {
+        if executable_bytes.len() < 8 {
+            return None;
+        }
+
+        let magic = executable_bytes.get(0..4)?;
+
+        if magic == MACH_MAGIC_32_LE.as_slice() || magic == MACH_MAGIC_64_LE.as_slice() {
+            let cpu_type = i32::from_le_bytes(executable_bytes.get(4..8)?.try_into().ok()?);
+            return Some(Self::target_architecture_from_mach_cpu_type(cpu_type, Endianness::Little));
+        }
+
+        if magic == MACH_MAGIC_32_BE.as_slice() || magic == MACH_MAGIC_64_BE.as_slice() {
+            let cpu_type = i32::from_be_bytes(executable_bytes.get(4..8)?.try_into().ok()?);
+            return Some(Self::target_architecture_from_mach_cpu_type(cpu_type, Endianness::Big));
+        }
+
+        if magic == FAT_MAGIC_BE.as_slice() || magic == FAT_MAGIC_LE.as_slice() {
+            let is_little_endian_fat = magic == FAT_MAGIC_LE.as_slice();
+            let read_u32 = |bytes: &[u8]| -> Option<u32> {
+                let fixed_bytes: [u8; 4] = bytes.try_into().ok()?;
+                Some(if is_little_endian_fat {
+                    u32::from_le_bytes(fixed_bytes)
+                } else {
+                    u32::from_be_bytes(fixed_bytes)
+                })
+            };
+            let architecture_count = read_u32(executable_bytes.get(4..8)?)? as usize;
+            let available_architecture_count = executable_bytes
+                .len()
+                .saturating_sub(8)
+                .checked_div(20)
+                .unwrap_or(0);
+            let architecture_count = architecture_count.min(available_architecture_count);
+            let mut fallback_target_architecture = None;
+
+            for architecture_index in 0..architecture_count {
+                let architecture_offset = 8usize.saturating_add(architecture_index.saturating_mul(20));
+                let cpu_type_end_offset = architecture_offset.checked_add(4)?;
+                let cpu_type = read_u32(executable_bytes.get(architecture_offset..cpu_type_end_offset)?)? as i32;
+                let target_architecture = Self::target_architecture_from_mach_cpu_type(cpu_type, Endianness::Little);
+
+                if matches!(target_architecture.get_instruction_set_id(), "arm64" | "x64") {
+                    return Some(target_architecture);
+                }
+
+                fallback_target_architecture.get_or_insert(target_architecture);
+            }
+
+            return fallback_target_architecture;
+        }
+
+        None
+    }
+
+    fn target_architecture_from_mach_cpu_type(
+        cpu_type: i32,
+        endianness: Endianness,
+    ) -> TargetArchitecture {
+        match cpu_type {
+            MACH_CPU_TYPE_X86 => TargetArchitecture::x86(),
+            MACH_CPU_TYPE_X64 => TargetArchitecture::x64(),
+            MACH_CPU_TYPE_ARM => TargetArchitecture::arm(),
+            MACH_CPU_TYPE_ARM64 => TargetArchitecture::arm64(),
+            MACH_CPU_TYPE_POWERPC => TargetArchitecture::power_pc32_be(),
+            _ => {
+                let pointer_width = if (cpu_type & MACH_CPU_ARCH_ABI64) != 0 {
+                    Bitness::Bit64
+                } else {
+                    Bitness::Bit32
+                };
+
+                TargetArchitecture::unknown(pointer_width, endianness)
+            }
         }
     }
 
@@ -469,7 +567,7 @@ impl ProcessQueryer for MacOsProcessQuery {
             ));
         }
 
-        let target_architecture = Self::default_target_architecture();
+        let target_architecture = Self::get_process_target_architecture(process_id);
 
         Ok(OpenedProcessInfo::new(
             process_id,

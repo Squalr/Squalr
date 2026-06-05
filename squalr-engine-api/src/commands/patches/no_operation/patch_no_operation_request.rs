@@ -8,7 +8,6 @@ use serde::{Deserialize, Serialize};
 pub struct PatchNoOperationRequest {
     pub address: u64,
     pub module_name: String,
-    pub instruction_bytes_hint: Option<Vec<u8>>,
     pub label: Option<String>,
 }
 

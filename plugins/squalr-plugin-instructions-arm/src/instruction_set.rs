@@ -69,6 +69,10 @@ impl InstructionSet for Arm32InstructionSet {
     ) -> Result<Vec<u8>, String> {
         build_arm_no_operation_fill(ArmMode::Arm32, byte_count)
     }
+
+    fn build_software_breakpoint(&self) -> Result<Vec<u8>, String> {
+        Ok(0xE120_0070_u32.to_le_bytes().to_vec())
+    }
 }
 
 impl InstructionSet for Arm64InstructionSet {
@@ -99,6 +103,10 @@ impl InstructionSet for Arm64InstructionSet {
         byte_count: usize,
     ) -> Result<Vec<u8>, String> {
         build_arm_no_operation_fill(ArmMode::Arm64, byte_count)
+    }
+
+    fn build_software_breakpoint(&self) -> Result<Vec<u8>, String> {
+        Ok(0xD420_0000_u32.to_le_bytes().to_vec())
     }
 }
 

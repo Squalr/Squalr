@@ -3,7 +3,10 @@ use crate::views::code_viewer::summary::build_code_viewer_summary_lines;
 use crate::views::entry_row_viewport::build_selection_relative_viewport_range;
 use squalr_engine_api::{
     conversions::storage_size_conversions::StorageSizeConversions,
-    plugins::{instruction_set::DisassembledInstruction, memory_view::PageRetrievalMode},
+    plugins::{
+        instruction_set::{DisassembledInstruction, InstructionSet},
+        memory_view::PageRetrievalMode,
+    },
     structures::{
         data_types::{built_in_types::u8::data_type_u8::DataTypeU8, data_type_ref::DataTypeRef},
         data_values::container_type::ContainerType,
@@ -14,7 +17,6 @@ use squalr_engine_api::{
 };
 use squalr_engine_session::{
     engine_unprivileged_state::EngineUnprivilegedState,
-    plugins::plugin_registry::PluginRegistry,
     virtual_snapshots::{virtual_snapshot::VirtualSnapshot, virtual_snapshot_query::VirtualSnapshotQuery},
 };
 use std::{
@@ -79,6 +81,7 @@ pub struct CodeViewerPaneState {
     unreadable_page_base_addresses: HashSet<u64>,
     viewport_start_address: Option<u64>,
     selected_instruction_address: Option<u64>,
+    target_instruction_set: Option<Arc<dyn InstructionSet>>,
 }
 
 impl CodeViewerPaneState {
@@ -101,6 +104,13 @@ impl CodeViewerPaneState {
         viewport_row_capacity: usize,
     ) {
         self.last_visible_row_capacity = viewport_row_capacity;
+    }
+
+    pub fn set_target_instruction_set(
+        &mut self,
+        target_instruction_set: Option<Arc<dyn InstructionSet>>,
+    ) {
+        self.target_instruction_set = target_instruction_set;
     }
 
     pub fn current_page_base_address(&self) -> Option<u64> {
@@ -218,6 +228,7 @@ impl CodeViewerPaneState {
         self.unreadable_page_base_addresses.clear();
         self.viewport_start_address = None;
         self.selected_instruction_address = None;
+        self.target_instruction_set = None;
         engine_unprivileged_state.set_virtual_snapshot_queries(Self::VIRTUAL_SNAPSHOT_ID, Self::SNAPSHOT_REFRESH_INTERVAL, Vec::new());
     }
 
@@ -446,9 +457,12 @@ impl CodeViewerPaneState {
         let target_architecture = target_architecture
             .cloned()
             .unwrap_or_else(TargetArchitecture::default);
-        let Some(instruction_set) = PluginRegistry::new().find_instruction_set(target_architecture.get_instruction_set_id()) else {
+        let Some(instruction_set) = self.target_instruction_set.as_ref() else {
             return Vec::new();
         };
+        if instruction_set.get_instruction_set_id() != target_architecture.get_instruction_set_id() {
+            return Vec::new();
+        }
         let decode_result = instruction_set.disassemble_block(&cached_bytes, decode_start_address);
         let Ok(decoded_instructions) = decode_result else {
             return Vec::new();
@@ -656,6 +670,7 @@ impl Default for CodeViewerPaneState {
             unreadable_page_base_addresses: HashSet::new(),
             viewport_start_address: None,
             selected_instruction_address: None,
+            target_instruction_set: None,
         }
     }
 }
@@ -663,10 +678,56 @@ impl Default for CodeViewerPaneState {
 #[cfg(test)]
 mod tests {
     use super::CodeViewerPaneState;
-    use squalr_engine_api::structures::{
-        memory::{normalized_module::NormalizedModule, normalized_region::NormalizedRegion},
-        processes::target_architecture::TargetArchitecture,
+    use squalr_engine_api::{
+        plugins::instruction_set::{DisassembledInstruction, InstructionSet},
+        structures::{
+            memory::{normalized_module::NormalizedModule, normalized_region::NormalizedRegion},
+            processes::target_architecture::TargetArchitecture,
+        },
     };
+    use std::sync::Arc;
+
+    #[derive(Debug)]
+    struct TestInstructionSet;
+
+    impl InstructionSet for TestInstructionSet {
+        fn get_instruction_set_id(&self) -> &str {
+            "x86"
+        }
+
+        fn get_display_name(&self) -> &str {
+            "Test x86"
+        }
+
+        fn assemble(
+            &self,
+            _assembly_source: &str,
+        ) -> Result<Vec<u8>, String> {
+            Ok(Vec::new())
+        }
+
+        fn disassemble(
+            &self,
+            _instruction_bytes: &[u8],
+        ) -> Result<String, String> {
+            Ok(String::from("nop"))
+        }
+
+        fn disassemble_block(
+            &self,
+            instruction_bytes: &[u8],
+            base_address: u64,
+        ) -> Result<Vec<DisassembledInstruction>, String> {
+            Ok(vec![DisassembledInstruction {
+                address: base_address,
+                length: 1,
+                bytes: instruction_bytes.first().copied().into_iter().collect(),
+                text: String::from("nop"),
+                branch_target_address: None,
+                is_control_flow: false,
+            }])
+        }
+    }
 
     #[test]
     fn build_visible_chunk_queries_aligns_viewport_to_chunk_window() {
@@ -720,6 +781,7 @@ mod tests {
             .entry(0x1000)
             .or_default()
             .cache_chunk(0, vec![0x90, 0xC3, 0x00, 0x00]);
+        code_viewer_pane_state.set_target_instruction_set(Some(Arc::new(TestInstructionSet)));
 
         let target_architecture = TargetArchitecture::x86();
         let visible_row_entries = code_viewer_pane_state.visible_row_entries(Some(&target_architecture));

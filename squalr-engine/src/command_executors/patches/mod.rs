@@ -366,14 +366,6 @@ fn resolve_no_operation_instruction_bytes(
     engine_privileged_state: &Arc<EnginePrivilegedState>,
     opened_process_info: &OpenedProcessInfo,
 ) -> Result<Vec<u8>, String> {
-    if let Some(instruction_bytes_hint) = patch_no_operation_request
-        .instruction_bytes_hint
-        .as_ref()
-        .filter(|instruction_bytes_hint| !instruction_bytes_hint.is_empty())
-    {
-        return Ok(instruction_bytes_hint.clone());
-    }
-
     let absolute_address = resolve_absolute_address(
         engine_privileged_state,
         opened_process_info,

@@ -19,10 +19,10 @@ impl InstructionPatchAction {
         _process_selector_view_data: Dependency<ProcessSelectorViewData>,
         address: u64,
         module_name: String,
-        instruction_bytes: Vec<u8>,
+        _instruction_bytes: Vec<u8>,
         label: Option<String>,
     ) {
-        Self::dispatch_no_operation_patch(app_context, address, module_name, Some(instruction_bytes), label);
+        Self::dispatch_no_operation_patch(app_context, address, module_name, label);
     }
 
     pub fn replace_instruction_at_address_with_no_operation(
@@ -32,7 +32,7 @@ impl InstructionPatchAction {
         module_name: String,
         label: Option<String>,
     ) {
-        Self::dispatch_no_operation_patch(app_context, address, module_name, None, label);
+        Self::dispatch_no_operation_patch(app_context, address, module_name, label);
     }
 
     pub fn restore_no_operation_patch_at_address(
@@ -62,16 +62,9 @@ impl InstructionPatchAction {
         app_context: Arc<AppContext>,
         address: u64,
         module_name: String,
-        instruction_bytes_hint: Option<Vec<u8>>,
         label: Option<String>,
     ) {
-        PatchNoOperationRequest {
-            address,
-            module_name,
-            instruction_bytes_hint,
-            label,
-        }
-        .send(&app_context.engine_unprivileged_state, |patch_apply_response| {
+        PatchNoOperationRequest { address, module_name, label }.send(&app_context.engine_unprivileged_state, |patch_apply_response| {
             if !patch_apply_response.status.get_success() {
                 log::warn!(
                     "Replace with no-operation patch failed: {}.",

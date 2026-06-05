@@ -37,6 +37,13 @@ impl TargetArchitecture {
         }
     }
 
+    pub fn unknown(
+        pointer_width: Bitness,
+        endianness: Endianness,
+    ) -> Self {
+        Self::new("unknown", "i_unknown", pointer_width, endianness)
+    }
+
     pub fn x86() -> Self {
         Self::new("x86", "i_x86", Bitness::Bit32, Endianness::Little)
     }

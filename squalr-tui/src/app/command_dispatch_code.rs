@@ -119,6 +119,19 @@ impl AppShell {
         let Some(engine_unprivileged_state) = squalr_engine.get_engine_unprivileged_state().clone() else {
             return Ok(());
         };
+        let target_instruction_set = self
+            .app_state
+            .process_selector_pane_state
+            .opened_process_target_architecture
+            .as_ref()
+            .and_then(|target_architecture| {
+                engine_unprivileged_state
+                    .get_plugin_registry()
+                    .find_instruction_set(target_architecture.get_instruction_set_id())
+            });
+        self.app_state
+            .code_viewer_pane_state
+            .set_target_instruction_set(target_instruction_set);
 
         if self.app_state.active_workspace_page() != crate::state::workspace_page::TuiWorkspacePage::CodeWorkspace {
             return Ok(());
