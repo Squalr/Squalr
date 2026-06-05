@@ -677,6 +677,54 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                     }
                 }
             }
+            StructViewerFieldEditorKind::InstructionValueEditor => {
+                let edit_button_width = if self.valued_struct_field.get_is_read_only() { 0.0 } else { 28.0 };
+                let instruction_preview_width = Self::value_box_width(row_max_x, value_box_position_x, edit_button_width, value_column_padding);
+
+                if let (Some(field_edit_value), Some(validation_data_type_ref)) = (self.field_edit_value, self.validation_data_type_ref) {
+                    let data_value_box_id = format!("struct_viewer_instruction_preview_{}_{}", self.row_index, self.valued_struct_field.get_name());
+
+                    user_interface.put(
+                        Rect::from_min_size(
+                            pos2(value_box_position_x, available_size_rect.min.y),
+                            vec2(instruction_preview_width, available_size_rect.height()),
+                        ),
+                        DataValueBoxView::new(
+                            self.app_context.clone(),
+                            field_edit_value,
+                            validation_data_type_ref,
+                            true,
+                            false,
+                            "",
+                            &data_value_box_id,
+                        )
+                        .allow_read_only_interpretation(false)
+                        .show_format_button(false)
+                        .skip_validation()
+                        .use_preview_foreground(true)
+                        .width(instruction_preview_width),
+                    );
+                }
+
+                if !self.valued_struct_field.get_is_read_only() {
+                    let edit_button_position_x = row_max_x - edit_button_width - value_column_padding;
+                    let edit_response = user_interface.put(
+                        Rect::from_min_size(
+                            pos2(edit_button_position_x, available_size_rect.min.y + value_column_padding),
+                            vec2(edit_button_width, available_size_rect.height() - value_column_padding * 2.0),
+                        ),
+                        Button::new_from_theme(theme)
+                            .background_color(epaint::Color32::TRANSPARENT)
+                            .with_tooltip_text("Edit instruction."),
+                    );
+
+                    IconDraw::draw(user_interface, edit_response.rect, &theme.icon_library.icon_handle_common_edit);
+
+                    if edit_response.clicked() {
+                        *self.struct_viewer_frame_action = StructViewerFrameAction::RequestFieldEditor(self.valued_struct_field.clone());
+                    }
+                }
+            }
             StructViewerFieldEditorKind::DisplayFormatSelector => {
                 let Some(field_allowed_display_formats) = self.field_allowed_display_formats else {
                     return response;

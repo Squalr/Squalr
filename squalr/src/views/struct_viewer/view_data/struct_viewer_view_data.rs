@@ -302,20 +302,51 @@ impl StructViewerViewData {
         struct_viewer_view_data.take_over_state = None;
     }
 
-    pub fn request_pointer_offsets_editor(
+    pub fn request_field_editor(
         struct_viewer_view_data: Dependency<Self>,
         valued_struct_field: ValuedStructField,
     ) {
-        let mut struct_viewer_view_data = match struct_viewer_view_data.write("Request pointer offsets editor") {
+        let mut struct_viewer_view_data = match struct_viewer_view_data.write("Request struct viewer field editor") {
             Some(struct_viewer_view_data) => struct_viewer_view_data,
             None => return,
         };
 
-        if valued_struct_field.get_name() != Self::VIRTUAL_FIELD_PROJECT_ITEM_POINTER_OFFSETS {
+        let requested_editor_kind = struct_viewer_view_data
+            .field_presentations
+            .get(valued_struct_field.get_name())
+            .map(|field_presentation| field_presentation.editor_kind().clone());
+
+        if valued_struct_field.get_name() == Self::VIRTUAL_FIELD_PROJECT_ITEM_POINTER_OFFSETS
+            || matches!(requested_editor_kind, Some(StructViewerFieldEditorKind::ProjectItemPointerOffsetsEditor))
+        {
+            struct_viewer_view_data.take_over_state = Some(StructViewerTakeOverState::EditPointerOffsets { valued_struct_field });
             return;
         }
 
-        struct_viewer_view_data.take_over_state = Some(StructViewerTakeOverState::EditPointerOffsets { valued_struct_field });
+        let Some(validation_data_type_ref) = struct_viewer_view_data
+            .field_validation_data_type_refs
+            .get(valued_struct_field.get_name())
+            .cloned()
+            .filter(|validation_data_type_ref| normalize_instruction_data_type_id(validation_data_type_ref.get_data_type_id()).is_some())
+        else {
+            return;
+        };
+        let initial_value_edit = struct_viewer_view_data
+            .field_edit_values
+            .get(valued_struct_field.get_name())
+            .cloned()
+            .unwrap_or_else(|| {
+                let raw_display_value = Self::read_utf8_field_text(&valued_struct_field);
+                let default_format = AnonymousValueStringFormat::String;
+
+                AnonymousValueString::new(raw_display_value, default_format, ContainerType::None)
+            });
+
+        struct_viewer_view_data.take_over_state = Some(StructViewerTakeOverState::EditInstruction {
+            valued_struct_field,
+            validation_data_type_ref,
+            initial_value_edit,
+        });
     }
 
     pub fn cancel_take_over_state(struct_viewer_view_data: Dependency<Self>) {
@@ -611,6 +642,8 @@ impl StructViewerViewData {
                 StructViewerFieldPresentation::new(String::from("Pointer Size"), StructViewerFieldEditorKind::ProjectItemPointerSizeSelector)
             } else if Self::is_project_item_pointer_offsets_field(valued_struct_field) {
                 StructViewerFieldPresentation::new(String::from("Offsets"), StructViewerFieldEditorKind::ProjectItemPointerOffsetsEditor)
+            } else if Self::is_live_value_instruction_field(valued_struct_field, &Self::read_symbolic_struct_definition_reference(valued_struct)) {
+                StructViewerFieldPresentation::new(String::from("Value"), StructViewerFieldEditorKind::InstructionValueEditor)
             } else if Self::is_live_value_field(valued_struct_field) && live_value_uses_code_viewer {
                 StructViewerFieldPresentation::new(String::from("Value"), StructViewerFieldEditorKind::CodeViewerButton)
             } else if Self::is_live_value_field(valued_struct_field) && live_value_uses_external_viewer {
@@ -731,6 +764,17 @@ impl StructViewerViewData {
         let field_name = valued_struct_field.get_name();
 
         field_name == ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE || field_name == ProjectItemTypePointer::PROPERTY_FREEZE_DISPLAY_VALUE
+    }
+
+    fn is_live_value_instruction_field(
+        valued_struct_field: &ValuedStructField,
+        symbolic_struct_data_type_ref: &Option<DataTypeRef>,
+    ) -> bool {
+        Self::is_live_value_field(valued_struct_field)
+            && symbolic_struct_data_type_ref
+                .as_ref()
+                .and_then(|data_type_ref| normalize_instruction_data_type_id(data_type_ref.get_data_type_id()))
+                .is_some()
     }
 
     fn is_live_value_external_viewer_editable(valued_struct: &ValuedStruct) -> bool {
@@ -856,5 +900,67 @@ impl StructViewerViewData {
                 .map(|value_bytes| u32::from_le_bytes(value_bytes) as u64),
             _ => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::StructViewerViewData;
+    use crate::views::struct_viewer::view_data::{
+        struct_viewer_field_presentation::{StructViewerFieldEditorKind, StructViewerFieldPresentation},
+        struct_viewer_take_over_state::StructViewerTakeOverState,
+    };
+    use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
+    use squalr_engine_api::structures::{
+        data_types::{built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8, data_type_ref::DataTypeRef},
+        data_values::container_type::ContainerType,
+        projects::project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress,
+        structs::{symbolic_field_definition::SymbolicFieldDefinition, valued_struct::ValuedStruct},
+    };
+
+    #[test]
+    fn instruction_live_value_uses_instruction_takeover_editor() {
+        let symbolic_field_definition = SymbolicFieldDefinition::new(DataTypeRef::new("i_x64"), ContainerType::None);
+        let data_type_field = DataTypeStringUtf8::get_value_from_primitive_string(&symbolic_field_definition.to_string())
+            .to_named_valued_struct_field(ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE.to_string(), false);
+        let value_field = DataTypeStringUtf8::get_value_from_primitive_string("inc dword [rax]")
+            .to_named_valued_struct_field(ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE.to_string(), false);
+        let valued_struct = ValuedStruct::new_anonymous(vec![data_type_field, value_field]);
+        let field_presentations = StructViewerViewData::create_field_presentations(&valued_struct);
+        let value_presentation = field_presentations
+            .get(ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE)
+            .expect("Expected runtime value field presentation.");
+
+        assert_eq!(value_presentation.editor_kind(), &StructViewerFieldEditorKind::InstructionValueEditor);
+    }
+
+    #[test]
+    fn projected_pointer_offsets_field_requests_offsets_takeover() {
+        let dependency_container = DependencyContainer::new();
+        let struct_viewer_view_data = dependency_container.register(StructViewerViewData::new());
+        let projected_offsets_field_name = "__details_field_5";
+        let projected_offsets_field =
+            DataTypeStringUtf8::get_value_from_primitive_string("0x10, 0x20").to_named_valued_struct_field(projected_offsets_field_name.to_string(), true);
+
+        {
+            let mut struct_viewer_view_data_guard = struct_viewer_view_data
+                .write("Seed projected pointer offsets field presentation")
+                .expect("Expected StructViewerViewData write guard.");
+            struct_viewer_view_data_guard.field_presentations.insert(
+                projected_offsets_field_name.to_string(),
+                StructViewerFieldPresentation::new(String::from("Offsets"), StructViewerFieldEditorKind::ProjectItemPointerOffsetsEditor),
+            );
+        }
+
+        StructViewerViewData::request_field_editor(struct_viewer_view_data.clone(), projected_offsets_field);
+        let struct_viewer_view_data_guard = struct_viewer_view_data
+            .read("Read projected pointer offsets take-over state")
+            .expect("Expected StructViewerViewData read guard.");
+
+        assert!(matches!(
+            struct_viewer_view_data_guard.take_over_state.as_ref(),
+            Some(StructViewerTakeOverState::EditPointerOffsets { valued_struct_field })
+                if valued_struct_field.get_name() == projected_offsets_field_name
+        ));
     }
 }

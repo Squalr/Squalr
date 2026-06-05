@@ -38,6 +38,13 @@ Our current task, from `README.md`, is:
   - [ ] Repeat manual/human verification from CLI/TUI/GUI command surfaces.
 
 ## Important Information
+- After fixing Details Viewer instruction/offset editing:
+  - Instruction runtime values in the shared StructViewer now use an instruction-specific editor kind instead of a normal scalar `ValueBox`.
+  - Details instruction rows render as read-only previews without validation, so live disassembly text no longer shows false invalid/red state in the preview row.
+  - Editing an instruction from Details Viewer opens a StructViewer takeover; commit still routes through the normal details/runtime write path and validates by assembling only when the user commits.
+  - Pointer offsets field editor requests now dispatch from the projected editor kind as well as the old internal virtual field name, fixing Details-projected offset rows whose edit button previously did nothing.
+  - Validation passed: `cargo fmt --all` with existing `fn_args_layout` deprecation warnings; `cargo test -p squalr --locked struct_viewer_view_data::tests -- --nocapture`; `cargo check -p squalr --locked`; `git diff --check` with only CRLF conversion warnings.
+  - GUI behavior for Details Viewer instruction edit/takeover and offsets edit still needs human verification after implementation and validation.
 - After DbgEng naming cleanup and bounded instruction reads:
   - Renamed the Windows debugger plugin crate, plugin id, Rust types, and smoke examples to `dbgeng`. The plugin id is now `builtin.debugger.dbgeng`, and the crate is `plugins/squalr-plugin-debugger-dbgeng`.
   - Added `InstructionSet::get_max_instruction_size`; x86/x64 report 15 bytes, ARM/ARM64 report 4 bytes, and PowerPC32 BE reports 4 bytes.
