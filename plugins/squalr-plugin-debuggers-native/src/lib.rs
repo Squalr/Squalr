@@ -3,11 +3,11 @@ mod constants;
 mod plugin;
 mod session;
 
-pub use plugin::DbgEngDebuggerPlugin;
+pub use plugin::NativeDebuggersPlugin;
 
 #[cfg(test)]
 mod tests {
-    use super::DbgEngDebuggerPlugin;
+    use super::NativeDebuggersPlugin;
     use squalr_engine_api::{
         plugins::{Plugin, PluginCapability, PluginPermission, debugger::DebuggerPlugin},
         structures::{
@@ -18,9 +18,9 @@ mod tests {
 
     #[test]
     fn plugin_exposes_debugger_capability_and_permissions() {
-        let plugin = DbgEngDebuggerPlugin::new();
+        let plugin = NativeDebuggersPlugin::new();
 
-        assert_eq!(plugin.metadata().get_plugin_id(), "builtin.debugger.dbgeng");
+        assert_eq!(plugin.metadata().get_plugin_id(), "builtin.debuggers.native");
         assert!(plugin.metadata().get_is_enabled_by_default());
         assert!(
             plugin
@@ -56,7 +56,7 @@ mod tests {
 
     #[test]
     fn plugin_rejects_non_x86_family_targets() {
-        let plugin = DbgEngDebuggerPlugin::new();
+        let plugin = NativeDebuggersPlugin::new();
         let process_info = OpenedProcessInfo::new(1, String::from("target"), 1, Bitness::Bit64, None).with_target_architecture(TargetArchitecture::arm64());
 
         assert!(!plugin.can_attach(&process_info));

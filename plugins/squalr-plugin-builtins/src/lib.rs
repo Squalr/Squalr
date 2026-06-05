@@ -3,25 +3,22 @@ use std::sync::Arc;
 use squalr_engine_api::plugins::PluginPackage;
 use squalr_plugin_binary_symbols::BinarySymbolsPlugin;
 use squalr_plugin_data_types_24bit::TwentyFourBitDataTypesPlugin;
-#[cfg(windows)]
-use squalr_plugin_debugger_dbgeng::DbgEngDebuggerPlugin;
+use squalr_plugin_debuggers_native::NativeDebuggersPlugin;
 use squalr_plugin_instructions_arm::ArmFamilyInstructionsPlugin;
 use squalr_plugin_instructions_powerpc::PowerPcFamilyInstructionsPlugin;
 use squalr_plugin_instructions_x86::X86FamilyInstructionsPlugin;
 use squalr_plugin_memory_view_dolphin::DolphinMemoryViewPlugin;
 
 pub fn get_builtin_plugin_packages() -> Vec<Arc<dyn PluginPackage>> {
-    let mut plugin_packages: Vec<Arc<dyn PluginPackage>> = vec![
+    let plugin_packages: Vec<Arc<dyn PluginPackage>> = vec![
         Arc::new(DolphinMemoryViewPlugin::new()),
         Arc::new(TwentyFourBitDataTypesPlugin::new()),
         Arc::new(ArmFamilyInstructionsPlugin::new()),
         Arc::new(PowerPcFamilyInstructionsPlugin::new()),
         Arc::new(X86FamilyInstructionsPlugin::new()),
         Arc::new(BinarySymbolsPlugin::new()),
+        Arc::new(NativeDebuggersPlugin::new()),
     ];
-
-    #[cfg(windows)]
-    plugin_packages.push(Arc::new(DbgEngDebuggerPlugin::new()));
 
     plugin_packages
 }
@@ -137,14 +134,13 @@ mod tests {
         assert!(plugin.as_symbol_tree_plugin().is_some());
     }
 
-    #[cfg(windows)]
     #[test]
-    fn builtins_include_dbgeng_debugger_plugin_package_on_windows() {
+    fn builtins_include_native_debuggers_plugin_package() {
         let plugins = get_builtin_plugin_packages();
         let plugin = plugins
             .iter()
-            .find(|plugin| plugin.metadata().get_plugin_id() == "builtin.debugger.dbgeng")
-            .expect("Expected the DbgEng debugger package to be registered on Windows.");
+            .find(|plugin| plugin.metadata().get_plugin_id() == "builtin.debuggers.native")
+            .expect("Expected the native debuggers package to be registered.");
 
         assert!(
             plugin

@@ -1,4 +1,4 @@
-use crate::constants::DBGENG_DEBUGGER_PLUGIN_ID;
+use crate::constants::NATIVE_DEBUGGERS_PLUGIN_ID;
 use squalr_engine_api::plugins::debugger::DebuggerTraceEventSink;
 use squalr_engine_api::structures::debugger::{DebuggerBreakpointDescriptor, DebuggerBreakpointKind, DebuggerRegisterSnapshot};
 use squalr_engine_api::{plugins::debugger::DebuggerPluginError, structures::processes::opened_process_info::OpenedProcessInfo};
@@ -72,6 +72,6 @@ impl DbgEngBackend {
     }
 
     pub(crate) fn unavailable_error(&self) -> DebuggerPluginError {
-        DebuggerPluginError::new(DBGENG_DEBUGGER_PLUGIN_ID, "DbgEng debugger backend is only available on Windows.")
+        DebuggerPluginError::new(NATIVE_DEBUGGERS_PLUGIN_ID, "No native debugger backend is available for this platform yet.")
     }
 }

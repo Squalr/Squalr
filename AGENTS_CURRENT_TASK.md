@@ -20,9 +20,10 @@ Our current task, from `README.md`, is:
 - [x] Add a session-side debugger service/router next to memory-view routing, not inside `MemoryViewPlugin`.
   - Memory-view plugins route address spaces, page bounds, reads, writes, and modules.
   - Debugger plugins need long-lived process control state, a serialized event loop, breakpoint lifetime management, and event fanout.
-- [ ] Implement a Windows-only builtin plugin crate, likely `plugins/squalr-plugin-debugger-dbgeng`.
-  - Gate it behind `cfg(windows)` and keep non-Windows debugger support as an empty/no-op capability.
-  - Prefer a thin internal wrapper around `dbgeng.dll` first, then decide whether to use the current `dbgeng` crate after a small proof of concept.
+- [ ] Implement a built-in native debugger plugin crate, `plugins/squalr-plugin-debuggers-native`.
+  - The plugin package is platform-family scoped and should host bundled native debugger backends for supported platforms.
+  - Windows currently uses a DbgEng backend module inside this package.
+  - Non-Windows support currently contributes the same plugin package but cannot attach until ptrace/Mach/remote backends are implemented.
 - [x] MVP UI should be command-first, then GUI:
   - CLI commands for attach, detach, pause, resume, registers, breakpoint list/remove, and `find-what-reads/writes/accesses`.
   - GUI can start as a docked Debugger window fed by debugger events, with Memory Viewer and Code Viewer context menu actions later.
@@ -38,6 +39,13 @@ Our current task, from `README.md`, is:
   - [ ] Repeat manual/human verification from CLI/TUI/GUI command surfaces.
 
 ## Important Information
+- After renaming the built-in debugger plugin package:
+  - Replaced the DbgEng-named plugin package with `plugins/squalr-plugin-debuggers-native`.
+  - Renamed the public crate/type/plugin id to `squalr-plugin-debuggers-native`, `NativeDebuggersPlugin`, and `builtin.debuggers.native`.
+  - `squalr-plugin-builtins` now depends on and registers the native debugger package on all platforms; the current backend still only attaches on Windows x86/x64.
+  - Renamed smoke examples to `native_debugger_smoke`, `debugger_service_native_smoke`, and `debugger_command_native_smoke`.
+  - DbgEng naming remains inside `windows_backend.rs` where it describes the concrete Windows API implementation.
+  - Validation passed: `cargo check -p squalr-plugin-debuggers-native --locked`; `cargo check -p squalr-plugin-builtins --locked`; `cargo check -p squalr-plugin-debuggers-native --examples --locked`; `cargo check -p squalr-engine-session --example debugger_service_native_smoke --locked`; `cargo check -p squalr-engine --example debugger_command_native_smoke --locked`; `cargo test -p squalr-plugin-debuggers-native --locked -- --nocapture`; `cargo test -p squalr-plugin-builtins --locked -- --nocapture`.
 - After fixing Details Viewer instruction/offset editing:
   - Instruction runtime values in the shared StructViewer now use an instruction-specific editor kind instead of a normal scalar `ValueBox`.
   - Details instruction rows render as read-only previews without validation, so live disassembly text no longer shows false invalid/red state in the preview row.

@@ -1,16 +1,16 @@
-use crate::{backend::DbgEngBackend, constants::DBGENG_DEBUGGER_PLUGIN_ID};
+use crate::{backend::DbgEngBackend, constants::NATIVE_DEBUGGERS_PLUGIN_ID};
 use squalr_engine_api::{
     plugins::debugger::{DebuggerPluginError, DebuggerSession, DebuggerTraceEventSink},
     structures::debugger::{DebuggerBreakpointDescriptor, DebuggerBreakpointKind, DebuggerRegisterSnapshot, DebuggerSessionState},
     structures::processes::opened_process_info::OpenedProcessInfo,
 };
 
-pub(crate) struct DbgEngDebuggerSession {
+pub(crate) struct NativeDebuggerSession {
     backend: DbgEngBackend,
     session_state: DebuggerSessionState,
 }
 
-impl DbgEngDebuggerSession {
+impl NativeDebuggerSession {
     pub(crate) fn new(
         process_info: OpenedProcessInfo,
         trace_event_sink: DebuggerTraceEventSink,
@@ -22,9 +22,9 @@ impl DbgEngDebuggerSession {
     }
 }
 
-impl DebuggerSession for DbgEngDebuggerSession {
+impl DebuggerSession for NativeDebuggerSession {
     fn plugin_id(&self) -> &str {
-        DBGENG_DEBUGGER_PLUGIN_ID
+        NATIVE_DEBUGGERS_PLUGIN_ID
     }
 
     fn get_state(&self) -> DebuggerSessionState {

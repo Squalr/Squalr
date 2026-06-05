@@ -1,6 +1,6 @@
 use crate::{
-    constants::{DBGENG_DEBUGGER_PLUGIN_DESCRIPTION, DBGENG_DEBUGGER_PLUGIN_DISPLAY_NAME, DBGENG_DEBUGGER_PLUGIN_ID},
-    session::DbgEngDebuggerSession,
+    constants::{NATIVE_DEBUGGERS_PLUGIN_DESCRIPTION, NATIVE_DEBUGGERS_PLUGIN_DISPLAY_NAME, NATIVE_DEBUGGERS_PLUGIN_ID},
+    session::NativeDebuggerSession,
 };
 use squalr_engine_api::{
     plugins::{
@@ -10,17 +10,17 @@ use squalr_engine_api::{
     structures::processes::opened_process_info::OpenedProcessInfo,
 };
 
-pub struct DbgEngDebuggerPlugin {
+pub struct NativeDebuggersPlugin {
     metadata: PluginMetadata,
 }
 
-impl DbgEngDebuggerPlugin {
+impl NativeDebuggersPlugin {
     pub fn new() -> Self {
         Self {
             metadata: PluginMetadata::new_with_permissions(
-                DBGENG_DEBUGGER_PLUGIN_ID,
-                DBGENG_DEBUGGER_PLUGIN_DISPLAY_NAME,
-                DBGENG_DEBUGGER_PLUGIN_DESCRIPTION,
+                NATIVE_DEBUGGERS_PLUGIN_ID,
+                NATIVE_DEBUGGERS_PLUGIN_DISPLAY_NAME,
+                NATIVE_DEBUGGERS_PLUGIN_DESCRIPTION,
                 vec![PluginCapability::Debugger],
                 vec![
                     PluginPermission::AttachDebugger,
@@ -36,25 +36,25 @@ impl DbgEngDebuggerPlugin {
     }
 }
 
-impl Default for DbgEngDebuggerPlugin {
+impl Default for NativeDebuggersPlugin {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Plugin for DbgEngDebuggerPlugin {
+impl Plugin for NativeDebuggersPlugin {
     fn metadata(&self) -> &PluginMetadata {
         &self.metadata
     }
 }
 
-impl PluginPackage for DbgEngDebuggerPlugin {
+impl PluginPackage for NativeDebuggersPlugin {
     fn as_debugger_plugin(&self) -> Option<&dyn DebuggerPlugin> {
         Some(self)
     }
 }
 
-impl DebuggerPlugin for DbgEngDebuggerPlugin {
+impl DebuggerPlugin for NativeDebuggersPlugin {
     fn can_attach(
         &self,
         process_info: &OpenedProcessInfo,
@@ -69,6 +69,6 @@ impl DebuggerPlugin for DbgEngDebuggerPlugin {
         process_info: &OpenedProcessInfo,
         trace_event_sink: DebuggerTraceEventSink,
     ) -> Result<Box<dyn DebuggerSession>, DebuggerPluginError> {
-        Ok(Box::new(DbgEngDebuggerSession::new(process_info.clone(), trace_event_sink)))
+        Ok(Box::new(NativeDebuggerSession::new(process_info.clone(), trace_event_sink)))
     }
 }

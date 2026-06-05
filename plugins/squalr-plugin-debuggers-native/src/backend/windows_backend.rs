@@ -1,4 +1,4 @@
-use crate::constants::DBGENG_DEBUGGER_PLUGIN_ID;
+use crate::constants::NATIVE_DEBUGGERS_PLUGIN_ID;
 use squalr_engine_api::plugins::debugger::DebuggerTraceEventSink;
 use squalr_engine_api::structures::debugger::{
     DebuggerBreakpointDescriptor, DebuggerBreakpointKind, DebuggerDataBreakpointAccess, DebuggerRegisterSnapshot, DebuggerRegisterValue, DebuggerSessionState,
@@ -162,7 +162,7 @@ impl DbgEngBackend {
     }
 
     fn plugin_error(message: impl Into<String>) -> DebuggerPluginError {
-        DebuggerPluginError::new(DBGENG_DEBUGGER_PLUGIN_ID, message)
+        DebuggerPluginError::new(NATIVE_DEBUGGERS_PLUGIN_ID, message)
     }
 }
 
