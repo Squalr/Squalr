@@ -3,19 +3,20 @@ use crate::views::code_viewer::summary::build_code_viewer_summary_lines;
 use crate::views::entry_row_viewport::build_selection_relative_viewport_range;
 use squalr_engine_api::{
     conversions::storage_size_conversions::StorageSizeConversions,
-    plugins::memory_view::PageRetrievalMode,
+    plugins::{instruction_set::DisassembledInstruction, memory_view::PageRetrievalMode},
     structures::{
         data_types::{built_in_types::u8::data_type_u8::DataTypeU8, data_type_ref::DataTypeRef},
         data_values::container_type::ContainerType,
-        memory::{bitness::Bitness, normalized_module::NormalizedModule, normalized_region::NormalizedRegion},
+        memory::{normalized_module::NormalizedModule, normalized_region::NormalizedRegion},
+        processes::target_architecture::TargetArchitecture,
         structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition},
     },
 };
 use squalr_engine_session::{
     engine_unprivileged_state::EngineUnprivilegedState,
+    plugins::plugin_registry::PluginRegistry,
     virtual_snapshots::{virtual_snapshot::VirtualSnapshot, virtual_snapshot_query::VirtualSnapshotQuery},
 };
-use squalr_plugin_instructions_x86::{DisassembledInstruction, X64InstructionSet, X86InstructionSet};
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     ops::Range,
@@ -90,9 +91,9 @@ impl CodeViewerPaneState {
 
     pub fn summary_lines(
         &self,
-        process_bitness: Option<Bitness>,
+        target_architecture: Option<&TargetArchitecture>,
     ) -> Vec<String> {
-        build_code_viewer_summary_lines(self, process_bitness)
+        build_code_viewer_summary_lines(self, target_architecture)
     }
 
     pub fn set_viewport_row_capacity(
@@ -121,16 +122,16 @@ impl CodeViewerPaneState {
 
     pub fn current_instruction_count(
         &self,
-        process_bitness: Option<Bitness>,
+        target_architecture: Option<&TargetArchitecture>,
     ) -> usize {
-        self.current_instruction_lines(process_bitness).len()
+        self.current_instruction_lines(target_architecture).len()
     }
 
     pub fn visible_row_entries(
         &self,
-        process_bitness: Option<Bitness>,
+        target_architecture: Option<&TargetArchitecture>,
     ) -> Vec<PaneEntryRow> {
-        let instruction_lines = self.current_instruction_lines(process_bitness);
+        let instruction_lines = self.current_instruction_lines(target_architecture);
         if instruction_lines.is_empty() {
             return Vec::new();
         }
@@ -327,9 +328,9 @@ impl CodeViewerPaneState {
 
     pub fn select_previous_instruction(
         &mut self,
-        process_bitness: Option<Bitness>,
+        target_architecture: Option<&TargetArchitecture>,
     ) {
-        let instruction_lines = self.current_instruction_lines(process_bitness);
+        let instruction_lines = self.current_instruction_lines(target_architecture);
         let Some(selected_instruction_index) = self.resolve_selected_instruction_index(&instruction_lines) else {
             return;
         };
@@ -341,9 +342,9 @@ impl CodeViewerPaneState {
 
     pub fn select_next_instruction(
         &mut self,
-        process_bitness: Option<Bitness>,
+        target_architecture: Option<&TargetArchitecture>,
     ) {
-        let instruction_lines = self.current_instruction_lines(process_bitness);
+        let instruction_lines = self.current_instruction_lines(target_architecture);
         let Some(selected_instruction_index) = self.resolve_selected_instruction_index(&instruction_lines) else {
             return;
         };
@@ -357,9 +358,9 @@ impl CodeViewerPaneState {
 
     pub fn page_up_instructions(
         &mut self,
-        process_bitness: Option<Bitness>,
+        target_architecture: Option<&TargetArchitecture>,
     ) {
-        let instruction_lines = self.current_instruction_lines(process_bitness);
+        let instruction_lines = self.current_instruction_lines(target_architecture);
         let Some(selected_instruction_index) = self.resolve_selected_instruction_index(&instruction_lines) else {
             return;
         };
@@ -372,9 +373,9 @@ impl CodeViewerPaneState {
 
     pub fn page_down_instructions(
         &mut self,
-        process_bitness: Option<Bitness>,
+        target_architecture: Option<&TargetArchitecture>,
     ) {
-        let instruction_lines = self.current_instruction_lines(process_bitness);
+        let instruction_lines = self.current_instruction_lines(target_architecture);
         let Some(selected_instruction_index) = self.resolve_selected_instruction_index(&instruction_lines) else {
             return;
         };
@@ -417,7 +418,7 @@ impl CodeViewerPaneState {
 
     fn current_instruction_lines(
         &self,
-        process_bitness: Option<Bitness>,
+        target_architecture: Option<&TargetArchitecture>,
     ) -> Vec<DisassembledInstruction> {
         let Some(current_page) = self.current_page() else {
             return Vec::new();
@@ -442,10 +443,13 @@ impl CodeViewerPaneState {
             return Vec::new();
         }
 
-        let decode_result = match process_bitness.unwrap_or(Bitness::Bit64) {
-            Bitness::Bit32 => X86InstructionSet::new().disassemble_block(&cached_bytes, decode_start_address),
-            Bitness::Bit64 => X64InstructionSet::new().disassemble_block(&cached_bytes, decode_start_address),
+        let target_architecture = target_architecture
+            .cloned()
+            .unwrap_or_else(TargetArchitecture::default);
+        let Some(instruction_set) = PluginRegistry::new().find_instruction_set(target_architecture.get_instruction_set_id()) else {
+            return Vec::new();
         };
+        let decode_result = instruction_set.disassemble_block(&cached_bytes, decode_start_address);
         let Ok(decoded_instructions) = decode_result else {
             return Vec::new();
         };
@@ -659,7 +663,10 @@ impl Default for CodeViewerPaneState {
 #[cfg(test)]
 mod tests {
     use super::CodeViewerPaneState;
-    use squalr_engine_api::structures::memory::{bitness::Bitness, normalized_module::NormalizedModule, normalized_region::NormalizedRegion};
+    use squalr_engine_api::structures::{
+        memory::{normalized_module::NormalizedModule, normalized_region::NormalizedRegion},
+        processes::target_architecture::TargetArchitecture,
+    };
 
     #[test]
     fn build_visible_chunk_queries_aligns_viewport_to_chunk_window() {
@@ -714,7 +721,8 @@ mod tests {
             .or_default()
             .cache_chunk(0, vec![0x90, 0xC3, 0x00, 0x00]);
 
-        let visible_row_entries = code_viewer_pane_state.visible_row_entries(Some(Bitness::Bit32));
+        let target_architecture = TargetArchitecture::x86();
+        let visible_row_entries = code_viewer_pane_state.visible_row_entries(Some(&target_architecture));
 
         assert!(!visible_row_entries.is_empty());
         assert!(visible_row_entries[0].primary_text.contains("nop"));

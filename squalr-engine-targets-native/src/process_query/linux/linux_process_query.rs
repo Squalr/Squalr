@@ -1,3 +1,4 @@
+use crate::process_query::elf_target_architecture;
 use crate::process_query::process_query_error::ProcessQueryError;
 use crate::process_query::process_query_options::ProcessQueryOptions;
 use crate::process_query::process_queryer::ProcessQueryer;
@@ -7,6 +8,7 @@ use squalr_engine_api::structures::memory::bitness::Bitness;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::processes::process_icon::ProcessIcon;
 use squalr_engine_api::structures::processes::process_info::ProcessInfo;
+use squalr_engine_api::structures::processes::target_architecture::TargetArchitecture;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::Cursor;
@@ -47,13 +49,13 @@ impl LinuxProcessQuery {
     }
 
     fn get_process_bitness(process_id: u32) -> Bitness {
-        let process_executable_path = Self::build_process_executable_path(process_id);
-        let executable_bytes = match fs::read(process_executable_path) {
-            Ok(executable_bytes) => executable_bytes,
-            Err(_) => return Bitness::Bit64,
-        };
+        Self::get_process_target_architecture(process_id).get_pointer_width()
+    }
 
-        Self::parse_elf_bitness_from_bytes(&executable_bytes).unwrap_or(Bitness::Bit64)
+    fn get_process_target_architecture(process_id: u32) -> TargetArchitecture {
+        Self::read_process_executable_bytes(process_id)
+            .and_then(|executable_bytes| elf_target_architecture::parse_elf_target_architecture_from_bytes(&executable_bytes))
+            .unwrap_or_else(TargetArchitecture::default)
     }
 
     fn build_process_fd_directory_path(process_id: u32) -> PathBuf {
@@ -94,24 +96,11 @@ impl LinuxProcessQuery {
     }
 
     fn parse_elf_bitness_from_bytes(executable_bytes: &[u8]) -> Option<Bitness> {
-        const ELF_MAGIC: [u8; 4] = [0x7F, b'E', b'L', b'F'];
-        const ELF_CLASS_OFFSET: usize = 4;
-        const ELF_CLASS_32_BIT: u8 = 1;
-        const ELF_CLASS_64_BIT: u8 = 2;
+        elf_target_architecture::parse_elf_bitness_from_bytes(executable_bytes)
+    }
 
-        if executable_bytes.len() <= ELF_CLASS_OFFSET {
-            return None;
-        }
-
-        if executable_bytes.get(0..4)? != ELF_MAGIC {
-            return None;
-        }
-
-        match executable_bytes[ELF_CLASS_OFFSET] {
-            ELF_CLASS_32_BIT => Some(Bitness::Bit32),
-            ELF_CLASS_64_BIT => Some(Bitness::Bit64),
-            _ => None,
-        }
+    fn read_process_executable_bytes(process_id: u32) -> Option<Vec<u8>> {
+        fs::read(Self::build_process_executable_path(process_id)).ok()
     }
 
     fn parse_socket_inode_from_fd_target(fd_target: &str) -> Option<u64> {
@@ -767,13 +756,16 @@ impl ProcessQueryer for LinuxProcessQuery {
     fn open_process(process_info: &ProcessInfo) -> Result<OpenedProcessInfo, ProcessQueryError> {
         let process_id = process_info.get_process_id_raw();
 
+        let target_architecture = Self::get_process_target_architecture(process_id);
+
         Ok(OpenedProcessInfo::new(
             process_id,
             process_info.get_name().to_string(),
             process_id as u64,
-            Self::get_process_bitness(process_id),
+            target_architecture.get_pointer_width(),
             process_info.get_icon().clone(),
-        ))
+        )
+        .with_target_architecture(target_architecture))
     }
 
     fn close_process(_handle: u64) -> Result<(), ProcessQueryError> {

@@ -1,4 +1,5 @@
 use crate::structures::debugger::{debugger_breakpoint_descriptor::DebuggerBreakpointDescriptor, debugger_register_snapshot::DebuggerRegisterSnapshot};
+use crate::structures::processes::target_architecture::TargetArchitecture;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -8,6 +9,8 @@ pub struct DebuggerTraceEvent {
     instruction_address: Option<u64>,
     instruction_bytes: Vec<u8>,
     instruction_text: Option<String>,
+    #[serde(default)]
+    target_architecture: Option<TargetArchitecture>,
     backend_message: Option<String>,
 }
 
@@ -26,8 +29,18 @@ impl DebuggerTraceEvent {
             instruction_address,
             instruction_bytes,
             instruction_text,
+            target_architecture: None,
             backend_message,
         }
+    }
+
+    pub fn with_target_architecture(
+        mut self,
+        target_architecture: TargetArchitecture,
+    ) -> Self {
+        self.target_architecture = Some(target_architecture);
+
+        self
     }
 
     pub fn get_breakpoint(&self) -> Option<&DebuggerBreakpointDescriptor> {
@@ -48,6 +61,10 @@ impl DebuggerTraceEvent {
 
     pub fn get_instruction_text(&self) -> Option<&str> {
         self.instruction_text.as_deref()
+    }
+
+    pub fn get_target_architecture(&self) -> Option<&TargetArchitecture> {
+        self.target_architecture.as_ref()
     }
 
     pub fn get_backend_message(&self) -> Option<&str> {

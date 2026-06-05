@@ -9,6 +9,16 @@ pub fn handle_patches_response(response: PatchesResponse) {
                 println!("Applied patch {} at 0x{:X}.", patch.get_patch_id(), patch.get_region().get_base_address());
             }
         }
+        PatchesResponse::NoOperation { patch_no_operation_response } => {
+            print_patch_status("No-operation patch", &patch_no_operation_response.status);
+            if let Some(patch) = patch_no_operation_response.patch {
+                println!(
+                    "Applied no-operation patch {} at 0x{:X}.",
+                    patch.get_patch_id(),
+                    patch.get_region().get_base_address()
+                );
+            }
+        }
         PatchesResponse::Restore { patch_restore_response } => {
             print_patch_status("Patch restore", &patch_restore_response.status);
             if let Some(patch) = patch_restore_response.patch {

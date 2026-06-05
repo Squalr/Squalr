@@ -1,14 +1,15 @@
 use crate::process_query::android::android_process_info::AndroidProcessInfo;
+use crate::process_query::elf_target_architecture;
 use crate::process_query::process_query_error::ProcessQueryError;
 use crate::process_query::process_query_options::ProcessQueryOptions;
 use crate::process_query::process_queryer::ProcessQueryer;
 use image::ImageReader;
 use regex::Regex;
 use regex::bytes::Regex as BytesRegex;
-use squalr_engine_api::structures::memory::bitness::Bitness;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::processes::process_icon::ProcessIcon;
 use squalr_engine_api::structures::processes::process_info::ProcessInfo;
+use squalr_engine_api::structures::processes::target_architecture::TargetArchitecture;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs;
@@ -35,6 +36,17 @@ const SUPPORTED_ICON_EXTENSIONS: [&str; 4] = ["png", "webp", "jpg", "jpeg"];
 pub struct AndroidProcessQuery {}
 
 impl AndroidProcessQuery {
+    fn build_process_executable_path(process_id: u32) -> String {
+        format!("/proc/{process_id}/exe")
+    }
+
+    fn get_process_target_architecture(process_id: u32) -> TargetArchitecture {
+        fs::read(Self::build_process_executable_path(process_id))
+            .ok()
+            .and_then(|executable_bytes| elf_target_architecture::parse_elf_target_architecture_from_bytes(&executable_bytes))
+            .unwrap_or_else(TargetArchitecture::arm64)
+    }
+
     fn is_zygote_process_name(process_name: Option<&str>) -> bool {
         let normalized_process_name = process_name
             .unwrap_or_default()
@@ -613,13 +625,16 @@ impl ProcessQueryer for AndroidProcessQuery {
 
     // Android has no concept of opening a process, so return a zero handle.
     fn open_process(process_info: &ProcessInfo) -> Result<OpenedProcessInfo, ProcessQueryError> {
+        let target_architecture = AndroidProcessQuery::get_process_target_architecture(process_info.get_process_id());
+
         Ok(OpenedProcessInfo::new(
             process_info.get_process_id(),
             process_info.get_name().to_string(),
             0,
-            Bitness::Bit64,
+            target_architecture.get_pointer_width(),
             process_info.get_icon().clone(),
-        ))
+        )
+        .with_target_architecture(target_architecture))
     }
 
     // Android has no concept of closing a process.

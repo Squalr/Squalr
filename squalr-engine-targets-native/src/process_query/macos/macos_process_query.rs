@@ -8,10 +8,10 @@ use mach2::port::{MACH_PORT_NULL, mach_port_name_t, mach_port_t};
 use mach2::traps::{mach_task_self, task_for_pid};
 use objc::runtime::Object;
 use objc::{class, msg_send, sel, sel_impl};
-use squalr_engine_api::structures::memory::bitness::Bitness;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::processes::process_icon::ProcessIcon;
 use squalr_engine_api::structures::processes::process_info::ProcessInfo;
+use squalr_engine_api::structures::processes::target_architecture::TargetArchitecture;
 use std::collections::HashSet;
 use std::os::raw::c_int;
 use std::path::{Path, PathBuf};
@@ -129,6 +129,17 @@ struct MainThreadIconLookupRequest {
 }
 
 impl MacOsProcessQuery {
+    fn default_target_architecture() -> TargetArchitecture {
+        #[cfg(target_arch = "aarch64")]
+        {
+            TargetArchitecture::arm64()
+        }
+        #[cfg(not(target_arch = "aarch64"))]
+        {
+            TargetArchitecture::x64()
+        }
+    }
+
     fn task_for_pid_failure_details(task_for_pid_status: i32) -> String {
         let status_reason = match task_for_pid_status {
             4 => "KERN_INVALID_ARGUMENT",
@@ -458,13 +469,16 @@ impl ProcessQueryer for MacOsProcessQuery {
             ));
         }
 
+        let target_architecture = Self::default_target_architecture();
+
         Ok(OpenedProcessInfo::new(
             process_id,
             process_info.get_name().to_string(),
             task_port as u64,
-            Bitness::Bit64,
+            target_architecture.get_pointer_width(),
             process_info.get_icon().clone(),
-        ))
+        )
+        .with_target_architecture(target_architecture))
     }
 
     fn close_process(handle: u64) -> Result<(), ProcessQueryError> {

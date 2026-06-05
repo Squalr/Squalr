@@ -114,9 +114,11 @@ impl TuiAppState {
                     .active_project_directory_path
                     .is_some(),
             ),
-            TuiPane::CodeViewer => self
-                .code_viewer_pane_state
-                .summary_lines(self.process_selector_pane_state.opened_process_bitness),
+            TuiPane::CodeViewer => self.code_viewer_pane_state.summary_lines(
+                self.process_selector_pane_state
+                    .opened_process_target_architecture
+                    .as_ref(),
+            ),
             TuiPane::Output => self
                 .output_pane_state
                 .summary_lines(pane_content_height.saturating_sub(OUTPUT_FIXED_SUMMARY_LINE_COUNT)),
@@ -166,9 +168,11 @@ impl TuiAppState {
                     .active_project_directory_path
                     .is_some(),
             ),
-            TuiPane::CodeViewer => self
-                .code_viewer_pane_state
-                .visible_row_entries(self.process_selector_pane_state.opened_process_bitness),
+            TuiPane::CodeViewer => self.code_viewer_pane_state.visible_row_entries(
+                self.process_selector_pane_state
+                    .opened_process_target_architecture
+                    .as_ref(),
+            ),
             TuiPane::Plugins => self
                 .plugins_pane_state
                 .visible_plugin_entry_rows(pane_entry_row_capacity),

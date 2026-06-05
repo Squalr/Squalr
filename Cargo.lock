@@ -5377,7 +5377,6 @@ dependencies = [
  "squalr-engine",
  "squalr-engine-api",
  "squalr-engine-session",
- "squalr-plugin-instructions-x86",
 ]
 
 [[package]]

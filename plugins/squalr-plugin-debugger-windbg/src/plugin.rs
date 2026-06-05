@@ -59,7 +59,9 @@ impl DebuggerPlugin for WindbgDebuggerPlugin {
         &self,
         process_info: &OpenedProcessInfo,
     ) -> bool {
-        cfg!(windows) && process_info.get_handle() != 0
+        let instruction_set_id = process_info.get_target_architecture().get_instruction_set_id();
+
+        cfg!(windows) && process_info.get_handle() != 0 && matches!(instruction_set_id, "x86" | "x64")
     }
 
     fn create_session(

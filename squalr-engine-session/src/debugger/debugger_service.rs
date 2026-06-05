@@ -649,7 +649,8 @@ impl DebuggerService {
         let active_plugin_id = plugin_id.to_string();
 
         Arc::new(move |trace_event: DebuggerTraceEvent| {
-            let trace_event = Self::enrich_trace_event_with_disassembly(&plugin_registry, &target_architecture, trace_event);
+            let trace_event = Self::enrich_trace_event_with_disassembly(&plugin_registry, &target_architecture, trace_event)
+                .with_target_architecture(target_architecture.clone());
             let trace_session_update = trace_sessions
                 .write()
                 .ok()
@@ -693,7 +694,7 @@ impl DebuggerService {
         trace_event: DebuggerTraceEvent,
     ) -> DebuggerTraceEvent {
         if trace_event.get_instruction_text().is_some() || trace_event.get_instruction_bytes().is_empty() {
-            return trace_event;
+            return trace_event.with_target_architecture(target_architecture.clone());
         }
 
         let instruction_text = plugin_registry
@@ -719,6 +720,7 @@ impl DebuggerService {
             instruction_text,
             trace_event.get_backend_message().map(String::from),
         )
+        .with_target_architecture(target_architecture.clone())
     }
 
     fn is_meaningful_instruction_text(instruction_text: &str) -> bool {

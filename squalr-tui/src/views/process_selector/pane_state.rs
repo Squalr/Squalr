@@ -1,9 +1,9 @@
 use crate::state::pane_entry_row::PaneEntryRow;
 use crate::views::process_selector::entry_rows::build_visible_process_entry_rows;
 use crate::views::process_selector::summary::build_process_selector_summary_lines;
-use squalr_engine_api::structures::memory::bitness::Bitness;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::processes::process_info::ProcessInfo;
+use squalr_engine_api::structures::processes::target_architecture::TargetArchitecture;
 
 /// Stores text input mode for process selector search workflows.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -24,7 +24,7 @@ pub struct ProcessSelectorPaneState {
     pub selected_process_list_index: Option<usize>,
     pub opened_process_identifier: Option<u32>,
     pub opened_process_name: Option<String>,
-    pub opened_process_bitness: Option<Bitness>,
+    pub opened_process_target_architecture: Option<TargetArchitecture>,
     pub has_loaded_process_list_once: bool,
     pub is_awaiting_process_list_response: bool,
     pub is_opening_process: bool,
@@ -146,12 +146,12 @@ impl ProcessSelectorPaneState {
             Some(opened_process_info) => {
                 self.opened_process_identifier = Some(opened_process_info.get_process_id_raw());
                 self.opened_process_name = Some(opened_process_info.get_name().to_string());
-                self.opened_process_bitness = Some(opened_process_info.get_bitness());
+                self.opened_process_target_architecture = Some(opened_process_info.get_target_architecture().clone());
             }
             None => {
                 self.opened_process_identifier = None;
                 self.opened_process_name = None;
-                self.opened_process_bitness = None;
+                self.opened_process_target_architecture = None;
             }
         }
     }
@@ -249,7 +249,7 @@ impl Default for ProcessSelectorPaneState {
             selected_process_list_index: None,
             opened_process_identifier: None,
             opened_process_name: None,
-            opened_process_bitness: None,
+            opened_process_target_architecture: None,
             has_loaded_process_list_once: false,
             is_awaiting_process_list_response: false,
             is_opening_process: false,

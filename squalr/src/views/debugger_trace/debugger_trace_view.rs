@@ -786,7 +786,7 @@ impl DebuggerTraceView {
             is_directory: false,
             address: Some(project_item_address),
             module_name: Some(project_item_module_name),
-            data_type_id: Some(self.instruction_data_type_id()),
+            data_type_id: Some(self.instruction_data_type_id(instruction_record)),
             pointer_offsets: None,
             initial_preview_value: Some(Self::instruction_text(instruction_record)),
         };
@@ -808,18 +808,33 @@ impl DebuggerTraceView {
         });
     }
 
-    fn instruction_data_type_id(&self) -> String {
-        self.process_selector_view_data
-            .read("Debugger trace target architecture")
-            .and_then(|process_selector_view_data| {
-                process_selector_view_data
-                    .opened_process
-                    .as_ref()
-                    .map(|opened_process_info| opened_process_info.get_target_architecture().clone())
-            })
-            .unwrap_or_else(TargetArchitecture::default)
+    fn instruction_data_type_id(
+        &self,
+        instruction_record: &DebuggerTraceInstructionRecord,
+    ) -> String {
+        self.resolve_instruction_record_target_architecture(instruction_record)
             .get_instruction_data_type_id()
             .to_string()
+    }
+
+    fn resolve_instruction_record_target_architecture(
+        &self,
+        instruction_record: &DebuggerTraceInstructionRecord,
+    ) -> TargetArchitecture {
+        instruction_record
+            .get_target_architecture()
+            .cloned()
+            .or_else(|| {
+                self.process_selector_view_data
+                    .read("Debugger trace target architecture")
+                    .and_then(|process_selector_view_data| {
+                        process_selector_view_data
+                            .opened_process
+                            .as_ref()
+                            .map(|opened_process_info| opened_process_info.get_target_architecture().clone())
+                    })
+            })
+            .unwrap_or_else(TargetArchitecture::default)
     }
 
     fn build_instruction_project_item_name(
