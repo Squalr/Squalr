@@ -39,6 +39,11 @@ Our current task, from `README.md`, is:
   - [ ] Repeat manual/human verification from CLI/TUI/GUI command surfaces.
 
 ## Important Information
+- After fixing Details Viewer takeover state getting dropped by live preview refresh:
+  - Root cause: `StructViewerViewData::set_valued_struct_and_callback` cleared `take_over_state` and selected field on every refocus, including same-project-item details refocuses triggered by Project Explorer live preview updates.
+  - Same-focus details refreshes now preserve the active Struct Viewer takeover and selected field, then drop them only if the refreshed presented struct no longer contains the relevant field.
+  - Validation passed: `cargo fmt --all` with existing `fn_args_layout` deprecation warnings; `cargo test -p squalr --locked struct_viewer_view_data::tests -- --nocapture`; `cargo check -p squalr --locked`.
+  - GUI behavior for editing an instruction while Project Explorer previews refresh still needs human verification after implementation and validation.
 - After fixing Details Viewer instruction and pointer-offset takeover validation:
   - Instruction takeover editing no longer skips `DataValueBoxView` validation, and Commit/Enter only submit when the same instruction data type validation used by deanonymize succeeds.
   - The shared instruction parser now accepts Intel-style hex suffix immediates such as `100579Ch` only when the token starts with a digit, so register names like `ah` remain identifiers.
