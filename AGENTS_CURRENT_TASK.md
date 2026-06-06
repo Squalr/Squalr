@@ -39,6 +39,13 @@ Our current task, from `README.md`, is:
   - [ ] Repeat manual/human verification from CLI/TUI/GUI command surfaces.
 
 ## Important Information
+- After fixing paused-trace no-op patch failure:
+  - Root cause: privileged patch apply/no-op apply still performed an old debugger-layer software-breakpoint preflight, so a paused active native debugger could make NOP patching fail through `IDebugControl::GetNumberBreakpoints` even though software breakpoints are now patch-service-backed.
+  - Patch apply/no-op apply now rely on `PatchService` range overlap checks instead of asking the debugger backend to enumerate software breakpoints.
+  - Patch-backed software breakpoints still conflict with overlapping no-op/code patches because they are active `PatchKind::SoftwareBreakpoint` ranges in `PatchService`.
+  - Trace pause still intentionally leaves the hardware data breakpoint/live trace breakpoint in place; pause only gates collection.
+  - Validation passed: `cargo fmt --all` with existing `fn_args_layout` deprecation warnings; `cargo test -p squalr-engine-session --locked patch_service -- --nocapture`; `cargo test -p squalr-engine --locked no_operation_patch -- --nocapture`; `cargo test -p squalr-engine-session --locked debugger -- --nocapture`; `cargo check -p squalr --locked`; `git diff --check` with only CRLF conversion warnings.
+  - GUI behavior for paused debugger-trace NOP patching still needs human verification after implementation and validation.
 - After adding Enter-to-commit for Details Viewer takeovers:
   - Struct Viewer pointer-offset takeovers now treat Enter as Accept when all offset rows validate, matching the instruction takeover behavior.
   - Instruction takeovers now also treat the takeover-level Enter key as Commit when the instruction validates, not only the value box's commit-on-enter signal.

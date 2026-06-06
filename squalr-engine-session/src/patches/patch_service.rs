@@ -588,6 +588,26 @@ mod tests {
     }
 
     #[test]
+    fn apply_patch_rejects_no_operation_overlapping_software_breakpoint_patch() {
+        let (patch_service, opened_process_info, os_providers, _test_memory) = create_test_context();
+
+        patch_service
+            .apply_patch(
+                &opened_process_info,
+                &os_providers,
+                0x1001,
+                "",
+                &[0xCC],
+                PatchKind::SoftwareBreakpoint,
+                Some(String::from("breakpoint")),
+            )
+            .expect("Expected software breakpoint patch application to succeed.");
+        let no_operation_patch_result = patch_service.apply_patch(&opened_process_info, &os_providers, 0x1001, "", &[0x90], PatchKind::NoOperation, None);
+
+        assert!(no_operation_patch_result.is_err());
+    }
+
+    #[test]
     fn apply_patch_allows_adjacent_half_open_regions() {
         let (patch_service, opened_process_info, os_providers, _test_memory) = create_test_context();
 

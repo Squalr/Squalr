@@ -123,13 +123,6 @@ impl PrivilegedCommandRequestExecutor for PatchNoOperationRequest {
             }
         };
 
-        if let Err(error_message) = reject_overlapping_software_breakpoint(engine_privileged_state, self.address, &self.module_name, patched_bytes.len()) {
-            return PatchNoOperationResponse {
-                status: failure_status(error_message),
-                patch: None,
-            };
-        }
-
         match engine_privileged_state.get_patch_service().apply_patch(
             &opened_process_info,
             engine_privileged_state.get_os_providers(),
@@ -167,13 +160,6 @@ impl PrivilegedCommandRequestExecutor for PatchApplyRequest {
                 patch: None,
             };
         };
-
-        if let Err(error_message) = reject_overlapping_software_breakpoint(engine_privileged_state, self.address, &self.module_name, self.patched_bytes.len()) {
-            return PatchApplyResponse {
-                status: failure_status(error_message),
-                patch: None,
-            };
-        }
 
         match engine_privileged_state.get_patch_service().apply_patch(
             &opened_process_info,
@@ -298,61 +284,6 @@ impl PrivilegedCommandRequestExecutor for PatchListRequest {
             },
         }
     }
-}
-
-fn reject_overlapping_software_breakpoint(
-    engine_privileged_state: &Arc<EnginePrivilegedState>,
-    address: u64,
-    module_name: &str,
-    patch_size: usize,
-) -> Result<(), String> {
-    let software_breakpoints = match engine_privileged_state
-        .get_debugger_service()
-        .list_breakpoints()
-    {
-        Ok(breakpoints) => breakpoints
-            .into_iter()
-            .filter(|breakpoint| {
-                breakpoint.get_is_enabled() && matches!(breakpoint.get_kind(), squalr_engine_api::structures::debugger::DebuggerBreakpointKind::Software)
-            })
-            .collect::<Vec<_>>(),
-        Err(error_message) if error_message == "No active debugger session." => Vec::new(),
-        Err(error_message) => {
-            return Err(format!(
-                "Patch range could not be checked against active software breakpoints: {}",
-                error_message
-            ));
-        }
-    };
-
-    if software_breakpoints.is_empty() {
-        return Ok(());
-    }
-
-    let Some(opened_process_info) = engine_privileged_state
-        .get_process_manager()
-        .get_opened_process()
-    else {
-        return Ok(());
-    };
-    let absolute_address = resolve_absolute_address(engine_privileged_state, &opened_process_info, address, module_name)?;
-    let patch_end_address = absolute_address.saturating_add(patch_size as u64);
-
-    for breakpoint in software_breakpoints {
-        let breakpoint_address = breakpoint.get_address();
-        let breakpoint_end_address = breakpoint_address.saturating_add(1);
-
-        if absolute_address < breakpoint_end_address && breakpoint_address < patch_end_address {
-            return Err(format!(
-                "Patch range 0x{:X}-0x{:X} overlaps enabled software breakpoint '{}'.",
-                absolute_address,
-                patch_end_address,
-                breakpoint.get_breakpoint_id()
-            ));
-        }
-    }
-
-    Ok(())
 }
 
 fn resolve_no_operation_instruction_bytes(
