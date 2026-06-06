@@ -39,6 +39,11 @@ Our current task, from `README.md`, is:
   - [ ] Repeat manual/human verification from CLI/TUI/GUI command surfaces.
 
 ## Important Information
+- After adding Enter-to-commit for Details Viewer takeovers:
+  - Struct Viewer pointer-offset takeovers now treat Enter as Accept when all offset rows validate, matching the instruction takeover behavior.
+  - Instruction takeovers now also treat the takeover-level Enter key as Commit when the instruction validates, not only the value box's commit-on-enter signal.
+  - Validation passed: `cargo fmt --all` with existing `fn_args_layout` deprecation warnings; `cargo test -p squalr --locked pointer_offset_display_value_ -- --nocapture`; `cargo check -p squalr --locked`.
+  - GUI behavior for Enter committing Details Viewer instruction/offset takeovers still needs human verification after implementation and validation.
 - After fixing Details Viewer takeover state getting dropped by live preview refresh:
   - Root cause: `StructViewerViewData::set_valued_struct_and_callback` cleared `take_over_state` and selected field on every refocus, including same-project-item details refocuses triggered by Project Explorer live preview updates.
   - Same-focus details refreshes now preserve the active Struct Viewer takeover and selected field, then drop them only if the refreshed presented struct no longer contains the relevant field.

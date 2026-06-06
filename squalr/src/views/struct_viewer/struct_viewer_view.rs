@@ -137,6 +137,10 @@ impl StructViewerView {
         Id::new(("struct_viewer_instruction_edit", field_name.to_string()))
     }
 
+    fn pointer_offset_value_box_id(pointer_offset_index: usize) -> String {
+        format!("struct_viewer_pointer_offset_value_{}", pointer_offset_index)
+    }
+
     fn clear_pointer_offsets_edit_state(
         user_interface: &Ui,
         field_name: &str,
@@ -350,7 +354,7 @@ impl StructViewerView {
                 );
 
                 user_interface.add_space(Self::POINTER_OFFSET_INPUT_SPACING);
-                let data_value_box_id = format!("struct_viewer_pointer_offset_value_{}", pointer_offset_index);
+                let data_value_box_id = Self::pointer_offset_value_box_id(pointer_offset_index);
                 user_interface.add_sized(
                     vec2(Self::POINTER_OFFSET_VALUE_BOX_WIDTH, Self::POINTER_OFFSET_FIELD_ROW_HEIGHT),
                     DataValueBoxView::new(
@@ -518,6 +522,15 @@ impl StructViewerView {
             );
         });
 
+        let did_commit_offsets_on_enter = user_interface.input(|input_state| input_state.key_pressed(Key::Enter))
+            || (0..pointer_offset_values.len()).any(|pointer_offset_index| {
+                DataValueBoxView::consume_commit_on_enter(user_interface, &Self::pointer_offset_value_box_id(pointer_offset_index))
+            });
+
+        if did_commit_offsets_on_enter && Self::pointer_offset_values_are_valid(&pointer_offset_values) {
+            should_save_offsets = true;
+        }
+
         if should_save_offsets && Self::pointer_offset_values_are_valid(&pointer_offset_values) {
             let Some(mut pointer_offsets) = pointer_offset_values
                 .iter()
@@ -628,7 +641,10 @@ impl StructViewerView {
             );
         });
 
-        if DataValueBoxView::consume_commit_on_enter(user_interface, &instruction_editor_id) && is_instruction_edit_valid {
+        let did_commit_instruction_on_enter = user_interface.input(|input_state| input_state.key_pressed(Key::Enter))
+            || DataValueBoxView::consume_commit_on_enter(user_interface, &instruction_editor_id);
+
+        if did_commit_instruction_on_enter && is_instruction_edit_valid {
             should_save_instruction = true;
         }
 
