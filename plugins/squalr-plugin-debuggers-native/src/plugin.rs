@@ -61,7 +61,8 @@ impl DebuggerPlugin for NativeDebuggersPlugin {
     ) -> bool {
         let instruction_set_id = process_info.get_target_architecture().get_instruction_set_id();
 
-        cfg!(windows) && process_info.get_handle() != 0 && matches!(instruction_set_id, "x86" | "x64")
+        process_info.get_handle() != 0
+            && ((cfg!(windows) && matches!(instruction_set_id, "x86" | "x64")) || (cfg!(target_os = "macos") && matches!(instruction_set_id, "x64" | "arm64")))
     }
 
     fn create_session(

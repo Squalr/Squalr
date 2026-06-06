@@ -10,3 +10,7 @@ squalr-engine-api = { path = "../../squalr-engine-api" }
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.62.2", features = ["Win32_System_Diagnostics_Debug_Extensions"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+libc = "0.2.180"
+mach2 = "0.4.3"

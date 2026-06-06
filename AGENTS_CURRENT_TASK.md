@@ -768,3 +768,25 @@ Our current task, from `README.md`, is:
     - LLDB SBTarget/SBWatchpoint docs as the alternate higher-level route.
     - Local `mach2` 0.4.3 bindings for exception messages, thread state, task suspend/resume/thread enumeration, Mach message, and debug-state flavor constants.
   - Recommendation: implement the Mach backend in two slices. First, attach/pause/resume/detach/register-read with safe cleanup and a disposable-process smoke. Second, hardware watchpoints plus exception-loop trace events. Only after that should GUI behavior be treated as ready for human verification.
+- After adding the first macOS native debugger backend:
+  - Added `plugins/squalr-plugin-debuggers-native/src/backend/macos_backend.rs` and route `target_os = "macos"` through it while leaving Linux/Android on the existing unavailable backend.
+  - `NativeDebuggersPlugin::can_attach` now accepts macOS `x64` and `arm64` opened processes with nonzero Mach task handles. Windows remains limited to `x86`/`x64`.
+  - The macOS backend uses a worker-thread model matching the DbgEng backend shape. It attaches with `ptrace(PT_ATTACHEXC)`, waits for the initial stop with `waitpid`, resumes with `ptrace(PT_CONTINUE)`, pauses with `SIGSTOP` plus `waitpid`, detaches with `ptrace(PT_DETACH)`, and cleans up through the backend/session drops.
+  - Register snapshots now support x64 and arm64 integer registers through `thread_get_state` (`x86_THREAD_STATE64` / `ARM_THREAD_STATE64`). Integer register writes are supported through `thread_set_state`; vector/FP registers remain intentionally out of scope, matching the existing generic register model.
+  - Hardware data breakpoint support now programs per-thread debug state through `task_threads` plus `thread_set_state`: x64 uses `dr0`-`dr7`, and arm64 uses `wvr`/`wcr` watchpoint slots. Supported sizes are 1/2/4/8 bytes; arm64 rejects watchpoints that cross an 8-byte watch granule.
+  - Breakpoint set/remove/enable operations pause and resume around debug-state mutation when the target is already running, so Stop Trace can clear backing watchpoints without writing thread debug state while the target is executing.
+  - Trace events are emitted from the ptrace/waitpid event loop with register snapshots, instruction bytes read via `mach_vm_read_overwrite`, breakpoint descriptors, and backend diagnostics. Hardware trace hits auto-resume through the worker so the GUI trace workflow can keep collecting rows.
+  - Added unit coverage for x64 debug-register length encoding, arm64 watchpoint control encoding, and macOS plugin selection. Updated the native debugger smoke example so it now runs on macOS as well as Windows, opening a real Mach task port with `task_for_pid`.
+  - Important limitation: this first backend uses ptrace/waitpid rather than a full Mach exception server, so event-thread attribution is weaker than DbgEng. x64 hardware watchpoints may report the post-access instruction pointer; the backend includes a diagnostic and needs human verification against real targets before claiming DbgEng-level attribution parity.
+  - Live smoke on this machine was blocked before attach by macOS permissions: `cargo run -p squalr-plugin-debuggers-native --example native_debugger_smoke --locked` failed with `task_for_pid failed for smoke child ... with status 5`. This needs human verification with SIP/debug rights/elevated execution configured.
+  - Validation passed:
+    - `cargo fmt --all` completed with existing `fn_args_layout` deprecation warnings.
+    - `cargo check -p squalr-plugin-debuggers-native --locked`.
+    - `cargo check -p squalr-plugin-debuggers-native --examples --locked`.
+    - `cargo test -p squalr-plugin-debuggers-native --locked -- --nocapture`.
+    - `cargo check -p squalr-plugin-builtins --locked` passed with existing macOS `objc` `unexpected cfg cargo-clippy` warnings from `squalr-engine-targets-native`.
+    - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed with the same existing macOS `objc` warnings.
+    - `cargo check -p squalr-engine --locked` passed with the same existing macOS `objc` warnings.
+    - `cargo check -p squalr-cli --locked` passed with the same existing macOS `objc` warnings.
+    - `git diff --check` passed.
+  - Current local Rust toolchain only has `aarch64-apple-darwin` installed, so x86_64 macOS compile/runtime behavior still needs human or CI verification.

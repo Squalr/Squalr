@@ -5315,7 +5315,9 @@ dependencies = [
 name = "squalr-plugin-debuggers-native"
 version = "0.4.0"
 dependencies = [
+ "libc",
  "log",
+ "mach2",
  "squalr-engine-api",
  "windows 0.62.2",
 ]

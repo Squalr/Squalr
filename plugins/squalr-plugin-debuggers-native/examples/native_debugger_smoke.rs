@@ -1,15 +1,15 @@
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 use squalr_engine_api::{
     plugins::debugger::DebuggerPlugin,
     structures::{
         debugger::{DebuggerBreakpointKind, DebuggerDataBreakpointAccess, DebuggerTraceEvent},
         memory::bitness::Bitness,
-        processes::opened_process_info::OpenedProcessInfo,
+        processes::{opened_process_info::OpenedProcessInfo, target_architecture::TargetArchitecture},
     },
 };
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 use squalr_plugin_debuggers_native::NativeDebuggersPlugin;
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 use std::{
     error::Error,
     io::{BufRead, BufReader, Write},
@@ -23,10 +23,18 @@ use std::{
     time::{Duration, Instant},
 };
 
-#[cfg(windows)]
+#[cfg(target_os = "macos")]
+use mach2::{
+    kern_return::KERN_SUCCESS,
+    mach_port::mach_port_deallocate,
+    port::{MACH_PORT_NULL, mach_port_name_t, mach_port_t},
+    traps::{mach_task_self, task_for_pid},
+};
+
+#[cfg(any(windows, target_os = "macos"))]
 static SMOKE_TARGET_VALUE: AtomicU64 = AtomicU64::new(0);
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 fn main() -> Result<(), Box<dyn Error>> {
     let is_child_process = std::env::args().any(|argument| argument == "--child");
 
@@ -39,7 +47,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 fn run_child_process() -> Result<(), Box<dyn Error>> {
     let target_address = &SMOKE_TARGET_VALUE as *const AtomicU64 as u64;
 
@@ -52,7 +60,7 @@ fn run_child_process() -> Result<(), Box<dyn Error>> {
     }
 }
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 fn run_parent_process() -> Result<(), Box<dyn Error>> {
     let current_executable_path = std::env::current_exe()?;
     let mut child_process = Command::new(current_executable_path)
@@ -67,7 +75,7 @@ fn run_parent_process() -> Result<(), Box<dyn Error>> {
     smoke_result
 }
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 fn run_smoke_against_child(child_process: &mut std::process::Child) -> Result<(), Box<dyn Error>> {
     let child_stdout = child_process
         .stdout
@@ -78,23 +86,44 @@ fn run_smoke_against_child(child_process: &mut std::process::Child) -> Result<()
     child_stdout_reader.read_line(&mut child_ready_line)?;
 
     let (target_process_id, target_address) = parse_child_ready_line(&child_ready_line)?;
+    let opened_process = open_smoke_process(target_process_id)?;
     let process_info = OpenedProcessInfo::new(
         target_process_id,
         String::from("native_debugger_smoke_child"),
-        u64::from(target_process_id),
+        opened_process.handle,
         Bitness::Bit64,
         None,
-    );
+    )
+    .with_target_architecture(opened_process.target_architecture.clone());
 
+    let smoke_result = run_debugger_flow(process_info, target_address);
+    opened_process.close();
+
+    smoke_result
+}
+
+#[cfg(any(windows, target_os = "macos"))]
+fn run_debugger_flow(
+    process_info: OpenedProcessInfo,
+    target_address: u64,
+) -> Result<(), Box<dyn Error>> {
     let (trace_event_sender, trace_event_receiver) = mpsc::channel::<DebuggerTraceEvent>();
     let trace_event_sink = Arc::new(move |trace_event| {
         let _ = trace_event_sender.send(trace_event);
     });
 
     let plugin = NativeDebuggersPlugin::new();
+    if !plugin.can_attach(&process_info) {
+        return Err(format!(
+            "Native debugger plugin refused process architecture '{}'.",
+            process_info.get_target_architecture().get_instruction_set_id()
+        )
+        .into());
+    }
+
     let mut debugger_session = plugin.create_session(&process_info, trace_event_sink)?;
 
-    println!("Attaching to child process {target_process_id} at {target_address:#x}.");
+    println!("Attaching to child process {} at {:#x}.", process_info.get_process_id(), target_address);
     debugger_session.attach()?;
     let register_snapshot = debugger_session.read_registers()?;
     println!(
@@ -145,7 +174,70 @@ fn run_smoke_against_child(child_process: &mut std::process::Child) -> Result<()
     Ok(())
 }
 
+#[cfg(any(windows, target_os = "macos"))]
+struct SmokeOpenedProcess {
+    handle: u64,
+    target_architecture: TargetArchitecture,
+}
+
+#[cfg(any(windows, target_os = "macos"))]
+impl SmokeOpenedProcess {
+    fn close(&self) {
+        close_smoke_process(self.handle);
+    }
+}
+
 #[cfg(windows)]
+fn open_smoke_process(target_process_id: u32) -> Result<SmokeOpenedProcess, Box<dyn Error>> {
+    Ok(SmokeOpenedProcess {
+        handle: u64::from(target_process_id),
+        target_architecture: TargetArchitecture::x64(),
+    })
+}
+
+#[cfg(target_os = "macos")]
+fn open_smoke_process(target_process_id: u32) -> Result<SmokeOpenedProcess, Box<dyn Error>> {
+    let mut task_port: mach_port_t = MACH_PORT_NULL;
+    let task_for_pid_status = unsafe { task_for_pid(mach_task_self(), target_process_id as libc::c_int, &mut task_port as *mut mach_port_t) };
+
+    if task_for_pid_status != KERN_SUCCESS || task_port == MACH_PORT_NULL {
+        return Err(format!(
+            "task_for_pid failed for smoke child {} with status {}. Run with macOS debugging permissions enabled.",
+            target_process_id, task_for_pid_status
+        )
+        .into());
+    }
+
+    Ok(SmokeOpenedProcess {
+        handle: u64::from(task_port),
+        target_architecture: current_macos_target_architecture(),
+    })
+}
+
+#[cfg(windows)]
+fn close_smoke_process(_handle: u64) {}
+
+#[cfg(target_os = "macos")]
+fn close_smoke_process(handle: u64) {
+    if handle != 0 {
+        let _ = unsafe { mach_port_deallocate(mach_task_self(), handle as mach_port_name_t) };
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn current_macos_target_architecture() -> TargetArchitecture {
+    #[cfg(target_arch = "aarch64")]
+    {
+        TargetArchitecture::arm64()
+    }
+
+    #[cfg(not(target_arch = "aarch64"))]
+    {
+        TargetArchitecture::x64()
+    }
+}
+
+#[cfg(any(windows, target_os = "macos"))]
 fn parse_child_ready_line(child_ready_line: &str) -> Result<(u32, u64), Box<dyn Error>> {
     let mut child_ready_parts = child_ready_line.split_whitespace();
     let target_process_id = child_ready_parts
@@ -160,7 +252,7 @@ fn parse_child_ready_line(child_ready_line: &str) -> Result<(u32, u64), Box<dyn 
     Ok((target_process_id, target_address))
 }
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 fn wait_for_trace_event(
     trace_event_receiver: &mpsc::Receiver<DebuggerTraceEvent>,
     timeout: Duration,
@@ -178,14 +270,14 @@ fn wait_for_trace_event(
     }
 }
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 fn format_optional_address(address: Option<u64>) -> String {
     address
         .map(|address| format!("{address:#x}"))
         .unwrap_or_else(|| String::from("<unknown>"))
 }
 
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "macos")))]
 fn main() {
-    println!("The native debugger smoke example is only available on Windows right now.");
+    println!("The native debugger smoke example is only available on Windows and macOS right now.");
 }
