@@ -837,3 +837,16 @@ Our current task, from `README.md`, is:
     - `cargo check -p squalr-engine-targets-native --locked` passed with the same existing macOS `objc` warnings.
     - `cargo check -p squalr-engine --locked` passed with the same existing macOS `objc` warnings.
     - `git diff --check` passed.
+- After throttling macOS hot watchpoint traps:
+  - Owner reported that macOS Minesweeper `Find What Writes` could still brick/lag-death the target when clicking New Game, even after trace-event coalescing.
+  - Root cause: coalescing dropped duplicate trace rows but left the hardware watchpoint armed, so hot write paths still delivered a Mach breakpoint exception for every access.
+  - macOS watchpoint hits now temporarily suppress/disarm the hit breakpoint for a 100ms cooldown after processing the exception, then re-arm it from the worker event loop. This samples hot write sites instead of trapping the target continuously.
+  - Suppression is per breakpoint and respects normal breakpoint enable/disable state. Enable/disable clears stale suppression state.
+  - Temporary suppress/re-arm debug-state refreshes are best-effort around the Mach exception reply path. If `task_threads` or `thread_set_state` fails while throttling, the backend logs the failure and still replies to the exception; failed re-arms are retried after another cooldown instead of silently losing the watchpoint.
+  - Remaining limitation: this was validated with focused tests and compile checks, not against the live Minesweeper New Game flow. Hot-write liveness and trace sampling behavior still need human verification after implementation and validation.
+  - Validation passed:
+    - `cargo fmt --all` completed with existing `fn_args_layout` deprecation warnings.
+    - `cargo test -p squalr-plugin-debuggers-native --locked -- --nocapture`.
+    - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed with existing macOS `objc` `unexpected cfg cargo-clippy` warnings from `squalr-engine-targets-native`.
+    - `cargo check -p squalr-engine --locked` passed with the same existing macOS `objc` warnings.
+    - `git diff --check` passed.

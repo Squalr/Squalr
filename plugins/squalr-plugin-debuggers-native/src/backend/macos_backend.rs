@@ -54,6 +54,7 @@ const TRACE_INSTRUCTION_BYTE_WINDOW: usize = 16;
 const X64_TRACE_INSTRUCTION_BYTE_WINDOW: usize = 15;
 const ARM64_TRACE_INSTRUCTION_BYTE_WINDOW: usize = 4;
 const TRACE_EVENT_MIN_INTERVAL_MS: u64 = 100;
+const WATCHPOINT_REARM_DELAY_MS: u64 = 100;
 const RUNNING_EVENT_WAIT_TIMEOUT_MS: u64 = 50;
 const ATTACH_WAIT_TIMEOUT: Duration = Duration::from_secs(10);
 const WATCHPOINT_SLOT_COUNT: usize = 4;
@@ -440,6 +441,7 @@ struct MacOsTraceEventKey {
 struct StoredMacOsBreakpoint {
     descriptor: DebuggerBreakpointDescriptor,
     slot: usize,
+    suppressed_until: Option<Instant>,
 }
 
 struct MacOsExceptionPort {
@@ -881,6 +883,7 @@ impl ActiveMacOsSession {
             StoredMacOsBreakpoint {
                 descriptor: descriptor.clone(),
                 slot,
+                suppressed_until: None,
             },
         );
 
@@ -926,6 +929,7 @@ impl ActiveMacOsSession {
                 .ok_or_else(|| MacOsDebuggerBackend::plugin_error(format!("macOS breakpoint '{}' does not exist.", breakpoint_id)))?;
 
             stored_breakpoint.descriptor.set_is_enabled(is_enabled);
+            stored_breakpoint.suppressed_until = None;
             active_session.refresh_threads_and_apply_watchpoints()
         })
     }
@@ -999,6 +1003,8 @@ impl ActiveMacOsSession {
         if self.session_state != DebuggerSessionState::Running {
             return Ok(());
         }
+
+        self.refresh_expired_watchpoint_suppressions();
 
         if let Some(exception_request) = self
             .exception_port
@@ -1079,22 +1085,75 @@ impl ActiveMacOsSession {
         let instruction_pointer = register_snapshot.get_instruction_pointer();
         let instruction_address = self.resolve_instruction_address(instruction_pointer);
 
-        if !self.should_emit_trace_event(breakpoint_descriptor.as_ref(), instruction_address) {
-            return Ok(());
+        if self.should_emit_trace_event(breakpoint_descriptor.as_ref(), instruction_address) {
+            let instruction_bytes = self.read_instruction_bytes(instruction_address);
+
+            (self.trace_event_sink)(DebuggerTraceEvent::new(
+                breakpoint_descriptor.clone(),
+                register_snapshot,
+                instruction_address,
+                instruction_bytes,
+                None,
+                backend_message,
+            ));
         }
 
-        let instruction_bytes = self.read_instruction_bytes(instruction_address);
-
-        (self.trace_event_sink)(DebuggerTraceEvent::new(
-            breakpoint_descriptor,
-            register_snapshot,
-            instruction_address,
-            instruction_bytes,
-            None,
-            backend_message,
-        ));
+        self.suppress_hit_breakpoint_temporarily(breakpoint_descriptor.as_ref());
 
         Ok(())
+    }
+
+    fn suppress_hit_breakpoint_temporarily(
+        &mut self,
+        breakpoint_descriptor: Option<&DebuggerBreakpointDescriptor>,
+    ) {
+        let Some(breakpoint_id) = breakpoint_descriptor.map(DebuggerBreakpointDescriptor::get_breakpoint_id) else {
+            return;
+        };
+        let Some(stored_breakpoint) = self.breakpoints_by_id.get_mut(breakpoint_id) else {
+            return;
+        };
+
+        stored_breakpoint.suppressed_until = Some(Instant::now() + Duration::from_millis(WATCHPOINT_REARM_DELAY_MS));
+        if let Err(error) = self.refresh_threads_and_apply_watchpoints() {
+            log::debug!("Failed to temporarily suppress macOS watchpoint '{}': {}.", breakpoint_id, error);
+        }
+    }
+
+    fn refresh_expired_watchpoint_suppressions(&mut self) {
+        let now = Instant::now();
+        let expired_breakpoint_ids = self
+            .breakpoints_by_id
+            .iter()
+            .filter_map(|(breakpoint_id, stored_breakpoint)| {
+                stored_breakpoint
+                    .suppressed_until
+                    .is_some_and(|suppressed_until| suppressed_until <= now)
+                    .then(|| breakpoint_id.clone())
+            })
+            .collect::<Vec<_>>();
+
+        if expired_breakpoint_ids.is_empty() {
+            return;
+        }
+
+        for breakpoint_id in &expired_breakpoint_ids {
+            if let Some(stored_breakpoint) = self.breakpoints_by_id.get_mut(breakpoint_id) {
+                stored_breakpoint.suppressed_until = None;
+            }
+        }
+
+        if let Err(error) = self.refresh_threads_and_apply_watchpoints() {
+            let retry_after = Instant::now() + Duration::from_millis(WATCHPOINT_REARM_DELAY_MS);
+
+            for breakpoint_id in expired_breakpoint_ids {
+                if let Some(stored_breakpoint) = self.breakpoints_by_id.get_mut(&breakpoint_id) {
+                    stored_breakpoint.suppressed_until = Some(retry_after);
+                }
+            }
+
+            log::debug!("Failed to re-arm macOS watchpoints after throttle cooldown: {}.", error);
+        }
     }
 
     fn should_emit_trace_event(
@@ -1196,8 +1255,9 @@ impl ActiveMacOsSession {
         debug_state.dr6 = 0;
         debug_state.dr7 = 0;
 
+        let now = Instant::now();
         for stored_breakpoint in self.breakpoints_by_id.values() {
-            if !stored_breakpoint.descriptor.get_is_enabled() {
+            if !Self::is_watchpoint_armed(stored_breakpoint, now) {
                 continue;
             }
 
@@ -1223,8 +1283,9 @@ impl ActiveMacOsSession {
     ) -> Result<(), DebuggerPluginError> {
         let mut debug_state = Arm64DebugState::default();
 
+        let now = Instant::now();
         for stored_breakpoint in self.breakpoints_by_id.values() {
-            if !stored_breakpoint.descriptor.get_is_enabled() {
+            if !Self::is_watchpoint_armed(stored_breakpoint, now) {
                 continue;
             }
 
@@ -1243,6 +1304,16 @@ impl ActiveMacOsSession {
         }
 
         self.set_arm64_debug_state(thread, debug_state)
+    }
+
+    fn is_watchpoint_armed(
+        stored_breakpoint: &StoredMacOsBreakpoint,
+        now: Instant,
+    ) -> bool {
+        stored_breakpoint.descriptor.get_is_enabled()
+            && stored_breakpoint
+                .suppressed_until
+                .is_none_or(|suppressed_until| suppressed_until <= now)
     }
 
     fn validate_hardware_breakpoint(
@@ -2036,5 +2107,33 @@ mod tests {
             Instant::now() - Duration::from_millis(TRACE_EVENT_MIN_INTERVAL_MS + 1),
         );
         assert!(active_session.should_emit_trace_event(Some(&breakpoint_descriptor), Some(0x2000)));
+    }
+
+    #[test]
+    fn watchpoint_arming_respects_temporary_suppression() {
+        let descriptor = DebuggerBreakpointDescriptor::new(
+            String::from("bp-1"),
+            0x1000,
+            DebuggerBreakpointKind::hardware_data(DebuggerDataBreakpointAccess::Write, 4),
+            true,
+            None,
+        );
+        let now = Instant::now();
+        let mut stored_breakpoint = StoredMacOsBreakpoint {
+            descriptor,
+            slot: 0,
+            suppressed_until: None,
+        };
+
+        assert!(ActiveMacOsSession::is_watchpoint_armed(&stored_breakpoint, now));
+
+        stored_breakpoint.suppressed_until = Some(now + Duration::from_millis(1));
+        assert!(!ActiveMacOsSession::is_watchpoint_armed(&stored_breakpoint, now));
+
+        stored_breakpoint.suppressed_until = Some(now);
+        assert!(ActiveMacOsSession::is_watchpoint_armed(&stored_breakpoint, now));
+
+        stored_breakpoint.descriptor.set_is_enabled(false);
+        assert!(!ActiveMacOsSession::is_watchpoint_armed(&stored_breakpoint, now));
     }
 }
