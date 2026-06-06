@@ -1,4 +1,4 @@
-use crate::{backend::DbgEngBackend, constants::NATIVE_DEBUGGERS_PLUGIN_ID};
+use crate::{backend::NativeDebuggerBackend, constants::NATIVE_DEBUGGERS_PLUGIN_ID};
 use squalr_engine_api::{
     plugins::debugger::{DebuggerPluginError, DebuggerSession, DebuggerTraceEventSink},
     structures::debugger::{DebuggerBreakpointDescriptor, DebuggerBreakpointKind, DebuggerRegisterSnapshot, DebuggerSessionState},
@@ -6,7 +6,7 @@ use squalr_engine_api::{
 };
 
 pub(crate) struct NativeDebuggerSession {
-    backend: DbgEngBackend,
+    backend: NativeDebuggerBackend,
     session_state: DebuggerSessionState,
 }
 
@@ -16,7 +16,7 @@ impl NativeDebuggerSession {
         trace_event_sink: DebuggerTraceEventSink,
     ) -> Self {
         Self {
-            backend: DbgEngBackend::new(process_info, trace_event_sink),
+            backend: NativeDebuggerBackend::new(process_info, trace_event_sink),
             session_state: DebuggerSessionState::Detached,
         }
     }

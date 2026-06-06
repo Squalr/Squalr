@@ -39,6 +39,15 @@ Our current task, from `README.md`, is:
   - [ ] Repeat manual/human verification from CLI/TUI/GUI command surfaces.
 
 ## Important Information
+- After addressing the latest self-review items 1-5:
+  - Added CLI patch commands for raw apply, no-operation replacement, restore by patch id, restore by address/kind, and list. The CLI accepts `patch`, `patches`, and `pt`.
+  - Added CLI debugger response handling instead of silently logging debugger responses as unhandled.
+  - `TargetArchitecture::default()` now returns an explicit unknown architecture instead of x64; Linux/Android unreadable or unrecognized ELF fallback now preserves pointer width but reports unknown architecture.
+  - ARM32 interworking address normalization is now used by privileged no-op patching and debugger trace disassembly, so Thumb addresses clear bit 0 and select `thumb`/`i_thumb`.
+  - The native debugger session now depends on a generic `NativeDebuggerBackend` alias; DbgEng naming remains inside the Windows concrete backend where it is the actual implementation detail.
+  - Deferred item 6: Code Viewer/Details raw instruction writes can still bypass the patch service. This needs a unified edit/patch design before making overlapping raw writes impossible.
+  - Validation passed: `cargo fmt --all` with existing `fn_args_layout` deprecation warnings; `cargo test -p squalr-engine-api --locked patch_kind -- --nocapture`; `cargo test -p squalr-engine-api --locked parse_command_line_routes_patch -- --nocapture`; `cargo test -p squalr-engine-api --locked target_architecture -- --nocapture`; `cargo test -p squalr-engine-session --locked trace_disassembly_selects_thumb -- --nocapture`; `cargo test -p squalr-engine --locked no_operation_patch_selects_thumb -- --nocapture`; `cargo check -p squalr-cli --locked`; `cargo check -p squalr-plugin-debuggers-native --locked`; `cargo check -p squalr-engine-targets-native --locked`; `cargo check -p squalr-engine --locked`; `cargo check -p squalr --locked`; `cargo test -p squalr-engine-session --locked debugger -- --nocapture`; `cargo test -p squalr-engine-session --locked patch_service -- --nocapture`; `cargo test -p squalr-engine --locked no_operation_patch -- --nocapture`; `cargo check -p squalr-tui --locked`; `cargo check -p squalr-engine-targets-native --target aarch64-linux-android --locked`; `cargo test -p squalr-plugin-debuggers-native --locked -- --nocapture`; `git diff --check` with only CRLF conversion warnings.
+  - CLI/debugger GUI behavior and Linux/Android runtime architecture detection still need human verification after implementation and validation.
 - After fixing paused-trace no-op patch failure:
   - Root cause: privileged patch apply/no-op apply still performed an old debugger-layer software-breakpoint preflight, so a paused active native debugger could make NOP patching fail through `IDebugControl::GetNumberBreakpoints` even though software breakpoints are now patch-service-backed.
   - Patch apply/no-op apply now rely on `PatchService` range overlap checks instead of asking the debugger backend to enumerate software breakpoints.

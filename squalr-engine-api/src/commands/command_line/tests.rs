@@ -1,6 +1,7 @@
 use super::*;
 use crate as api;
 use api::commands::debugger::debugger_command::DebuggerCommand;
+use api::commands::patches::patches_command::PatchesCommand;
 use api::commands::process::process_command::ProcessCommand;
 use api::commands::project::project_command::ProjectCommand;
 
@@ -61,6 +62,58 @@ fn parse_command_line_routes_find_what_writes_to_trace_start() {
         debugger_trace_start_request.access,
         api::structures::debugger::DebuggerDataBreakpointAccess::Write
     );
+}
+
+#[test]
+fn parse_command_line_routes_patch_nop_to_privileged_namespace() {
+    let parsed_command = parse_command_line_args([
+        "squalr-cli",
+        "patch",
+        "nop",
+        "--address",
+        "0x1000",
+        "--label",
+        "skip",
+    ])
+    .expect("Expected patch nop command to parse.");
+
+    let CommandLineCommand::Privileged(api::commands::privileged_command::PrivilegedCommand::Patches(PatchesCommand::NoOperation {
+        patch_no_operation_request,
+    })) = parsed_command
+    else {
+        panic!("Expected patch nop to lower to no-operation patch request.");
+    };
+
+    assert_eq!(patch_no_operation_request.address, 0x1000);
+    assert_eq!(patch_no_operation_request.label.as_deref(), Some("skip"));
+}
+
+#[test]
+fn parse_command_line_routes_patch_apply_bytes_to_privileged_namespace() {
+    let parsed_command = parse_command_line_args([
+        "squalr-cli",
+        "patch",
+        "apply",
+        "--address",
+        "0x1000",
+        "--byte",
+        "0x90",
+        "--byte",
+        "0xCC",
+        "--kind",
+        "generic",
+    ])
+    .expect("Expected patch apply command to parse.");
+
+    let CommandLineCommand::Privileged(api::commands::privileged_command::PrivilegedCommand::Patches(PatchesCommand::Apply { patch_apply_request })) =
+        parsed_command
+    else {
+        panic!("Expected patch apply to lower to patch apply request.");
+    };
+
+    assert_eq!(patch_apply_request.address, 0x1000);
+    assert_eq!(patch_apply_request.patched_bytes, vec![0x90, 0xCC]);
+    assert_eq!(patch_apply_request.kind, api::structures::patches::PatchKind::Generic);
 }
 
 #[test]

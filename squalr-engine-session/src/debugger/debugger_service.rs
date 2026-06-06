@@ -649,8 +649,7 @@ impl DebuggerService {
         let active_plugin_id = plugin_id.to_string();
 
         Arc::new(move |trace_event: DebuggerTraceEvent| {
-            let trace_event = Self::enrich_trace_event_with_disassembly(&plugin_registry, &target_architecture, trace_event)
-                .with_target_architecture(target_architecture.clone());
+            let trace_event = Self::enrich_trace_event_with_disassembly(&plugin_registry, &target_architecture, trace_event);
             let trace_session_update = trace_sessions
                 .write()
                 .ok()
@@ -693,12 +692,19 @@ impl DebuggerService {
         target_architecture: &TargetArchitecture,
         trace_event: DebuggerTraceEvent,
     ) -> DebuggerTraceEvent {
+        let (instruction_target_architecture, normalized_instruction_address) = trace_event
+            .get_instruction_address()
+            .map(|instruction_address| target_architecture.normalize_instruction_address(instruction_address))
+            .map(|(instruction_target_architecture, normalized_instruction_address)| (instruction_target_architecture, Some(normalized_instruction_address)))
+            .unwrap_or_else(|| (target_architecture.clone(), None));
+        let trace_event = trace_event.with_instruction_address(normalized_instruction_address);
+
         if trace_event.get_instruction_text().is_some() || trace_event.get_instruction_bytes().is_empty() {
-            return trace_event.with_target_architecture(target_architecture.clone());
+            return trace_event.with_target_architecture(instruction_target_architecture);
         }
 
         let instruction_text = plugin_registry
-            .find_instruction_set(target_architecture.get_instruction_set_id())
+            .find_instruction_set(instruction_target_architecture.get_instruction_set_id())
             .and_then(|instruction_set| {
                 instruction_set
                     .disassemble_block(trace_event.get_instruction_bytes(), 0)
@@ -709,7 +715,7 @@ impl DebuggerService {
             .filter(|instruction_text| Self::is_meaningful_instruction_text(instruction_text));
 
         if instruction_text.is_none() {
-            return trace_event;
+            return trace_event.with_target_architecture(instruction_target_architecture);
         }
 
         DebuggerTraceEvent::new(
@@ -720,7 +726,7 @@ impl DebuggerService {
             instruction_text,
             trace_event.get_backend_message().map(String::from),
         )
-        .with_target_architecture(target_architecture.clone())
+        .with_target_architecture(instruction_target_architecture)
     }
 
     fn is_meaningful_instruction_text(instruction_text: &str) -> bool {
@@ -898,6 +904,7 @@ mod tests {
                 instruction_sets: vec![
                     Arc::new(TestInstructionSet::new("x64", "Test x64", "test-disassembly")),
                     Arc::new(TestInstructionSet::new("arm64", "Test ARM64", "arm64-disassembly")),
+                    Arc::new(TestInstructionSet::new("thumb", "Test Thumb", "thumb-disassembly")),
                 ],
             }
         }
@@ -1183,6 +1190,23 @@ mod tests {
         let enriched_trace_event = DebuggerService::enrich_trace_event_with_disassembly(&plugin_registry, &TargetArchitecture::arm64(), trace_event);
 
         assert_eq!(enriched_trace_event.get_instruction_text(), Some("arm64-disassembly-block-1"));
+    }
+
+    #[test]
+    fn trace_disassembly_selects_thumb_for_arm_interworking_address() {
+        let plugin_registry = PluginRegistry::from_plugin_packages(vec![Arc::new(TestInstructionSetPlugin::new())]);
+        let trace_event = DebuggerTraceEvent::new(None, DebuggerRegisterSnapshot::default(), Some(0x4001), vec![0x00, 0xBF], None, None);
+
+        let enriched_trace_event = DebuggerService::enrich_trace_event_with_disassembly(&plugin_registry, &TargetArchitecture::arm(), trace_event);
+
+        assert_eq!(enriched_trace_event.get_instruction_text(), Some("thumb-disassembly-block-2"));
+        assert_eq!(enriched_trace_event.get_instruction_address(), Some(0x4000));
+        assert_eq!(
+            enriched_trace_event
+                .get_target_architecture()
+                .map(TargetArchitecture::get_instruction_set_id),
+            Some("thumb")
+        );
     }
 
     #[test]

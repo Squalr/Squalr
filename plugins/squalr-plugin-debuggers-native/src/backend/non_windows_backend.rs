@@ -3,11 +3,11 @@ use squalr_engine_api::plugins::debugger::DebuggerTraceEventSink;
 use squalr_engine_api::structures::debugger::{DebuggerBreakpointDescriptor, DebuggerBreakpointKind, DebuggerRegisterSnapshot};
 use squalr_engine_api::{plugins::debugger::DebuggerPluginError, structures::processes::opened_process_info::OpenedProcessInfo};
 
-pub(crate) struct DbgEngBackend {
+pub(crate) struct NativeDebuggerBackend {
     _process_info: OpenedProcessInfo,
 }
 
-impl DbgEngBackend {
+impl NativeDebuggerBackend {
     pub(crate) fn new(
         process_info: OpenedProcessInfo,
         _trace_event_sink: DebuggerTraceEventSink,

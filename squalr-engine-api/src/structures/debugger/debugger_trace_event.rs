@@ -43,6 +43,15 @@ impl DebuggerTraceEvent {
         self
     }
 
+    pub fn with_instruction_address(
+        mut self,
+        instruction_address: Option<u64>,
+    ) -> Self {
+        self.instruction_address = instruction_address;
+
+        self
+    }
+
     pub fn get_breakpoint(&self) -> Option<&DebuggerBreakpointDescriptor> {
         self.breakpoint.as_ref()
     }

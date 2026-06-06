@@ -68,6 +68,17 @@ impl TargetArchitecture {
         }
     }
 
+    pub fn normalize_instruction_address(
+        &self,
+        address: u64,
+    ) -> (Self, u64) {
+        match self.instruction_set_id.as_str() {
+            "arm" => Self::arm32_from_interworking_address(address),
+            "thumb" => (Self::thumb(), address & !1),
+            _ => (self.clone(), address),
+        }
+    }
+
     pub fn arm64() -> Self {
         Self::new("arm64", "i_arm64", Bitness::Bit64, Endianness::Little)
     }
@@ -95,7 +106,7 @@ impl TargetArchitecture {
 
 impl Default for TargetArchitecture {
     fn default() -> Self {
-        Self::x64()
+        Self::unknown(Bitness::Bit64, Endianness::Little)
     }
 }
 
@@ -117,6 +128,30 @@ mod tests {
         let (target_architecture, normalized_address) = TargetArchitecture::arm32_from_interworking_address(0x1000);
 
         assert_eq!(target_architecture.get_instruction_set_id(), "arm");
+        assert_eq!(normalized_address, 0x1000);
+    }
+
+    #[test]
+    fn default_target_architecture_is_unknown() {
+        let target_architecture = TargetArchitecture::default();
+
+        assert_eq!(target_architecture.get_instruction_set_id(), "unknown");
+        assert_eq!(target_architecture.get_instruction_data_type_id(), "i_unknown");
+    }
+
+    #[test]
+    fn normalize_instruction_address_keeps_non_arm_architecture() {
+        let (target_architecture, normalized_address) = TargetArchitecture::arm64().normalize_instruction_address(0x1001);
+
+        assert_eq!(target_architecture.get_instruction_set_id(), "arm64");
+        assert_eq!(normalized_address, 0x1001);
+    }
+
+    #[test]
+    fn normalize_instruction_address_clears_explicit_thumb_state_bit() {
+        let (target_architecture, normalized_address) = TargetArchitecture::thumb().normalize_instruction_address(0x1001);
+
+        assert_eq!(target_architecture.get_instruction_set_id(), "thumb");
         assert_eq!(normalized_address, 0x1000);
     }
 }

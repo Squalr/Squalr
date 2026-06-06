@@ -1,3 +1,4 @@
+mod debugger;
 mod memory;
 mod patches;
 mod plugins;
@@ -11,6 +12,7 @@ mod scan_results;
 mod settings;
 mod struct_scan;
 
+use crate::response_handlers::debugger::handle_debugger_response;
 use crate::response_handlers::memory::handle_memory_response;
 use crate::response_handlers::patches::handle_patches_response;
 use crate::response_handlers::plugins::handle_plugins_response;
@@ -29,7 +31,7 @@ use squalr_engine_api::commands::unprivileged_command_response::UnprivilegedComm
 pub fn handle_privileged_engine_response(response: PrivilegedCommandResponse) {
     match response {
         PrivilegedCommandResponse::Debugger(response) => {
-            log::debug!("Unhandled debugger response: {:?}", response);
+            handle_debugger_response(response);
         }
         PrivilegedCommandResponse::Scan(response) => handle_scan_response(response),
         PrivilegedCommandResponse::Memory(response) => handle_memory_response(response),

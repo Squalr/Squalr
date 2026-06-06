@@ -8,7 +8,7 @@ use squalr_engine_api::structures::memory::bitness::Bitness;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::processes::process_icon::ProcessIcon;
 use squalr_engine_api::structures::processes::process_info::ProcessInfo;
-use squalr_engine_api::structures::processes::target_architecture::TargetArchitecture;
+use squalr_engine_api::structures::processes::target_architecture::{Endianness, TargetArchitecture};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::Cursor;
@@ -55,7 +55,11 @@ impl LinuxProcessQuery {
     fn get_process_target_architecture(process_id: u32) -> TargetArchitecture {
         Self::read_process_executable_bytes(process_id)
             .and_then(|executable_bytes| elf_target_architecture::parse_elf_target_architecture_from_bytes(&executable_bytes))
-            .unwrap_or_else(TargetArchitecture::default)
+            .unwrap_or_else(|| TargetArchitecture::unknown(Self::host_pointer_width(), Endianness::Little))
+    }
+
+    fn host_pointer_width() -> Bitness {
+        if cfg!(target_pointer_width = "32") { Bitness::Bit32 } else { Bitness::Bit64 }
     }
 
     fn build_process_fd_directory_path(process_id: u32) -> PathBuf {
