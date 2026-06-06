@@ -123,7 +123,7 @@ fn process_list_request_does_not_invoke_callback_when_response_variant_is_wrong(
 #[test]
 fn process_open_request_does_not_invoke_callback_when_response_variant_is_wrong() {
     let bindings = MockEngineBindings::new(
-        MemoryWriteResponse { success: true }.to_engine_response(),
+        MemoryWriteResponse { success: true, error: None }.to_engine_response(),
         ProjectListResponse::default().to_engine_response(),
     );
     let dispatched_commands = bindings.get_dispatched_commands();

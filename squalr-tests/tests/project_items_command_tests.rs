@@ -31,7 +31,7 @@ use squalr_tests::mocks::mock_engine_bindings::MockEngineBindings;
 #[test]
 fn project_items_add_request_dispatches_unprivileged_command_and_invokes_typed_callback() {
     let bindings = MockEngineBindings::new(
-        MemoryWriteResponse { success: true }.to_engine_response(),
+        MemoryWriteResponse { success: true, error: None }.to_engine_response(),
         ProjectItemsAddResponse {
             success: true,
             added_project_item_count: 2,
@@ -83,7 +83,7 @@ fn project_items_add_request_dispatches_unprivileged_command_and_invokes_typed_c
 #[test]
 fn project_items_add_request_does_not_invoke_callback_when_response_variant_is_wrong() {
     let bindings = MockEngineBindings::new(
-        MemoryWriteResponse { success: true }.to_engine_response(),
+        MemoryWriteResponse { success: true, error: None }.to_engine_response(),
         ProjectItemsListResponse::default().to_engine_response(),
     );
     let dispatched_unprivileged_commands = bindings.get_dispatched_unprivileged_commands();
@@ -121,7 +121,7 @@ fn project_items_add_request_does_not_invoke_callback_when_response_variant_is_w
 #[test]
 fn project_items_activate_request_dispatches_unprivileged_command_and_invokes_typed_callback() {
     let bindings = MockEngineBindings::new(
-        MemoryWriteResponse { success: true }.to_engine_response(),
+        MemoryWriteResponse { success: true, error: None }.to_engine_response(),
         ProjectItemsActivateResponse {}.to_engine_response(),
     );
     let dispatched_unprivileged_commands = bindings.get_dispatched_unprivileged_commands();
@@ -169,7 +169,7 @@ fn project_items_activate_request_dispatches_unprivileged_command_and_invokes_ty
 #[test]
 fn project_items_list_request_dispatches_unprivileged_command_and_invokes_typed_callback() {
     let bindings = MockEngineBindings::new(
-        MemoryWriteResponse { success: true }.to_engine_response(),
+        MemoryWriteResponse { success: true, error: None }.to_engine_response(),
         ProjectItemsListResponse::default().to_engine_response(),
     );
     let dispatched_unprivileged_commands = bindings.get_dispatched_unprivileged_commands();
@@ -203,7 +203,7 @@ fn project_items_list_request_dispatches_unprivileged_command_and_invokes_typed_
 #[test]
 fn project_items_list_request_does_not_invoke_callback_when_response_variant_is_wrong() {
     let bindings = MockEngineBindings::new(
-        MemoryWriteResponse { success: true }.to_engine_response(),
+        MemoryWriteResponse { success: true, error: None }.to_engine_response(),
         ProjectListResponse::default().to_engine_response(),
     );
     let dispatched_unprivileged_commands = bindings.get_dispatched_unprivileged_commands();
@@ -360,7 +360,7 @@ fn unprivileged_command_parser_rejects_project_items_activate_when_path_value_is
 #[test]
 fn project_items_create_request_dispatches_unprivileged_command_and_invokes_typed_callback() {
     let bindings = MockEngineBindings::new(
-        MemoryWriteResponse { success: true }.to_engine_response(),
+        MemoryWriteResponse { success: true, error: None }.to_engine_response(),
         ProjectItemsCreateResponse {
             success: true,
             created_project_item_path: PathBuf::from("Addresses/New Folder"),
@@ -568,7 +568,7 @@ fn unprivileged_command_parser_accepts_project_items_reorder_with_long_flags() {
 #[test]
 fn project_items_reorder_request_dispatches_unprivileged_command_and_invokes_typed_callback() {
     let bindings = MockEngineBindings::new(
-        MemoryWriteResponse { success: true }.to_engine_response(),
+        MemoryWriteResponse { success: true, error: None }.to_engine_response(),
         ProjectItemsReorderResponse {
             success: true,
             reordered_project_item_count: 2,
@@ -620,7 +620,7 @@ fn project_items_reorder_request_dispatches_unprivileged_command_and_invokes_typ
 #[test]
 fn project_items_reorder_request_does_not_invoke_callback_when_response_variant_is_wrong() {
     let bindings = MockEngineBindings::new(
-        MemoryWriteResponse { success: true }.to_engine_response(),
+        MemoryWriteResponse { success: true, error: None }.to_engine_response(),
         ProjectItemsListResponse::default().to_engine_response(),
     );
     let execution_context = shared_execution_context();

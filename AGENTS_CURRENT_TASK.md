@@ -39,6 +39,10 @@ Our current task, from `README.md`, is:
   - [ ] Repeat manual/human verification from CLI/TUI/GUI command surfaces.
 
 ## Important Information
+- After fixing `squalr-tests` API drift from memory write response/mode changes:
+  - Updated `squalr-tests` mock `MemoryWriteResponse` fixtures to include `error: None`.
+  - Updated direct `MemoryWriteRequest` literals in `squalr-tests` to include the default raw write mode.
+  - Validation passed: `cargo fmt --all` with existing `fn_args_layout` deprecation warnings; `cargo test -p squalr-tests --locked`.
 - After Code Viewer enter/seek nice-to-have fixes:
   - Code Viewer instruction edit rows now treat the viewer-level Enter key as Commit in addition to the `DataValueBoxView` commit-on-enter signal.
   - Open/focus requests now keep a pending focus request while memory pages are still empty/loading, matching Memory Viewer behavior and avoiding early request loss.
