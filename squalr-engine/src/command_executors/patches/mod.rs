@@ -10,6 +10,7 @@ use squalr_engine_api::commands::patches::{
     restore_address::{patch_restore_address_request::PatchRestoreAddressRequest, patch_restore_address_response::PatchRestoreAddressResponse},
 };
 use squalr_engine_api::commands::privileged_command_response::{PrivilegedCommandResponse, TypedPrivilegedCommandResponse};
+use squalr_engine_api::structures::debugger::DebuggerSessionState;
 use squalr_engine_api::structures::patches::PatchCommandStatus;
 use squalr_engine_api::structures::patches::PatchKind;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
@@ -22,6 +23,38 @@ fn failure_status(error_message: impl Into<String>) -> PatchCommandStatus {
 
 fn no_opened_process_status() -> PatchCommandStatus {
     failure_status("No opened process to patch.")
+}
+
+fn run_patch_operation_with_debugger_paused<T>(
+    engine_privileged_state: &Arc<EnginePrivilegedState>,
+    opened_process_info: &OpenedProcessInfo,
+    operation_name: &str,
+    patch_operation: impl FnOnce() -> Result<T, String>,
+) -> Result<T, String> {
+    let debugger_service = engine_privileged_state.get_debugger_service();
+    let should_resume_after_patch = debugger_service.get_active_session_state_for_process(opened_process_info) == Some(DebuggerSessionState::Running);
+
+    if should_resume_after_patch {
+        debugger_service
+            .pause()
+            .map_err(|error_message| format!("Failed to pause debugger before {}: {}", operation_name, error_message))?;
+    }
+
+    let patch_result = patch_operation();
+    let resume_result = if should_resume_after_patch {
+        debugger_service
+            .resume()
+            .map(|_| ())
+            .map_err(|error_message| format!("Failed to resume debugger after {}: {}", operation_name, error_message))
+    } else {
+        Ok(())
+    };
+
+    match (patch_result, resume_result) {
+        (Ok(patch_result), Ok(())) => Ok(patch_result),
+        (Err(error_message), _) => Err(error_message),
+        (Ok(_), Err(error_message)) => Err(error_message),
+    }
 }
 
 impl PrivilegedCommandExecutor for PatchesCommand {
@@ -130,15 +163,17 @@ impl PrivilegedCommandRequestExecutor for PatchNoOperationRequest {
             }
         };
 
-        match engine_privileged_state.get_patch_service().apply_patch(
-            &opened_process_info,
-            engine_privileged_state.get_os_providers(),
-            patch_address,
-            &self.module_name,
-            &patched_bytes,
-            PatchKind::NoOperation,
-            self.label.clone(),
-        ) {
+        match run_patch_operation_with_debugger_paused(engine_privileged_state, &opened_process_info, "no-operation patch", || {
+            engine_privileged_state.get_patch_service().apply_patch(
+                &opened_process_info,
+                engine_privileged_state.get_os_providers(),
+                patch_address,
+                &self.module_name,
+                &patched_bytes,
+                PatchKind::NoOperation,
+                self.label.clone(),
+            )
+        }) {
             Ok(patch) => PatchNoOperationResponse {
                 status: PatchCommandStatus::success(),
                 patch: Some(patch),
@@ -168,15 +203,17 @@ impl PrivilegedCommandRequestExecutor for PatchApplyRequest {
             };
         };
 
-        match engine_privileged_state.get_patch_service().apply_patch(
-            &opened_process_info,
-            engine_privileged_state.get_os_providers(),
-            self.address,
-            &self.module_name,
-            &self.patched_bytes,
-            self.kind,
-            self.label.clone(),
-        ) {
+        match run_patch_operation_with_debugger_paused(engine_privileged_state, &opened_process_info, "patch apply", || {
+            engine_privileged_state.get_patch_service().apply_patch(
+                &opened_process_info,
+                engine_privileged_state.get_os_providers(),
+                self.address,
+                &self.module_name,
+                &self.patched_bytes,
+                self.kind,
+                self.label.clone(),
+            )
+        }) {
             Ok(patch) => PatchApplyResponse {
                 status: PatchCommandStatus::success(),
                 patch: Some(patch),
@@ -206,10 +243,11 @@ impl PrivilegedCommandRequestExecutor for PatchRestoreRequest {
             };
         };
 
-        match engine_privileged_state
-            .get_patch_service()
-            .restore_patch(&opened_process_info, engine_privileged_state.get_os_providers(), &self.patch_id)
-        {
+        match run_patch_operation_with_debugger_paused(engine_privileged_state, &opened_process_info, "patch restore", || {
+            engine_privileged_state
+                .get_patch_service()
+                .restore_patch(&opened_process_info, engine_privileged_state.get_os_providers(), &self.patch_id)
+        }) {
             Ok(patch) => PatchRestoreResponse {
                 status: PatchCommandStatus::success(),
                 patch: Some(patch),
@@ -239,15 +277,17 @@ impl PrivilegedCommandRequestExecutor for PatchRestoreAddressRequest {
             };
         };
 
-        match engine_privileged_state
-            .get_patch_service()
-            .restore_patch_at_address(
-                &opened_process_info,
-                engine_privileged_state.get_os_providers(),
-                self.address,
-                &self.module_name,
-                self.expected_kind,
-            ) {
+        match run_patch_operation_with_debugger_paused(engine_privileged_state, &opened_process_info, "patch restore by address", || {
+            engine_privileged_state
+                .get_patch_service()
+                .restore_patch_at_address(
+                    &opened_process_info,
+                    engine_privileged_state.get_os_providers(),
+                    self.address,
+                    &self.module_name,
+                    self.expected_kind,
+                )
+        }) {
             Ok(patch) => PatchRestoreAddressResponse {
                 status: PatchCommandStatus::success(),
                 patch: Some(patch),

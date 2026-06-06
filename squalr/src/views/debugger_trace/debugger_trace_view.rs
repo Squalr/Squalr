@@ -53,6 +53,8 @@ pub struct DebuggerTraceView {
 impl DebuggerTraceView {
     pub const WINDOW_ID: &'static str = "window_debugger_trace";
     const PENDING_TRACE_START_TIMEOUT: Duration = Duration::from_secs(15);
+    const ADD_TO_PROJECT_LABEL: &'static str = "Add to Project";
+    const ADD_TO_PROJECT_ID: &'static str = "debugger_trace_ctx_add_to_project";
     const REPLACE_WITH_NO_OPERATION_LABEL: &'static str = "Replace with Code That Does Nothing";
     const REPLACE_WITH_NO_OPERATION_ID: &'static str = "debugger_trace_ctx_replace_with_nop";
     const RESTORE_ORIGINAL_CODE_LABEL: &'static str = "Restore Original Code";
@@ -680,6 +682,7 @@ impl DebuggerTraceView {
             return;
         };
         let context_menu_labels = [
+            Self::ADD_TO_PROJECT_LABEL,
             Self::REPLACE_WITH_NO_OPERATION_LABEL,
             Self::RESTORE_ORIGINAL_CODE_LABEL,
         ];
@@ -691,6 +694,20 @@ impl DebuggerTraceView {
             "debugger_trace_instruction_context_menu",
             context_menu_target.get_position(),
             |user_interface, should_close| {
+                if user_interface
+                    .add(ToolbarMenuItemView::new(
+                        self.app_context.clone(),
+                        Self::ADD_TO_PROJECT_LABEL,
+                        Self::ADD_TO_PROJECT_ID,
+                        &None,
+                        context_menu_width,
+                    ))
+                    .clicked()
+                {
+                    self.add_instruction_record_to_project(instruction_record);
+                    *should_close = true;
+                }
+
                 if user_interface
                     .add(ToolbarMenuItemView::new(
                         self.app_context.clone(),
@@ -794,7 +811,7 @@ impl DebuggerTraceView {
         let project_hierarchy_view_data = self.project_hierarchy_view_data.clone();
         let project_hierarchy_view_data_for_refresh = project_hierarchy_view_data.clone();
 
-        project_items_create_request.send(&self.app_context.engine_unprivileged_state, move |project_items_create_response| {
+        let is_dispatched = project_items_create_request.send(&self.app_context.engine_unprivileged_state, move |project_items_create_response| {
             if !project_items_create_response.success {
                 log::warn!("Debugger trace add-to-project command failed.");
                 return;
@@ -806,6 +823,10 @@ impl DebuggerTraceView {
 
             ProjectHierarchyViewData::refresh_project_items(project_hierarchy_view_data_for_refresh, app_context);
         });
+
+        if !is_dispatched {
+            log::warn!("Debugger trace add-to-project command dispatch failed.");
+        }
     }
 
     fn instruction_data_type_id(

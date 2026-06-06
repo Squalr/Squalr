@@ -55,10 +55,28 @@ mod tests {
     }
 
     #[test]
-    fn plugin_rejects_non_x86_family_targets() {
+    fn plugin_rejects_unsupported_targets() {
+        let plugin = NativeDebuggersPlugin::new();
+        let process_info = OpenedProcessInfo::new(1, String::from("target"), 1, Bitness::Bit32, None).with_target_architecture(TargetArchitecture::arm());
+
+        assert!(!plugin.can_attach(&process_info));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn plugin_accepts_windows_x64_targets() {
+        let plugin = NativeDebuggersPlugin::new();
+        let process_info = OpenedProcessInfo::new(1, String::from("target"), 1, Bitness::Bit64, None).with_target_architecture(TargetArchitecture::x64());
+
+        assert!(plugin.can_attach(&process_info));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn plugin_accepts_macos_arm64_targets() {
         let plugin = NativeDebuggersPlugin::new();
         let process_info = OpenedProcessInfo::new(1, String::from("target"), 1, Bitness::Bit64, None).with_target_architecture(TargetArchitecture::arm64());
 
-        assert!(!plugin.can_attach(&process_info));
+        assert!(plugin.can_attach(&process_info));
     }
 }
