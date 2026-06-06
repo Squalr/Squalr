@@ -1,18 +1,27 @@
 use crate::constants::NATIVE_DEBUGGERS_PLUGIN_ID;
 use libc::{SIGSTOP, WNOHANG, c_char, pid_t};
 use mach2::{
-    kern_return::KERN_SUCCESS,
-    mach_port::mach_port_deallocate,
-    mach_types::{thread_act_array_t, thread_act_t},
-    message::mach_msg_type_number_t,
-    port::{MACH_PORT_NULL, mach_port_t},
-    task::{task_resume, task_threads},
+    exception_types::{
+        EXC_BREAKPOINT, EXC_MASK_BREAKPOINT, EXCEPTION_STATE_IDENTITY, exception_behavior_t, exception_flavor_array_t, exception_mask_array_t,
+        exception_mask_t, exception_port_array_t,
+    },
+    kern_return::{KERN_FAILURE, KERN_INVALID_ARGUMENT, KERN_SUCCESS, kern_return_t},
+    mach_port::{mach_port_allocate, mach_port_deallocate, mach_port_destroy, mach_port_insert_right},
+    mach_types::{task_t, thread_act_array_t, thread_act_t},
+    message::{
+        MACH_MSG_SUCCESS, MACH_MSG_TYPE_MAKE_SEND, MACH_MSGH_BITS, MACH_MSGH_BITS_REMOTE_MASK, MACH_RCV_MSG, MACH_RCV_TIMED_OUT, MACH_RCV_TIMEOUT,
+        MACH_SEND_MSG, MACH_SEND_TIMEOUT, mach_msg, mach_msg_body_t, mach_msg_destroy, mach_msg_header_t, mach_msg_port_descriptor_t, mach_msg_size_t,
+        mach_msg_type_number_t,
+    },
+    ndr::{NDR_record, NDR_record_t},
+    port::{MACH_PORT_NULL, MACH_PORT_RIGHT_RECEIVE, mach_port_t},
+    task::task_threads,
     thread_act::{thread_get_state, thread_set_state},
-    thread_status::thread_state_t,
+    thread_status::{thread_state_flavor_t, thread_state_t},
     traps::mach_task_self,
     vm::mach_vm_deallocate,
     vm::mach_vm_read_overwrite,
-    vm_types::{mach_vm_address_t, mach_vm_size_t},
+    vm_types::{mach_vm_address_t, mach_vm_size_t, natural_t},
 };
 use squalr_engine_api::{
     plugins::debugger::{DebuggerPluginError, DebuggerTraceEventSink},
@@ -40,13 +49,38 @@ const PT_ATTACHEXC: libc::c_int = 14;
 const X86_THREAD_STATE64: libc::c_int = 4;
 const X86_DEBUG_STATE64: libc::c_int = 11;
 const ARM_THREAD_STATE64: libc::c_int = 6;
-const ARM_DEBUG_STATE64: libc::c_int = 15;
 
 const TRACE_INSTRUCTION_BYTE_WINDOW: usize = 16;
 const RUNNING_EVENT_WAIT_TIMEOUT_MS: u64 = 50;
 const ATTACH_WAIT_TIMEOUT: Duration = Duration::from_secs(10);
 const WATCHPOINT_SLOT_COUNT: usize = 4;
+const EXCEPTION_PORT_SLOT_COUNT: usize = 32;
+const EXCEPTION_STATE_MAX_COUNT: usize = 1296;
+const EXCEPTION_RAISE_STATE_IDENTITY_MESSAGE_ID: i32 = 2403;
+const EXCEPTION_REPLY_MESSAGE_OFFSET: i32 = 100;
+const MIG_REPLY_MISMATCH: kern_return_t = -301;
+const ARM_DEBUG_STATE64: libc::c_int = 15;
 const ARM64_WATCH_GRANULE_SIZE: u64 = 8;
+
+unsafe extern "C" {
+    fn task_get_exception_ports(
+        task: task_t,
+        exception_mask: exception_mask_t,
+        masks: exception_mask_array_t,
+        masks_count: *mut mach_msg_type_number_t,
+        old_handlers: exception_port_array_t,
+        old_behaviors: *mut exception_behavior_t,
+        old_flavors: exception_flavor_array_t,
+    ) -> kern_return_t;
+
+    fn task_set_exception_ports(
+        task: task_t,
+        exception_mask: exception_mask_t,
+        new_port: mach_port_t,
+        behavior: exception_behavior_t,
+        new_flavor: thread_state_flavor_t,
+    ) -> kern_return_t;
+}
 
 pub(crate) struct MacOsDebuggerBackend {
     process_info: OpenedProcessInfo,
@@ -384,6 +418,7 @@ enum MacOsWorkerCommand {
 struct ActiveMacOsSession {
     process_id: pid_t,
     task_port: mach_port_t,
+    exception_port: Option<MacOsExceptionPort>,
     target_architecture: TargetArchitecture,
     breakpoints_by_id: HashMap<String, StoredMacOsBreakpoint>,
     session_state: DebuggerSessionState,
@@ -397,18 +432,334 @@ struct StoredMacOsBreakpoint {
     slot: usize,
 }
 
+struct MacOsExceptionPort {
+    task_port: mach_port_t,
+    exception_port: mach_port_t,
+    saved_ports: SavedMacOsExceptionPorts,
+    is_restored: bool,
+}
+
+struct SavedMacOsExceptionPorts {
+    masks: [exception_mask_t; EXCEPTION_PORT_SLOT_COUNT],
+    handlers: [mach_port_t; EXCEPTION_PORT_SLOT_COUNT],
+    behaviors: [exception_behavior_t; EXCEPTION_PORT_SLOT_COUNT],
+    flavors: [thread_state_flavor_t; EXCEPTION_PORT_SLOT_COUNT],
+    count: mach_msg_type_number_t,
+}
+
+#[repr(C)]
+#[allow(non_snake_case)]
+#[derive(Clone, Copy)]
+struct MacOsExceptionRaiseStateIdentityRequest {
+    Head: mach_msg_header_t,
+    msgh_body: mach_msg_body_t,
+    thread: mach_msg_port_descriptor_t,
+    task: mach_msg_port_descriptor_t,
+    NDR: NDR_record_t,
+    exception: libc::c_int,
+    codeCnt: mach_msg_type_number_t,
+    code: [natural_t; 2],
+    flavor: libc::c_int,
+    old_stateCnt: mach_msg_type_number_t,
+    old_state: [natural_t; EXCEPTION_STATE_MAX_COUNT],
+}
+
+#[repr(C)]
+#[allow(non_snake_case)]
+#[derive(Clone, Copy)]
+struct MacOsExceptionRaiseStateIdentityReply {
+    Head: mach_msg_header_t,
+    NDR: NDR_record_t,
+    RetCode: kern_return_t,
+    flavor: libc::c_int,
+    new_stateCnt: mach_msg_type_number_t,
+    new_state: [natural_t; EXCEPTION_STATE_MAX_COUNT],
+}
+
+impl MacOsExceptionPort {
+    fn install(
+        task_port: mach_port_t,
+        state_flavor: thread_state_flavor_t,
+    ) -> Result<Self, DebuggerPluginError> {
+        let saved_ports = SavedMacOsExceptionPorts::capture(task_port)?;
+        let mut exception_port = MACH_PORT_NULL;
+        let allocate_status = unsafe { mach_port_allocate(mach_task_self(), MACH_PORT_RIGHT_RECEIVE, &mut exception_port) };
+
+        if allocate_status != KERN_SUCCESS {
+            return Err(MacOsDebuggerBackend::plugin_error(format!(
+                "mach_port_allocate failed while creating a macOS exception port with status {}.",
+                allocate_status
+            )));
+        }
+
+        let insert_status = unsafe { mach_port_insert_right(mach_task_self(), exception_port, exception_port, MACH_MSG_TYPE_MAKE_SEND) };
+        if insert_status != KERN_SUCCESS {
+            let _ = unsafe { mach_port_destroy(mach_task_self(), exception_port) };
+
+            return Err(MacOsDebuggerBackend::plugin_error(format!(
+                "mach_port_insert_right failed while creating a macOS exception port with status {}.",
+                insert_status
+            )));
+        }
+
+        let set_status = unsafe {
+            task_set_exception_ports(
+                task_port,
+                EXC_MASK_BREAKPOINT,
+                exception_port,
+                EXCEPTION_STATE_IDENTITY as exception_behavior_t,
+                state_flavor,
+            )
+        };
+
+        if set_status != KERN_SUCCESS {
+            let _ = unsafe { mach_port_destroy(mach_task_self(), exception_port) };
+
+            return Err(MacOsDebuggerBackend::plugin_error(format!(
+                "task_set_exception_ports failed while installing the macOS breakpoint exception handler with status {}.",
+                set_status
+            )));
+        }
+
+        Ok(Self {
+            task_port,
+            exception_port,
+            saved_ports,
+            is_restored: false,
+        })
+    }
+
+    fn receive_exception(
+        &self,
+        timeout_ms: u32,
+    ) -> Result<Option<MacOsExceptionRaiseStateIdentityRequest>, DebuggerPluginError> {
+        let mut request = unsafe { zeroed::<MacOsExceptionRaiseStateIdentityRequest>() };
+        let receive_status = unsafe {
+            mach_msg(
+                &mut request.Head as *mut mach_msg_header_t,
+                MACH_RCV_MSG | MACH_RCV_TIMEOUT,
+                0,
+                size_of::<MacOsExceptionRaiseStateIdentityRequest>() as mach_msg_size_t,
+                self.exception_port,
+                timeout_ms,
+                MACH_PORT_NULL,
+            )
+        };
+
+        if receive_status == MACH_RCV_TIMED_OUT {
+            return Ok(None);
+        }
+
+        if receive_status != MACH_MSG_SUCCESS {
+            return Err(MacOsDebuggerBackend::plugin_error(format!(
+                "mach_msg failed while receiving a macOS breakpoint exception with status {}.",
+                receive_status
+            )));
+        }
+
+        if request.Head.msgh_id != EXCEPTION_RAISE_STATE_IDENTITY_MESSAGE_ID {
+            let reply_result = self.reply_to_exception(&request, MIG_REPLY_MISMATCH);
+            unsafe { mach_msg_destroy(&mut request.Head as *mut mach_msg_header_t) };
+            reply_result?;
+
+            return Ok(None);
+        }
+
+        Ok(Some(request))
+    }
+
+    fn reply_to_exception(
+        &self,
+        request: &MacOsExceptionRaiseStateIdentityRequest,
+        reply_code: kern_return_t,
+    ) -> Result<(), DebuggerPluginError> {
+        let mut reply = unsafe { zeroed::<MacOsExceptionRaiseStateIdentityReply>() };
+        let state_count = if reply_code == KERN_SUCCESS {
+            request
+                .old_stateCnt
+                .min(EXCEPTION_STATE_MAX_COUNT as mach_msg_type_number_t)
+        } else {
+            0
+        };
+
+        for state_value_number in 0..state_count as usize {
+            reply.new_state[state_value_number] = request.old_state[state_value_number];
+        }
+
+        reply.Head.msgh_bits = MACH_MSGH_BITS(request.Head.msgh_bits & MACH_MSGH_BITS_REMOTE_MASK, 0);
+        reply.Head.msgh_size = exception_reply_size(state_count);
+        reply.Head.msgh_remote_port = request.Head.msgh_remote_port;
+        reply.Head.msgh_local_port = MACH_PORT_NULL;
+        reply.Head.msgh_voucher_port = MACH_PORT_NULL;
+        reply.Head.msgh_id = request.Head.msgh_id + EXCEPTION_REPLY_MESSAGE_OFFSET;
+        reply.NDR = unsafe { NDR_record };
+        reply.RetCode = reply_code;
+        reply.flavor = request.flavor;
+        reply.new_stateCnt = state_count;
+
+        let send_status = unsafe {
+            mach_msg(
+                &mut reply.Head as *mut mach_msg_header_t,
+                MACH_SEND_MSG | MACH_SEND_TIMEOUT,
+                reply.Head.msgh_size,
+                0,
+                MACH_PORT_NULL,
+                1_000,
+                MACH_PORT_NULL,
+            )
+        };
+
+        if send_status == MACH_MSG_SUCCESS {
+            Ok(())
+        } else {
+            Err(MacOsDebuggerBackend::plugin_error(format!(
+                "mach_msg failed while replying to a macOS breakpoint exception with status {}.",
+                send_status
+            )))
+        }
+    }
+
+    fn restore(mut self) -> Result<(), DebuggerPluginError> {
+        let restore_result = self.restore_inner();
+        self.is_restored = true;
+
+        restore_result
+    }
+
+    fn restore_inner(&mut self) -> Result<(), DebuggerPluginError> {
+        let restore_result = self.saved_ports.restore(self.task_port);
+        let destroy_status = if self.exception_port != MACH_PORT_NULL {
+            unsafe { mach_port_destroy(mach_task_self(), self.exception_port) }
+        } else {
+            KERN_SUCCESS
+        };
+        self.exception_port = MACH_PORT_NULL;
+
+        restore_result?;
+
+        if destroy_status == KERN_SUCCESS {
+            Ok(())
+        } else {
+            Err(MacOsDebuggerBackend::plugin_error(format!(
+                "mach_port_destroy failed while destroying the macOS exception port with status {}.",
+                destroy_status
+            )))
+        }
+    }
+}
+
+impl Drop for MacOsExceptionPort {
+    fn drop(&mut self) {
+        if !self.is_restored {
+            let _ = self.restore_inner();
+        }
+    }
+}
+
+impl SavedMacOsExceptionPorts {
+    fn capture(task_port: mach_port_t) -> Result<Self, DebuggerPluginError> {
+        let mut saved_ports = Self {
+            masks: [0; EXCEPTION_PORT_SLOT_COUNT],
+            handlers: [MACH_PORT_NULL; EXCEPTION_PORT_SLOT_COUNT],
+            behaviors: [0; EXCEPTION_PORT_SLOT_COUNT],
+            flavors: [0; EXCEPTION_PORT_SLOT_COUNT],
+            count: EXCEPTION_PORT_SLOT_COUNT as mach_msg_type_number_t,
+        };
+
+        let get_status = unsafe {
+            task_get_exception_ports(
+                task_port,
+                EXC_MASK_BREAKPOINT,
+                saved_ports.masks.as_mut_ptr(),
+                &mut saved_ports.count as *mut mach_msg_type_number_t,
+                saved_ports.handlers.as_mut_ptr(),
+                saved_ports.behaviors.as_mut_ptr(),
+                saved_ports.flavors.as_mut_ptr(),
+            )
+        };
+
+        if get_status == KERN_SUCCESS {
+            Ok(saved_ports)
+        } else {
+            Err(MacOsDebuggerBackend::plugin_error(format!(
+                "task_get_exception_ports failed while saving the existing macOS breakpoint handler with status {}.",
+                get_status
+            )))
+        }
+    }
+
+    fn restore(
+        &mut self,
+        task_port: mach_port_t,
+    ) -> Result<(), DebuggerPluginError> {
+        let mut first_error = None;
+
+        for saved_port_number in 0..self.count as usize {
+            let handler = self.handlers[saved_port_number];
+            let restore_status = unsafe {
+                task_set_exception_ports(
+                    task_port,
+                    self.masks[saved_port_number],
+                    handler,
+                    self.behaviors[saved_port_number],
+                    self.flavors[saved_port_number],
+                )
+            };
+
+            if restore_status != KERN_SUCCESS && first_error.is_none() {
+                first_error = Some(MacOsDebuggerBackend::plugin_error(format!(
+                    "task_set_exception_ports failed while restoring macOS breakpoint handler {} with status {}.",
+                    saved_port_number, restore_status
+                )));
+            }
+
+            if handler != MACH_PORT_NULL {
+                let _ = unsafe { mach_port_deallocate(mach_task_self(), handler) };
+                self.handlers[saved_port_number] = MACH_PORT_NULL;
+            }
+        }
+
+        if let Some(error) = first_error { Err(error) } else { Ok(()) }
+    }
+}
+
+impl Drop for SavedMacOsExceptionPorts {
+    fn drop(&mut self) {
+        for handler in self.handlers.iter_mut() {
+            if *handler != MACH_PORT_NULL {
+                let _ = unsafe { mach_port_deallocate(mach_task_self(), *handler) };
+                *handler = MACH_PORT_NULL;
+            }
+        }
+    }
+}
+
 impl ActiveMacOsSession {
     fn attach(
         process_info: &OpenedProcessInfo,
         trace_event_sink: DebuggerTraceEventSink,
     ) -> Result<Self, DebuggerPluginError> {
         let process_id = process_info.get_process_id() as pid_t;
-        ptrace_request(PT_ATTACHEXC, process_id, null_mut(), 0, "PT_ATTACHEXC attach")?;
-        wait_for_stop(process_id, ATTACH_WAIT_TIMEOUT, "initial attach")?;
+        let task_port = process_info.get_handle() as mach_port_t;
+        let state_flavor = exception_state_flavor_for_architecture(process_info.get_target_architecture())?;
+        let exception_port = MacOsExceptionPort::install(task_port, state_flavor)?;
+
+        if let Err(error) = ptrace_request(PT_ATTACHEXC, process_id, null_mut(), 0, "PT_ATTACHEXC attach") {
+            let _ = exception_port.restore();
+
+            return Err(error);
+        }
+
+        if let Err(error) = wait_for_stop(process_id, ATTACH_WAIT_TIMEOUT, "initial attach") {
+            let _ = exception_port.restore();
+
+            return Err(error);
+        }
 
         Ok(Self {
             process_id,
-            task_port: process_info.get_handle() as mach_port_t,
+            task_port,
+            exception_port: Some(exception_port),
             target_architecture: process_info.get_target_architecture().clone(),
             breakpoints_by_id: HashMap::new(),
             session_state: DebuggerSessionState::Paused,
@@ -440,11 +791,6 @@ impl ActiveMacOsSession {
         }
 
         self.refresh_threads_and_apply_watchpoints()?;
-
-        let resume_status = unsafe { task_resume(self.task_port) };
-        if resume_status != KERN_SUCCESS {
-            log::debug!("task_resume returned status {} before ptrace continue.", resume_status);
-        }
 
         ptrace_request(PT_CONTINUE, self.process_id, 1usize as *mut c_char, 0, "PT_CONTINUE resume")?;
         self.session_state = DebuggerSessionState::Running;
@@ -581,12 +927,29 @@ impl ActiveMacOsSession {
     }
 
     fn detach(&mut self) -> Result<(), DebuggerPluginError> {
+        if self.session_state == DebuggerSessionState::Detached {
+            return Ok(());
+        }
+
+        let pause_result = if self.session_state == DebuggerSessionState::Running {
+            self.pause()
+        } else {
+            Ok(())
+        };
+
         self.breakpoints_by_id.clear();
-        let _ = self.refresh_threads_and_apply_watchpoints();
-        let _ = unsafe { task_resume(self.task_port) };
+        let clear_result = self.refresh_threads_and_apply_watchpoints();
         let detach_result = ptrace_request(PT_DETACH, self.process_id, null_mut(), 0, "PT_DETACH detach");
+        let restore_result = self
+            .exception_port
+            .take()
+            .map(|exception_port| exception_port.restore())
+            .unwrap_or(Ok(()));
         self.session_state = DebuggerSessionState::Detached;
 
+        pause_result?;
+        clear_result?;
+        restore_result?;
         detach_result
     }
 
@@ -622,6 +985,15 @@ impl ActiveMacOsSession {
             return Ok(());
         }
 
+        if let Some(exception_request) = self
+            .exception_port
+            .as_ref()
+            .ok_or_else(|| MacOsDebuggerBackend::plugin_error("Cannot process macOS debug events because the exception port is not installed."))?
+            .receive_exception(RUNNING_EVENT_WAIT_TIMEOUT_MS as u32)?
+        {
+            return self.process_exception_request(exception_request);
+        }
+
         let mut wait_status = 0;
         let wait_result = unsafe { libc::waitpid(self.process_id, &mut wait_status, WNOHANG) };
 
@@ -633,27 +1005,60 @@ impl ActiveMacOsSession {
             return Err(last_os_error("waitpid while polling macOS debug events"));
         }
 
-        if !libc::WIFSTOPPED(wait_status) {
+        if libc::WIFEXITED(wait_status) || libc::WIFSIGNALED(wait_status) {
+            self.session_state = DebuggerSessionState::Detached;
+
             return Ok(());
-        }
-
-        self.session_state = DebuggerSessionState::Paused;
-        self.handle_breakpoint_stop()?;
-
-        if self
-            .breakpoints_by_id
-            .values()
-            .any(|stored_breakpoint| stored_breakpoint.descriptor.get_is_enabled())
-        {
-            self.resume()?;
         }
 
         Ok(())
     }
 
-    fn handle_breakpoint_stop(&mut self) -> Result<(), DebuggerPluginError> {
-        let thread_list = ThreadList::for_task(self.task_port)?;
-        let event_thread = self.select_event_thread(thread_list.threads())?;
+    fn process_exception_request(
+        &mut self,
+        mut exception_request: MacOsExceptionRaiseStateIdentityRequest,
+    ) -> Result<(), DebuggerPluginError> {
+        if exception_request.exception != EXC_BREAKPOINT as libc::c_int {
+            let reply_result = self.reply_to_exception_and_destroy(&mut exception_request, KERN_FAILURE);
+            reply_result?;
+
+            return Err(MacOsDebuggerBackend::plugin_error(format!(
+                "Received unsupported macOS exception type {}.",
+                exception_request.exception
+            )));
+        }
+
+        self.session_state = DebuggerSessionState::Paused;
+        let handle_result = self.handle_breakpoint_exception(exception_request.thread.name);
+        let reply_result = self.reply_to_exception_and_destroy(&mut exception_request, KERN_SUCCESS);
+
+        if reply_result.is_ok() {
+            self.session_state = DebuggerSessionState::Running;
+        }
+
+        reply_result?;
+        handle_result
+    }
+
+    fn reply_to_exception_and_destroy(
+        &self,
+        exception_request: &mut MacOsExceptionRaiseStateIdentityRequest,
+        reply_code: kern_return_t,
+    ) -> Result<(), DebuggerPluginError> {
+        let reply_result = self
+            .exception_port
+            .as_ref()
+            .ok_or_else(|| MacOsDebuggerBackend::plugin_error("Cannot reply to macOS debug exception because the exception port is not installed."))?
+            .reply_to_exception(exception_request, reply_code);
+
+        unsafe { mach_msg_destroy(&mut exception_request.Head as *mut mach_msg_header_t) };
+        reply_result
+    }
+
+    fn handle_breakpoint_exception(
+        &mut self,
+        event_thread: thread_act_t,
+    ) -> Result<(), DebuggerPluginError> {
         let register_snapshot = self.read_registers_for_thread(event_thread).unwrap_or_default();
         let (breakpoint_descriptor, backend_message) = self.describe_hit_breakpoint(event_thread);
         let instruction_pointer = register_snapshot.get_instruction_pointer();
@@ -683,7 +1088,7 @@ impl ActiveMacOsSession {
                         return (
                             Some(stored_breakpoint.descriptor.clone()),
                             Some(String::from(
-                                "macOS hardware data breakpoint hit. x86_64 reports the instruction pointer after the trapped access; attribution needs human verification.",
+                                "macOS hardware data breakpoint hit on the Mach exception thread. x86_64 reports the instruction pointer after the trapped access; instruction attribution needs human verification.",
                             )),
                         );
                     }
@@ -700,34 +1105,9 @@ impl ActiveMacOsSession {
         (
             fallback_breakpoint,
             Some(String::from(
-                "macOS hardware data breakpoint hit. Event thread attribution uses the first stopped thread in this MVP backend.",
+                "macOS hardware data breakpoint hit on the Mach exception thread. Instruction attribution needs human verification.",
             )),
         )
-    }
-
-    fn select_event_thread(
-        &self,
-        threads: &[thread_act_t],
-    ) -> Result<thread_act_t, DebuggerPluginError> {
-        if self.target_architecture.get_instruction_set_id() == "x64" {
-            for thread in threads {
-                if let Ok(debug_state) = self.get_x64_debug_state(*thread) {
-                    let has_hit_slot = self
-                        .breakpoints_by_id
-                        .values()
-                        .any(|stored_breakpoint| stored_breakpoint.descriptor.get_is_enabled() && debug_state.dr6 & (1u64 << stored_breakpoint.slot) != 0);
-
-                    if has_hit_slot {
-                        return Ok(*thread);
-                    }
-                }
-            }
-        }
-
-        threads
-            .first()
-            .copied()
-            .ok_or_else(|| MacOsDebuggerBackend::plugin_error("Cannot select a macOS event thread because the target has no threads."))
     }
 
     fn read_registers_for_thread(
@@ -1304,9 +1684,15 @@ impl ThreadList {
         let thread_status = unsafe { task_threads(task_port, &mut thread_list, &mut thread_count) };
 
         if thread_status != KERN_SUCCESS {
+            let failure_context = if thread_status == KERN_INVALID_ARGUMENT {
+                " The task port is invalid or the target process has exited."
+            } else {
+                ""
+            };
+
             return Err(MacOsDebuggerBackend::plugin_error(format!(
-                "task_threads failed with status {}.",
-                thread_status
+                "task_threads failed with status {}.{}",
+                thread_status, failure_context
             )));
         }
 
@@ -1515,6 +1901,24 @@ fn arm64_watch_control(
     };
 
     ENABLE | USER_ACCESS_ONLY | (load_store_control << LOAD_STORE_CONTROL_SHIFT) | (byte_mask << BYTE_ADDRESS_SELECT_SHIFT)
+}
+
+fn exception_state_flavor_for_architecture(target_architecture: &TargetArchitecture) -> Result<thread_state_flavor_t, DebuggerPluginError> {
+    match target_architecture.get_instruction_set_id() {
+        "x64" => Ok(X86_THREAD_STATE64),
+        "arm64" => Ok(ARM_THREAD_STATE64),
+        instruction_set_id => Err(MacOsDebuggerBackend::plugin_error(format!(
+            "macOS breakpoint exceptions are unsupported for architecture '{}'.",
+            instruction_set_id
+        ))),
+    }
+}
+
+fn exception_reply_size(state_count: mach_msg_type_number_t) -> mach_msg_size_t {
+    let fixed_size = size_of::<MacOsExceptionRaiseStateIdentityReply>() - size_of::<[natural_t; EXCEPTION_STATE_MAX_COUNT]>();
+    let state_size = (state_count as usize).saturating_mul(size_of::<natural_t>());
+
+    (fixed_size + state_size) as mach_msg_size_t
 }
 
 #[cfg(test)]

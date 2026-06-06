@@ -790,3 +790,22 @@ Our current task, from `README.md`, is:
     - `cargo check -p squalr-cli --locked` passed with the same existing macOS `objc` warnings.
     - `git diff --check` passed.
   - Current local Rust toolchain only has `aarch64-apple-darwin` installed, so x86_64 macOS compile/runtime behavior still needs human or CI verification.
+- After pivoting the macOS debugger event path to a Mach exception server:
+  - Owner hit a real macOS trace failure with `task_resume returned status 5 before ptrace continue`, `task_threads failed with status 4`, and a target hard crash after a scan result. The likely design issue was that the first backend armed hardware watchpoints but relied on ptrace/waitpid polling rather than owning and replying to breakpoint exceptions.
+  - Removed `task_resume` from the ptrace resume/detach path. Resume now refreshes watchpoints and uses `PT_CONTINUE`; detach pauses a running target, clears watchpoints, performs `PT_DETACH`, and restores debugger-owned resources.
+  - Added a backend-private Mach exception server path using local FFI for `task_get_exception_ports` and `task_set_exception_ports`, plus raw `mach_msg` receive/reply handling for `exception_raise_state_identity`.
+  - Attach now saves the target's existing `EXC_MASK_BREAKPOINT` handler, creates a receive/send exception port, installs Squalr's `EXCEPTION_STATE_IDENTITY` breakpoint handler for the target architecture's thread-state flavor, then performs `PT_ATTACHEXC`.
+  - Detach/drop restore the saved breakpoint exception handlers and destroy the exception port. Saved handler send rights are deallocated through a drop guard so failed installs do not leak Mach rights.
+  - Breakpoint events now come from the Mach exception message's thread port rather than guessing the stopped thread with `task_threads`. The backend captures registers from that exception thread, emits the trace event, replies `KERN_SUCCESS` with the original thread state, and marks the session running again.
+  - ARM64 hardware watchpoint programming remains enabled through `ARM_DEBUG_STATE64` now that watchpoint traps have an exception reply path. Supported sizes remain 1/2/4/8 bytes, with 8-byte granule crossing rejected.
+  - Remaining limitation: this first exception server uses non-`MACH_EXCEPTION_CODES` `exception_raise_state_identity`, which is sufficient for the current hardware-breakpoint event path but may need a mach-exception-code variant later if we need full exception code/subcode fidelity.
+  - Remaining limitation: x64 hardware data breakpoints can still report the post-access instruction pointer. The event thread attribution is now real, but previous-instruction attribution still needs live validation and likely architecture-specific backtracking before claiming DbgEng-level instruction attribution.
+  - Live smoke on this machine is still blocked before attach by macOS permissions: `cargo run -p squalr-plugin-debuggers-native --example native_debugger_smoke --locked` failed with `task_for_pid failed for smoke child ... with status 5`. Target-survives-watchpoint behavior therefore still needs human verification with SIP/debug rights/elevated execution configured.
+  - Validation passed:
+    - `cargo fmt --all` completed with existing `fn_args_layout` deprecation warnings.
+    - `cargo check -p squalr-plugin-debuggers-native --locked`.
+    - `cargo test -p squalr-plugin-debuggers-native --locked -- --nocapture`.
+    - `cargo check -p squalr-plugin-debuggers-native --examples --locked`.
+    - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed with existing macOS `objc` `unexpected cfg cargo-clippy` warnings from `squalr-engine-targets-native`.
+    - `cargo check -p squalr-engine --locked` passed with the same existing macOS `objc` warnings.
+    - `git diff --check` passed.
