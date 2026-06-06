@@ -809,3 +809,18 @@ Our current task, from `README.md`, is:
     - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed with existing macOS `objc` `unexpected cfg cargo-clippy` warnings from `squalr-engine-targets-native`.
     - `cargo check -p squalr-engine --locked` passed with the same existing macOS `objc` warnings.
     - `git diff --check` passed.
+- After tightening macOS trace display/restore behavior:
+  - Owner reported the quasi-functional macOS trace path displayed raw bytes instead of decoded instructions, patch restore after no-op could hard crash the target, and `Find What Writes` could lag Squalr on hot writes.
+  - macOS trace instruction reads now use architecture-specific byte windows before disassembly: 4 bytes for ARM64, 15 bytes for x64, and the existing 16-byte fallback for unknown architectures. This avoids feeding ARM64's fixed-width decoder a multi-instruction 16-byte chunk for a single trace row.
+  - Debugger trace enrichment now passes the normalized instruction address to `InstructionSet::disassemble_block` instead of base address `0`, with a regression test proving the decoder receives the real address.
+  - macOS breakpoint exception handling now coalesces immediate duplicate trace events by breakpoint id and instruction address with a 100ms floor, and clears stale coalescing state when a breakpoint is removed. This reduces UI/event pressure from hot write loops while keeping distinct instruction addresses visible.
+  - Trace stop now asks the backend to remove the backing breakpoint before removing/emitting the stopped trace session, shrinking the window where a supposedly stopped trace can still trap a running target.
+  - Patch apply/no-op/restore commands now pause an active running debugger session around the actual patch byte mutation and resume only if the target was running beforehand. A user-paused debugger remains paused.
+  - Remaining limitation: this was validated with unit/focused tests and compile checks, not a live GUI run against the originally failing macOS target. The trace display, restore hard-crash path, and hot-write lag behavior still need human verification after implementation and validation.
+  - Validation passed:
+    - `cargo fmt --all` completed with existing `fn_args_layout` deprecation warnings.
+    - `cargo test -p squalr-plugin-debuggers-native --locked -- --nocapture`.
+    - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed with existing macOS `objc` `unexpected cfg cargo-clippy` warnings from `squalr-engine-targets-native`.
+    - `cargo test -p squalr-engine --locked patch -- --nocapture` passed with the same existing macOS `objc` warnings.
+    - `cargo check -p squalr-engine --locked` passed with the same existing macOS `objc` warnings.
+    - `git diff --check` passed.

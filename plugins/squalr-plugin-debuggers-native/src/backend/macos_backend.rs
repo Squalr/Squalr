@@ -51,6 +51,9 @@ const X86_DEBUG_STATE64: libc::c_int = 11;
 const ARM_THREAD_STATE64: libc::c_int = 6;
 
 const TRACE_INSTRUCTION_BYTE_WINDOW: usize = 16;
+const X64_TRACE_INSTRUCTION_BYTE_WINDOW: usize = 15;
+const ARM64_TRACE_INSTRUCTION_BYTE_WINDOW: usize = 4;
+const TRACE_EVENT_MIN_INTERVAL_MS: u64 = 100;
 const RUNNING_EVENT_WAIT_TIMEOUT_MS: u64 = 50;
 const ATTACH_WAIT_TIMEOUT: Duration = Duration::from_secs(10);
 const WATCHPOINT_SLOT_COUNT: usize = 4;
@@ -421,9 +424,16 @@ struct ActiveMacOsSession {
     exception_port: Option<MacOsExceptionPort>,
     target_architecture: TargetArchitecture,
     breakpoints_by_id: HashMap<String, StoredMacOsBreakpoint>,
+    last_trace_event_emit_by_key: HashMap<MacOsTraceEventKey, Instant>,
     session_state: DebuggerSessionState,
     next_breakpoint_number: u64,
     trace_event_sink: DebuggerTraceEventSink,
+}
+
+#[derive(Clone, Eq, Hash, PartialEq)]
+struct MacOsTraceEventKey {
+    breakpoint_id: Option<String>,
+    instruction_address: Option<u64>,
 }
 
 #[derive(Clone)]
@@ -762,6 +772,7 @@ impl ActiveMacOsSession {
             exception_port: Some(exception_port),
             target_architecture: process_info.get_target_architecture().clone(),
             breakpoints_by_id: HashMap::new(),
+            last_trace_event_emit_by_key: HashMap::new(),
             session_state: DebuggerSessionState::Paused,
             next_breakpoint_number: 1,
             trace_event_sink,
@@ -894,6 +905,10 @@ impl ActiveMacOsSession {
                     breakpoint_id
                 )));
             }
+
+            active_session
+                .last_trace_event_emit_by_key
+                .retain(|trace_event_key, _| trace_event_key.breakpoint_id.as_deref() != Some(breakpoint_id));
 
             active_session.refresh_threads_and_apply_watchpoints()
         })
@@ -1063,6 +1078,11 @@ impl ActiveMacOsSession {
         let (breakpoint_descriptor, backend_message) = self.describe_hit_breakpoint(event_thread);
         let instruction_pointer = register_snapshot.get_instruction_pointer();
         let instruction_address = self.resolve_instruction_address(instruction_pointer);
+
+        if !self.should_emit_trace_event(breakpoint_descriptor.as_ref(), instruction_address) {
+            return Ok(());
+        }
+
         let instruction_bytes = self.read_instruction_bytes(instruction_address);
 
         (self.trace_event_sink)(DebuggerTraceEvent::new(
@@ -1075,6 +1095,30 @@ impl ActiveMacOsSession {
         ));
 
         Ok(())
+    }
+
+    fn should_emit_trace_event(
+        &mut self,
+        breakpoint_descriptor: Option<&DebuggerBreakpointDescriptor>,
+        instruction_address: Option<u64>,
+    ) -> bool {
+        let trace_event_key = MacOsTraceEventKey {
+            breakpoint_id: breakpoint_descriptor.map(|breakpoint_descriptor| breakpoint_descriptor.get_breakpoint_id().to_string()),
+            instruction_address,
+        };
+        let now = Instant::now();
+
+        if self
+            .last_trace_event_emit_by_key
+            .get(&trace_event_key)
+            .is_some_and(|last_emit_time| now.duration_since(*last_emit_time) < Duration::from_millis(TRACE_EVENT_MIN_INTERVAL_MS))
+        {
+            return false;
+        }
+
+        self.last_trace_event_emit_by_key.insert(trace_event_key, now);
+
+        true
     }
 
     fn describe_hit_breakpoint(
@@ -1270,7 +1314,8 @@ impl ActiveMacOsSession {
         let Some(instruction_address) = instruction_address else {
             return Vec::new();
         };
-        let mut instruction_bytes = vec![0u8; TRACE_INSTRUCTION_BYTE_WINDOW];
+        let instruction_byte_window = trace_instruction_byte_window_for_architecture(&self.target_architecture);
+        let mut instruction_bytes = vec![0u8; instruction_byte_window];
         let mut copied_bytes: mach_vm_size_t = 0;
         let read_status = unsafe {
             mach_vm_read_overwrite(
@@ -1914,6 +1959,14 @@ fn exception_state_flavor_for_architecture(target_architecture: &TargetArchitect
     }
 }
 
+fn trace_instruction_byte_window_for_architecture(target_architecture: &TargetArchitecture) -> usize {
+    match target_architecture.get_instruction_set_id() {
+        "x64" => X64_TRACE_INSTRUCTION_BYTE_WINDOW,
+        "arm64" => ARM64_TRACE_INSTRUCTION_BYTE_WINDOW,
+        _ => TRACE_INSTRUCTION_BYTE_WINDOW,
+    }
+}
+
 fn exception_reply_size(state_count: mach_msg_type_number_t) -> mach_msg_size_t {
     let fixed_size = size_of::<MacOsExceptionRaiseStateIdentityReply>() - size_of::<[natural_t; EXCEPTION_STATE_MAX_COUNT]>();
     let state_size = (state_count as usize).saturating_mul(size_of::<natural_t>());
@@ -1924,6 +1977,7 @@ fn exception_reply_size(state_count: mach_msg_type_number_t) -> mach_msg_size_t 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Arc;
 
     #[test]
     fn x64_watchpoint_lengths_match_debug_register_encoding() {
@@ -1941,5 +1995,46 @@ mod tests {
         assert_eq!(control & 1, 1);
         assert_eq!((control >> 3) & 0b11, 0b10);
         assert_eq!((control >> 5) & 0b1111, 0b1111);
+    }
+
+    #[test]
+    fn trace_instruction_byte_window_matches_architecture_decoder_width() {
+        assert_eq!(trace_instruction_byte_window_for_architecture(&TargetArchitecture::x64()), 15);
+        assert_eq!(trace_instruction_byte_window_for_architecture(&TargetArchitecture::arm64()), 4);
+        assert_eq!(trace_instruction_byte_window_for_architecture(&TargetArchitecture::arm()), 16);
+    }
+
+    #[test]
+    fn trace_event_coalescing_suppresses_immediate_duplicate_hits() {
+        let mut active_session = ActiveMacOsSession {
+            process_id: 0,
+            task_port: MACH_PORT_NULL,
+            exception_port: None,
+            target_architecture: TargetArchitecture::arm64(),
+            breakpoints_by_id: HashMap::new(),
+            last_trace_event_emit_by_key: HashMap::new(),
+            session_state: DebuggerSessionState::Paused,
+            next_breakpoint_number: 1,
+            trace_event_sink: Arc::new(|_| {}),
+        };
+        let breakpoint_descriptor = DebuggerBreakpointDescriptor::new(
+            String::from("bp-1"),
+            0x1000,
+            DebuggerBreakpointKind::hardware_data(DebuggerDataBreakpointAccess::Write, 4),
+            true,
+            None,
+        );
+
+        assert!(active_session.should_emit_trace_event(Some(&breakpoint_descriptor), Some(0x2000)));
+        assert!(!active_session.should_emit_trace_event(Some(&breakpoint_descriptor), Some(0x2000)));
+
+        active_session.last_trace_event_emit_by_key.insert(
+            MacOsTraceEventKey {
+                breakpoint_id: Some(String::from("bp-1")),
+                instruction_address: Some(0x2000),
+            },
+            Instant::now() - Duration::from_millis(TRACE_EVENT_MIN_INTERVAL_MS + 1),
+        );
+        assert!(active_session.should_emit_trace_event(Some(&breakpoint_descriptor), Some(0x2000)));
     }
 }

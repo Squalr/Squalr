@@ -328,6 +328,27 @@ impl DebuggerService {
         })
     }
 
+    pub fn get_active_session_state_for_process(
+        &self,
+        process_info: &OpenedProcessInfo,
+    ) -> Option<DebuggerSessionState> {
+        let cached_session = self.active_session.read().ok().and_then(|active_session| {
+            active_session.as_ref().and_then(|cached_session| {
+                if cached_session.matches(process_info) {
+                    Some(CachedDebuggerSessionSnapshot {
+                        plugin_id: cached_session.plugin_id.clone(),
+                        session: cached_session.session.clone(),
+                    })
+                } else {
+                    None
+                }
+            })
+        })?;
+
+        self.with_debugger_session(&cached_session.session, |debugger_session| Ok(debugger_session.get_state()))
+            .ok()
+    }
+
     pub fn read_registers(&self) -> Result<DebuggerRegisterSnapshot, String> {
         let active_session = self.get_cached_session()?;
 
@@ -419,6 +440,15 @@ impl DebuggerService {
             })
             .ok_or_else(|| format!("Debugger trace session '{}' does not exist.", trace_session_id))?;
 
+        if let Err(error) = self.remove_breakpoint(&breakpoint_id) {
+            log::warn!(
+                "Failed to clear backing breakpoint {} while stopping debugger trace session '{}': {}.",
+                breakpoint_id,
+                trace_session_id,
+                error
+            );
+        }
+
         let (trace_session, instruction_records) = self
             .trace_sessions
             .write()
@@ -426,15 +456,6 @@ impl DebuggerService {
             .stop_session(trace_session_id)?;
 
         self.emit_trace_session_updated(trace_session.clone(), instruction_records.clone());
-
-        if let Err(error) = self.remove_breakpoint(&breakpoint_id) {
-            log::warn!(
-                "Stopped debugger trace session '{}' but failed to clear backing breakpoint {}: {}.",
-                trace_session_id,
-                breakpoint_id,
-                error
-            );
-        }
 
         Ok((trace_session, instruction_records))
     }
@@ -707,7 +728,7 @@ impl DebuggerService {
             .find_instruction_set(instruction_target_architecture.get_instruction_set_id())
             .and_then(|instruction_set| {
                 instruction_set
-                    .disassemble_block(trace_event.get_instruction_bytes(), 0)
+                    .disassemble_block(trace_event.get_instruction_bytes(), trace_event.get_instruction_address().unwrap_or(0))
                     .ok()
             })
             .and_then(|instructions| instructions.into_iter().next())
@@ -786,7 +807,7 @@ mod tests {
             },
             memory::bitness::Bitness,
             processes::opened_process_info::OpenedProcessInfo,
-            processes::target_architecture::TargetArchitecture,
+            processes::target_architecture::{Endianness, TargetArchitecture},
         },
     };
     use std::sync::{Arc, Mutex};
@@ -813,6 +834,7 @@ mod tests {
         instruction_set_id: &'static str,
         display_name: &'static str,
         disassembly_prefix: &'static str,
+        include_base_address: bool,
     }
 
     impl TestInstructionSet {
@@ -825,6 +847,20 @@ mod tests {
                 instruction_set_id,
                 display_name,
                 disassembly_prefix,
+                include_base_address: false,
+            }
+        }
+
+        fn new_with_base_address(
+            instruction_set_id: &'static str,
+            display_name: &'static str,
+            disassembly_prefix: &'static str,
+        ) -> Self {
+            Self {
+                instruction_set_id,
+                display_name,
+                disassembly_prefix,
+                include_base_address: true,
             }
         }
     }
@@ -871,11 +907,17 @@ mod tests {
             }
 
             if !instruction_bytes.is_empty() {
+                let instruction_text = if self.include_base_address {
+                    format!("{}-block-{}-0x{:X}", self.disassembly_prefix, instruction_bytes.len(), base_address)
+                } else {
+                    format!("{}-block-{}", self.disassembly_prefix, instruction_bytes.len())
+                };
+
                 instructions.push(DisassembledInstruction {
                     address: base_address + instructions.len() as u64,
                     length: instruction_bytes.len(),
                     bytes: instruction_bytes.to_vec(),
-                    text: format!("{}-block-{}", self.disassembly_prefix, instruction_bytes.len()),
+                    text: instruction_text,
                     branch_target_address: None,
                     is_control_flow: false,
                 });
@@ -905,6 +947,7 @@ mod tests {
                     Arc::new(TestInstructionSet::new("x64", "Test x64", "test-disassembly")),
                     Arc::new(TestInstructionSet::new("arm64", "Test ARM64", "arm64-disassembly")),
                     Arc::new(TestInstructionSet::new("thumb", "Test Thumb", "thumb-disassembly")),
+                    Arc::new(TestInstructionSet::new_with_base_address("base-test", "Test Base", "base-disassembly")),
                 ],
             }
         }
@@ -1217,6 +1260,17 @@ mod tests {
         let enriched_trace_event = DebuggerService::enrich_trace_event_with_disassembly(&plugin_registry, &TargetArchitecture::x64(), trace_event);
 
         assert_eq!(enriched_trace_event.get_instruction_text(), Some("test-disassembly-block-2"));
+    }
+
+    #[test]
+    fn trace_disassembly_passes_instruction_address_to_block_decoder() {
+        let plugin_registry = PluginRegistry::from_plugin_packages(vec![Arc::new(TestInstructionSetPlugin::new())]);
+        let target_architecture = TargetArchitecture::new("base-test", "i_base_test", Bitness::Bit64, Endianness::Little);
+        let trace_event = DebuggerTraceEvent::new(None, DebuggerRegisterSnapshot::default(), Some(0x401234), vec![0x90], None, None);
+
+        let enriched_trace_event = DebuggerService::enrich_trace_event_with_disassembly(&plugin_registry, &target_architecture, trace_event);
+
+        assert_eq!(enriched_trace_event.get_instruction_text(), Some("base-disassembly-block-1-0x401234"));
     }
 
     #[test]
