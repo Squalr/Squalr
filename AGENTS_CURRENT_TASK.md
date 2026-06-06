@@ -860,3 +860,18 @@ Our current task, from `README.md`, is:
     - `cargo test -p squalr --locked debugger_trace -- --nocapture` passed with existing macOS `objc` `unexpected cfg cargo-clippy` warnings from `squalr-engine-targets-native`.
     - `cargo check -p squalr --locked` passed with the same existing macOS `objc` warnings.
     - `git diff --check` passed.
+- After fixing macOS code patch writes:
+  - Owner reported repeated `Replace with no-operation patch failed: Failed to write patch bytes at 0x100670BF0.` followed by restore failures because no active patch record existed.
+  - Root cause: the macOS native memory writer only attempted raw `mach_vm_write`. That can write normal writable data pages, but executable/text pages are usually read/execute and require a temporary protection change before code patching can succeed.
+  - macOS memory writes now first try direct `mach_vm_write`, then retry failed writes by querying the affected Mach regions, temporarily applying writable copy-on-write protection, writing bytes, and restoring each region's original protection.
+  - The temporary writable protection adds `VM_PROT_WRITE | VM_PROT_COPY` and drops execute during the write, then restores the original protection. This mirrors the existing Windows protect-write-restore behavior while respecting macOS copy-on-write image mappings.
+  - Added a macOS-local test that allocates memory in the current task, makes it read/execute, and verifies the native writer can patch it through the temporary-protection path.
+  - Remaining limitation: this was validated with local Mach memory tests and compile checks, not against the live Minesweeper Debugger Trace no-op/restore action. The original GUI patch/restore flow still needs human verification after implementation and validation.
+  - Validation passed:
+    - `cargo fmt --all` completed with existing `fn_args_layout` deprecation warnings.
+    - `cargo test -p squalr-engine-targets-native --locked memory_writer::macos -- --nocapture` passed with existing macOS `objc` `unexpected cfg cargo-clippy` warnings from `squalr-engine-targets-native`.
+    - `cargo test -p squalr-engine-session --locked patch_service -- --nocapture` passed with the same existing macOS `objc` warnings.
+    - `cargo test -p squalr-engine --locked patch -- --nocapture` passed with the same existing macOS `objc` warnings.
+    - `cargo check -p squalr-engine --locked` passed with the same existing macOS `objc` warnings.
+    - `cargo check -p squalr --locked` passed with the same existing macOS `objc` warnings.
+    - `git diff --check` passed.
