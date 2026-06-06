@@ -1365,6 +1365,7 @@ impl AppShell {
             address,
             module_name,
             value: edited_data_value.get_value_bytes().clone(),
+            write_mode: Default::default(),
         })
     }
 

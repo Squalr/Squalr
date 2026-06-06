@@ -1,6 +1,6 @@
 use crate::command_executors::privileged_request_executor::PrivilegedCommandRequestExecutor;
 use crate::engine_privileged_state::EnginePrivilegedState;
-use squalr_engine_api::commands::memory::write::memory_write_request::MemoryWriteRequest;
+use squalr_engine_api::commands::memory::write::memory_write_request::{MemoryWriteMode, MemoryWriteRequest};
 use squalr_engine_api::commands::memory::write::memory_write_response::MemoryWriteResponse;
 use std::sync::Arc;
 
@@ -16,6 +16,21 @@ impl PrivilegedCommandRequestExecutor for MemoryWriteRequest {
             .get_opened_process()
         {
             let os_providers = engine_privileged_state.get_os_providers();
+            if self.write_mode == MemoryWriteMode::CheckedCode {
+                return match engine_privileged_state
+                    .get_patch_service()
+                    .write_code_bytes_checked(&process_info, os_providers, self.address, &self.module_name, &self.value)
+                {
+                    Ok(()) => MemoryWriteResponse { success: true, error: None },
+                    Err(error) => {
+                        log::warn!("Checked code write failed: {}", error);
+                        MemoryWriteResponse {
+                            success: false,
+                            error: Some(error),
+                        }
+                    }
+                };
+            }
 
             if !self.module_name.is_empty() {
                 let modules = if let Some(opened_process_info) = engine_privileged_state
@@ -35,17 +50,28 @@ impl PrivilegedCommandRequestExecutor for MemoryWriteRequest {
 
                 MemoryWriteResponse {
                     success: module_address.is_some() && success,
+                    error: if module_address.is_some() && success {
+                        None
+                    } else {
+                        Some(String::from("Memory write failed."))
+                    },
                 }
             } else {
                 let success = os_providers
                     .memory_write
                     .write_bytes(&process_info, self.address, &self.value);
 
-                MemoryWriteResponse { success }
+                MemoryWriteResponse {
+                    success,
+                    error: if success { None } else { Some(String::from("Memory write failed.")) },
+                }
             }
         } else {
             // log::error!("No process is opened to write to.");
-            MemoryWriteResponse { success: false }
+            MemoryWriteResponse {
+                success: false,
+                error: Some(String::from("No process is opened to write to.")),
+            }
         }
     }
 }

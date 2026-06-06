@@ -477,6 +477,7 @@ impl CodeViewerView {
             address: write_start_address,
             module_name: String::new(),
             value: instruction_write_plan.written_bytes,
+            write_mode: squalr_engine_api::commands::memory::write::memory_write_request::MemoryWriteMode::CheckedCode,
         };
 
         memory_write_request.send(&engine_unprivileged_state, move |memory_write_response| {
@@ -485,7 +486,12 @@ impl CodeViewerView {
                 CodeViewerViewData::finish_instruction_write(code_viewer_view_data.clone(), write_start_address);
                 engine_unprivileged_state_for_callback.request_virtual_snapshot_refresh(CodeViewerViewData::WINDOW_VIRTUAL_SNAPSHOT_ID);
             } else {
-                CodeViewerViewData::set_instruction_edit_error(code_viewer_view_data.clone(), String::from("Instruction write failed."));
+                CodeViewerViewData::set_instruction_edit_error(
+                    code_viewer_view_data.clone(),
+                    memory_write_response
+                        .error
+                        .unwrap_or_else(|| String::from("Instruction write failed.")),
+                );
                 log::warn!("Code viewer instruction write command failed.");
             }
         });

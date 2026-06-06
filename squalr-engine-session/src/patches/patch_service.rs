@@ -176,6 +176,43 @@ impl PatchService {
         Ok(patches)
     }
 
+    pub fn write_code_bytes_checked(
+        &self,
+        opened_process_info: &OpenedProcessInfo,
+        os_providers: &EngineOsProviders,
+        address: u64,
+        module_name: &str,
+        code_bytes: &[u8],
+    ) -> Result<(), String> {
+        if code_bytes.is_empty() {
+            return Err(String::from("Code write bytes cannot be empty."));
+        }
+
+        let absolute_address = Self::resolve_absolute_address(opened_process_info, os_providers, address, module_name)?;
+        let write_region = NormalizedRegion::new(absolute_address, code_bytes.len() as u64);
+        let mut state = self.lock_state()?;
+
+        Self::ensure_process_scope(&mut state, opened_process_info);
+
+        if let Some(conflicting_patch) = Self::find_active_overlap_with_kind_locked(&state, &write_region, PatchKind::SoftwareBreakpoint) {
+            return Err(format!(
+                "Code write 0x{:X}-0x{:X} overlaps active software breakpoint patch '{}'.",
+                write_region.get_base_address(),
+                write_region.get_end_address(),
+                conflicting_patch.get_patch_id()
+            ));
+        }
+
+        if !os_providers
+            .memory_write
+            .write_bytes(opened_process_info, absolute_address, code_bytes)
+        {
+            return Err(format!("Failed to write code bytes at 0x{:X}.", absolute_address));
+        }
+
+        Ok(())
+    }
+
     pub fn find_active_overlap(
         &self,
         opened_process_info: &OpenedProcessInfo,
@@ -233,10 +270,12 @@ impl PatchService {
         }
 
         if current_bytes != patch_descriptor.get_patched_bytes() {
-            return Err(format!(
-                "Patch '{}' cannot be restored because target bytes no longer match the recorded patch bytes.",
-                patch_id
-            ));
+            if patch_descriptor.get_kind() != PatchKind::NoOperation {
+                return Err(format!(
+                    "Patch '{}' cannot be restored because target bytes no longer match the recorded patch bytes.",
+                    patch_id
+                ));
+            }
         }
 
         if !os_providers
@@ -259,6 +298,22 @@ impl PatchService {
             .patches_by_id
             .values()
             .find(|patch_descriptor| patch_descriptor.get_is_active() && Self::regions_overlap_half_open(patch_descriptor.get_region(), region))
+            .cloned()
+    }
+
+    fn find_active_overlap_with_kind_locked(
+        state: &PatchServiceState,
+        region: &NormalizedRegion,
+        kind: PatchKind,
+    ) -> Option<PatchDescriptor> {
+        state
+            .patches_by_id
+            .values()
+            .find(|patch_descriptor| {
+                patch_descriptor.get_is_active()
+                    && patch_descriptor.get_kind() == kind
+                    && Self::regions_overlap_half_open(patch_descriptor.get_region(), region)
+            })
             .cloned()
     }
 
@@ -646,6 +701,51 @@ mod tests {
 
         assert!(restore_result.is_err());
         assert_eq!(test_memory.bytes(), vec![0x90, 0xCC, 0x90, 0x42, 0x43, 0x44]);
+    }
+
+    #[test]
+    fn checked_code_write_allows_overwriting_no_operation_patch() {
+        let (patch_service, opened_process_info, os_providers, test_memory) = create_test_context();
+        patch_service
+            .apply_patch(&opened_process_info, &os_providers, 0x1001, "", &[0x90, 0x90], PatchKind::NoOperation, None)
+            .expect("Expected no-operation patch application to succeed.");
+
+        patch_service
+            .write_code_bytes_checked(&opened_process_info, &os_providers, 0x1001, "", &[0xFF, 0x00])
+            .expect("Expected checked code write over no-operation patch to succeed.");
+
+        assert_eq!(test_memory.bytes(), vec![0x90, 0xFF, 0x00, 0x42, 0x43, 0x44]);
+    }
+
+    #[test]
+    fn checked_code_write_rejects_overlapping_software_breakpoint_patch() {
+        let (patch_service, opened_process_info, os_providers, test_memory) = create_test_context();
+        patch_service
+            .apply_patch(&opened_process_info, &os_providers, 0x1001, "", &[0xCC], PatchKind::SoftwareBreakpoint, None)
+            .expect("Expected software breakpoint patch application to succeed.");
+
+        let write_result = patch_service.write_code_bytes_checked(&opened_process_info, &os_providers, 0x1001, "", &[0xFF]);
+
+        assert!(write_result.is_err());
+        assert_eq!(test_memory.bytes(), vec![0x90, 0xCC, 0x41, 0x42, 0x43, 0x44]);
+    }
+
+    #[test]
+    fn restore_no_operation_patch_allows_edited_patch_bytes() {
+        let (patch_service, opened_process_info, os_providers, test_memory) = create_test_context();
+        patch_service
+            .apply_patch(&opened_process_info, &os_providers, 0x1001, "", &[0x90, 0x90], PatchKind::NoOperation, None)
+            .expect("Expected no-operation patch application to succeed.");
+        patch_service
+            .write_code_bytes_checked(&opened_process_info, &os_providers, 0x1001, "", &[0xFF, 0x00])
+            .expect("Expected checked code write over no-operation patch to succeed.");
+
+        let restored_patch = patch_service
+            .restore_patch_at_address(&opened_process_info, &os_providers, 0x1001, "", Some(PatchKind::NoOperation))
+            .expect("Expected no-operation patch restore to tolerate edited bytes.");
+
+        assert!(!restored_patch.get_is_active());
+        assert_eq!(test_memory.bytes(), vec![0x90, 0x40, 0x41, 0x42, 0x43, 0x44]);
     }
 
     #[test]

@@ -1,5 +1,6 @@
-use squalr_engine_api::commands::memory::write::memory_write_request::MemoryWriteRequest;
+use squalr_engine_api::commands::memory::write::memory_write_request::{MemoryWriteMode, MemoryWriteRequest};
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
+use squalr_engine_api::plugins::instruction_set::normalize_instruction_data_type_id;
 use squalr_engine_api::structures::data_types::built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::{anonymous_value_string::AnonymousValueString, container_type::ContainerType};
@@ -66,10 +67,24 @@ pub fn build_project_symbol_runtime_value_write_request(
         .checked_add(field_write_target.offset)
         .ok_or_else(|| String::from("Edited symbol field address overflowed."))?;
 
+    let write_mode = if normalize_instruction_data_type_id(
+        field_write_target
+            .symbolic_field_definition
+            .get_data_type_ref()
+            .get_base_data_type_id(),
+    )
+    .is_some()
+    {
+        MemoryWriteMode::CheckedCode
+    } else {
+        MemoryWriteMode::Raw
+    };
+
     Ok(MemoryWriteRequest {
         address,
         module_name: write_plan_request.module_name.clone(),
         value: value_bytes,
+        write_mode,
     })
 }
 
@@ -251,11 +266,19 @@ fn resolve_symbolic_field_size_in_bytes(
 
 #[cfg(test)]
 mod tests {
-    use super::normalize_runtime_write_value_bytes;
+    use super::{ProjectSymbolRuntimeValueWritePlanRequest, build_project_symbol_runtime_value_write_request, normalize_runtime_write_value_bytes};
+    use crate::command_executors::project_symbols::test_support::{MockProjectSymbolsBindings, create_engine_unprivileged_state};
+    use squalr_engine_api::commands::memory::write::memory_write_request::MemoryWriteMode;
+    use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
     use squalr_engine_api::structures::{
         data_types::data_type_ref::DataTypeRef,
-        data_values::{container_type::ContainerType, data_value::DataValue},
+        data_values::{
+            anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType,
+            data_value::DataValue,
+        },
+        projects::project_symbol_catalog::ProjectSymbolCatalog,
     };
+    use std::sync::Arc;
 
     #[test]
     fn null_terminated_fixed_string_write_bytes_are_zero_padded() {
@@ -273,5 +296,26 @@ mod tests {
         let write_bytes = normalize_runtime_write_value_bytes(&data_value, ContainerType::ArrayFixed(4));
 
         assert_eq!(write_bytes, b"Fin\0");
+    }
+
+    #[test]
+    fn instruction_runtime_value_write_uses_checked_code_mode() {
+        let engine_unprivileged_state = create_engine_unprivileged_state(MockProjectSymbolsBindings::new());
+        let engine_execution_context: Arc<dyn EngineExecutionContext> = engine_unprivileged_state.clone();
+        let write_request = build_project_symbol_runtime_value_write_request(
+            &engine_execution_context,
+            &ProjectSymbolCatalog::default(),
+            &ProjectSymbolRuntimeValueWritePlanRequest {
+                address: 0x1234,
+                module_name: String::new(),
+                symbol_type_id: String::from("i_x64"),
+                container_type: ContainerType::None,
+                field_name: String::from("value"),
+                anonymous_value_string: AnonymousValueString::new(String::from("nop"), AnonymousValueStringFormat::String, ContainerType::None),
+            },
+        )
+        .expect("Expected instruction write request to build.");
+
+        assert_eq!(write_request.write_mode, MemoryWriteMode::CheckedCode);
     }
 }

@@ -108,6 +108,7 @@ impl From<CommandLineMemoryWriteRequest> for api::commands::memory::write::memor
             address: request.address,
             module_name: request.module_name,
             value: request.value,
+            write_mode: Default::default(),
         }
     }
 }

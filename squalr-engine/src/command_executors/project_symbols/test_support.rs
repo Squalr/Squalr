@@ -100,7 +100,7 @@ impl EngineApiUnprivilegedBindings for MockProjectSymbolsBindings {
                 captured_memory_write_requests.push(memory_write_request);
                 drop(captured_memory_write_requests);
 
-                callback(MemoryWriteResponse { success: true }.to_engine_response());
+                callback(MemoryWriteResponse { success: true, error: None }.to_engine_response());
 
                 Ok(())
             }
