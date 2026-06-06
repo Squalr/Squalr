@@ -556,21 +556,20 @@ impl CodeViewerViewData {
             .collect()
     }
 
-    pub fn take_pending_scroll_address(code_viewer_view_data: Dependency<Self>) -> Option<u64> {
-        let mut code_viewer_view_data = code_viewer_view_data.write("Code viewer take pending scroll address")?;
-        code_viewer_view_data.pending_scroll_address.take()
-    }
-
-    pub fn resolve_scroll_target_address(
-        pending_scroll_address: Option<u64>,
+    pub fn resolve_pending_scroll_target_address(
+        code_viewer_view_data: Dependency<Self>,
         instruction_lines: &[DisassembledInstruction],
     ) -> Option<u64> {
-        let pending_scroll_address = pending_scroll_address?;
-
-        instruction_lines
+        let mut code_viewer_view_data = code_viewer_view_data.write("Code viewer resolve pending scroll target")?;
+        let pending_scroll_address = code_viewer_view_data.pending_scroll_address?;
+        let scroll_target_address = instruction_lines
             .iter()
             .min_by_key(|instruction_line| instruction_line.address.abs_diff(pending_scroll_address))
-            .map(|instruction_line| instruction_line.address)
+            .map(|instruction_line| instruction_line.address)?;
+
+        code_viewer_view_data.pending_scroll_address = None;
+
+        Some(scroll_target_address)
     }
 
     pub fn select_instruction_address(
@@ -1330,7 +1329,9 @@ impl CodeViewerViewData {
         };
 
         let Some((page_index, resolved_address)) = Self::resolve_nearest_page_index_and_address(&self.virtual_pages, focus_address) else {
-            self.pending_focus_request = None;
+            if !self.virtual_pages.is_empty() {
+                self.pending_focus_request = None;
+            }
 
             return false;
         };
@@ -1554,4 +1555,89 @@ fn parse_address_text(address_text: &str) -> Option<u64> {
     }
 
     trimmed_address_text.parse::<u64>().ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
+
+    fn decoded_instruction(address: u64) -> DisassembledInstruction {
+        DisassembledInstruction {
+            address,
+            length: 1,
+            bytes: vec![0x90],
+            text: String::from("nop"),
+            branch_target_address: None,
+            is_control_flow: false,
+        }
+    }
+
+    #[test]
+    fn pending_focus_request_waits_for_virtual_pages() {
+        let mut code_viewer_view_data = CodeViewerViewData::new();
+        code_viewer_view_data.modules = vec![NormalizedModule::new("target.exe", 0x4000, 0x100)];
+        code_viewer_view_data.pending_focus_request = Some(CodeViewerFocusRequest {
+            address: 0x20,
+            module_name: String::from("target.exe"),
+        });
+
+        assert!(!code_viewer_view_data.try_apply_pending_focus_request());
+        assert_eq!(
+            code_viewer_view_data.pending_focus_request,
+            Some(CodeViewerFocusRequest {
+                address: 0x20,
+                module_name: String::from("target.exe"),
+            })
+        );
+
+        code_viewer_view_data.virtual_pages = vec![NormalizedRegion::new(0x4000, 0x100)];
+        code_viewer_view_data.cached_last_page_index = 0;
+
+        assert!(code_viewer_view_data.try_apply_pending_focus_request());
+        assert_eq!(code_viewer_view_data.pending_focus_request, None);
+        assert_eq!(code_viewer_view_data.pending_scroll_address, Some(0x4020));
+    }
+
+    #[test]
+    fn pending_focus_request_clears_after_loaded_pages_cannot_resolve() {
+        let mut code_viewer_view_data = CodeViewerViewData::new();
+        code_viewer_view_data.modules = vec![NormalizedModule::new("target.exe", 0x4000, 0x100)];
+        code_viewer_view_data.virtual_pages = vec![NormalizedRegion::new(0x8000, 0x100)];
+        code_viewer_view_data.pending_focus_request = Some(CodeViewerFocusRequest {
+            address: 0x20,
+            module_name: String::from("missing.exe"),
+        });
+
+        assert!(!code_viewer_view_data.try_apply_pending_focus_request());
+        assert_eq!(code_viewer_view_data.pending_focus_request, None);
+    }
+
+    #[test]
+    fn pending_scroll_address_waits_for_instruction_lines() {
+        let mut code_viewer_view_data = CodeViewerViewData::new();
+        code_viewer_view_data.pending_scroll_address = Some(0x4020);
+        let dependency = DependencyContainer::new().register(code_viewer_view_data);
+
+        let empty_scroll_target = CodeViewerViewData::resolve_pending_scroll_target_address(dependency.clone(), &[]);
+
+        assert_eq!(empty_scroll_target, None);
+        assert_eq!(
+            dependency
+                .read("Code viewer test pending scroll after empty rows")
+                .and_then(|code_viewer_view_data| code_viewer_view_data.pending_scroll_address),
+            Some(0x4020)
+        );
+
+        let scroll_target =
+            CodeViewerViewData::resolve_pending_scroll_target_address(dependency.clone(), &[decoded_instruction(0x4010), decoded_instruction(0x4021)]);
+
+        assert_eq!(scroll_target, Some(0x4021));
+        assert_eq!(
+            dependency
+                .read("Code viewer test pending scroll after resolved row")
+                .and_then(|code_viewer_view_data| code_viewer_view_data.pending_scroll_address),
+            None
+        );
+    }
 }

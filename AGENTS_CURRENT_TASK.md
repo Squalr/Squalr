@@ -39,6 +39,16 @@ Our current task, from `README.md`, is:
   - [ ] Repeat manual/human verification from CLI/TUI/GUI command surfaces.
 
 ## Important Information
+- After Code Viewer enter/seek nice-to-have fixes:
+  - Code Viewer instruction edit rows now treat the viewer-level Enter key as Commit in addition to the `DataValueBoxView` commit-on-enter signal.
+  - Open/focus requests now keep a pending focus request while memory pages are still empty/loading, matching Memory Viewer behavior and avoiding early request loss.
+  - Code Viewer pending scroll addresses are now consumed only after disassembled instruction rows exist and a nearest row can be selected, so opening a delayed/cold Code Viewer can still seek after instruction bytes load.
+  - Focused regressions cover pending focus surviving the page-load gap, unresolved focus clearing after loaded pages cannot resolve, and pending scroll surviving empty instruction rows.
+  - Validation passed: `cargo fmt --all` with existing `fn_args_layout` deprecation warnings; `cargo test -p squalr --locked code_viewer_view_data::tests -- --nocapture`; `cargo check -p squalr --locked`.
+  - GUI behavior for Code Viewer instruction Enter commit and delayed Open in Code Viewer seek still needs human verification after implementation and validation.
+- PR branch review notes:
+  - `squalr-engine/src/command_executors/debugger/mod.rs` software-breakpoint patching should normalize the target instruction address before selecting the instruction-set plugin and applying patch bytes. The current path uses the opened process architecture/address directly, so ARM interworking Thumb addresses with bit 0 set would select `arm` bytes and patch the wrong address instead of selecting `thumb` and clearing the state bit.
+  - `plugins/squalr-plugin-debuggers-native/src/backend/windows_backend.rs` DbgEng hardware data breakpoint removal currently returns success without disabling/removing the live breakpoint. This keeps trace restart working, but it also makes CLI/API `breakpoint-remove` for hardware data breakpoints report success while the breakpoint remains active and listable.
 - After adding checked code writes for instruction edits:
   - Added `MemoryWriteMode::{Raw, CheckedCode}`. Normal memory writes stay raw; Code Viewer instruction edits and Details/Project instruction value edits send checked code writes.
   - Checked code writes route through `PatchService::write_code_bytes_checked`, reject overlap with active `PatchKind::SoftwareBreakpoint`, and otherwise write directly without creating a reversible patch record.

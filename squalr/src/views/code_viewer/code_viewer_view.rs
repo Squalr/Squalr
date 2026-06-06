@@ -713,7 +713,7 @@ impl CodeViewerView {
             CodeViewerViewData::set_instruction_edit_value(self.code_viewer_view_data.clone(), edit_value);
         }
 
-        let should_commit_edit = did_commit_on_enter;
+        let should_commit_edit = did_commit_on_enter || edit_row_user_interface.input(|input_state| input_state.key_pressed(Key::Enter));
         let should_cancel_edit = edit_row_user_interface.input(|input_state| input_state.key_pressed(Key::Escape));
 
         edit_row_user_interface.add_space(button_spacing);
@@ -1073,8 +1073,8 @@ impl Widget for CodeViewerView {
                             .request_virtual_snapshot_refresh(CodeViewerViewData::WINDOW_VIRTUAL_SNAPSHOT_ID);
 
                         visible_instruction_lines = CodeViewerViewData::build_instruction_lines(self.code_viewer_view_data.clone(), instruction_set.clone());
-                        let pending_scroll_address = CodeViewerViewData::take_pending_scroll_address(self.code_viewer_view_data.clone());
-                        let scroll_target_address = CodeViewerViewData::resolve_scroll_target_address(pending_scroll_address, &visible_instruction_lines);
+                        let scroll_target_address =
+                            CodeViewerViewData::resolve_pending_scroll_target_address(self.code_viewer_view_data.clone(), &visible_instruction_lines);
                         if !visible_instruction_lines.is_empty() {
                             ScrollArea::vertical()
                                 .id_salt("code_viewer_rows")
