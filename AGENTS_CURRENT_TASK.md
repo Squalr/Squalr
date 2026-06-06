@@ -824,3 +824,16 @@ Our current task, from `README.md`, is:
     - `cargo test -p squalr-engine --locked patch -- --nocapture` passed with the same existing macOS `objc` warnings.
     - `cargo check -p squalr-engine --locked` passed with the same existing macOS `objc` warnings.
     - `git diff --check` passed.
+- After fixing macOS module/static classification:
+  - Owner reported that scanning a macOS Minesweeper timer produced no static/module-backed results despite Activity Monitor showing the app executable and dyld/images mapped.
+  - Root cause: `MacOsMemoryQueryer::get_modules` only aggregated executable mappings for each file path, so module ranges covered `__TEXT` but missed non-executable Mach-O data mappings such as `__DATA`/`__DATA_CONST` where normal globals/statics tend to live.
+  - Related issue: macOS memory-type classification marked a region as `IMAGE` only when that individual region was executable. A writable data mapping for the same loaded image could therefore scan as private/mapped but not image/static memory.
+  - macOS region queries now collect file paths for image queries, build the set of file paths that have executable mappings, and treat every mapping for those paths as image-backed. Plain mapped resources such as `.car`, fonts, plist/cache data, and Metal cache data do not become modules unless the same path also has an executable mapping.
+  - macOS modules now aggregate the full loaded image span across executable and non-executable mappings for each executable image path, so scan-result module resolution can label data-section hits as `module+offset`.
+  - Remaining limitation: this was validated with synthetic macOS region tests and compile checks, not against the live Minesweeper process. The originally reported timer/static scan behavior still needs human verification after implementation and validation.
+  - Validation passed:
+    - `cargo fmt --all` completed with existing `fn_args_layout` deprecation warnings.
+    - `cargo test -p squalr-engine-targets-native --locked macos_memory_queryer -- --nocapture` passed with existing macOS `objc` `unexpected cfg cargo-clippy` warnings from `squalr-engine-targets-native`.
+    - `cargo check -p squalr-engine-targets-native --locked` passed with the same existing macOS `objc` warnings.
+    - `cargo check -p squalr-engine --locked` passed with the same existing macOS `objc` warnings.
+    - `git diff --check` passed.

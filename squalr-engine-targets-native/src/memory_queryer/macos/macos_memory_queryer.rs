@@ -15,7 +15,7 @@ use squalr_engine_api::structures::memory::bitness::Bitness;
 use squalr_engine_api::structures::memory::normalized_module::NormalizedModule;
 use squalr_engine_api::structures::memory::normalized_region::NormalizedRegion;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 pub struct MacOsMemoryQueryer;
@@ -23,7 +23,6 @@ pub struct MacOsMemoryQueryer;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum FilePathQueryStrategy {
     None,
-    ExecutableOnly,
     All,
 }
 
@@ -115,7 +114,6 @@ impl MacOsMemoryQueryer {
             let protection_flags = region_info.protection as u32;
             let should_query_file_path = match file_path_query_strategy {
                 FilePathQueryStrategy::None => false,
-                FilePathQueryStrategy::ExecutableOnly => (protection_flags & VM_PROT_EXECUTE as u32) != 0,
                 FilePathQueryStrategy::All => true,
             };
 
@@ -201,7 +199,18 @@ impl MacOsMemoryQueryer {
         protection_flags
     }
 
-    fn get_memory_type_flags(region_info: &MacOsRegionInfo) -> MemoryTypeEnum {
+    fn get_executable_mapped_file_paths(region_infos: &[MacOsRegionInfo]) -> HashSet<String> {
+        region_infos
+            .iter()
+            .filter(|region_info| (region_info.protection_flags & VM_PROT_EXECUTE as u32) != 0)
+            .filter_map(|region_info| region_info.mapped_file_path.clone())
+            .collect()
+    }
+
+    fn get_memory_type_flags(
+        region_info: &MacOsRegionInfo,
+        executable_mapped_file_paths: &HashSet<String>,
+    ) -> MemoryTypeEnum {
         let mut memory_type_flags = MemoryTypeEnum::empty();
 
         if region_info.mapped_file_path.is_none() {
@@ -214,7 +223,11 @@ impl MacOsMemoryQueryer {
             _ => {}
         }
 
-        if region_info.mapped_file_path.is_some() && (region_info.protection_flags & VM_PROT_EXECUTE as u32) != 0 {
+        if region_info
+            .mapped_file_path
+            .as_ref()
+            .is_some_and(|mapped_file_path| executable_mapped_file_paths.contains(mapped_file_path))
+        {
             memory_type_flags |= MemoryTypeEnum::IMAGE;
         }
 
@@ -244,13 +257,54 @@ impl MacOsMemoryQueryer {
     }
 
     fn file_path_query_strategy_for_allowed_types(allowed_types: MemoryTypeEnum) -> FilePathQueryStrategy {
-        if allowed_types.contains(MemoryTypeEnum::MAPPED) {
+        if allowed_types.contains(MemoryTypeEnum::IMAGE) || allowed_types.contains(MemoryTypeEnum::MAPPED) {
             FilePathQueryStrategy::All
-        } else if allowed_types.contains(MemoryTypeEnum::IMAGE) {
-            FilePathQueryStrategy::ExecutableOnly
         } else {
             FilePathQueryStrategy::None
         }
+    }
+
+    fn modules_from_region_infos(region_infos: &[MacOsRegionInfo]) -> Vec<NormalizedModule> {
+        let executable_mapped_file_paths = Self::get_executable_mapped_file_paths(region_infos);
+        let mut module_ranges: HashMap<String, (u64, u64)> = HashMap::new();
+
+        for region_info in region_infos {
+            let Some(mapped_file_path) = region_info.mapped_file_path.as_ref() else {
+                continue;
+            };
+
+            if !executable_mapped_file_paths.contains(mapped_file_path) {
+                continue;
+            }
+
+            let region_start_address = region_info.base_address;
+            let region_end_address = region_start_address.saturating_add(region_info.region_size);
+            let module_range_entry = module_ranges
+                .entry(mapped_file_path.clone())
+                .or_insert((region_start_address, region_end_address));
+
+            module_range_entry.0 = module_range_entry.0.min(region_start_address);
+            module_range_entry.1 = module_range_entry.1.max(region_end_address);
+        }
+
+        let mut modules: Vec<NormalizedModule> = module_ranges
+            .iter()
+            .filter_map(|(module_path, (module_start_address, module_end_address))| {
+                let module_region_size = module_end_address.saturating_sub(*module_start_address);
+                if module_region_size == 0 {
+                    return None;
+                }
+
+                Some(NormalizedModule::new(
+                    &Self::module_name_from_path(module_path),
+                    *module_start_address,
+                    module_region_size,
+                ))
+            })
+            .collect();
+
+        modules.sort_by_key(|module| module.get_base_address());
+        modules
     }
 }
 
@@ -280,6 +334,7 @@ impl MemoryQueryerTrait for MacOsMemoryQueryer {
         let allowed_type_flags = allowed_types.bits();
         let file_path_query_strategy = Self::file_path_query_strategy_for_allowed_types(allowed_types);
         let queried_regions = Self::query_regions(process_info, query_start_address, end_address, file_path_query_strategy);
+        let executable_mapped_file_paths = Self::get_executable_mapped_file_paths(&queried_regions);
 
         queried_regions
             .iter()
@@ -298,7 +353,7 @@ impl MemoryQueryerTrait for MacOsMemoryQueryer {
                     return None;
                 }
 
-                let memory_type_flags = Self::get_memory_type_flags(region_info);
+                let memory_type_flags = Self::get_memory_type_flags(region_info, &executable_mapped_file_paths);
                 if allowed_type_flags != 0 && (memory_type_flags.bits() & allowed_type_flags) == 0 {
                     return None;
                 }
@@ -365,47 +420,9 @@ impl MemoryQueryerTrait for MacOsMemoryQueryer {
         &self,
         process_info: &OpenedProcessInfo,
     ) -> Vec<NormalizedModule> {
-        let mut module_ranges: HashMap<String, (u64, u64)> = HashMap::new();
-        let queried_regions = Self::query_regions(process_info, 0, self.get_maximum_address(process_info), FilePathQueryStrategy::ExecutableOnly);
+        let queried_regions = Self::query_regions(process_info, 0, self.get_maximum_address(process_info), FilePathQueryStrategy::All);
 
-        for region_info in queried_regions {
-            if (region_info.protection_flags & VM_PROT_EXECUTE as u32) == 0 {
-                continue;
-            }
-
-            let mapped_file_path = match region_info.mapped_file_path {
-                Some(mapped_file_path) => mapped_file_path,
-                None => continue,
-            };
-
-            let region_start_address = region_info.base_address;
-            let region_end_address = region_start_address.saturating_add(region_info.region_size);
-            let module_range_entry = module_ranges
-                .entry(mapped_file_path)
-                .or_insert((region_start_address, region_end_address));
-
-            module_range_entry.0 = module_range_entry.0.min(region_start_address);
-            module_range_entry.1 = module_range_entry.1.max(region_end_address);
-        }
-
-        let mut modules: Vec<NormalizedModule> = module_ranges
-            .iter()
-            .filter_map(|(module_path, (module_start_address, module_end_address))| {
-                let module_region_size = module_end_address.saturating_sub(*module_start_address);
-                if module_region_size == 0 {
-                    return None;
-                }
-
-                Some(NormalizedModule::new(
-                    &Self::module_name_from_path(module_path),
-                    *module_start_address,
-                    module_region_size,
-                ))
-            })
-            .collect();
-
-        modules.sort_by_key(|module| module.get_base_address());
-        modules
+        Self::modules_from_region_infos(&queried_regions)
     }
 
     fn address_to_module(
@@ -450,7 +467,9 @@ impl MemoryQueryerTrait for MacOsMemoryQueryer {
 mod tests {
     use super::{FilePathQueryStrategy, MacOsMemoryQueryer, MacOsRegionInfo};
     use crate::memory_queryer::memory_type_enum::MemoryTypeEnum;
-    use mach2::vm_prot::VM_PROT_READ;
+    use mach2::vm_prot::{VM_PROT_EXECUTE, VM_PROT_READ, VM_PROT_WRITE};
+    use mach2::vm_region::{SM_PRIVATE, SM_SHARED};
+    use std::collections::HashSet;
 
     #[test]
     fn is_region_queryable_false_when_protection_is_none() {
@@ -489,12 +508,12 @@ mod tests {
     }
 
     #[test]
-    fn file_path_query_strategy_limits_to_executable_regions_for_image_queries() {
+    fn file_path_query_strategy_queries_all_paths_for_image_queries() {
         let allowed_types = MemoryTypeEnum::NONE | MemoryTypeEnum::PRIVATE | MemoryTypeEnum::IMAGE;
 
         assert_eq!(
             MacOsMemoryQueryer::file_path_query_strategy_for_allowed_types(allowed_types),
-            FilePathQueryStrategy::ExecutableOnly
+            FilePathQueryStrategy::All
         );
     }
 
@@ -506,5 +525,57 @@ mod tests {
             MacOsMemoryQueryer::file_path_query_strategy_for_allowed_types(allowed_types),
             FilePathQueryStrategy::All
         );
+    }
+
+    #[test]
+    fn memory_type_flags_mark_non_executable_regions_from_loaded_images_as_image() {
+        let executable_mapped_file_paths = HashSet::from([String::from("/Applications/Game.app/Contents/MacOS/Game")]);
+        let region_info = MacOsRegionInfo {
+            base_address: 0x2000,
+            region_size: 0x1000,
+            protection_flags: (VM_PROT_READ | VM_PROT_WRITE) as u32,
+            share_mode: SM_PRIVATE,
+            mapped_file_path: Some(String::from("/Applications/Game.app/Contents/MacOS/Game")),
+        };
+
+        let memory_type_flags = MacOsMemoryQueryer::get_memory_type_flags(&region_info, &executable_mapped_file_paths);
+
+        assert!(memory_type_flags.contains(MemoryTypeEnum::IMAGE));
+        assert!(memory_type_flags.contains(MemoryTypeEnum::PRIVATE));
+    }
+
+    #[test]
+    fn modules_include_non_executable_regions_for_loaded_images() {
+        let module_regions = vec![
+            MacOsRegionInfo {
+                base_address: 0x1000,
+                region_size: 0x1000,
+                protection_flags: (VM_PROT_READ | VM_PROT_EXECUTE) as u32,
+                share_mode: SM_PRIVATE,
+                mapped_file_path: Some(String::from("/Applications/Minesweeper.app/Contents/MacOS/Minesweeper")),
+            },
+            MacOsRegionInfo {
+                base_address: 0x3000,
+                region_size: 0x2000,
+                protection_flags: (VM_PROT_READ | VM_PROT_WRITE) as u32,
+                share_mode: SM_PRIVATE,
+                mapped_file_path: Some(String::from("/Applications/Minesweeper.app/Contents/MacOS/Minesweeper")),
+            },
+            MacOsRegionInfo {
+                base_address: 0x8000,
+                region_size: 0x1000,
+                protection_flags: VM_PROT_READ as u32,
+                share_mode: SM_SHARED,
+                mapped_file_path: Some(String::from("/Applications/Minesweeper.app/Contents/Resources/Assets.car")),
+            },
+        ];
+
+        let modules = MacOsMemoryQueryer::modules_from_region_infos(&module_regions);
+
+        assert_eq!(modules.len(), 1);
+        assert_eq!(modules[0].get_module_name(), "Minesweeper");
+        assert_eq!(modules[0].get_base_address(), 0x1000);
+        assert_eq!(modules[0].get_region_size(), 0x4000);
+        assert!(modules[0].contains_address(0x3000));
     }
 }
