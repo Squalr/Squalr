@@ -1,19 +1,19 @@
 use crate::views::code_viewer::pane_state::CodeViewerPaneState;
-use squalr_engine_api::structures::memory::bitness::Bitness;
+use squalr_engine_api::structures::processes::target_architecture::TargetArchitecture;
 
 pub fn build_code_viewer_summary_lines(
     code_viewer_pane_state: &CodeViewerPaneState,
-    process_bitness: Option<Bitness>,
+    target_architecture: Option<&TargetArchitecture>,
 ) -> Vec<String> {
     let mut summary_lines = vec![
         String::from("[ACT] r refresh pages | [/] page | Home/End first/last page | Up/Down instruction | PgUp/PgDn jump."),
         format!(
-            "[PAGE] index={} / {} | instructions={} | selected={} | bitness={} | loading={}.",
+            "[PAGE] index={} / {} | instructions={} | selected={} | arch={} | loading={}.",
             code_viewer_pane_state.current_page_index.saturating_add(1),
             code_viewer_pane_state.cached_last_page_index.saturating_add(1),
-            code_viewer_pane_state.current_instruction_count(process_bitness),
+            code_viewer_pane_state.current_instruction_count(target_architecture),
             option_hex(code_viewer_pane_state.selected_instruction_address()),
-            option_bitness(process_bitness),
+            option_target_architecture(target_architecture),
             code_viewer_pane_state.is_querying_memory_pages
         ),
         format!(
@@ -39,10 +39,8 @@ fn option_hex(address: Option<u64>) -> String {
         .unwrap_or_else(|| String::from("none"))
 }
 
-fn option_bitness(process_bitness: Option<Bitness>) -> &'static str {
-    match process_bitness {
-        Some(Bitness::Bit32) => "32-bit",
-        Some(Bitness::Bit64) => "64-bit",
-        None => "none",
-    }
+fn option_target_architecture(target_architecture: Option<&TargetArchitecture>) -> &str {
+    target_architecture
+        .map(TargetArchitecture::get_instruction_set_id)
+        .unwrap_or("none")
 }

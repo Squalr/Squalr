@@ -18,7 +18,9 @@ impl ExecutableCommandPrivileged for PrivilegedCommand {
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> PrivilegedCommandResponse {
         match self {
+            PrivilegedCommand::Debugger(command) => command.execute(engine_privileged_state),
             PrivilegedCommand::Memory(command) => command.execute(engine_privileged_state),
+            PrivilegedCommand::Patches(command) => command.execute(engine_privileged_state),
             PrivilegedCommand::Plugins(command) => command.execute(engine_privileged_state),
             PrivilegedCommand::Process(command) => command.execute(engine_privileged_state),
             PrivilegedCommand::Registry(command) => command.execute(engine_privileged_state),

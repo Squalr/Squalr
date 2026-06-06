@@ -1,5 +1,7 @@
+use crate::debugger::debugger_service::DebuggerService;
 use crate::os::ProcessManager;
 use crate::os::engine_os_provider::EngineOsProviders;
+use crate::patches::patch_service::PatchService;
 use crate::plugins::plugin_registry::PluginRegistry;
 use crate::registries::registries::Registries;
 use crate::tasks::snapshot_scan_result_freeze_task::SnapshotScanResultFreezeTask;
@@ -59,6 +61,12 @@ pub struct EnginePrivilegedState {
     /// The registry of loaded built-in plugins available to this session.
     plugin_registry: Arc<PluginRegistry>,
 
+    /// Coordinates debugger plugin session lifecycle and command routing.
+    debugger_service: Arc<DebuggerService>,
+
+    /// Coordinates process-scoped byte patch ownership and restore operations.
+    patch_service: Arc<PatchService>,
+
     /// OS access providers for process and memory operations.
     os_providers: EngineOsProviders,
 }
@@ -98,6 +106,8 @@ impl EnginePrivilegedState {
         let plugin_registry = Arc::new(PluginRegistry::new());
         Self::register_plugin_data_types(registries.get_symbol_registry().as_ref(), plugin_registry.get_plugin_packages());
         let os_providers = os_providers.with_memory_view_routing(plugin_registry.clone());
+        let debugger_service = Arc::new(DebuggerService::new(plugin_registry.clone(), event_emitter.clone()));
+        let patch_service = Arc::new(PatchService::new());
 
         SnapshotScanResultFreezeTask::start_task(
             process_manager.get_opened_process_ref(),
@@ -116,6 +126,8 @@ impl EnginePrivilegedState {
             engine_bindings,
             registries,
             plugin_registry,
+            debugger_service,
+            patch_service,
             os_providers,
         });
 
@@ -244,8 +256,12 @@ impl EnginePrivilegedState {
     pub fn get_plugin_states(&self) -> Vec<PluginState> {
         let opened_process_info = self.get_process_manager().get_opened_process();
         let active_plugin_id = opened_process_info.as_ref().and_then(|opened_process_info| {
-            self.os_providers
-                .get_active_memory_view_plugin_id(opened_process_info)
+            self.debugger_service
+                .get_active_plugin_id_for_process(opened_process_info)
+                .or_else(|| {
+                    self.os_providers
+                        .get_active_memory_view_plugin_id(opened_process_info)
+                })
         });
 
         self.plugin_registry
@@ -254,6 +270,14 @@ impl EnginePrivilegedState {
 
     pub fn invalidate_memory_view_runtime_state(&self) {
         self.os_providers.clear_active_memory_view_instance();
+    }
+
+    pub fn get_debugger_service(&self) -> Arc<DebuggerService> {
+        self.debugger_service.clone()
+    }
+
+    pub fn get_patch_service(&self) -> Arc<PatchService> {
+        self.patch_service.clone()
     }
 
     /// Gets OS providers used for process and memory operations.
@@ -342,8 +366,26 @@ impl EnginePrivilegedState {
         std::thread::spawn(move || {
             while let Ok(engine_event_envelope) = event_receiver.recv() {
                 match engine_event_envelope.into_engine_event() {
-                    EngineEvent::Process(ProcessEvent::ProcessChanged { .. }) => {
+                    EngineEvent::Process(ProcessEvent::ProcessChanged { process_changed_event }) => {
                         engine_privileged_state.invalidate_memory_view_runtime_state();
+                        engine_privileged_state
+                            .get_patch_service()
+                            .clear_if_process_changed(process_changed_event.process_info.as_ref());
+
+                        let debugger_service = engine_privileged_state.get_debugger_service();
+                        let should_clear_debugger_session = process_changed_event
+                            .process_info
+                            .as_ref()
+                            .map(|process_info| {
+                                debugger_service
+                                    .get_active_plugin_id_for_process(process_info)
+                                    .is_none()
+                            })
+                            .unwrap_or(true);
+
+                        if should_clear_debugger_session {
+                            debugger_service.clear_active_session();
+                        }
                     }
                     EngineEvent::Logging(_) => {}
                     _ => {}

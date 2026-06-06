@@ -1,0 +1,352 @@
+#[cfg(windows)]
+use squalr_engine_api::{
+    events::{debugger::debugger_event::DebuggerEvent, engine_event::EngineEvent},
+    structures::{
+        debugger::{DebuggerDataBreakpointAccess, DebuggerTraceEvent},
+        memory::bitness::Bitness,
+        processes::opened_process_info::OpenedProcessInfo,
+    },
+};
+#[cfg(windows)]
+use squalr_engine_session::{debugger::debugger_service::DebuggerService, plugins::plugin_registry::PluginRegistry};
+#[cfg(windows)]
+use std::{
+    error::Error,
+    io::{BufRead, BufReader, Write},
+    process::{Command, Stdio},
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+        mpsc,
+    },
+    thread,
+    time::{Duration, Instant},
+};
+
+#[cfg(windows)]
+static SMOKE_TARGET_VALUE: AtomicU64 = AtomicU64::new(0);
+
+#[cfg(windows)]
+fn main() -> Result<(), Box<dyn Error>> {
+    let is_child_process = std::env::args().any(|argument| argument == "--child");
+
+    if is_child_process {
+        run_child_process()?;
+    } else {
+        run_parent_process()?;
+    }
+
+    Ok(())
+}
+
+#[cfg(windows)]
+fn run_child_process() -> Result<(), Box<dyn Error>> {
+    let target_address = &SMOKE_TARGET_VALUE as *const AtomicU64 as u64;
+
+    println!("{} {target_address:#x}", std::process::id());
+    std::io::stdout().flush()?;
+
+    loop {
+        SMOKE_TARGET_VALUE.fetch_add(1, Ordering::Relaxed);
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+
+#[cfg(windows)]
+fn run_parent_process() -> Result<(), Box<dyn Error>> {
+    let current_executable_path = std::env::current_exe()?;
+    let mut child_process = Command::new(current_executable_path)
+        .arg("--child")
+        .stdout(Stdio::piped())
+        .spawn()?;
+
+    let smoke_result = run_smoke_against_child(&mut child_process);
+    let _ = child_process.kill();
+    let _ = child_process.wait();
+
+    smoke_result
+}
+
+#[cfg(windows)]
+fn run_smoke_against_child(child_process: &mut std::process::Child) -> Result<(), Box<dyn Error>> {
+    let child_stdout = child_process
+        .stdout
+        .take()
+        .ok_or_else(|| String::from("Smoke child stdout was not available."))?;
+    let mut child_stdout_reader = BufReader::new(child_stdout);
+    let mut child_ready_line = String::new();
+    child_stdout_reader.read_line(&mut child_ready_line)?;
+
+    let (target_process_id, target_address) = parse_child_ready_line(&child_ready_line)?;
+    let process_info = OpenedProcessInfo::new(
+        target_process_id,
+        String::from("debugger_service_native_smoke_child"),
+        u64::from(target_process_id),
+        Bitness::Bit64,
+        None,
+    );
+    let plugin_registry = Arc::new(PluginRegistry::new());
+
+    if !plugin_registry.is_plugin_enabled("builtin.debuggers.native") && !plugin_registry.set_plugin_enabled("builtin.debuggers.native", true) {
+        return Err(String::from("Failed to enable builtin.debuggers.native for smoke validation.").into());
+    }
+
+    let (engine_event_sender, engine_event_receiver) = mpsc::channel::<EngineEvent>();
+    let debugger_service = DebuggerService::new(
+        plugin_registry,
+        Arc::new(move |engine_event| {
+            let _ = engine_event_sender.send(engine_event);
+        }),
+    );
+
+    println!("Attaching session service to child process {target_process_id} at {target_address:#x}.");
+    let attach_status = debugger_service.attach(&process_info, Some("builtin.debuggers.native"))?;
+    println!(
+        "Attached through {}.",
+        attach_status
+            .get_active_plugin_id()
+            .unwrap_or("<unknown debugger plugin>")
+    );
+
+    let (trace_session, _) = debugger_service.start_trace_session(
+        target_address,
+        8,
+        DebuggerDataBreakpointAccess::Write,
+        Some(String::from("session-native-smoke-write")),
+    )?;
+    println!(
+        "Trace session {} armed at {:#x}.",
+        trace_session.get_trace_session_id(),
+        trace_session.get_address()
+    );
+
+    let listed_breakpoints = debugger_service.list_breakpoints()?;
+    println!("Session service reports {} breakpoint(s).", listed_breakpoints.len());
+
+    let trace_event = wait_for_trace_event(&engine_event_receiver, Duration::from_secs(10))?;
+    let trace_register_snapshot = trace_event.get_register_snapshot();
+    println!(
+        "Trace event: IP={}, instruction_address={}, bytes={}, registers={}, instruction={:?}, backend={:?}.",
+        format_optional_address(trace_register_snapshot.get_instruction_pointer()),
+        format_optional_address(trace_event.get_instruction_address()),
+        trace_event.get_instruction_bytes().len(),
+        trace_register_snapshot.get_registers().len(),
+        trace_event.get_instruction_text(),
+        trace_event.get_backend_message()
+    );
+
+    if trace_event.get_instruction_text().is_none() {
+        return Err(String::from("Session trace was not enriched with disassembly text.").into());
+    }
+
+    let (paused_trace_session, paused_instruction_records) = debugger_service.pause_trace_session(trace_session.get_trace_session_id())?;
+    println!(
+        "Paused trace collection for {} at {} instruction record(s).",
+        paused_trace_session.get_trace_session_id(),
+        paused_instruction_records.len()
+    );
+    let paused_hit_count = paused_instruction_records
+        .first()
+        .map(|instruction_record| instruction_record.get_hit_count())
+        .unwrap_or(0);
+    thread::sleep(Duration::from_millis(250));
+    let (_, instruction_records_while_paused) = debugger_service.list_trace_sessions()?;
+    let hit_count_while_paused = instruction_records_while_paused
+        .first()
+        .map(|instruction_record| instruction_record.get_hit_count())
+        .unwrap_or(0);
+
+    if hit_count_while_paused != paused_hit_count {
+        return Err(format!(
+            "Trace collection recorded hits while paused: before={}, after={}.",
+            paused_hit_count, hit_count_while_paused
+        )
+        .into());
+    }
+
+    let (resumed_trace_session, resumed_instruction_records) = debugger_service.resume_trace_session(trace_session.get_trace_session_id())?;
+    println!(
+        "Resumed trace collection for {} at {} instruction record(s).",
+        resumed_trace_session.get_trace_session_id(),
+        resumed_instruction_records.len()
+    );
+    let resumed_instruction_records = wait_for_trace_session_hit_count(
+        &debugger_service,
+        trace_session.get_trace_session_id(),
+        paused_hit_count.saturating_add(1),
+        Duration::from_secs(10),
+    )?;
+    println!(
+        "Resume captured {} instruction record(s), first hit count {}.",
+        resumed_instruction_records.len(),
+        resumed_instruction_records
+            .first()
+            .map(|instruction_record| instruction_record.get_hit_count())
+            .unwrap_or(0)
+    );
+
+    let (stopped_trace_session, instruction_records) = debugger_service.stop_trace_session(trace_session.get_trace_session_id())?;
+    println!(
+        "Stopped trace session {} with {} instruction record(s).",
+        stopped_trace_session.get_trace_session_id(),
+        instruction_records.len()
+    );
+
+    let (second_trace_session, _) = debugger_service.start_trace_session(
+        target_address,
+        8,
+        DebuggerDataBreakpointAccess::Write,
+        Some(String::from("session-native-smoke-write-restart")),
+    )?;
+    println!(
+        "Restarted trace session {} at {:#x}.",
+        second_trace_session.get_trace_session_id(),
+        second_trace_session.get_address()
+    );
+
+    let second_instruction_records =
+        wait_for_trace_session_hit_count(&debugger_service, second_trace_session.get_trace_session_id(), 1, Duration::from_secs(10))?;
+    let second_trace_event = second_instruction_records
+        .first()
+        .ok_or_else(|| String::from("Restarted trace did not record any instruction records."))?;
+    println!(
+        "Restart trace record: instruction_address={}, bytes={}, instruction={:?}.",
+        format_optional_address(second_trace_event.get_instruction_address()),
+        second_trace_event.get_instruction_bytes().len(),
+        second_trace_event.get_instruction_text(),
+    );
+
+    let (second_paused_trace_session, second_paused_instruction_records) = debugger_service.pause_trace_session(second_trace_session.get_trace_session_id())?;
+    println!(
+        "Paused restarted trace collection for {} at {} instruction record(s).",
+        second_paused_trace_session.get_trace_session_id(),
+        second_paused_instruction_records.len()
+    );
+
+    let (second_stopped_trace_session, second_instruction_records) = debugger_service.stop_trace_session(second_trace_session.get_trace_session_id())?;
+    println!(
+        "Stopped paused restarted trace session {} with {} instruction record(s).",
+        second_stopped_trace_session.get_trace_session_id(),
+        second_instruction_records.len()
+    );
+
+    let (third_trace_session, _) = debugger_service.start_trace_session(
+        target_address,
+        8,
+        DebuggerDataBreakpointAccess::Write,
+        Some(String::from("session-native-smoke-write-pause-stop-restart")),
+    )?;
+    println!(
+        "Restarted after pause-stop as trace session {} at {:#x}.",
+        third_trace_session.get_trace_session_id(),
+        third_trace_session.get_address()
+    );
+
+    let third_instruction_records =
+        wait_for_trace_session_hit_count(&debugger_service, third_trace_session.get_trace_session_id(), 1, Duration::from_secs(10))?;
+    let third_trace_event = third_instruction_records
+        .first()
+        .ok_or_else(|| String::from("Pause-stop restarted trace did not record any instruction records."))?;
+    println!(
+        "Pause-stop restart trace record: instruction_address={}, bytes={}, instruction={:?}.",
+        format_optional_address(third_trace_event.get_instruction_address()),
+        third_trace_event.get_instruction_bytes().len(),
+        third_trace_event.get_instruction_text(),
+    );
+
+    let (third_stopped_trace_session, third_instruction_records) = debugger_service.stop_trace_session(third_trace_session.get_trace_session_id())?;
+    println!(
+        "Stopped pause-stop restarted trace session {} with {} instruction record(s).",
+        third_stopped_trace_session.get_trace_session_id(),
+        third_instruction_records.len()
+    );
+
+    debugger_service.detach()?;
+    println!("Detached cleanly through the session service.");
+
+    Ok(())
+}
+
+#[cfg(windows)]
+fn wait_for_trace_session_hit_count(
+    debugger_service: &DebuggerService,
+    trace_session_id: &str,
+    minimum_hit_count: u64,
+    timeout: Duration,
+) -> Result<Vec<squalr_engine_api::structures::debugger::DebuggerTraceInstructionRecord>, Box<dyn Error>> {
+    let wait_started_at = Instant::now();
+
+    loop {
+        let (_, instruction_records) = debugger_service.list_trace_sessions()?;
+        let session_instruction_records = instruction_records
+            .into_iter()
+            .filter(|instruction_record| instruction_record.get_trace_session_id() == trace_session_id)
+            .collect::<Vec<_>>();
+        let maximum_hit_count = session_instruction_records
+            .iter()
+            .map(|instruction_record| instruction_record.get_hit_count())
+            .max()
+            .unwrap_or(0);
+
+        if maximum_hit_count >= minimum_hit_count {
+            return Ok(session_instruction_records);
+        }
+
+        if wait_started_at.elapsed() >= timeout {
+            return Err(format!(
+                "Timed out waiting for trace session {} to reach hit count {}.",
+                trace_session_id, minimum_hit_count
+            )
+            .into());
+        }
+
+        thread::sleep(Duration::from_millis(50));
+    }
+}
+
+#[cfg(windows)]
+fn parse_child_ready_line(child_ready_line: &str) -> Result<(u32, u64), Box<dyn Error>> {
+    let mut child_ready_parts = child_ready_line.split_whitespace();
+    let target_process_id = child_ready_parts
+        .next()
+        .ok_or_else(|| String::from("Smoke child did not print a process id."))?
+        .parse::<u32>()?;
+    let target_address_text = child_ready_parts
+        .next()
+        .ok_or_else(|| String::from("Smoke child did not print a target address."))?;
+    let target_address = u64::from_str_radix(target_address_text.trim_start_matches("0x"), 16)?;
+
+    Ok((target_process_id, target_address))
+}
+
+#[cfg(windows)]
+fn wait_for_trace_event(
+    engine_event_receiver: &mpsc::Receiver<EngineEvent>,
+    timeout: Duration,
+) -> Result<DebuggerTraceEvent, Box<dyn Error>> {
+    let wait_started_at = Instant::now();
+
+    loop {
+        if let Ok(engine_event) = engine_event_receiver.recv_timeout(Duration::from_millis(100)) {
+            if let EngineEvent::Debugger(DebuggerEvent::TraceRecorded { debugger_trace_recorded_event }) = engine_event {
+                return Ok(debugger_trace_recorded_event.trace_event);
+            }
+        }
+
+        if wait_started_at.elapsed() >= timeout {
+            return Err(String::from("Timed out waiting for a session debugger trace event.").into());
+        }
+    }
+}
+
+#[cfg(windows)]
+fn format_optional_address(address: Option<u64>) -> String {
+    address
+        .map(|address| format!("{address:#x}"))
+        .unwrap_or_else(|| String::from("<unknown>"))
+}
+
+#[cfg(not(windows))]
+fn main() {
+    println!("The native debugger session smoke example is only available on Windows right now.");
+}

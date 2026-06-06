@@ -6,7 +6,7 @@ use crate::{
     },
 };
 use squalr_engine_api::plugins::instruction_set::{
-    InstructionMemoryOperand, InstructionOperand, InstructionSet, ParsedInstruction, parse_instruction_sequence,
+    DisassembledInstruction, InstructionMemoryOperand, InstructionOperand, InstructionSet, ParsedInstruction, parse_instruction_sequence,
 };
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
@@ -26,9 +26,18 @@ enum DecodedInstruction {
 pub struct Arm32InstructionSet;
 
 #[derive(Clone, Debug, Default)]
+pub struct ThumbInstructionSet;
+
+#[derive(Clone, Debug, Default)]
 pub struct Arm64InstructionSet;
 
 impl Arm32InstructionSet {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl ThumbInstructionSet {
     pub fn new() -> Self {
         Self
     }
@@ -49,6 +58,10 @@ impl InstructionSet for Arm32InstructionSet {
         "ARM"
     }
 
+    fn get_max_instruction_size(&self) -> usize {
+        4
+    }
+
     fn assemble(
         &self,
         assembly_source: &str,
@@ -63,11 +76,90 @@ impl InstructionSet for Arm32InstructionSet {
         disassemble_instruction_sequence(ArmMode::Arm32, instruction_bytes)
     }
 
+    fn get_first_instruction_length(
+        &self,
+        instruction_bytes: &[u8],
+    ) -> Result<usize, String> {
+        get_fixed_four_byte_instruction_length("ARM", instruction_bytes)
+    }
+
     fn build_no_operation_fill(
         &self,
         byte_count: usize,
     ) -> Result<Vec<u8>, String> {
         build_arm_no_operation_fill(ArmMode::Arm32, byte_count)
+    }
+
+    fn build_software_breakpoint(&self) -> Result<Vec<u8>, String> {
+        Ok(0xE120_0070_u32.to_le_bytes().to_vec())
+    }
+}
+
+impl InstructionSet for ThumbInstructionSet {
+    fn get_instruction_set_id(&self) -> &str {
+        "thumb"
+    }
+
+    fn get_display_name(&self) -> &str {
+        "Thumb"
+    }
+
+    fn get_max_instruction_size(&self) -> usize {
+        4
+    }
+
+    fn assemble(
+        &self,
+        assembly_source: &str,
+    ) -> Result<Vec<u8>, String> {
+        assemble_thumb_instruction_sequence(assembly_source)
+    }
+
+    fn disassemble(
+        &self,
+        instruction_bytes: &[u8],
+    ) -> Result<String, String> {
+        disassemble_thumb_instruction_sequence(instruction_bytes)
+    }
+
+    fn disassemble_block(
+        &self,
+        instruction_bytes: &[u8],
+        base_address: u64,
+    ) -> Result<Vec<DisassembledInstruction>, String> {
+        disassemble_thumb_instruction_block(instruction_bytes, base_address)
+    }
+
+    fn get_first_instruction_length(
+        &self,
+        instruction_bytes: &[u8],
+    ) -> Result<usize, String> {
+        decode_thumb_first_instruction_length(instruction_bytes)
+    }
+
+    fn build_no_operation_fill(
+        &self,
+        byte_count: usize,
+    ) -> Result<Vec<u8>, String> {
+        if byte_count == 0 {
+            return Ok(Vec::new());
+        }
+
+        if byte_count % 2 != 0 {
+            return Err(format!("Thumb no-operation fill requires a byte count aligned to {} bytes.", 2));
+        }
+
+        let mut fill_bytes = Vec::with_capacity(byte_count);
+
+        while fill_bytes.len() < byte_count {
+            fill_bytes.extend_from_slice(&0xBF00_u16.to_le_bytes());
+        }
+
+        Ok(fill_bytes)
+    }
+
+    fn build_software_breakpoint(&self) -> Result<Vec<u8>, String> {
+        Ok(0xBE00_u16.to_le_bytes().to_vec())
     }
 }
 
@@ -78,6 +170,10 @@ impl InstructionSet for Arm64InstructionSet {
 
     fn get_display_name(&self) -> &str {
         "ARM64"
+    }
+
+    fn get_max_instruction_size(&self) -> usize {
+        4
     }
 
     fn assemble(
@@ -94,11 +190,33 @@ impl InstructionSet for Arm64InstructionSet {
         disassemble_instruction_sequence(ArmMode::Arm64, instruction_bytes)
     }
 
+    fn get_first_instruction_length(
+        &self,
+        instruction_bytes: &[u8],
+    ) -> Result<usize, String> {
+        get_fixed_four_byte_instruction_length("ARM64", instruction_bytes)
+    }
+
     fn build_no_operation_fill(
         &self,
         byte_count: usize,
     ) -> Result<Vec<u8>, String> {
         build_arm_no_operation_fill(ArmMode::Arm64, byte_count)
+    }
+
+    fn build_software_breakpoint(&self) -> Result<Vec<u8>, String> {
+        Ok(0xD420_0000_u32.to_le_bytes().to_vec())
+    }
+}
+
+fn get_fixed_four_byte_instruction_length(
+    instruction_set_name: &str,
+    instruction_bytes: &[u8],
+) -> Result<usize, String> {
+    if instruction_bytes.len() < 4 {
+        Err(format!("{} instruction length decoding requires at least 4 bytes.", instruction_set_name))
+    } else {
+        Ok(4)
     }
 }
 
@@ -188,6 +306,234 @@ fn disassemble_instruction_sequence(
     }
 
     Ok(format_decoded_instruction_sequence(&decoded_instructions, instruction_bytes.len()))
+}
+
+fn assemble_thumb_instruction_sequence(assembly_source: &str) -> Result<Vec<u8>, String> {
+    let parsed_instruction_sequence = parse_instruction_sequence(assembly_source).map_err(|error| error.to_string())?;
+    let label_addresses = parsed_instruction_sequence
+        .label_instruction_indices()
+        .iter()
+        .map(|(label_name, instruction_ordinal)| (label_name.clone(), (*instruction_ordinal as i64) * 2))
+        .collect::<HashMap<_, _>>();
+    let mut instruction_bytes = Vec::with_capacity(parsed_instruction_sequence.instructions().len() * 2);
+
+    for (instruction_ordinal, parsed_instruction) in parsed_instruction_sequence.instructions().iter().enumerate() {
+        let current_instruction_address = (instruction_ordinal as i64) * 2;
+        let instruction_halfword = encode_thumb_instruction(parsed_instruction, current_instruction_address, &label_addresses)?;
+
+        instruction_bytes.extend_from_slice(&instruction_halfword.to_le_bytes());
+    }
+
+    Ok(instruction_bytes)
+}
+
+fn disassemble_thumb_instruction_sequence(instruction_bytes: &[u8]) -> Result<String, String> {
+    let decoded_instructions = disassemble_thumb_instruction_block(instruction_bytes, 0)?;
+
+    Ok(decoded_instructions
+        .into_iter()
+        .map(|instruction| instruction.text)
+        .collect::<Vec<_>>()
+        .join("; "))
+}
+
+fn disassemble_thumb_instruction_block(
+    instruction_bytes: &[u8],
+    base_address: u64,
+) -> Result<Vec<DisassembledInstruction>, String> {
+    if instruction_bytes.is_empty() {
+        return Err(String::from("Instruction byte sequence must not be empty."));
+    }
+
+    let mut decoded_instructions = Vec::new();
+    let mut byte_offset = 0usize;
+
+    while byte_offset < instruction_bytes.len() {
+        let instruction_length = decode_thumb_first_instruction_length(&instruction_bytes[byte_offset..])?;
+        let instruction_end_offset = byte_offset
+            .checked_add(instruction_length)
+            .ok_or_else(|| String::from("Thumb instruction offset overflowed."))?;
+
+        if instruction_end_offset > instruction_bytes.len() {
+            return Err(String::from("Thumb instruction byte sequence ended in the middle of an instruction."));
+        }
+
+        let instruction_address = base_address.saturating_add(byte_offset as u64);
+        let instruction_slice = &instruction_bytes[byte_offset..instruction_end_offset];
+        let (instruction_text, branch_target_address, is_control_flow) = if instruction_length == 2 {
+            let instruction_halfword = u16::from_le_bytes([instruction_slice[0], instruction_slice[1]]);
+            let decoded_instruction = decode_thumb16_instruction(instruction_halfword, byte_offset as i64)?;
+
+            match decoded_instruction {
+                DecodedInstruction::Plain(instruction_text) => (instruction_text, None, false),
+                DecodedInstruction::Branch { mnemonic, target_address } => {
+                    let absolute_target_address = if target_address >= 0 {
+                        base_address.checked_add(target_address as u64)
+                    } else {
+                        None
+                    };
+                    let target_text = absolute_target_address
+                        .map(|address| format!("0x{:X}", address))
+                        .unwrap_or_else(|| format_signed_hex(target_address));
+
+                    (format!("{} {}", mnemonic, target_text), absolute_target_address, true)
+                }
+            }
+        } else {
+            let first_halfword = u16::from_le_bytes([instruction_slice[0], instruction_slice[1]]);
+            let second_halfword = u16::from_le_bytes([instruction_slice[2], instruction_slice[3]]);
+
+            (format!("thumb32 0x{:04X}{:04X}", first_halfword, second_halfword), None, false)
+        };
+
+        decoded_instructions.push(DisassembledInstruction {
+            address: instruction_address,
+            length: instruction_length,
+            bytes: instruction_slice.to_vec(),
+            text: instruction_text,
+            branch_target_address,
+            is_control_flow,
+        });
+
+        byte_offset = instruction_end_offset;
+    }
+
+    Ok(decoded_instructions)
+}
+
+fn decode_thumb_first_instruction_length(instruction_bytes: &[u8]) -> Result<usize, String> {
+    if instruction_bytes.len() < 2 {
+        return Err(String::from("Thumb instruction decoding requires at least 2 bytes."));
+    }
+
+    let first_halfword = u16::from_le_bytes([instruction_bytes[0], instruction_bytes[1]]);
+    let thumb_opcode_class = first_halfword >> 11;
+
+    if matches!(thumb_opcode_class, 0b11101 | 0b11110 | 0b11111) {
+        if instruction_bytes.len() < 4 {
+            return Err(String::from("Thumb-2 instruction decoding requires 4 bytes."));
+        }
+
+        Ok(4)
+    } else {
+        Ok(2)
+    }
+}
+
+fn encode_thumb_instruction(
+    parsed_instruction: &ParsedInstruction,
+    current_instruction_address: i64,
+    label_addresses: &HashMap<String, i64>,
+) -> Result<u16, String> {
+    match parsed_instruction.mnemonic() {
+        "nop" if parsed_instruction.operands().is_empty() => Ok(0xBF00),
+        "bkpt" => encode_thumb_breakpoint(parsed_instruction),
+        "bx" => encode_thumb_bx(parsed_instruction),
+        "b" => encode_thumb_branch(parsed_instruction, current_instruction_address, label_addresses),
+        "movs" => encode_thumb_movs(parsed_instruction),
+        unsupported_mnemonic => Err(format!("Unsupported Thumb mnemonic '{}'.", unsupported_mnemonic)),
+    }
+}
+
+fn encode_thumb_breakpoint(parsed_instruction: &ParsedInstruction) -> Result<u16, String> {
+    let immediate_value = if parsed_instruction.operands().is_empty() {
+        0
+    } else {
+        parse_non_negative_immediate_operand(parsed_instruction.operands(), 0, "Thumb bkpt")? as u16
+    };
+
+    if immediate_value > 0xFF {
+        return Err(format!("Thumb bkpt immediate '{}' is out of range.", immediate_value));
+    }
+
+    Ok(0xBE00 | immediate_value)
+}
+
+fn encode_thumb_bx(parsed_instruction: &ParsedInstruction) -> Result<u16, String> {
+    let register_index = parse_arm32_register_operand(parsed_instruction.operands(), 0)?;
+
+    Ok(0x4700 | ((register_index as u16) << 3))
+}
+
+fn encode_thumb_branch(
+    parsed_instruction: &ParsedInstruction,
+    current_instruction_address: i64,
+    label_addresses: &HashMap<String, i64>,
+) -> Result<u16, String> {
+    let target_address = resolve_branch_target_address(parsed_instruction.operands(), label_addresses)?;
+    let branch_delta_bytes = target_address - (current_instruction_address + 4);
+
+    if branch_delta_bytes % 2 != 0 {
+        return Err(format!("Thumb branch target '{}' must be 2-byte aligned.", format_signed_hex(target_address)));
+    }
+
+    let branch_delta_halfwords = branch_delta_bytes / 2;
+
+    if !(-0x400..=0x3FF).contains(&branch_delta_halfwords) {
+        return Err(format!(
+            "Thumb branch target '{}' is out of range for an 11-bit branch immediate.",
+            format_signed_hex(target_address)
+        ));
+    }
+
+    Ok(0xE000 | ((branch_delta_halfwords as i16 as u16) & 0x07FF))
+}
+
+fn encode_thumb_movs(parsed_instruction: &ParsedInstruction) -> Result<u16, String> {
+    let destination_register_index = parse_arm32_register_operand(parsed_instruction.operands(), 0)?;
+    let immediate_value = parse_non_negative_immediate_operand(parsed_instruction.operands(), 1, "Thumb movs")? as u16;
+
+    if destination_register_index > 7 {
+        return Err(format!(
+            "Thumb movs immediate only supports low registers r0-r7, got '{}'.",
+            format_arm32_register_name(destination_register_index)
+        ));
+    }
+
+    if immediate_value > 0xFF {
+        return Err(format!("Thumb movs immediate '{}' is out of range.", immediate_value));
+    }
+
+    Ok(0x2000 | ((destination_register_index as u16) << 8) | immediate_value)
+}
+
+fn decode_thumb16_instruction(
+    instruction_halfword: u16,
+    current_instruction_address: i64,
+) -> Result<DecodedInstruction, String> {
+    if instruction_halfword == 0xBF00 {
+        return Ok(DecodedInstruction::Plain(String::from("nop")));
+    }
+
+    if instruction_halfword & 0xFF00 == 0xBE00 {
+        return Ok(DecodedInstruction::Plain(format!("bkpt #{}", instruction_halfword & 0x00FF)));
+    }
+
+    if instruction_halfword & 0xFF87 == 0x4700 {
+        let register_index = ((instruction_halfword >> 3) & 0xF) as u8;
+
+        return Ok(DecodedInstruction::Plain(format!("bx {}", format_arm32_register_name(register_index))));
+    }
+
+    if instruction_halfword & 0xF800 == 0xE000 {
+        let branch_delta_halfwords = sign_extend((instruction_halfword & 0x07FF) as u32, 11);
+        let target_address = current_instruction_address + 4 + branch_delta_halfwords * 2;
+
+        return Ok(DecodedInstruction::Branch { mnemonic: "b", target_address });
+    }
+
+    if instruction_halfword & 0xF800 == 0x2000 {
+        let destination_register_index = ((instruction_halfword >> 8) & 0x7) as u8;
+        let immediate_value = instruction_halfword & 0x00FF;
+
+        return Ok(DecodedInstruction::Plain(format!(
+            "movs {}, #{}",
+            format_arm32_register_name(destination_register_index),
+            immediate_value
+        )));
+    }
+
+    Err(format!("Unsupported Thumb16 instruction 0x{:04X}.", instruction_halfword))
 }
 
 fn encode_arm32_instruction(

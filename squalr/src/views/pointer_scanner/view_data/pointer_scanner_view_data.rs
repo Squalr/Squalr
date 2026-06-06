@@ -1258,6 +1258,7 @@ impl PointerScannerViewData {
             module_name: Some(String::new()),
             data_type_id: Some(pointer_scanner_view_data_guard.get_target_data_type_id()),
             pointer_offsets: None,
+            initial_preview_value: None,
         })
     }
 
@@ -1283,6 +1284,7 @@ impl PointerScannerViewData {
             module_name: Some(String::new()),
             data_type_id: Some(pointer_scanner_view_data_guard.get_target_data_type_id()),
             pointer_offsets: None,
+            initial_preview_value: None,
         })
     }
 

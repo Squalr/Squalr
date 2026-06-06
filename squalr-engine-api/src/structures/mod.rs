@@ -1,8 +1,10 @@
 pub mod data_types;
 pub mod data_values;
+pub mod debugger;
 pub mod details;
 pub mod logging;
 pub mod memory;
+pub mod patches;
 pub mod pointer_scans;
 pub mod processes;
 pub mod projects;

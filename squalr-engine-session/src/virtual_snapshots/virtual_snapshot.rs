@@ -99,6 +99,14 @@ impl VirtualSnapshot {
             .unwrap_or(true)
     }
 
+    pub fn can_force_refresh(&self) -> bool {
+        !self.queries.is_empty() && !self.is_refresh_in_progress
+    }
+
+    pub fn mark_dirty(&mut self) {
+        self.query_version = self.query_version.saturating_add(1);
+    }
+
     pub fn mark_refresh_started(
         &mut self,
         now: Instant,
@@ -179,5 +187,30 @@ mod tests {
         virtual_snapshot.set_queries(queries);
 
         assert!(!virtual_snapshot.should_refresh(now + Duration::from_millis(100)));
+    }
+
+    #[test]
+    fn can_force_refresh_ignores_interval_for_populated_idle_snapshot() {
+        let mut virtual_snapshot = VirtualSnapshot::new(Duration::from_millis(500));
+        let now = Instant::now();
+        virtual_snapshot.set_queries(vec![create_pointer_query("ammo")]);
+        let refresh_query_version = virtual_snapshot.mark_refresh_started(now);
+        virtual_snapshot.apply_refresh_results(refresh_query_version, HashMap::new(), now);
+
+        assert!(!virtual_snapshot.should_refresh(now + Duration::from_millis(100)));
+        assert!(virtual_snapshot.can_force_refresh());
+    }
+
+    #[test]
+    fn mark_dirty_requires_refresh_after_current_refresh_completes() {
+        let mut virtual_snapshot = VirtualSnapshot::new(Duration::from_millis(500));
+        let now = Instant::now();
+        virtual_snapshot.set_queries(vec![create_pointer_query("ammo")]);
+        let refresh_query_version = virtual_snapshot.mark_refresh_started(now);
+
+        virtual_snapshot.mark_dirty();
+        virtual_snapshot.apply_refresh_results(refresh_query_version, HashMap::new(), now);
+
+        assert!(virtual_snapshot.should_refresh(now + Duration::from_millis(100)));
     }
 }

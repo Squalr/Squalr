@@ -14,7 +14,9 @@ use std::str::FromStr;
 const DATA_TYPE_ID_I_X86: &str = "i_x86";
 const DATA_TYPE_ID_I_X64: &str = "i_x64";
 const DATA_TYPE_ID_I_ARM: &str = "i_arm";
+const DATA_TYPE_ID_I_THUMB: &str = "i_thumb";
 const DATA_TYPE_ID_I_ARM64: &str = "i_arm64";
+const DATA_TYPE_ID_I_PPC32BE: &str = "i_ppc32be";
 
 pub struct DataTypeToStringConverter {}
 
@@ -59,7 +61,9 @@ impl DataTypeToStringConverter {
             DATA_TYPE_ID_I_X86 => String::from("i_x86"),
             DATA_TYPE_ID_I_X64 => String::from("i_x64"),
             DATA_TYPE_ID_I_ARM => String::from("i_arm"),
+            DATA_TYPE_ID_I_THUMB => String::from("i_thumb"),
             DATA_TYPE_ID_I_ARM64 => String::from("i_arm64"),
+            DATA_TYPE_ID_I_PPC32BE => String::from("i_ppc32be"),
             _ => base_data_type_id,
         };
 
@@ -89,6 +93,8 @@ mod tests {
 
     #[test]
     fn instruction_alias_label_is_preserved() {
+        assert_eq!(DataTypeToStringConverter::convert_data_type_to_string("i_thumb"), "i_thumb");
         assert_eq!(DataTypeToStringConverter::convert_data_type_to_string("i_arm64"), "i_arm64");
+        assert_eq!(DataTypeToStringConverter::convert_data_type_to_string("i_ppc32be"), "i_ppc32be");
     }
 }

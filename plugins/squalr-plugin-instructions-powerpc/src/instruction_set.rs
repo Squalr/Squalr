@@ -29,6 +29,10 @@ impl InstructionSet for PowerPc32BeInstructionSet {
         "PowerPC32 BE"
     }
 
+    fn get_max_instruction_size(&self) -> usize {
+        4
+    }
+
     fn assemble(
         &self,
         assembly_source: &str,
@@ -81,6 +85,17 @@ impl InstructionSet for PowerPc32BeInstructionSet {
         Ok(format_decoded_instruction_sequence(&decoded_instructions, instruction_bytes.len()))
     }
 
+    fn get_first_instruction_length(
+        &self,
+        instruction_bytes: &[u8],
+    ) -> Result<usize, String> {
+        if instruction_bytes.len() < 4 {
+            Err(String::from("PowerPC32 BE instruction length decoding requires at least 4 bytes."))
+        } else {
+            Ok(4)
+        }
+    }
+
     fn build_no_operation_fill(
         &self,
         byte_count: usize,
@@ -105,6 +120,10 @@ impl InstructionSet for PowerPc32BeInstructionSet {
         }
 
         Ok(fill_bytes)
+    }
+
+    fn build_software_breakpoint(&self) -> Result<Vec<u8>, String> {
+        Ok(0x7FE0_0008_u32.to_be_bytes().to_vec())
     }
 }
 

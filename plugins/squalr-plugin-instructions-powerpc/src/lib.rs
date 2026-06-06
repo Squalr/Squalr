@@ -15,9 +15,9 @@ pub use plugin::PowerPcFamilyInstructionsPlugin;
 
 #[cfg(test)]
 mod tests {
-    use crate::{DataTypeInstructionPowerPc32Be, PowerPcFamilyInstructionsPlugin};
+    use crate::{DataTypeInstructionPowerPc32Be, PowerPc32BeInstructionSet, PowerPcFamilyInstructionsPlugin};
     use squalr_engine_api::{
-        plugins::{Plugin, PluginCapability},
+        plugins::{Plugin, PluginCapability, instruction_set::InstructionSet},
         structures::{
             data_types::data_type::DataType,
             data_values::{
@@ -70,9 +70,18 @@ mod tests {
     }
 
     #[test]
+    fn powerpc_instruction_set_builds_software_breakpoint() {
+        assert_eq!(
+            PowerPc32BeInstructionSet::new()
+                .build_software_breakpoint()
+                .as_deref(),
+            Ok(&[0x7F, 0xE0, 0x00, 0x08][..])
+        );
+    }
+
+    #[test]
     fn plugin_exposes_data_type_and_instruction_set_capabilities() {
         let plugin = PowerPcFamilyInstructionsPlugin::new();
-        let expected_default_enablement = cfg!(any(target_arch = "powerpc", target_arch = "powerpc64"));
 
         assert_eq!(plugin.metadata().get_plugin_id(), "builtin.instruction-set.powerpc-family");
         assert!(
@@ -85,6 +94,6 @@ mod tests {
                 .metadata()
                 .has_plugin_capability(PluginCapability::InstructionSet)
         );
-        assert_eq!(plugin.metadata().get_is_enabled_by_default(), expected_default_enablement);
+        assert!(plugin.metadata().get_is_enabled_by_default());
     }
 }

@@ -31,7 +31,7 @@ use squalr_tests::mocks::mock_engine_bindings::MockEngineBindings;
 #[test]
 fn project_list_request_dispatches_unprivileged_command_and_invokes_typed_callback() {
     let bindings = MockEngineBindings::new(
-        MemoryWriteResponse { success: true }.to_engine_response(),
+        MemoryWriteResponse { success: true, error: None }.to_engine_response(),
         ProjectListResponse::default().to_engine_response(),
     );
     let dispatched_unprivileged_commands = bindings.get_dispatched_unprivileged_commands();
@@ -62,7 +62,7 @@ fn project_list_request_dispatches_unprivileged_command_and_invokes_typed_callba
 #[test]
 fn project_open_request_dispatches_unprivileged_command_and_invokes_typed_callback() {
     let bindings = MockEngineBindings::new(
-        MemoryWriteResponse { success: true }.to_engine_response(),
+        MemoryWriteResponse { success: true, error: None }.to_engine_response(),
         ProjectOpenResponse { success: true }.to_engine_response(),
     );
     let dispatched_unprivileged_commands = bindings.get_dispatched_unprivileged_commands();
@@ -109,7 +109,7 @@ fn project_open_request_dispatches_unprivileged_command_and_invokes_typed_callba
 #[test]
 fn project_create_request_dispatches_unprivileged_command_and_invokes_typed_callback() {
     let bindings = MockEngineBindings::new(
-        MemoryWriteResponse { success: true }.to_engine_response(),
+        MemoryWriteResponse { success: true, error: None }.to_engine_response(),
         ProjectCreateResponse {
             success: true,
             new_project_path: PathBuf::from("C:\\Projects\\ContractCreateProject"),
@@ -160,7 +160,7 @@ fn project_create_request_dispatches_unprivileged_command_and_invokes_typed_call
 #[test]
 fn project_delete_request_dispatches_unprivileged_command_and_invokes_typed_callback() {
     let bindings = MockEngineBindings::new(
-        MemoryWriteResponse { success: true }.to_engine_response(),
+        MemoryWriteResponse { success: true, error: None }.to_engine_response(),
         ProjectDeleteResponse { success: true }.to_engine_response(),
     );
     let dispatched_unprivileged_commands = bindings.get_dispatched_unprivileged_commands();
@@ -205,7 +205,7 @@ fn project_delete_request_dispatches_unprivileged_command_and_invokes_typed_call
 #[test]
 fn project_rename_request_dispatches_unprivileged_command_and_invokes_typed_callback() {
     let bindings = MockEngineBindings::new(
-        MemoryWriteResponse { success: true }.to_engine_response(),
+        MemoryWriteResponse { success: true, error: None }.to_engine_response(),
         ProjectRenameResponse {
             success: true,
             new_project_path: PathBuf::from("C:\\Projects\\RenamedProject"),
@@ -256,7 +256,7 @@ fn project_rename_request_dispatches_unprivileged_command_and_invokes_typed_call
 #[test]
 fn project_export_request_dispatches_unprivileged_command_and_invokes_typed_callback() {
     let bindings = MockEngineBindings::new(
-        MemoryWriteResponse { success: true }.to_engine_response(),
+        MemoryWriteResponse { success: true, error: None }.to_engine_response(),
         ProjectExportResponse { success: true }.to_engine_response(),
     );
     let dispatched_unprivileged_commands = bindings.get_dispatched_unprivileged_commands();
@@ -303,7 +303,7 @@ fn project_export_request_dispatches_unprivileged_command_and_invokes_typed_call
 #[test]
 fn project_close_request_dispatches_unprivileged_command_and_invokes_typed_callback() {
     let bindings = MockEngineBindings::new(
-        MemoryWriteResponse { success: true }.to_engine_response(),
+        MemoryWriteResponse { success: true, error: None }.to_engine_response(),
         ProjectCloseResponse { success: true }.to_engine_response(),
     );
     let dispatched_unprivileged_commands = bindings.get_dispatched_unprivileged_commands();
@@ -334,7 +334,7 @@ fn project_close_request_dispatches_unprivileged_command_and_invokes_typed_callb
 #[test]
 fn project_save_request_dispatches_unprivileged_command_and_invokes_typed_callback() {
     let bindings = MockEngineBindings::new(
-        MemoryWriteResponse { success: true }.to_engine_response(),
+        MemoryWriteResponse { success: true, error: None }.to_engine_response(),
         ProjectSaveResponse { success: true }.to_engine_response(),
     );
     let dispatched_unprivileged_commands = bindings.get_dispatched_unprivileged_commands();
@@ -365,7 +365,7 @@ fn project_save_request_dispatches_unprivileged_command_and_invokes_typed_callba
 #[test]
 fn project_save_request_does_not_invoke_callback_when_response_variant_is_wrong() {
     let bindings = MockEngineBindings::new(
-        MemoryWriteResponse { success: true }.to_engine_response(),
+        MemoryWriteResponse { success: true, error: None }.to_engine_response(),
         ProjectListResponse::default().to_engine_response(),
     );
     let dispatched_unprivileged_commands = bindings.get_dispatched_unprivileged_commands();

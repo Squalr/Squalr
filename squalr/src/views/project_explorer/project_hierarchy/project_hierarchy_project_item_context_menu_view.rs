@@ -24,6 +24,7 @@ use squalr_engine_api::{
     dependency_injection::dependency::Dependency,
     engine::engine_execution_context::EngineExecutionContext,
     structures::{
+        debugger::DebuggerDataBreakpointAccess,
         memory::pointer::Pointer,
         projects::{
             project_info::ProjectInfo,
@@ -78,6 +79,16 @@ impl<'lifetime> ProjectHierarchyProjectItemContextMenuView<'lifetime> {
     const PROJECT_ITEM_CTX_OPEN_MEMORY_VIEWER_LABEL: &'static str = OPEN_IN_MEMORY_VIEWER_LABEL;
     const PROJECT_ITEM_CTX_OPEN_CODE_VIEWER_LABEL: &'static str = OPEN_IN_CODE_VIEWER_LABEL;
     const PROJECT_ITEM_CTX_OPEN_RUNTIME_VIEWER_ID: &'static str = "project_hierarchy_ctx_open_runtime_viewer";
+    const PROJECT_ITEM_CTX_FIND_READS_LABEL: &'static str = "Find What Reads";
+    const PROJECT_ITEM_CTX_FIND_WRITES_LABEL: &'static str = "Find What Writes";
+    const PROJECT_ITEM_CTX_FIND_ACCESSES_LABEL: &'static str = "Find What Accesses";
+    const PROJECT_ITEM_CTX_FIND_READS_ID: &'static str = "project_hierarchy_ctx_find_reads";
+    const PROJECT_ITEM_CTX_FIND_WRITES_ID: &'static str = "project_hierarchy_ctx_find_writes";
+    const PROJECT_ITEM_CTX_FIND_ACCESSES_ID: &'static str = "project_hierarchy_ctx_find_accesses";
+    const PROJECT_ITEM_CTX_REPLACE_WITH_NO_OPERATION_LABEL: &'static str = "Replace with Code That Does Nothing";
+    const PROJECT_ITEM_CTX_REPLACE_WITH_NO_OPERATION_ID: &'static str = "project_hierarchy_ctx_replace_with_nop";
+    const PROJECT_ITEM_CTX_RESTORE_ORIGINAL_CODE_LABEL: &'static str = "Restore Original Code";
+    const PROJECT_ITEM_CTX_RESTORE_ORIGINAL_CODE_ID: &'static str = "project_hierarchy_ctx_restore_original_code";
     const PROJECT_ITEM_CTX_PROMOTE_TO_SYMBOL_LABEL: &'static str = "Promote to Symbol";
     const PROJECT_ITEM_CTX_PROMOTE_TO_SYMBOL_ID: &'static str = "project_hierarchy_ctx_promote_to_symbol";
     const PROJECT_ITEM_CTX_STRIP_SYMBOL_INFORMATION_ID: &'static str = "project_hierarchy_ctx_strip_symbol_information";
@@ -178,6 +189,8 @@ impl<'lifetime> ProjectHierarchyProjectItemContextMenuView<'lifetime> {
         let pointer_scanner_context_actions = Self::build_pointer_scanner_context_actions(self.opened_project_info, &self.tree_entry.project_item);
         let can_open_in_memory_viewer = can_open_project_item_in_memory_viewer(&self.tree_entry.project_item);
         let should_open_in_code_viewer = should_open_project_item_in_code_viewer(&self.tree_entry.project_item);
+        let can_start_debugger_trace = can_open_in_memory_viewer;
+        let can_replace_with_no_operation = should_open_in_code_viewer;
         let runtime_viewer_label = if should_open_in_code_viewer {
             Self::PROJECT_ITEM_CTX_OPEN_CODE_VIEWER_LABEL
         } else {
@@ -195,6 +208,15 @@ impl<'lifetime> ProjectHierarchyProjectItemContextMenuView<'lifetime> {
 
         if can_open_in_memory_viewer {
             project_item_menu_labels.push(runtime_viewer_label);
+        }
+        if can_start_debugger_trace {
+            project_item_menu_labels.push(Self::PROJECT_ITEM_CTX_FIND_READS_LABEL);
+            project_item_menu_labels.push(Self::PROJECT_ITEM_CTX_FIND_WRITES_LABEL);
+            project_item_menu_labels.push(Self::PROJECT_ITEM_CTX_FIND_ACCESSES_LABEL);
+        }
+        if can_replace_with_no_operation {
+            project_item_menu_labels.push(Self::PROJECT_ITEM_CTX_REPLACE_WITH_NO_OPERATION_LABEL);
+            project_item_menu_labels.push(Self::PROJECT_ITEM_CTX_RESTORE_ORIGINAL_CODE_LABEL);
         }
         if can_promote_project_item_paths {
             project_item_menu_labels.push(Self::PROJECT_ITEM_CTX_PROMOTE_TO_SYMBOL_LABEL);
@@ -231,6 +253,8 @@ impl<'lifetime> ProjectHierarchyProjectItemContextMenuView<'lifetime> {
                     runtime_viewer_label,
                     should_open_in_code_viewer,
                     can_open_in_memory_viewer,
+                    can_start_debugger_trace,
+                    can_replace_with_no_operation,
                     project_item_menu_width,
                     should_close,
                     frame_actions,
@@ -352,6 +376,8 @@ impl<'lifetime> ProjectHierarchyProjectItemContextMenuView<'lifetime> {
         runtime_viewer_label: &str,
         should_open_in_code_viewer: bool,
         can_open_in_memory_viewer: bool,
+        can_start_debugger_trace: bool,
+        can_replace_with_no_operation: bool,
         project_item_menu_width: f32,
         should_close: &mut bool,
         frame_actions: &mut Vec<ProjectHierarchyFrameAction>,
@@ -441,6 +467,194 @@ impl<'lifetime> ProjectHierarchyProjectItemContextMenuView<'lifetime> {
                     log::error!("Failed to resolve memory viewer target for project item: {:?}.", tree_entry_project_item_path);
                 }
             }
+        }
+
+        if can_start_debugger_trace {
+            self.show_trace_context_menu_item(
+                user_interface,
+                tree_entry_project_item_path,
+                Self::PROJECT_ITEM_CTX_FIND_READS_LABEL,
+                Self::PROJECT_ITEM_CTX_FIND_READS_ID,
+                DebuggerDataBreakpointAccess::Read,
+                project_item_menu_width,
+                should_close,
+                frame_actions,
+            );
+            self.show_trace_context_menu_item(
+                user_interface,
+                tree_entry_project_item_path,
+                Self::PROJECT_ITEM_CTX_FIND_WRITES_LABEL,
+                Self::PROJECT_ITEM_CTX_FIND_WRITES_ID,
+                DebuggerDataBreakpointAccess::Write,
+                project_item_menu_width,
+                should_close,
+                frame_actions,
+            );
+            self.show_trace_context_menu_item(
+                user_interface,
+                tree_entry_project_item_path,
+                Self::PROJECT_ITEM_CTX_FIND_ACCESSES_LABEL,
+                Self::PROJECT_ITEM_CTX_FIND_ACCESSES_ID,
+                DebuggerDataBreakpointAccess::ReadWrite,
+                project_item_menu_width,
+                should_close,
+                frame_actions,
+            );
+        }
+
+        if can_replace_with_no_operation {
+            self.show_replace_with_no_operation_context_menu_item(
+                user_interface,
+                tree_entry_project_item_path,
+                project_item_menu_width,
+                should_close,
+                frame_actions,
+            );
+            self.show_restore_original_code_context_menu_item(
+                user_interface,
+                tree_entry_project_item_path,
+                project_item_menu_width,
+                should_close,
+                frame_actions,
+            );
+        }
+    }
+
+    fn show_trace_context_menu_item(
+        &self,
+        user_interface: &mut Ui,
+        tree_entry_project_item_path: &Path,
+        label: &'static str,
+        id: &'static str,
+        access: DebuggerDataBreakpointAccess,
+        project_item_menu_width: f32,
+        should_close: &mut bool,
+        frame_actions: &mut Vec<ProjectHierarchyFrameAction>,
+    ) {
+        if !user_interface
+            .add(ToolbarMenuItemView::new(self.app_context.clone(), label, id, &None, project_item_menu_width))
+            .clicked()
+        {
+            return;
+        }
+
+        let engine_execution_context: Arc<dyn EngineExecutionContext> = self.app_context.engine_unprivileged_state.clone();
+        let project_symbol_catalog = self
+            .opened_project_info
+            .map(|opened_project_info| opened_project_info.get_project_symbol_catalog());
+
+        if let Some((address, module_name)) =
+            resolve_project_item_runtime_value_target(&engine_execution_context, project_symbol_catalog, &self.tree_entry.project_item)
+        {
+            let size_in_bytes = resolve_project_item_runtime_value_byte_count(&engine_execution_context, &self.tree_entry.project_item)
+                .map(Self::normalize_data_breakpoint_size)
+                .unwrap_or(1);
+            let label = Some(format!("{}: {}", label, self.tree_entry.display_name));
+
+            frame_actions.push(ProjectHierarchyFrameAction::StartDebuggerTraceForAddress {
+                address,
+                module_name,
+                size_in_bytes,
+                access,
+                label,
+            });
+            *should_close = true;
+        } else {
+            log::error!("Failed to resolve debugger trace target for project item: {:?}.", tree_entry_project_item_path);
+        }
+    }
+
+    fn normalize_data_breakpoint_size(byte_count: u64) -> u8 {
+        if byte_count <= 1 {
+            1
+        } else if byte_count <= 2 {
+            2
+        } else if byte_count <= 4 {
+            4
+        } else {
+            8
+        }
+    }
+
+    fn show_replace_with_no_operation_context_menu_item(
+        &self,
+        user_interface: &mut Ui,
+        tree_entry_project_item_path: &Path,
+        project_item_menu_width: f32,
+        should_close: &mut bool,
+        frame_actions: &mut Vec<ProjectHierarchyFrameAction>,
+    ) {
+        if !user_interface
+            .add(ToolbarMenuItemView::new(
+                self.app_context.clone(),
+                Self::PROJECT_ITEM_CTX_REPLACE_WITH_NO_OPERATION_LABEL,
+                Self::PROJECT_ITEM_CTX_REPLACE_WITH_NO_OPERATION_ID,
+                &None,
+                project_item_menu_width,
+            ))
+            .clicked()
+        {
+            return;
+        }
+
+        let engine_execution_context: Arc<dyn EngineExecutionContext> = self.app_context.engine_unprivileged_state.clone();
+        let project_symbol_catalog = self
+            .opened_project_info
+            .map(|opened_project_info| opened_project_info.get_project_symbol_catalog());
+
+        if let Some((address, module_name)) =
+            resolve_project_item_runtime_value_target(&engine_execution_context, project_symbol_catalog, &self.tree_entry.project_item)
+        {
+            frame_actions.push(ProjectHierarchyFrameAction::ReplaceInstructionWithNoOperation {
+                address,
+                module_name,
+                label: Some(self.tree_entry.display_name.clone()),
+            });
+            *should_close = true;
+        } else {
+            log::error!(
+                "Failed to resolve replace-with-no-operation target for project item: {:?}.",
+                tree_entry_project_item_path
+            );
+        }
+    }
+
+    fn show_restore_original_code_context_menu_item(
+        &self,
+        user_interface: &mut Ui,
+        tree_entry_project_item_path: &Path,
+        project_item_menu_width: f32,
+        should_close: &mut bool,
+        frame_actions: &mut Vec<ProjectHierarchyFrameAction>,
+    ) {
+        if !user_interface
+            .add(ToolbarMenuItemView::new(
+                self.app_context.clone(),
+                Self::PROJECT_ITEM_CTX_RESTORE_ORIGINAL_CODE_LABEL,
+                Self::PROJECT_ITEM_CTX_RESTORE_ORIGINAL_CODE_ID,
+                &None,
+                project_item_menu_width,
+            ))
+            .clicked()
+        {
+            return;
+        }
+
+        let engine_execution_context: Arc<dyn EngineExecutionContext> = self.app_context.engine_unprivileged_state.clone();
+        let project_symbol_catalog = self
+            .opened_project_info
+            .map(|opened_project_info| opened_project_info.get_project_symbol_catalog());
+
+        if let Some((address, module_name)) =
+            resolve_project_item_runtime_value_target(&engine_execution_context, project_symbol_catalog, &self.tree_entry.project_item)
+        {
+            frame_actions.push(ProjectHierarchyFrameAction::RestoreInstructionOriginalCode { address, module_name });
+            *should_close = true;
+        } else {
+            log::error!(
+                "Failed to resolve restore-original-code target for project item: {:?}.",
+                tree_entry_project_item_path
+            );
         }
     }
 

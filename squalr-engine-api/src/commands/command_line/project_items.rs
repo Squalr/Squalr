@@ -245,6 +245,7 @@ impl From<CommandLineProjectItemsCreateRequest> for api::commands::project_items
             module_name: None,
             data_type_id: None,
             pointer_offsets: None,
+            initial_preview_value: None,
         }
     }
 }

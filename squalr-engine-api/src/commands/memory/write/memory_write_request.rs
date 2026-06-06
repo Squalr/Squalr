@@ -5,12 +5,21 @@ use crate::commands::privileged_command::PrivilegedCommand;
 use crate::commands::privileged_command_request::PrivilegedCommandRequest;
 use serde::{Deserialize, Serialize};
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub enum MemoryWriteMode {
+    #[default]
+    Raw,
+    CheckedCode,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MemoryWriteRequest {
     // JIRA: Seems sus to just have generic int or hex parser.
     pub address: u64,
     pub module_name: String,
     pub value: Vec<u8>,
+    #[serde(default)]
+    pub write_mode: MemoryWriteMode,
 }
 
 impl PrivilegedCommandRequest for MemoryWriteRequest {

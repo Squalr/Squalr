@@ -3,6 +3,8 @@ use squalr_engine_api::commands::memory::read::memory_read_response::MemoryReadR
 use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRequest;
 use squalr_engine_api::commands::privileged_command_response::TypedPrivilegedCommandResponse;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
+use squalr_engine_api::plugins::instruction_set::{instruction_set_id_from_instruction_data_type_id, normalize_instruction_data_type_id};
+use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::{
     container_type::ContainerType,
     data_value_preview_formatter::{DataValuePreviewFormatOptions, DataValuePreviewFormatter},
@@ -44,6 +46,7 @@ struct ProjectItemPreviewReadDefinition {
     symbolic_struct_definition: SymbolicStructDefinition,
     symbolic_field_container_type: ContainerType,
     preview_was_truncated: bool,
+    instruction_set_id: Option<String>,
 }
 
 impl ProjectItemPreviewRefreshSession {
@@ -73,6 +76,7 @@ struct PointerPreviewEvaluation {
 }
 
 const PROJECT_ITEM_PREVIEW_FORMAT_OPTIONS: DataValuePreviewFormatOptions = DataValuePreviewFormatOptions::new(4, 96, 96);
+const FALLBACK_INSTRUCTION_PREVIEW_BYTE_COUNT: u64 = 16;
 
 pub fn refresh_project_item_display_values(
     engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
@@ -143,7 +147,6 @@ fn refresh_address_project_item_display_value(
         ProjectItemTypeAddress::set_field_freeze_data_value_interpreter(project_item, "");
         return;
     };
-
     refresh_project_item_display_value_from_memory_read(
         engine_unprivileged_state,
         project_item_preview_refresh_session,
@@ -247,17 +250,31 @@ fn refresh_project_item_display_value_from_memory_read<SetDisplayValue>(
         return;
     };
 
+    if let Some(instruction_set_id) = project_item_preview_read_definition
+        .instruction_set_id
+        .as_deref()
+    {
+        set_display_value(&format_instruction_preview_from_bytes(
+            engine_unprivileged_state,
+            instruction_set_id,
+            first_read_field_data_value.get_value_bytes(),
+        ));
+        return;
+    }
+
     let default_anonymous_value_string_format =
         engine_unprivileged_state.get_default_anonymous_value_string_format(first_read_field_data_value.get_data_type_ref());
     let freeze_display_value = engine_unprivileged_state
         .anonymize_value(first_read_field_data_value, default_anonymous_value_string_format)
         .map(|anonymous_value_string| {
-            DataValuePreviewFormatter::format_anonymous_value_preview(
+            let preview_value = DataValuePreviewFormatter::format_anonymous_value_preview(
                 &anonymous_value_string,
                 project_item_preview_read_definition.symbolic_field_container_type,
                 project_item_preview_read_definition.preview_was_truncated,
                 PROJECT_ITEM_PREVIEW_FORMAT_OPTIONS,
-            )
+            );
+
+            preview_value
         })
         .unwrap_or_default();
 
@@ -268,6 +285,27 @@ fn build_project_item_preview_read_definition(
     engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
     symbolic_struct_namespace: &str,
 ) -> Option<ProjectItemPreviewReadDefinition> {
+    if let Some(instruction_data_type_id) = normalize_instruction_preview_data_type_id(symbolic_struct_namespace) {
+        let instruction_set_id = instruction_set_id_from_instruction_data_type_id(&instruction_data_type_id);
+        let instruction_preview_byte_count = instruction_set_id
+            .as_deref()
+            .and_then(|instruction_set_id| engine_unprivileged_state.find_instruction_set(instruction_set_id))
+            .map(|instruction_set| instruction_set.get_max_instruction_size() as u64)
+            .filter(|instruction_preview_byte_count| *instruction_preview_byte_count > 0)
+            .unwrap_or(FALLBACK_INSTRUCTION_PREVIEW_BYTE_COUNT);
+
+        return Some(ProjectItemPreviewReadDefinition {
+            layout_key: format!("{}|instruction-preview:{}", instruction_data_type_id, instruction_preview_byte_count),
+            symbolic_struct_definition: SymbolicStructDefinition::new_anonymous(vec![SymbolicFieldDefinition::new(
+                DataTypeRef::new("u8"),
+                ContainerType::ArrayFixed(instruction_preview_byte_count),
+            )]),
+            symbolic_field_container_type: ContainerType::None,
+            preview_was_truncated: false,
+            instruction_set_id,
+        });
+    }
+
     let symbolic_field_container_type = resolve_project_item_container_type(symbolic_struct_namespace);
     let symbolic_struct_definition = engine_unprivileged_state.resolve_struct_layout_definition(symbolic_struct_namespace)?;
     let preview_field_definition = SymbolicFieldDefinition::from_str(symbolic_struct_namespace).ok();
@@ -278,6 +316,7 @@ fn build_project_item_preview_read_definition(
             symbolic_struct_definition,
             symbolic_field_container_type,
             preview_was_truncated: false,
+            instruction_set_id: None,
         });
     };
 
@@ -300,13 +339,36 @@ fn build_project_item_preview_read_definition(
         },
         symbolic_field_container_type,
         preview_was_truncated,
+        instruction_set_id: None,
     })
 }
 
 fn resolve_project_item_container_type(symbolic_struct_namespace: &str) -> ContainerType {
+    if normalize_instruction_preview_data_type_id(symbolic_struct_namespace).is_some() {
+        return ContainerType::None;
+    }
+
     SymbolicFieldDefinition::from_str(symbolic_struct_namespace)
         .map(|symbolic_field_definition| symbolic_field_definition.get_container_type())
         .unwrap_or(ContainerType::None)
+}
+
+fn normalize_instruction_preview_data_type_id(symbolic_struct_namespace: &str) -> Option<String> {
+    normalize_instruction_data_type_id(symbolic_struct_namespace)
+}
+
+fn format_instruction_preview_from_bytes(
+    engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
+    instruction_set_id: &str,
+    instruction_bytes: &[u8],
+) -> String {
+    engine_unprivileged_state
+        .find_instruction_set(instruction_set_id)
+        .and_then(|instruction_set| instruction_set.disassemble_block(instruction_bytes, 0).ok())
+        .and_then(|instructions| instructions.into_iter().next())
+        .map(|instruction| instruction.text)
+        .filter(|instruction_text| !instruction_text.trim().is_empty())
+        .unwrap_or_default()
 }
 
 fn evaluate_pointer_for_preview(
@@ -508,7 +570,8 @@ fn dispatch_memory_read_request(
 mod tests {
     use super::{
         DataValuePreviewFormatter, PROJECT_ITEM_PREVIEW_FORMAT_OPTIONS, ProjectItemPreviewRefreshSession, build_project_item_preview_read_definition,
-        evaluate_pointer_for_preview, refresh_pointer_project_item_display_value, refresh_project_item_display_values_with_session,
+        evaluate_pointer_for_preview, refresh_address_project_item_display_value, refresh_pointer_project_item_display_value,
+        refresh_project_item_display_values_with_session,
     };
     use crossbeam_channel::{Receiver, unbounded};
     use squalr_engine_api::commands::memory::memory_command::MemoryCommand;
@@ -521,11 +584,14 @@ mod tests {
     use squalr_engine_api::engine::engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings;
     use squalr_engine_api::engine::engine_binding_error::EngineBindingError;
     use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
+    use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
     use squalr_engine_api::structures::data_types::built_in_types::{
         u16::data_type_u16::DataTypeU16, u32::data_type_u32::DataTypeU32, u64::data_type_u64::DataTypeU64,
     };
+    use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
     use squalr_engine_api::structures::data_values::{
         anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType,
+        data_value::DataValue,
     };
     use squalr_engine_api::structures::memory::pointer::Pointer;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
@@ -1074,6 +1140,89 @@ mod tests {
             project_item_preview_read_definition
                 .layout_key
                 .contains(&DataValuePreviewFormatter::DEFAULT_MAX_ARRAY_PREVIEW_ELEMENT_COUNT.to_string())
+        );
+    }
+
+    #[test]
+    fn build_project_item_preview_read_definition_reads_instruction_byte_window() {
+        let engine_execution_context = create_execution_context(MockMemoryReadBindings::new(|_memory_read_request| {
+            create_pointer_memory_read_response(0, PointerScanPointerSize::Pointer64, false)
+        }));
+
+        let project_item_preview_read_definition =
+            build_project_item_preview_read_definition(&engine_execution_context, "i_x64[3]").expect("Expected preview read definition for instruction type.");
+        let preview_field = project_item_preview_read_definition
+            .symbolic_struct_definition
+            .get_fields()
+            .first()
+            .expect("Expected instruction preview field.");
+
+        assert_eq!(preview_field.get_data_type_ref().get_data_type_id(), "u8");
+        assert_eq!(preview_field.get_container_type(), ContainerType::ArrayFixed(15));
+        assert_eq!(
+            project_item_preview_read_definition
+                .symbolic_struct_definition
+                .get_size_in_bytes(&SymbolRegistry::new()),
+            15
+        );
+        assert_eq!(project_item_preview_read_definition.symbolic_field_container_type, ContainerType::None);
+        assert_eq!(
+            project_item_preview_read_definition
+                .instruction_set_id
+                .as_deref(),
+            Some("x64")
+        );
+    }
+
+    #[test]
+    fn refresh_address_project_item_display_value_disassembles_instruction_preview() {
+        let mock_memory_read_bindings = MockMemoryReadBindings::new(|memory_read_request| {
+            assert_eq!(memory_read_request.address, 0x1234);
+            assert_eq!(memory_read_request.module_name, "game.exe");
+
+            create_value_memory_read_response(DataValue::new(DataTypeRef::new("i_x64"), vec![0x90, 0x90, 0x90, 0x90]), true)
+        });
+        let engine_execution_context = create_execution_context(mock_memory_read_bindings);
+        let mut address_project_item =
+            ProjectItemTypeAddress::new_project_item("Instruction", 0x1234, "game.exe", "", DataValue::new(DataTypeRef::new("i_x64"), vec![0x90]));
+        let mut project_item_preview_refresh_session = ProjectItemPreviewRefreshSession::new(None);
+
+        refresh_address_project_item_display_value(
+            &engine_execution_context,
+            &squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog::default(),
+            &mut address_project_item,
+            &mut project_item_preview_refresh_session,
+        );
+
+        assert_eq!(
+            ProjectItemTypeAddress::get_field_freeze_data_value_interpreter(&mut address_project_item),
+            "nop"
+        );
+    }
+
+    #[test]
+    fn refresh_address_project_item_display_value_disassembles_instruction_preview_as_block() {
+        let mock_memory_read_bindings = MockMemoryReadBindings::new(|memory_read_request| {
+            assert_eq!(memory_read_request.address, 0x1234);
+            assert_eq!(memory_read_request.module_name, "game.exe");
+
+            create_value_memory_read_response(DataValue::new(DataTypeRef::new("i_x64"), vec![0xFF, 0x00, 0x90, 0x90]), true)
+        });
+        let engine_execution_context = create_execution_context(mock_memory_read_bindings);
+        let mut address_project_item =
+            ProjectItemTypeAddress::new_project_item("Instruction", 0x1234, "game.exe", "", DataValue::new(DataTypeRef::new("i_x64"), vec![0x90]));
+        let mut project_item_preview_refresh_session = ProjectItemPreviewRefreshSession::new(None);
+
+        refresh_address_project_item_display_value(
+            &engine_execution_context,
+            &squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog::default(),
+            &mut address_project_item,
+            &mut project_item_preview_refresh_session,
+        );
+
+        assert_eq!(
+            ProjectItemTypeAddress::get_field_freeze_data_value_interpreter(&mut address_project_item),
+            "inc dword [rax]"
         );
     }
 

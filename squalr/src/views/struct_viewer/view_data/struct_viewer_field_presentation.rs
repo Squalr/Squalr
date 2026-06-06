@@ -1,6 +1,7 @@
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum StructViewerFieldEditorKind {
     ValueBox,
+    InstructionValueEditor,
     MemoryViewerButton,
     CodeViewerButton,
     DataTypeSelector,

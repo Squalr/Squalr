@@ -24,7 +24,7 @@ pub fn shared_execution_context() -> Arc<EngineUnprivilegedState> {
     SHARED_EXECUTION_CONTEXT
         .get_or_init(|| {
             let no_op_bindings = Arc::new(RwLock::new(NoOpEngineBindings {
-                privileged_response: MemoryWriteResponse { success: true }.to_engine_response(),
+                privileged_response: MemoryWriteResponse { success: true, error: None }.to_engine_response(),
                 unprivileged_response: ProjectListResponse::default().to_engine_response(),
             }));
             EngineUnprivilegedState::new(no_op_bindings)

@@ -6,8 +6,14 @@ use crate::{
         widgets::controls::context_menu::context_menu::{ContextMenu, ContextMenuSizing},
     },
     views::code_viewer::{code_viewer_view::CodeViewerView, view_data::code_viewer_view_data::CodeViewerViewData},
+    views::debugger_trace::{
+        debugger_trace_view::DebuggerTraceView,
+        view_data::debugger_trace_view_data::{DebuggerTraceViewData, PendingDebuggerTraceStartRequest},
+    },
+    views::instruction_patch_action::InstructionPatchAction,
     views::memory_viewer::{memory_viewer_view::MemoryViewerView, view_data::memory_viewer_view_data::MemoryViewerViewData},
     views::pointer_scanner::{pointer_scanner_view::PointerScannerView, view_data::pointer_scanner_view_data::PointerScannerViewData},
+    views::process_selector::view_data::process_selector_view_data::ProcessSelectorViewData,
     views::project_explorer::{
         project_explorer_view::ProjectExplorerView,
         project_hierarchy::{
@@ -34,6 +40,7 @@ use squalr_engine_api::commands::settings::scan::list::scan_settings_list_reques
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::anonymous_value_string::AnonymousValueString;
+use squalr_engine_api::structures::debugger::DebuggerDataBreakpointAccess;
 use squalr_engine_api::structures::projects::project_items::project_item::ProjectItem;
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -48,7 +55,9 @@ pub struct ProjectHierarchyView {
     code_viewer_view_data: Dependency<CodeViewerViewData>,
     memory_viewer_view_data: Dependency<MemoryViewerViewData>,
     pointer_scanner_view_data: Dependency<PointerScannerViewData>,
+    process_selector_view_data: Dependency<ProcessSelectorViewData>,
     struct_viewer_view_data: Dependency<StructViewerViewData>,
+    debugger_trace_view_data: Dependency<DebuggerTraceViewData>,
 }
 
 impl ProjectHierarchyView {
@@ -69,6 +78,12 @@ impl ProjectHierarchyView {
         let pointer_scanner_view_data = app_context
             .dependency_container
             .get_dependency::<PointerScannerViewData>();
+        let process_selector_view_data = app_context
+            .dependency_container
+            .get_dependency::<ProcessSelectorViewData>();
+        let debugger_trace_view_data = app_context
+            .dependency_container
+            .get_dependency::<DebuggerTraceViewData>();
         ProjectHierarchyViewData::refresh_project_items(project_hierarchy_view_data.clone(), app_context.clone());
 
         Self {
@@ -78,7 +93,9 @@ impl ProjectHierarchyView {
             code_viewer_view_data,
             memory_viewer_view_data,
             pointer_scanner_view_data,
+            process_selector_view_data,
             struct_viewer_view_data,
+            debugger_trace_view_data,
         }
     }
 
@@ -110,6 +127,10 @@ impl Widget for ProjectHierarchyView {
             .ctx()
             .request_repaint_after(project_read_interval);
 
+        runtime_preview_controller.apply_project_item_virtual_snapshot_results();
+        self.app_context
+            .engine_unprivileged_state
+            .request_virtual_snapshot_refresh(ProjectHierarchyRuntimePreviewController::PROJECT_ITEM_PREVIEW_VIRTUAL_SNAPSHOT_ID);
         runtime_preview_controller.refresh_if_project_preview_values_stale(project_read_interval);
 
         let project_hierarchy_toolbar_view = self.project_hierarchy_toolbar_view.clone();
@@ -645,6 +666,33 @@ impl Widget for ProjectHierarchyView {
 
                 self.focus_code_viewer_for_address(address, &module_name);
             }
+            ProjectHierarchyFrameAction::StartDebuggerTraceForAddress {
+                address,
+                module_name,
+                size_in_bytes,
+                access,
+                label,
+            } => {
+                if has_blocking_take_over {
+                    return response;
+                }
+
+                self.start_debugger_trace_for_address(address, &module_name, size_in_bytes, access, label);
+            }
+            ProjectHierarchyFrameAction::ReplaceInstructionWithNoOperation { address, module_name, label } => {
+                if has_blocking_take_over {
+                    return response;
+                }
+
+                self.replace_instruction_with_no_operation(address, module_name, label);
+            }
+            ProjectHierarchyFrameAction::RestoreInstructionOriginalCode { address, module_name } => {
+                if has_blocking_take_over {
+                    return response;
+                }
+
+                self.restore_instruction_original_code(address, module_name);
+            }
             ProjectHierarchyFrameAction::PromoteToSymbol {
                 project_item_paths,
                 overwrite_conflicting_symbols,
@@ -871,6 +919,59 @@ impl ProjectHierarchyView {
             }
             Err(error) => {
                 log::error!("Failed to acquire docking manager while opening the code viewer: {}", error);
+            }
+        }
+    }
+
+    fn start_debugger_trace_for_address(
+        &self,
+        address: u64,
+        module_name: &str,
+        size_in_bytes: u8,
+        access: DebuggerDataBreakpointAccess,
+        label: Option<String>,
+    ) {
+        let (resolved_target_address, _resolved_target_module_name) =
+            ProjectHierarchyModuleAddressResolver::resolve_pointer_scanner_target(&self.app_context.engine_unprivileged_state, address, module_name);
+
+        self.focus_debugger_trace_window();
+        DebuggerTraceViewData::request_trace_start(
+            self.debugger_trace_view_data.clone(),
+            PendingDebuggerTraceStartRequest::new(resolved_target_address, size_in_bytes, access, label),
+        );
+    }
+
+    fn replace_instruction_with_no_operation(
+        &self,
+        address: u64,
+        module_name: String,
+        label: Option<String>,
+    ) {
+        InstructionPatchAction::replace_instruction_at_address_with_no_operation(
+            self.app_context.clone(),
+            self.process_selector_view_data.clone(),
+            address,
+            module_name,
+            label,
+        );
+    }
+
+    fn restore_instruction_original_code(
+        &self,
+        address: u64,
+        module_name: String,
+    ) {
+        InstructionPatchAction::restore_no_operation_patch_at_address(self.app_context.clone(), address, module_name);
+    }
+
+    fn focus_debugger_trace_window(&self) {
+        match self.app_context.docking_manager.write() {
+            Ok(mut docking_manager) => {
+                docking_manager.set_window_visibility(DebuggerTraceView::WINDOW_ID, true);
+                docking_manager.select_tab_by_window_id(DebuggerTraceView::WINDOW_ID);
+            }
+            Err(error) => {
+                log::error!("Failed to acquire docking manager while opening the debugger trace window: {}", error);
             }
         }
     }

@@ -905,10 +905,11 @@ impl AppShell {
         key_event: KeyEvent,
         squalr_engine: &mut SqualrEngine,
     ) {
-        let process_bitness = self
+        let target_architecture = self
             .app_state
             .process_selector_pane_state
-            .opened_process_bitness;
+            .opened_process_target_architecture
+            .as_ref();
 
         match key_event.code {
             KeyCode::Char('r') => self.refresh_code_viewer_pages(squalr_engine),
@@ -919,19 +920,19 @@ impl AppShell {
             KeyCode::Up => self
                 .app_state
                 .code_viewer_pane_state
-                .select_previous_instruction(process_bitness),
+                .select_previous_instruction(target_architecture),
             KeyCode::Down => self
                 .app_state
                 .code_viewer_pane_state
-                .select_next_instruction(process_bitness),
+                .select_next_instruction(target_architecture),
             KeyCode::PageUp => self
                 .app_state
                 .code_viewer_pane_state
-                .page_up_instructions(process_bitness),
+                .page_up_instructions(target_architecture),
             KeyCode::PageDown => self
                 .app_state
                 .code_viewer_pane_state
-                .page_down_instructions(process_bitness),
+                .page_down_instructions(target_architecture),
             _ => {}
         }
     }

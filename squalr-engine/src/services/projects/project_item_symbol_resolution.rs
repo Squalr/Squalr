@@ -34,8 +34,7 @@ pub fn can_open_project_item_in_memory_viewer(project_item: &ProjectItem) -> boo
 pub fn should_open_project_item_in_code_viewer(project_item: &ProjectItem) -> bool {
     resolve_project_item_struct_layout_id(&ProjectSymbolCatalog::default(), project_item)
         .and_then(|symbolic_struct_namespace| normalize_instruction_data_type_id(&symbolic_struct_namespace))
-        .map(|data_type_id| matches!(data_type_id.as_str(), "i_x86" | "i_x64"))
-        .unwrap_or(false)
+        .is_some()
 }
 
 pub fn resolve_project_item_struct_layout_id(

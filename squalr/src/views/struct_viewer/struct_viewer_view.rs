@@ -23,7 +23,10 @@ use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::{
     engine::engine_execution_context::EngineExecutionContext,
     structures::{
-        data_types::{built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8, data_type_ref::DataTypeRef},
+        data_types::{
+            built_in_types::{i64::data_type_i64::DataTypeI64, string::utf8::data_type_string_utf8::DataTypeStringUtf8},
+            data_type_ref::DataTypeRef,
+        },
         data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
         memory::{pointer::Pointer, pointer_chain_segment::PointerChainSegment},
         pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
@@ -130,6 +133,14 @@ impl StructViewerView {
         Id::new(("struct_viewer_pointer_offsets_edit", field_name.to_string()))
     }
 
+    fn instruction_edit_storage_id(field_name: &str) -> Id {
+        Id::new(("struct_viewer_instruction_edit", field_name.to_string()))
+    }
+
+    fn pointer_offset_value_box_id(pointer_offset_index: usize) -> String {
+        format!("struct_viewer_pointer_offset_value_{}", pointer_offset_index)
+    }
+
     fn clear_pointer_offsets_edit_state(
         user_interface: &Ui,
         field_name: &str,
@@ -141,6 +152,17 @@ impl StructViewerView {
         });
     }
 
+    fn clear_instruction_edit_state(
+        user_interface: &Ui,
+        field_name: &str,
+    ) {
+        let instruction_edit_storage_id = Self::instruction_edit_storage_id(field_name);
+
+        user_interface.ctx().data_mut(|data| {
+            data.remove::<AnonymousValueString>(instruction_edit_storage_id);
+        });
+    }
+
     fn parse_pointer_offsets_text(pointer_offsets_text: &str) -> Vec<PointerChainSegment> {
         PointerChainSegment::parse_text_list(pointer_offsets_text)
     }
@@ -149,7 +171,7 @@ impl StructViewerView {
         let pointer_offset_text = pointer_offset_value.get_anonymous_value_string().trim();
 
         match pointer_offset_value.get_anonymous_value_string_format() {
-            AnonymousValueStringFormat::String => PointerChainSegment::from_str(pointer_offset_text).ok(),
+            AnonymousValueStringFormat::String => None,
             AnonymousValueStringFormat::Binary => {
                 Self::parse_pointer_offset_with_radix(pointer_offset_text, 2, Some("0b")).map(PointerChainSegment::new_offset)
             }
@@ -212,7 +234,13 @@ impl StructViewerView {
     }
 
     fn pointer_offset_data_type_ref() -> DataTypeRef {
-        DataTypeRef::new(DataTypeStringUtf8::DATA_TYPE_ID)
+        DataTypeRef::new(DataTypeI64::DATA_TYPE_ID)
+    }
+
+    fn pointer_offset_values_are_valid(pointer_offset_values: &[AnonymousValueString]) -> bool {
+        pointer_offset_values
+            .iter()
+            .all(|pointer_offset_value| Self::parse_pointer_offset_display_value(pointer_offset_value).is_some())
     }
 
     fn render_pointer_offset_icon_button(
@@ -326,7 +354,7 @@ impl StructViewerView {
                 );
 
                 user_interface.add_space(Self::POINTER_OFFSET_INPUT_SPACING);
-                let data_value_box_id = format!("struct_viewer_pointer_offset_value_{}", pointer_offset_index);
+                let data_value_box_id = Self::pointer_offset_value_box_id(pointer_offset_index);
                 user_interface.add_sized(
                     vec2(Self::POINTER_OFFSET_VALUE_BOX_WIDTH, Self::POINTER_OFFSET_FIELD_ROW_HEIGHT),
                     DataValueBoxView::new(
@@ -339,14 +367,13 @@ impl StructViewerView {
                         &data_value_box_id,
                     )
                     .allowed_anonymous_value_string_formats(vec![
-                        AnonymousValueStringFormat::String,
                         AnonymousValueStringFormat::Binary,
                         AnonymousValueStringFormat::Decimal,
                         AnonymousValueStringFormat::Hexadecimal,
                         AnonymousValueStringFormat::Address,
                     ])
+                    .custom_validation(|pointer_offset_value| Self::parse_pointer_offset_display_value(pointer_offset_value).is_some())
                     .normalize_value_format(false)
-                    .skip_validation()
                     .use_format_text_colors(false)
                     .width(Self::POINTER_OFFSET_VALUE_BOX_WIDTH)
                     .height(Self::POINTER_OFFSET_FIELD_ROW_HEIGHT),
@@ -465,6 +492,7 @@ impl StructViewerView {
                     let button_spacing = 12.0;
                     let total_button_row_width = button_size.x * 2.0 + button_spacing;
                     let side_spacing = ((user_interface.available_width() - total_button_row_width) * 0.5).max(0.0);
+                    let can_save_offsets = Self::pointer_offset_values_are_valid(&pointer_offset_values);
 
                     user_interface.horizontal(|user_interface| {
                         user_interface.add_space(side_spacing);
@@ -480,13 +508,13 @@ impl StructViewerView {
                             *should_cancel_take_over = true;
                         }
 
-                        let accept_response = user_interface.add_sized(
-                            button_size,
-                            EguiButton::new(RichText::new("Accept").color(theme.foreground))
-                                .fill(theme.background_control_primary)
-                                .stroke(Stroke::new(1.0, theme.background_control_primary_dark)),
-                        );
-                        if accept_response.clicked() {
+                        let accept_button = EguiButton::new(RichText::new("Accept").color(theme.foreground))
+                            .fill(theme.background_control_primary)
+                            .stroke(Stroke::new(1.0, theme.background_control_primary_dark));
+                        let accept_response = user_interface
+                            .add_enabled_ui(can_save_offsets, |user_interface| user_interface.add_sized(button_size, accept_button))
+                            .inner;
+                        if accept_response.clicked() && can_save_offsets {
                             should_save_offsets = true;
                         }
                     });
@@ -494,11 +522,27 @@ impl StructViewerView {
             );
         });
 
-        if should_save_offsets {
-            let mut pointer_offsets = pointer_offset_values
+        let did_commit_offsets_on_enter = user_interface.input(|input_state| input_state.key_pressed(Key::Enter))
+            || (0..pointer_offset_values.len()).any(|pointer_offset_index| {
+                DataValueBoxView::consume_commit_on_enter(user_interface, &Self::pointer_offset_value_box_id(pointer_offset_index))
+            });
+
+        if did_commit_offsets_on_enter && Self::pointer_offset_values_are_valid(&pointer_offset_values) {
+            should_save_offsets = true;
+        }
+
+        if should_save_offsets && Self::pointer_offset_values_are_valid(&pointer_offset_values) {
+            let Some(mut pointer_offsets) = pointer_offset_values
                 .iter()
-                .filter_map(Self::parse_pointer_offset_display_value)
-                .collect::<Vec<PointerChainSegment>>();
+                .map(Self::parse_pointer_offset_display_value)
+                .collect::<Option<Vec<PointerChainSegment>>>()
+            else {
+                log::warn!("Failed to commit pointer offset edit because one or more offsets are invalid.");
+                user_interface
+                    .ctx()
+                    .data_mut(|data| data.insert_temp(pointer_offsets_storage_id, pointer_offset_values));
+                return;
+            };
             if pointer_offsets.is_empty() {
                 pointer_offsets.push(PointerChainSegment::new_offset(0));
             }
@@ -513,6 +557,120 @@ impl StructViewerView {
         user_interface
             .ctx()
             .data_mut(|data| data.insert_temp(pointer_offsets_storage_id, pointer_offset_values));
+    }
+
+    fn show_instruction_editor(
+        &self,
+        user_interface: &mut Ui,
+        valued_struct_field: &ValuedStructField,
+        validation_data_type_ref: &DataTypeRef,
+        initial_value_edit: &AnonymousValueString,
+        instruction_submission: &mut Option<ValuedStructField>,
+        should_cancel_take_over: &mut bool,
+    ) {
+        let theme = &self.app_context.theme;
+        let instruction_edit_storage_id = Self::instruction_edit_storage_id(valued_struct_field.get_name());
+        let mut instruction_edit = user_interface
+            .ctx()
+            .data_mut(|data| data.get_temp::<AnonymousValueString>(instruction_edit_storage_id))
+            .unwrap_or_else(|| initial_value_edit.clone());
+        let instruction_editor_id = format!("struct_viewer_instruction_editor_{}", valued_struct_field.get_name());
+        let mut should_save_instruction = false;
+        let mut is_instruction_edit_valid = false;
+
+        self.render_take_over_panel(user_interface, "Edit instruction", |user_interface| {
+            user_interface.add(
+                GroupBox::new_from_theme(theme, "Instruction", |user_interface| {
+                    let editor_width = user_interface.available_width().max(260.0);
+
+                    user_interface.add(
+                        DataValueBoxView::new(
+                            self.app_context.clone(),
+                            &mut instruction_edit,
+                            validation_data_type_ref,
+                            false,
+                            true,
+                            "",
+                            &instruction_editor_id,
+                        )
+                        .width(editor_width)
+                        .height(32.0),
+                    );
+                })
+                .desired_width(user_interface.available_width()),
+            );
+
+            user_interface.add_space(Self::TAKE_OVER_SECTION_SPACING);
+            user_interface.allocate_ui(
+                vec2(user_interface.available_width(), Self::POINTER_OFFSET_FIELD_ROW_HEIGHT),
+                |user_interface| {
+                    let button_size = vec2(120.0, Self::POINTER_OFFSET_FIELD_ROW_HEIGHT);
+                    let button_spacing = 12.0;
+                    let total_button_row_width = button_size.x * 2.0 + button_spacing;
+                    let side_spacing = ((user_interface.available_width() - total_button_row_width) * 0.5).max(0.0);
+                    is_instruction_edit_valid = self
+                        .app_context
+                        .engine_unprivileged_state
+                        .validate_value_string(validation_data_type_ref, &instruction_edit);
+
+                    user_interface.horizontal(|user_interface| {
+                        user_interface.add_space(side_spacing);
+                        user_interface.spacing_mut().item_spacing.x = button_spacing;
+
+                        let cancel_response = user_interface.add_sized(
+                            button_size,
+                            EguiButton::new(RichText::new("Cancel").color(theme.foreground))
+                                .fill(theme.background_control_secondary)
+                                .stroke(Stroke::new(1.0, theme.background_control_secondary_dark)),
+                        );
+                        if cancel_response.clicked() {
+                            *should_cancel_take_over = true;
+                        }
+
+                        let commit_button = EguiButton::new(RichText::new("Commit").color(theme.foreground))
+                            .fill(theme.background_control_primary)
+                            .stroke(Stroke::new(1.0, theme.background_control_primary_dark));
+                        let commit_response = user_interface
+                            .add_enabled_ui(is_instruction_edit_valid, |user_interface| user_interface.add_sized(button_size, commit_button))
+                            .inner;
+                        if commit_response.clicked() && is_instruction_edit_valid {
+                            should_save_instruction = true;
+                        }
+                    });
+                },
+            );
+        });
+
+        let did_commit_instruction_on_enter = user_interface.input(|input_state| input_state.key_pressed(Key::Enter))
+            || DataValueBoxView::consume_commit_on_enter(user_interface, &instruction_editor_id);
+
+        if did_commit_instruction_on_enter && is_instruction_edit_valid {
+            should_save_instruction = true;
+        }
+
+        if should_save_instruction && is_instruction_edit_valid {
+            match self
+                .app_context
+                .engine_unprivileged_state
+                .deanonymize_value_string(validation_data_type_ref, &instruction_edit)
+            {
+                Ok(instruction_data_value) => {
+                    let mut edited_field = valued_struct_field.clone();
+
+                    edited_field.set_field_data(squalr_engine_api::structures::structs::valued_struct_field::ValuedStructFieldData::Value(
+                        instruction_data_value,
+                    ));
+                    *instruction_submission = Some(edited_field);
+                }
+                Err(error) => {
+                    log::warn!("Failed to commit instruction edit: {}", error);
+                }
+            }
+        }
+
+        user_interface
+            .ctx()
+            .data_mut(|data| data.insert_temp(instruction_edit_storage_id, instruction_edit));
     }
 
     fn resolve_struct_runtime_value_target(
@@ -715,6 +873,34 @@ impl StructViewerView {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::StructViewerView;
+    use squalr_engine_api::structures::{
+        data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
+        memory::pointer_chain_segment::PointerChainSegment,
+    };
+
+    #[test]
+    fn pointer_offset_display_value_rejects_plain_string_text() {
+        let pointer_offset_value = AnonymousValueString::new(String::from("asedasdasd"), AnonymousValueStringFormat::String, ContainerType::None);
+
+        assert_eq!(StructViewerView::parse_pointer_offset_display_value(&pointer_offset_value), None);
+        assert!(!StructViewerView::pointer_offset_values_are_valid(&[pointer_offset_value]));
+    }
+
+    #[test]
+    fn pointer_offset_display_value_accepts_signed_hex_offsets() {
+        let pointer_offset_value = AnonymousValueString::new(String::from("-0x10"), AnonymousValueStringFormat::Hexadecimal, ContainerType::None);
+
+        assert_eq!(
+            StructViewerView::parse_pointer_offset_display_value(&pointer_offset_value),
+            Some(PointerChainSegment::Offset(-0x10))
+        );
+        assert!(StructViewerView::pointer_offset_values_are_valid(&[pointer_offset_value]));
+    }
+}
 impl Widget for StructViewerView {
     fn ui(
         self,
@@ -729,6 +915,7 @@ impl Widget for StructViewerView {
 
         let mut new_value_splitter_ratio: Option<f32> = None;
         let mut pointer_offsets_submission: Option<ValuedStructField> = None;
+        let mut instruction_submission: Option<ValuedStructField> = None;
         let mut should_cancel_take_over = false;
 
         let response = user_interface
@@ -753,6 +940,24 @@ impl Widget for StructViewerView {
                         &mut user_interface,
                         &valued_struct_field,
                         &mut pointer_offsets_submission,
+                        &mut should_cancel_take_over,
+                    );
+                    return;
+                }
+
+                if let Some(StructViewerTakeOverState::EditInstruction {
+                    valued_struct_field,
+                    validation_data_type_ref,
+                    initial_value_edit,
+                }) = take_over_state
+                {
+                    drop(struct_viewer_view_data);
+                    self.show_instruction_editor(
+                        &mut user_interface,
+                        &valued_struct_field,
+                        &validation_data_type_ref,
+                        &initial_value_edit,
+                        &mut instruction_submission,
                         &mut should_cancel_take_over,
                     );
                     return;
@@ -809,7 +1014,7 @@ impl Widget for StructViewerView {
                                     .unwrap_or_else(|| StructViewerFieldPresentation::new(field.get_name().to_string(), StructViewerFieldEditorKind::ValueBox));
 
                                 match field_presentation.editor_kind() {
-                                    StructViewerFieldEditorKind::ValueBox => {
+                                    StructViewerFieldEditorKind::ValueBox | StructViewerFieldEditorKind::InstructionValueEditor => {
                                         let field_edit_value = struct_viewer_view_data
                                             .field_edit_values
                                             .get_mut(field.get_name());
@@ -990,15 +1195,16 @@ impl Widget for StructViewerView {
             }
         }
 
-        let active_pointer_offsets_field_name = self
+        let active_take_over_field_name = self
             .struct_viewer_view_data
-            .read("Struct Viewer active pointer offsets editor")
+            .read("Struct Viewer active take-over editor")
             .and_then(|struct_viewer_view_data| match struct_viewer_view_data.take_over_state.as_ref() {
                 Some(StructViewerTakeOverState::EditPointerOffsets { valued_struct_field }) => Some(valued_struct_field.get_name().to_string()),
+                Some(StructViewerTakeOverState::EditInstruction { valued_struct_field, .. }) => Some(valued_struct_field.get_name().to_string()),
                 None => None,
             });
 
-        if active_pointer_offsets_field_name.is_some()
+        if active_take_over_field_name.is_some()
             && self
                 .app_context
                 .window_focus_manager
@@ -1013,23 +1219,18 @@ impl Widget for StructViewerView {
             .window_focus_manager
             .can_window_handle_shortcuts(user_interface.ctx(), Self::WINDOW_ID);
 
-        if active_pointer_offsets_field_name.is_none()
-            && can_handle_window_shortcuts
-            && user_interface.input(|input_state| input_state.key_pressed(Key::ArrowUp))
-        {
+        if active_take_over_field_name.is_none() && can_handle_window_shortcuts && user_interface.input(|input_state| input_state.key_pressed(Key::ArrowUp)) {
             StructViewerViewData::navigate_field_selection(self.struct_viewer_view_data.clone(), ListNavigationDirection::Up);
         }
 
-        if active_pointer_offsets_field_name.is_none()
-            && can_handle_window_shortcuts
-            && user_interface.input(|input_state| input_state.key_pressed(Key::ArrowDown))
-        {
+        if active_take_over_field_name.is_none() && can_handle_window_shortcuts && user_interface.input(|input_state| input_state.key_pressed(Key::ArrowDown)) {
             StructViewerViewData::navigate_field_selection(self.struct_viewer_view_data.clone(), ListNavigationDirection::Down);
         }
 
         if should_cancel_take_over {
-            if let Some(active_pointer_offsets_field_name) = active_pointer_offsets_field_name.as_deref() {
-                Self::clear_pointer_offsets_edit_state(user_interface, active_pointer_offsets_field_name);
+            if let Some(active_take_over_field_name) = active_take_over_field_name.as_deref() {
+                Self::clear_pointer_offsets_edit_state(user_interface, active_take_over_field_name);
+                Self::clear_instruction_edit_state(user_interface, active_take_over_field_name);
             }
 
             StructViewerViewData::cancel_take_over_state(self.struct_viewer_view_data.clone());
@@ -1037,6 +1238,12 @@ impl Widget for StructViewerView {
 
         if let Some(edited_field) = pointer_offsets_submission {
             Self::clear_pointer_offsets_edit_state(user_interface, edited_field.get_name());
+            StructViewerViewData::cancel_take_over_state(self.struct_viewer_view_data.clone());
+            frame_action = StructViewerFrameAction::EditValue(edited_field);
+        }
+
+        if let Some(edited_field) = instruction_submission {
+            Self::clear_instruction_edit_state(user_interface, edited_field.get_name());
             StructViewerViewData::cancel_take_over_state(self.struct_viewer_view_data.clone());
             frame_action = StructViewerFrameAction::EditValue(edited_field);
         }
@@ -1096,7 +1303,7 @@ impl Widget for StructViewerView {
                 }
             }
             StructViewerFrameAction::RequestFieldEditor(requested_field) => {
-                StructViewerViewData::request_pointer_offsets_editor(self.struct_viewer_view_data.clone(), requested_field);
+                StructViewerViewData::request_field_editor(self.struct_viewer_view_data.clone(), requested_field);
             }
             StructViewerFrameAction::OpenInMemoryViewer(field_name) => {
                 if let Some((address, module_name, selection_byte_count)) = self.resolve_memory_viewer_target_for_field(&field_name) {

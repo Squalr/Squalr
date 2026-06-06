@@ -7,17 +7,17 @@ use squalr_engine_api::{
         project_items::create::project_items_create_request::ProjectItemsCreateRequest,
     },
     dependency_injection::dependency::Dependency,
-    plugins::instruction_set::InstructionSet,
+    plugins::instruction_set::{DisassembledInstruction, InstructionSet},
     plugins::memory_view::PageRetrievalMode,
     structures::{
         data_types::{built_in_types::u8::data_type_u8::DataTypeU8, data_type_ref::DataTypeRef},
         data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
         memory::{
             address_display::{format_absolute_address, format_module_address},
-            bitness::Bitness,
             normalized_module::NormalizedModule,
             normalized_region::NormalizedRegion,
         },
+        processes::target_architecture::TargetArchitecture,
         structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition},
     },
 };
@@ -25,7 +25,6 @@ use squalr_engine_session::{
     engine_unprivileged_state::EngineUnprivilegedState,
     virtual_snapshots::{virtual_snapshot::VirtualSnapshot, virtual_snapshot_query::VirtualSnapshotQuery},
 };
-use squalr_plugin_instructions_x86::{DisassembledInstruction, X64InstructionSet, X86InstructionSet};
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     ops::Range,
@@ -510,7 +509,7 @@ impl CodeViewerViewData {
 
     pub fn build_instruction_lines(
         code_viewer_view_data: Dependency<Self>,
-        process_bitness: Option<Bitness>,
+        instruction_set: Option<Arc<dyn InstructionSet>>,
     ) -> Vec<DisassembledInstruction> {
         let Some(current_page) = Self::get_current_page(code_viewer_view_data.clone()) else {
             return Vec::new();
@@ -542,10 +541,10 @@ impl CodeViewerViewData {
             return Vec::new();
         }
 
-        let decode_result = match process_bitness.unwrap_or(Bitness::Bit64) {
-            Bitness::Bit32 => X86InstructionSet::new().disassemble_block(&cached_bytes, decode_start_address),
-            Bitness::Bit64 => X64InstructionSet::new().disassemble_block(&cached_bytes, decode_start_address),
+        let Some(instruction_set) = instruction_set else {
+            return Vec::new();
         };
+        let decode_result = instruction_set.disassemble_block(&cached_bytes, decode_start_address);
 
         let Ok(decoded_instructions) = decode_result else {
             return Vec::new();
@@ -557,21 +556,20 @@ impl CodeViewerViewData {
             .collect()
     }
 
-    pub fn take_pending_scroll_address(code_viewer_view_data: Dependency<Self>) -> Option<u64> {
-        let mut code_viewer_view_data = code_viewer_view_data.write("Code viewer take pending scroll address")?;
-        code_viewer_view_data.pending_scroll_address.take()
-    }
-
-    pub fn resolve_scroll_target_address(
-        pending_scroll_address: Option<u64>,
+    pub fn resolve_pending_scroll_target_address(
+        code_viewer_view_data: Dependency<Self>,
         instruction_lines: &[DisassembledInstruction],
     ) -> Option<u64> {
-        let pending_scroll_address = pending_scroll_address?;
-
-        instruction_lines
+        let mut code_viewer_view_data = code_viewer_view_data.write("Code viewer resolve pending scroll target")?;
+        let pending_scroll_address = code_viewer_view_data.pending_scroll_address?;
+        let scroll_target_address = instruction_lines
             .iter()
             .min_by_key(|instruction_line| instruction_line.address.abs_diff(pending_scroll_address))
-            .map(|instruction_line| instruction_line.address)
+            .map(|instruction_line| instruction_line.address)?;
+
+        code_viewer_view_data.pending_scroll_address = None;
+
+        Some(scroll_target_address)
     }
 
     pub fn select_instruction_address(
@@ -781,7 +779,7 @@ impl CodeViewerViewData {
 
     pub(crate) fn evaluate_instruction_edit_commit(
         code_viewer_view_data: Dependency<Self>,
-        process_bitness: Option<Bitness>,
+        instruction_set: Option<Arc<dyn InstructionSet>>,
     ) -> Option<CodeViewerInstructionWritePlan> {
         let Some(mut code_viewer_view_data) = code_viewer_view_data.write("Code viewer evaluate instruction edit commit") else {
             return None;
@@ -789,7 +787,12 @@ impl CodeViewerViewData {
         let Some(instruction_edit_state) = code_viewer_view_data.instruction_edit_state.as_mut() else {
             return None;
         };
-        let instruction_set = Self::create_instruction_set_for_process_bitness(process_bitness);
+        let Some(instruction_set) = instruction_set else {
+            instruction_edit_state.status = Some(CodeViewerInstructionEditStatus::Invalid(String::from(
+                "No instruction set plugin is enabled for this target.",
+            )));
+            return None;
+        };
         let assembled_bytes = match instruction_set.assemble(
             instruction_edit_state
                 .edit_value
@@ -833,7 +836,7 @@ impl CodeViewerViewData {
 
     pub(crate) fn accept_instruction_edit_pending_fill_with_nops(
         code_viewer_view_data: Dependency<Self>,
-        process_bitness: Option<Bitness>,
+        instruction_set: Option<Arc<dyn InstructionSet>>,
     ) -> Option<CodeViewerInstructionWritePlan> {
         let Some(mut code_viewer_view_data) = code_viewer_view_data.write("Code viewer accept instruction fill with nops") else {
             return None;
@@ -848,7 +851,12 @@ impl CodeViewerViewData {
         else {
             return None;
         };
-        let instruction_set = Self::create_instruction_set_for_process_bitness(process_bitness);
+        let Some(instruction_set) = instruction_set else {
+            instruction_edit_state.status = Some(CodeViewerInstructionEditStatus::Invalid(String::from(
+                "No instruction set plugin is enabled for this target.",
+            )));
+            return None;
+        };
         let nop_fill_bytes = match instruction_set.build_no_operation_fill(remaining_byte_count) {
             Ok(nop_fill_bytes) => nop_fill_bytes,
             Err(error) => {
@@ -913,7 +921,7 @@ impl CodeViewerViewData {
         code_viewer_view_data: Dependency<Self>,
         absolute_address: u64,
         target_directory_path: Option<PathBuf>,
-        process_bitness: Option<Bitness>,
+        target_architecture: Option<&TargetArchitecture>,
         instruction_lines: &[DisassembledInstruction],
     ) -> Option<ProjectItemsCreateRequest> {
         let code_viewer_view_data = code_viewer_view_data.read("Code viewer build instruction project item request")?;
@@ -926,12 +934,20 @@ impl CodeViewerViewData {
                     .map(|instruction_line| (instruction_line.address, (instruction_line.length as u64).max(1)))
             })?;
         let (project_item_address, project_item_module_name) = code_viewer_view_data.resolve_project_item_address(selection_start_address);
-        let instruction_data_type_id = Self::instruction_data_type_id_for_process_bitness(process_bitness);
+        let default_target_architecture = TargetArchitecture::default();
+        let instruction_data_type_id = target_architecture
+            .unwrap_or(&default_target_architecture)
+            .get_instruction_data_type_id();
         let resolved_data_type_id = if selected_byte_count > 1 {
             format!("{}[{}]", instruction_data_type_id, selected_byte_count)
         } else {
             instruction_data_type_id.to_string()
         };
+        let initial_preview_value = instruction_lines
+            .iter()
+            .find(|instruction_line| instruction_line.address == selection_start_address)
+            .map(|instruction_line| instruction_line.text.trim().to_string())
+            .filter(|instruction_text| !instruction_text.is_empty());
 
         Some(ProjectItemsCreateRequest {
             parent_directory_path: target_directory_path.unwrap_or_default(),
@@ -941,6 +957,7 @@ impl CodeViewerViewData {
             module_name: Some(project_item_module_name),
             data_type_id: Some(resolved_data_type_id),
             pointer_offsets: None,
+            initial_preview_value,
         })
     }
 
@@ -1084,20 +1101,6 @@ impl CodeViewerViewData {
             Some((selection_start_index, selection_end_index))
         } else {
             Some((target_instruction_index, target_instruction_index))
-        }
-    }
-
-    fn instruction_data_type_id_for_process_bitness(process_bitness: Option<Bitness>) -> &'static str {
-        match process_bitness.unwrap_or(Bitness::Bit64) {
-            Bitness::Bit32 => "i_x86",
-            Bitness::Bit64 => "i_x64",
-        }
-    }
-
-    fn create_instruction_set_for_process_bitness(process_bitness: Option<Bitness>) -> Box<dyn InstructionSet> {
-        match process_bitness.unwrap_or(Bitness::Bit64) {
-            Bitness::Bit32 => Box::new(X86InstructionSet::new()),
-            Bitness::Bit64 => Box::new(X64InstructionSet::new()),
         }
     }
 
@@ -1326,7 +1329,9 @@ impl CodeViewerViewData {
         };
 
         let Some((page_index, resolved_address)) = Self::resolve_nearest_page_index_and_address(&self.virtual_pages, focus_address) else {
-            self.pending_focus_request = None;
+            if !self.virtual_pages.is_empty() {
+                self.pending_focus_request = None;
+            }
 
             return false;
         };
@@ -1550,4 +1555,89 @@ fn parse_address_text(address_text: &str) -> Option<u64> {
     }
 
     trimmed_address_text.parse::<u64>().ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
+
+    fn decoded_instruction(address: u64) -> DisassembledInstruction {
+        DisassembledInstruction {
+            address,
+            length: 1,
+            bytes: vec![0x90],
+            text: String::from("nop"),
+            branch_target_address: None,
+            is_control_flow: false,
+        }
+    }
+
+    #[test]
+    fn pending_focus_request_waits_for_virtual_pages() {
+        let mut code_viewer_view_data = CodeViewerViewData::new();
+        code_viewer_view_data.modules = vec![NormalizedModule::new("target.exe", 0x4000, 0x100)];
+        code_viewer_view_data.pending_focus_request = Some(CodeViewerFocusRequest {
+            address: 0x20,
+            module_name: String::from("target.exe"),
+        });
+
+        assert!(!code_viewer_view_data.try_apply_pending_focus_request());
+        assert_eq!(
+            code_viewer_view_data.pending_focus_request,
+            Some(CodeViewerFocusRequest {
+                address: 0x20,
+                module_name: String::from("target.exe"),
+            })
+        );
+
+        code_viewer_view_data.virtual_pages = vec![NormalizedRegion::new(0x4000, 0x100)];
+        code_viewer_view_data.cached_last_page_index = 0;
+
+        assert!(code_viewer_view_data.try_apply_pending_focus_request());
+        assert_eq!(code_viewer_view_data.pending_focus_request, None);
+        assert_eq!(code_viewer_view_data.pending_scroll_address, Some(0x4020));
+    }
+
+    #[test]
+    fn pending_focus_request_clears_after_loaded_pages_cannot_resolve() {
+        let mut code_viewer_view_data = CodeViewerViewData::new();
+        code_viewer_view_data.modules = vec![NormalizedModule::new("target.exe", 0x4000, 0x100)];
+        code_viewer_view_data.virtual_pages = vec![NormalizedRegion::new(0x8000, 0x100)];
+        code_viewer_view_data.pending_focus_request = Some(CodeViewerFocusRequest {
+            address: 0x20,
+            module_name: String::from("missing.exe"),
+        });
+
+        assert!(!code_viewer_view_data.try_apply_pending_focus_request());
+        assert_eq!(code_viewer_view_data.pending_focus_request, None);
+    }
+
+    #[test]
+    fn pending_scroll_address_waits_for_instruction_lines() {
+        let mut code_viewer_view_data = CodeViewerViewData::new();
+        code_viewer_view_data.pending_scroll_address = Some(0x4020);
+        let dependency = DependencyContainer::new().register(code_viewer_view_data);
+
+        let empty_scroll_target = CodeViewerViewData::resolve_pending_scroll_target_address(dependency.clone(), &[]);
+
+        assert_eq!(empty_scroll_target, None);
+        assert_eq!(
+            dependency
+                .read("Code viewer test pending scroll after empty rows")
+                .and_then(|code_viewer_view_data| code_viewer_view_data.pending_scroll_address),
+            Some(0x4020)
+        );
+
+        let scroll_target =
+            CodeViewerViewData::resolve_pending_scroll_target_address(dependency.clone(), &[decoded_instruction(0x4010), decoded_instruction(0x4021)]);
+
+        assert_eq!(scroll_target, Some(0x4021));
+        assert_eq!(
+            dependency
+                .read("Code viewer test pending scroll after resolved row")
+                .and_then(|code_viewer_view_data| code_viewer_view_data.pending_scroll_address),
+            None
+        );
+    }
 }

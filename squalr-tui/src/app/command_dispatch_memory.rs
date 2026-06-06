@@ -271,6 +271,7 @@ impl AppShell {
             address: write_start_address,
             module_name: String::new(),
             value: written_bytes,
+            write_mode: Default::default(),
         };
         let (response_sender, response_receiver) = mpsc::sync_channel(1);
         let request_dispatched = memory_write_request.send(engine_unprivileged_state, move |memory_write_response| {

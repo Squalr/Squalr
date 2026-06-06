@@ -18,7 +18,7 @@ use squalr_tests::mocks::mock_engine_bindings::MockEngineBindings;
 #[test]
 fn memory_write_request_dispatches_write_command_and_invokes_typed_callback() {
     let bindings = MockEngineBindings::new(
-        MemoryWriteResponse { success: true }.to_engine_response(),
+        MemoryWriteResponse { success: true, error: None }.to_engine_response(),
         ProjectListResponse::default().to_engine_response(),
     );
     let dispatched_commands = bindings.get_dispatched_commands();
@@ -27,6 +27,7 @@ fn memory_write_request_dispatches_write_command_and_invokes_typed_callback() {
         address: 0x40,
         module_name: String::new(),
         value: vec![1, 2, 3],
+        write_mode: Default::default(),
     };
 
     let callback_invoked = Arc::new(AtomicBool::new(false));
@@ -71,6 +72,7 @@ fn memory_write_request_does_not_invoke_callback_when_response_variant_is_wrong(
         address: 0x88,
         module_name: "game.exe".to_string(),
         value: vec![9, 8, 7, 6],
+        write_mode: Default::default(),
     };
 
     let callback_invoked = Arc::new(AtomicBool::new(false));
@@ -153,7 +155,7 @@ fn memory_read_request_dispatches_read_command_and_invokes_typed_callback() {
 #[test]
 fn memory_read_request_does_not_invoke_callback_when_response_variant_is_wrong() {
     let bindings = MockEngineBindings::new(
-        MemoryWriteResponse { success: true }.to_engine_response(),
+        MemoryWriteResponse { success: true, error: None }.to_engine_response(),
         ProjectListResponse::default().to_engine_response(),
     );
     let dispatched_commands = bindings.get_dispatched_commands();

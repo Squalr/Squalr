@@ -1,3 +1,4 @@
+pub mod debugger;
 pub mod engine_event;
 pub mod logging;
 pub mod plugins;

@@ -178,6 +178,7 @@ fn memory_write_executor_uses_injected_module_resolution_and_writer() {
         address: 0x20,
         module_name: "game.exe".to_string(),
         value: vec![1, 2, 3, 4],
+        write_mode: Default::default(),
     };
 
     let memory_write_response = memory_write_request.execute(&engine_privileged_state);
@@ -854,6 +855,7 @@ fn memory_write_executor_returns_failure_without_freeze_mutation_when_writer_fai
         address: 0x20,
         module_name: "game.exe".to_string(),
         value: vec![1, 2, 3, 4],
+        write_mode: Default::default(),
     };
 
     let memory_write_response = memory_write_request.execute(&engine_privileged_state);

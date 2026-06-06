@@ -15,14 +15,15 @@ pub use constants::{
     X86_FAMILY_DATA_TYPE_IDS, X86_FAMILY_INSTRUCTION_SET_IDS, X86_FAMILY_PLUGIN_DESCRIPTION, X86_FAMILY_PLUGIN_DISPLAY_NAME, X86_FAMILY_PLUGIN_ID,
 };
 pub use data_types::{DataTypeInstructionX64, DataTypeInstructionX86};
-pub use instruction_set::{DisassembledInstruction, X64InstructionSet, X86InstructionSet};
+pub use instruction_set::{X64InstructionSet, X86InstructionSet};
 pub use plugin::X86FamilyInstructionsPlugin;
+pub use squalr_engine_api::plugins::instruction_set::DisassembledInstruction;
 
 #[cfg(test)]
 mod tests {
-    use crate::{DataTypeInstructionX64, DataTypeInstructionX86, X86FamilyInstructionsPlugin, X86InstructionSet};
+    use crate::{DataTypeInstructionX64, DataTypeInstructionX86, X64InstructionSet, X86FamilyInstructionsPlugin, X86InstructionSet};
     use squalr_engine_api::{
-        plugins::{Plugin, PluginCapability},
+        plugins::{Plugin, PluginCapability, instruction_set::InstructionSet},
         structures::{
             data_types::data_type::DataType,
             data_values::{
@@ -102,6 +103,34 @@ mod tests {
             .expect("Expected x86 sized memory inc instruction to assemble.");
 
         assert_eq!(assembled_value.get_value_bytes(), &[0xFF, 0x05, 0x9C, 0x57, 0x00, 0x01]);
+    }
+
+    #[test]
+    fn i_x86_data_type_supports_disassembler_style_sized_memory_dec_instruction() {
+        let data_type = DataTypeInstructionX86::new();
+        let assembled_value = data_type
+            .deanonymize_value_string(&AnonymousValueString::new(
+                String::from("dec dword [100579Ch]"),
+                AnonymousValueStringFormat::String,
+                ContainerType::None,
+            ))
+            .expect("Expected x86 disassembler-style sized memory dec instruction to assemble.");
+
+        assert_eq!(assembled_value.get_value_bytes(), &[0xFF, 0x0D, 0x9C, 0x57, 0x00, 0x01]);
+    }
+
+    #[test]
+    fn i_x64_data_type_supports_disassembler_style_sized_memory_dec_instruction() {
+        let data_type = DataTypeInstructionX64::new();
+        let assembled_value = data_type
+            .deanonymize_value_string(&AnonymousValueString::new(
+                String::from("dec dword [100579Ch]"),
+                AnonymousValueStringFormat::String,
+                ContainerType::None,
+            ))
+            .expect("Expected x64 disassembler-style sized memory dec instruction to assemble.");
+
+        assert!(!assembled_value.get_value_bytes().is_empty());
     }
 
     #[test]
@@ -317,9 +346,14 @@ mod tests {
     }
 
     #[test]
+    fn x86_family_instruction_sets_build_software_breakpoints() {
+        assert_eq!(X86InstructionSet::new().build_software_breakpoint().as_deref(), Ok(&[0xCC][..]));
+        assert_eq!(X64InstructionSet::new().build_software_breakpoint().as_deref(), Ok(&[0xCC][..]));
+    }
+
+    #[test]
     fn plugin_exposes_data_type_and_instruction_set_capabilities() {
         let plugin = X86FamilyInstructionsPlugin::new();
-        let expected_default_enablement = cfg!(any(target_arch = "x86", target_arch = "x86_64"));
 
         assert_eq!(plugin.metadata().get_plugin_id(), "builtin.instruction-set.x86-family");
         assert!(
@@ -332,6 +366,6 @@ mod tests {
                 .metadata()
                 .has_plugin_capability(PluginCapability::InstructionSet)
         );
-        assert_eq!(plugin.metadata().get_is_enabled_by_default(), expected_default_enablement);
+        assert!(plugin.metadata().get_is_enabled_by_default());
     }
 }

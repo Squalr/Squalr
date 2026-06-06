@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct MemoryWriteResponse {
     pub success: bool,
+    pub error: Option<String>,
 }
 
 impl TypedPrivilegedCommandResponse for MemoryWriteResponse {

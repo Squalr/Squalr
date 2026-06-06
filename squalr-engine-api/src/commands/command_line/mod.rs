@@ -1,9 +1,11 @@
 pub use structopt::clap;
 
 mod command;
+mod debugger;
 mod memory;
 mod parse_error;
 mod parser;
+mod patches;
 mod plugins;
 mod pointer_scan;
 mod process;

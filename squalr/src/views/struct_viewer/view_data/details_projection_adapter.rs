@@ -1,5 +1,6 @@
 use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
 use crate::views::struct_viewer::view_data::struct_viewer_field_presentation::{StructViewerFieldEditorKind, StructViewerFieldPresentation};
+use squalr_engine_api::plugins::instruction_set::normalize_instruction_data_type_id;
 use squalr_engine_api::structures::{
     data_types::{built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8, data_type_ref::DataTypeRef},
     data_values::{anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType, data_value::DataValue},
@@ -341,6 +342,11 @@ impl DetailsProjectionAdapter {
     }
 
     fn editor_kind_from_details_field(details_field: &DetailsField) -> StructViewerFieldEditorKind {
+        let is_instruction_value = details_field
+            .get_validation_data_type_ref()
+            .and_then(|validation_data_type_ref| normalize_instruction_data_type_id(validation_data_type_ref.get_data_type_id()))
+            .is_some();
+
         if let DetailsFieldSource::SymbolLayoutMetadata { metadata_name } = details_field.get_source() {
             match metadata_name.as_str() {
                 "layout.kind" => return StructViewerFieldEditorKind::SymbolLayoutKindSelector,
@@ -367,6 +373,7 @@ impl DetailsProjectionAdapter {
 
         match details_field.get_editor_hint() {
             DetailsEditorHint::DisplayFormat => StructViewerFieldEditorKind::DisplayFormatSelector,
+            DetailsEditorHint::Value if is_instruction_value => StructViewerFieldEditorKind::InstructionValueEditor,
             DetailsEditorHint::Value | DetailsEditorHint::Address | DetailsEditorHint::Text | DetailsEditorHint::Boolean => {
                 StructViewerFieldEditorKind::ValueBox
             }

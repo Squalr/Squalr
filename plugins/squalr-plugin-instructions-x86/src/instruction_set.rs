@@ -1,20 +1,10 @@
 use crate::x86_operand_lowering::build_candidate_instructions;
 use iced_x86::{Decoder, DecoderOptions, Encoder, FlowControl, Formatter, NasmFormatter};
 use squalr_engine_api::{
-    plugins::instruction_set::{InstructionSet, ParsedInstruction, normalize_instruction_text, parse_instruction_sequence},
+    plugins::instruction_set::{DisassembledInstruction, InstructionSet, ParsedInstruction, normalize_instruction_text, parse_instruction_sequence},
     structures::memory::bitness::Bitness,
 };
 use std::collections::HashMap;
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct DisassembledInstruction {
-    pub address: u64,
-    pub length: usize,
-    pub bytes: Vec<u8>,
-    pub text: String,
-    pub branch_target_address: Option<u64>,
-    pub is_control_flow: bool,
-}
 
 #[derive(Debug)]
 struct X86InstructionSetBase {
@@ -267,6 +257,10 @@ impl InstructionSet for X86InstructionSet {
         self.inner.display_name
     }
 
+    fn get_max_instruction_size(&self) -> usize {
+        15
+    }
+
     fn assemble(
         &self,
         assembly_source: &str,
@@ -281,11 +275,24 @@ impl InstructionSet for X86InstructionSet {
         self.inner.disassemble_instruction_sequence(instruction_bytes)
     }
 
+    fn disassemble_block(
+        &self,
+        instruction_bytes: &[u8],
+        base_address: u64,
+    ) -> Result<Vec<DisassembledInstruction>, String> {
+        self.inner
+            .disassemble_instruction_block(instruction_bytes, base_address)
+    }
+
     fn build_no_operation_fill(
         &self,
         byte_count: usize,
     ) -> Result<Vec<u8>, String> {
         Ok(vec![0x90; byte_count])
+    }
+
+    fn build_software_breakpoint(&self) -> Result<Vec<u8>, String> {
+        Ok(vec![0xCC])
     }
 }
 
@@ -501,6 +508,10 @@ impl InstructionSet for X64InstructionSet {
         self.inner.display_name
     }
 
+    fn get_max_instruction_size(&self) -> usize {
+        15
+    }
+
     fn assemble(
         &self,
         assembly_source: &str,
@@ -515,11 +526,24 @@ impl InstructionSet for X64InstructionSet {
         self.inner.disassemble_instruction_sequence(instruction_bytes)
     }
 
+    fn disassemble_block(
+        &self,
+        instruction_bytes: &[u8],
+        base_address: u64,
+    ) -> Result<Vec<DisassembledInstruction>, String> {
+        self.inner
+            .disassemble_instruction_block(instruction_bytes, base_address)
+    }
+
     fn build_no_operation_fill(
         &self,
         byte_count: usize,
     ) -> Result<Vec<u8>, String> {
         Ok(vec![0x90; byte_count])
+    }
+
+    fn build_software_breakpoint(&self) -> Result<Vec<u8>, String> {
+        Ok(vec![0xCC])
     }
 }
 

@@ -9,15 +9,18 @@ mod plugin;
 pub use constants::{
     ARM_FAMILY_DATA_TYPE_IDS, ARM_FAMILY_INSTRUCTION_SET_IDS, ARM_FAMILY_PLUGIN_DESCRIPTION, ARM_FAMILY_PLUGIN_DISPLAY_NAME, ARM_FAMILY_PLUGIN_ID,
 };
-pub use data_types::{DataTypeInstructionArm, DataTypeInstructionArm64};
-pub use instruction_set::{Arm32InstructionSet, Arm64InstructionSet};
+pub use data_types::{DataTypeInstructionArm, DataTypeInstructionArm64, DataTypeInstructionThumb};
+pub use instruction_set::{Arm32InstructionSet, Arm64InstructionSet, ThumbInstructionSet};
 pub use plugin::ArmFamilyInstructionsPlugin;
 
 #[cfg(test)]
 mod tests {
-    use crate::{ArmFamilyInstructionsPlugin, DataTypeInstructionArm, DataTypeInstructionArm64};
+    use crate::{
+        Arm32InstructionSet, Arm64InstructionSet, ArmFamilyInstructionsPlugin, DataTypeInstructionArm, DataTypeInstructionArm64, DataTypeInstructionThumb,
+        ThumbInstructionSet,
+    };
     use squalr_engine_api::{
-        plugins::{Plugin, PluginCapability},
+        plugins::{Plugin, PluginCapability, instruction_set::InstructionSet},
         structures::{
             data_types::data_type::DataType,
             data_values::{
@@ -79,9 +82,50 @@ mod tests {
     }
 
     #[test]
+    fn i_thumb_data_type_assembles_and_disassembles_16_bit_sequence() {
+        let data_type = DataTypeInstructionThumb::new();
+        let data_value = data_type
+            .deanonymize_value_string(&AnonymousValueString::new(
+                String::from("nop; bx lr"),
+                AnonymousValueStringFormat::String,
+                ContainerType::None,
+            ))
+            .expect("Expected Thumb assembly text to assemble.");
+
+        assert_eq!(data_value.get_value_bytes(), &[0x00, 0xBF, 0x70, 0x47]);
+
+        let anonymous_value_string = data_type
+            .anonymize_value_bytes(data_value.get_value_bytes(), AnonymousValueStringFormat::String)
+            .expect("Expected Thumb bytes to disassemble.");
+
+        assert_eq!(anonymous_value_string.get_anonymous_value_string(), "nop; bx lr");
+    }
+
+    #[test]
+    fn arm_family_instruction_sets_build_software_breakpoints() {
+        assert_eq!(
+            Arm32InstructionSet::new()
+                .build_software_breakpoint()
+                .as_deref(),
+            Ok(&[0x70, 0x00, 0x20, 0xE1][..])
+        );
+        assert_eq!(
+            ThumbInstructionSet::new()
+                .build_software_breakpoint()
+                .as_deref(),
+            Ok(&[0x00, 0xBE][..])
+        );
+        assert_eq!(
+            Arm64InstructionSet::new()
+                .build_software_breakpoint()
+                .as_deref(),
+            Ok(&[0x00, 0x00, 0x20, 0xD4][..])
+        );
+    }
+
+    #[test]
     fn plugin_exposes_data_type_and_instruction_set_capabilities() {
         let plugin = ArmFamilyInstructionsPlugin::new();
-        let expected_default_enablement = cfg!(any(target_arch = "arm", target_arch = "aarch64"));
 
         assert_eq!(plugin.metadata().get_plugin_id(), "builtin.instruction-set.arm-family");
         assert!(
@@ -94,6 +138,6 @@ mod tests {
                 .metadata()
                 .has_plugin_capability(PluginCapability::InstructionSet)
         );
-        assert_eq!(plugin.metadata().get_is_enabled_by_default(), expected_default_enablement);
+        assert!(plugin.metadata().get_is_enabled_by_default());
     }
 }

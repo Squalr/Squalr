@@ -1,5 +1,5 @@
 use crate::{
-    Arm32InstructionSet, Arm64InstructionSet, DataTypeInstructionArm, DataTypeInstructionArm64,
+    Arm32InstructionSet, Arm64InstructionSet, DataTypeInstructionArm, DataTypeInstructionArm64, DataTypeInstructionThumb, ThumbInstructionSet,
     constants::{
         ARM_FAMILY_DATA_TYPE_IDS, ARM_FAMILY_INSTRUCTION_SET_IDS, ARM_FAMILY_PLUGIN_DESCRIPTION, ARM_FAMILY_PLUGIN_DISPLAY_NAME, ARM_FAMILY_PLUGIN_ID,
     },
@@ -29,22 +29,20 @@ impl ArmFamilyInstructionsPlugin {
                 ARM_FAMILY_PLUGIN_DESCRIPTION,
                 vec![PluginCapability::DataType, PluginCapability::InstructionSet],
                 true,
-                is_enabled_by_default_for_current_target(),
+                true,
             ),
             contributed_data_types: vec![
                 Arc::new(DataTypeInstructionArm::new()),
+                Arc::new(DataTypeInstructionThumb::new()),
                 Arc::new(DataTypeInstructionArm64::new()),
             ],
             contributed_instruction_sets: vec![
                 Arc::new(Arm32InstructionSet::new()),
+                Arc::new(ThumbInstructionSet::new()),
                 Arc::new(Arm64InstructionSet::new()),
             ],
         }
     }
-}
-
-fn is_enabled_by_default_for_current_target() -> bool {
-    cfg!(any(target_arch = "arm", target_arch = "aarch64"))
 }
 
 impl Default for ArmFamilyInstructionsPlugin {

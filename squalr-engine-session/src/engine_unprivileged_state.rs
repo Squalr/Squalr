@@ -27,6 +27,7 @@ use squalr_engine_api::events::project_items::project_items_event::ProjectItemsE
 use squalr_engine_api::events::registry::registry_event::RegistryEvent;
 use squalr_engine_api::events::scan_results::scan_results_event::ScanResultsEvent;
 use squalr_engine_api::events::trackable_task::trackable_task_event::TrackableTaskEvent;
+use squalr_engine_api::plugins::instruction_set::InstructionSet;
 use squalr_engine_api::registries::symbols::symbol_registry_error::SymbolRegistryError;
 use squalr_engine_api::registries::symbols::{data_type_descriptor::DataTypeDescriptor, privileged_registry_catalog::PrivilegedRegistryCatalog};
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
@@ -180,6 +181,13 @@ impl EngineExecutionContext for EngineUnprivilegedState {
                 })
                 .unwrap_or_default()
             })
+    }
+
+    fn find_instruction_set(
+        &self,
+        instruction_set_id: &str,
+    ) -> Option<Arc<dyn InstructionSet>> {
+        self.plugin_registry.find_instruction_set(instruction_set_id)
     }
 }
 
@@ -461,14 +469,35 @@ impl EngineUnprivilegedState {
         self: &Arc<Self>,
         virtual_snapshot_id: &str,
     ) {
+        self.request_virtual_snapshot_refresh_with_mode(virtual_snapshot_id, false);
+    }
+
+    pub fn force_virtual_snapshot_refresh(
+        self: &Arc<Self>,
+        virtual_snapshot_id: &str,
+    ) {
+        self.request_virtual_snapshot_refresh_with_mode(virtual_snapshot_id, true);
+    }
+
+    fn request_virtual_snapshot_refresh_with_mode(
+        self: &Arc<Self>,
+        virtual_snapshot_id: &str,
+        force_refresh: bool,
+    ) {
         let (queries, refresh_query_version) = match self.virtual_snapshots.write() {
             Ok(mut virtual_snapshots) => {
                 let Some(virtual_snapshot) = virtual_snapshots.get_mut(virtual_snapshot_id) else {
                     return;
                 };
                 let now = Instant::now();
+                let should_refresh = if force_refresh {
+                    virtual_snapshot.mark_dirty();
+                    virtual_snapshot.can_force_refresh()
+                } else {
+                    virtual_snapshot.should_refresh(now)
+                };
 
-                if !virtual_snapshot.should_refresh(now) {
+                if !should_refresh {
                     return;
                 }
 
@@ -914,6 +943,21 @@ impl EngineUnprivilegedState {
         engine_event: EngineEvent,
     ) {
         match engine_event {
+            EngineEvent::Debugger(debugger_event) => match debugger_event {
+                squalr_engine_api::events::debugger::debugger_event::DebuggerEvent::SessionStateChanged {
+                    debugger_session_state_changed_event,
+                } => {
+                    Self::dispatch_engine_event(event_listeners, debugger_session_state_changed_event);
+                }
+                squalr_engine_api::events::debugger::debugger_event::DebuggerEvent::TraceRecorded { debugger_trace_recorded_event } => {
+                    Self::dispatch_engine_event(event_listeners, debugger_trace_recorded_event);
+                }
+                squalr_engine_api::events::debugger::debugger_event::DebuggerEvent::TraceSessionUpdated {
+                    debugger_trace_session_updated_event,
+                } => {
+                    Self::dispatch_engine_event(event_listeners, debugger_trace_session_updated_event);
+                }
+            },
             EngineEvent::Logging(logging_event) => match logging_event {
                 LoggingEvent::LogRecorded { log_recorded_event } => {
                     log::log!(

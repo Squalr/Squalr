@@ -1,0 +1,12 @@
+[package]
+name = "squalr-plugin-debuggers-native"
+version = "0.4.0"
+authors = ["Zachary Canann"]
+edition = "2024"
+
+[dependencies]
+log = "0.4.29"
+squalr-engine-api = { path = "../../squalr-engine-api" }
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62.2", features = ["Win32_System_Diagnostics_Debug_Extensions"] }

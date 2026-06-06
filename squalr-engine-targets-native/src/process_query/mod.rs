@@ -2,6 +2,9 @@ pub mod process_query_error;
 pub mod process_query_options;
 pub mod process_queryer;
 
+#[cfg(any(target_os = "android", target_os = "linux"))]
+mod elf_target_architecture;
+
 #[cfg(target_os = "linux")]
 mod linux;
 

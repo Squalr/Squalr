@@ -1,4 +1,5 @@
 use crate::views::project_explorer::project_hierarchy::view_data::project_hierarchy_create_item_kind::ProjectHierarchyCreateItemKind;
+use squalr_engine_api::structures::debugger::DebuggerDataBreakpointAccess;
 use std::path::PathBuf;
 
 #[derive(Clone, PartialEq)]
@@ -31,6 +32,22 @@ pub enum ProjectHierarchyFrameAction {
         selection_byte_count: u64,
     },
     OpenCodeViewerForAddress {
+        address: u64,
+        module_name: String,
+    },
+    StartDebuggerTraceForAddress {
+        address: u64,
+        module_name: String,
+        size_in_bytes: u8,
+        access: DebuggerDataBreakpointAccess,
+        label: Option<String>,
+    },
+    ReplaceInstructionWithNoOperation {
+        address: u64,
+        module_name: String,
+        label: Option<String>,
+    },
+    RestoreInstructionOriginalCode {
         address: u64,
         module_name: String,
     },

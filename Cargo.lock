@@ -5297,6 +5297,7 @@ dependencies = [
  "squalr-engine-api",
  "squalr-plugin-binary-symbols",
  "squalr-plugin-data-types-24bit",
+ "squalr-plugin-debuggers-native",
  "squalr-plugin-instructions-arm",
  "squalr-plugin-instructions-powerpc",
  "squalr-plugin-instructions-x86",
@@ -5308,6 +5309,15 @@ name = "squalr-plugin-data-types-24bit"
 version = "0.4.0"
 dependencies = [
  "squalr-engine-api",
+]
+
+[[package]]
+name = "squalr-plugin-debuggers-native"
+version = "0.4.0"
+dependencies = [
+ "log",
+ "squalr-engine-api",
+ "windows 0.62.2",
 ]
 
 [[package]]
@@ -5367,7 +5377,6 @@ dependencies = [
  "squalr-engine",
  "squalr-engine-api",
  "squalr-engine-session",
- "squalr-plugin-instructions-x86",
 ]
 
 [[package]]

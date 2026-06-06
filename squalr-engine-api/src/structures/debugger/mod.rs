@@ -1,0 +1,21 @@
+pub mod debugger_breakpoint_descriptor;
+pub mod debugger_breakpoint_kind;
+pub mod debugger_command_status;
+pub mod debugger_data_breakpoint_access;
+pub mod debugger_register_snapshot;
+pub mod debugger_register_value;
+pub mod debugger_session_state;
+pub mod debugger_trace_event;
+pub mod debugger_trace_instruction_record;
+pub mod debugger_trace_session_descriptor;
+
+pub use debugger_breakpoint_descriptor::{DebuggerBreakpointDescriptor, DebuggerBreakpointMechanism};
+pub use debugger_breakpoint_kind::DebuggerBreakpointKind;
+pub use debugger_command_status::DebuggerCommandStatus;
+pub use debugger_data_breakpoint_access::DebuggerDataBreakpointAccess;
+pub use debugger_register_snapshot::DebuggerRegisterSnapshot;
+pub use debugger_register_value::DebuggerRegisterValue;
+pub use debugger_session_state::DebuggerSessionState;
+pub use debugger_trace_event::DebuggerTraceEvent;
+pub use debugger_trace_instruction_record::DebuggerTraceInstructionRecord;
+pub use debugger_trace_session_descriptor::DebuggerTraceSessionDescriptor;

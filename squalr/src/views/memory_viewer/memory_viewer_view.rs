@@ -411,6 +411,7 @@ impl MemoryViewerView {
             address: write_start_address,
             module_name: String::new(),
             value: written_bytes,
+            write_mode: Default::default(),
         };
 
         memory_write_request.send(&engine_unprivileged_state, move |memory_write_response| {

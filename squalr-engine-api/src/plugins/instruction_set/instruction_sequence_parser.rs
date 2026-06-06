@@ -598,6 +598,11 @@ fn parse_immediate(immediate_text: &str) -> Result<Option<i128>, InstructionSynt
             Ok(parsed_value) => Some(parsed_value.saturating_mul(sign_multiplier)),
             Err(_) => None,
         }
+    } else if let Some(hexadecimal_digits) = parse_hexadecimal_suffix_digits(unsigned_immediate_text) {
+        match i128::from_str_radix(hexadecimal_digits, 16) {
+            Ok(parsed_value) => Some(parsed_value.saturating_mul(sign_multiplier)),
+            Err(_) => None,
+        }
     } else {
         match unsigned_immediate_text.parse::<i128>() {
             Ok(parsed_value) => Some(parsed_value.saturating_mul(sign_multiplier)),
@@ -606,6 +611,22 @@ fn parse_immediate(immediate_text: &str) -> Result<Option<i128>, InstructionSynt
     };
 
     Ok(parsed_value)
+}
+
+fn parse_hexadecimal_suffix_digits(immediate_text: &str) -> Option<&str> {
+    let hexadecimal_digits = immediate_text
+        .strip_suffix('h')
+        .or_else(|| immediate_text.strip_suffix('H'))?;
+    let first_digit = hexadecimal_digits.chars().next()?;
+
+    if !first_digit.is_ascii_digit() {
+        return None;
+    }
+
+    hexadecimal_digits
+        .chars()
+        .all(|immediate_character| immediate_character.is_ascii_hexdigit())
+        .then_some(hexadecimal_digits)
 }
 
 #[cfg(test)]
@@ -647,6 +668,32 @@ mod tests {
             &[
                 InstructionOperand::Identifier(String::from("eax")),
                 InstructionOperand::Immediate(-5)
+            ]
+        );
+    }
+
+    #[test]
+    fn parse_instruction_sequence_parses_intel_hex_suffix_immediates() {
+        let parsed_instructions = parse_instruction_sequence("mov eax, 100579Ch").expect("Expected hex-suffixed immediate operand to parse.");
+
+        assert_eq!(
+            parsed_instructions.instructions()[0].operands(),
+            &[
+                InstructionOperand::Identifier(String::from("eax")),
+                InstructionOperand::Immediate(0x100579C)
+            ]
+        );
+    }
+
+    #[test]
+    fn parse_instruction_sequence_keeps_h_register_names_as_identifiers() {
+        let parsed_instructions = parse_instruction_sequence("mov al, ah").expect("Expected high-byte register operand to parse.");
+
+        assert_eq!(
+            parsed_instructions.instructions()[0].operands(),
+            &[
+                InstructionOperand::Identifier(String::from("al")),
+                InstructionOperand::Identifier(String::from("ah"))
             ]
         );
     }

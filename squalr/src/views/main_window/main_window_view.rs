@@ -4,6 +4,7 @@ use crate::ui::widgets::docking::dock_root_view_data::DockRootViewData;
 use crate::ui::widgets::docking::dock_tab_attention_state::DockTabAttentionKind;
 use crate::ui::widgets::docking::docked_window_view::DockedWindowView;
 use crate::views::code_viewer::code_viewer_view::CodeViewerView;
+use crate::views::debugger_trace::debugger_trace_view::DebuggerTraceView;
 use crate::views::element_scanner::scanner::element_scanner_view::ElementScannerView;
 use crate::views::main_window::main_footer_view::MainFooterView;
 use crate::views::main_window::main_shortcut_bar_view::MainShortcutBarView;
@@ -139,6 +140,15 @@ impl MainWindowView {
             Rc::new(CodeViewerView::WINDOW_ID.to_string()),
         );
 
+        let app_context_for_debugger_trace = app_context.clone();
+        let debugger_trace_view = DockedWindowView::new(
+            app_context_for_debugger_trace.clone(),
+            dock_view_data.clone(),
+            DebuggerTraceView::new(app_context_for_debugger_trace.clone()),
+            Rc::new("Debugger Trace".to_string()),
+            Rc::new(DebuggerTraceView::WINDOW_ID.to_string()),
+        );
+
         let app_context_for_project_explorer = app_context.clone();
         let project_explorer_view = DockedWindowView::new(
             app_context_for_project_explorer.clone(),
@@ -201,6 +211,7 @@ impl MainWindowView {
             Box::new(symbol_resolver_editor_view),
             Box::new(memory_viewer_view),
             Box::new(code_viewer_view),
+            Box::new(debugger_trace_view),
             Box::new(project_explorer_view),
             Box::new(symbol_tree_view),
             Box::new(process_selector_view),

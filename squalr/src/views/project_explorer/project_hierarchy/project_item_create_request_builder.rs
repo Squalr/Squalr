@@ -26,6 +26,7 @@ impl ProjectItemCreateRequestBuilder {
                 module_name: None,
                 data_type_id: None,
                 pointer_offsets: None,
+                initial_preview_value: None,
             },
             ProjectHierarchyCreateItemKind::Address => ProjectItemsCreateRequest {
                 parent_directory_path,
@@ -35,6 +36,7 @@ impl ProjectItemCreateRequestBuilder {
                 module_name: Some(String::new()),
                 data_type_id: None,
                 pointer_offsets: None,
+                initial_preview_value: None,
             },
         }
     }
