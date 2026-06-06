@@ -850,3 +850,13 @@ Our current task, from `README.md`, is:
     - `cargo test -p squalr-engine-session --locked debugger -- --nocapture` passed with existing macOS `objc` `unexpected cfg cargo-clippy` warnings from `squalr-engine-targets-native`.
     - `cargo check -p squalr-engine --locked` passed with the same existing macOS `objc` warnings.
     - `git diff --check` passed.
+- After adding Debugger Trace add-to-project context menu support:
+  - Debugger Trace instruction rows now expose `Add to Project` in the right-click context menu, routed through the same instruction project-item create path as double-click.
+  - The add-to-project path now logs command dispatch failures in addition to command responses that report failure.
+  - Debugger trace instruction row identity now ignores the instruction byte window when an instruction address is known. This keeps selection/context-menu targets stable across live trace updates and patch-byte changes, while unknown-address rows still use bytes to distinguish records.
+  - Remaining limitation: this was validated with focused tests and compile checks, not a live GUI double-click/right-click pass. Debugger Trace add-to-project interaction still needs human verification after implementation and validation.
+  - Validation passed:
+    - `cargo fmt --all` completed with existing `fn_args_layout` deprecation warnings.
+    - `cargo test -p squalr --locked debugger_trace -- --nocapture` passed with existing macOS `objc` `unexpected cfg cargo-clippy` warnings from `squalr-engine-targets-native`.
+    - `cargo check -p squalr --locked` passed with the same existing macOS `objc` warnings.
+    - `git diff --check` passed.

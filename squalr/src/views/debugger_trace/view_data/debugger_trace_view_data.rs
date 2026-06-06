@@ -72,7 +72,11 @@ impl DebuggerTraceInstructionKey {
         Self {
             trace_session_id: instruction_record.get_trace_session_id().to_string(),
             instruction_address: instruction_record.get_instruction_address(),
-            instruction_bytes: instruction_record.get_instruction_bytes().to_vec(),
+            instruction_bytes: if instruction_record.get_instruction_address().is_some() {
+                Vec::new()
+            } else {
+                instruction_record.get_instruction_bytes().to_vec()
+            },
         }
     }
 
@@ -529,6 +533,46 @@ mod tests {
 
         assert_eq!(context_menu_target.get_instruction_key(), &instruction_key);
         assert_eq!(context_menu_target.get_position(), pos2(12.0, 34.0));
+    }
+
+    #[test]
+    fn instruction_key_ignores_bytes_when_address_is_known() {
+        let first_trace_event = DebuggerTraceEvent::new(
+            None,
+            DebuggerRegisterSnapshot::default(),
+            Some(0x401000),
+            vec![0x90],
+            Some(String::from("nop")),
+            None,
+        );
+        let second_trace_event = DebuggerTraceEvent::new(
+            None,
+            DebuggerRegisterSnapshot::default(),
+            Some(0x401000),
+            vec![0xCC],
+            Some(String::from("int3")),
+            None,
+        );
+        let first_instruction_record = DebuggerTraceInstructionRecord::new("trace-1", &first_trace_event);
+        let second_instruction_record = DebuggerTraceInstructionRecord::new("trace-1", &second_trace_event);
+
+        assert_eq!(
+            super::DebuggerTraceInstructionKey::from_record(&first_instruction_record),
+            super::DebuggerTraceInstructionKey::from_record(&second_instruction_record)
+        );
+    }
+
+    #[test]
+    fn instruction_key_uses_bytes_when_address_is_unknown() {
+        let first_trace_event = DebuggerTraceEvent::new(None, DebuggerRegisterSnapshot::default(), None, vec![0x90], Some(String::from("nop")), None);
+        let second_trace_event = DebuggerTraceEvent::new(None, DebuggerRegisterSnapshot::default(), None, vec![0xCC], Some(String::from("int3")), None);
+        let first_instruction_record = DebuggerTraceInstructionRecord::new("trace-1", &first_trace_event);
+        let second_instruction_record = DebuggerTraceInstructionRecord::new("trace-1", &second_trace_event);
+
+        assert_ne!(
+            super::DebuggerTraceInstructionKey::from_record(&first_instruction_record),
+            super::DebuggerTraceInstructionKey::from_record(&second_instruction_record)
+        );
     }
 
     fn create_trace_session(is_active: bool) -> DebuggerTraceSessionDescriptor {
