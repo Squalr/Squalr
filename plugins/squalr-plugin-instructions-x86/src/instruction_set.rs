@@ -40,6 +40,7 @@ impl X86InstructionSetBase {
     fn assemble_instruction_sequence(
         &self,
         assembly_source: &str,
+        base_address: u64,
     ) -> Result<Vec<u8>, String> {
         let parsed_instruction_sequence = parse_instruction_sequence(assembly_source).map_err(|instruction_error| instruction_error.to_string())?;
         let parsed_instructions = parsed_instruction_sequence.instructions();
@@ -54,8 +55,8 @@ impl X86InstructionSetBase {
         let mut assembled_sequence_items = Vec::new();
 
         for _pass_index in 0..16 {
-            let label_addresses = build_label_addresses(label_instruction_indices, &item_lengths)?;
-            let mut current_ip = 0u64;
+            let label_addresses = build_label_addresses(label_instruction_indices, &item_lengths, base_address)?;
+            let mut current_ip = base_address;
             let mut next_assembled_sequence_items = Vec::with_capacity(parsed_instructions.len());
             let mut next_item_lengths = Vec::with_capacity(parsed_instructions.len());
 
@@ -101,7 +102,7 @@ impl X86InstructionSetBase {
         }
 
         let mut instruction_encoder = Encoder::new(bitness_as_u32(self.instruction_bitness));
-        let mut current_ip = 0u64;
+        let mut current_ip = base_address;
         let mut assembled_bytes = Vec::new();
 
         for assembled_sequence_item in &assembled_sequence_items {
@@ -265,7 +266,16 @@ impl InstructionSet for X86InstructionSet {
         &self,
         assembly_source: &str,
     ) -> Result<Vec<u8>, String> {
-        self.inner.assemble_instruction_sequence(assembly_source)
+        self.inner.assemble_instruction_sequence(assembly_source, 0)
+    }
+
+    fn assemble_at_address(
+        &self,
+        assembly_source: &str,
+        base_address: u64,
+    ) -> Result<Vec<u8>, String> {
+        self.inner
+            .assemble_instruction_sequence(assembly_source, base_address)
     }
 
     fn disassemble(
@@ -321,9 +331,10 @@ impl X64InstructionSet {
 fn build_label_addresses(
     label_instruction_indices: &HashMap<String, usize>,
     instruction_lengths: &[usize],
+    base_address: u64,
 ) -> Result<HashMap<String, u64>, String> {
     let mut instruction_addresses = Vec::with_capacity(instruction_lengths.len() + 1);
-    let mut current_ip = 0u64;
+    let mut current_ip = base_address;
     instruction_addresses.push(current_ip);
 
     for instruction_length in instruction_lengths {
@@ -516,7 +527,16 @@ impl InstructionSet for X64InstructionSet {
         &self,
         assembly_source: &str,
     ) -> Result<Vec<u8>, String> {
-        self.inner.assemble_instruction_sequence(assembly_source)
+        self.inner.assemble_instruction_sequence(assembly_source, 0)
+    }
+
+    fn assemble_at_address(
+        &self,
+        assembly_source: &str,
+        base_address: u64,
+    ) -> Result<Vec<u8>, String> {
+        self.inner
+            .assemble_instruction_sequence(assembly_source, base_address)
     }
 
     fn disassemble(

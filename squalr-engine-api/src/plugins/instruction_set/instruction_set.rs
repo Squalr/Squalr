@@ -24,6 +24,14 @@ pub trait InstructionSet: Debug + Send + Sync {
         assembly_source: &str,
     ) -> Result<Vec<u8>, String>;
 
+    fn assemble_at_address(
+        &self,
+        assembly_source: &str,
+        _base_address: u64,
+    ) -> Result<Vec<u8>, String> {
+        self.assemble(assembly_source)
+    }
+
     fn disassemble(
         &self,
         instruction_bytes: &[u8],

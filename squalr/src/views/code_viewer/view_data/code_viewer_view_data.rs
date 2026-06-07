@@ -793,11 +793,12 @@ impl CodeViewerViewData {
             )));
             return None;
         };
-        let assembled_bytes = match instruction_set.assemble(
+        let assembled_bytes = match instruction_set.assemble_at_address(
             instruction_edit_state
                 .edit_value
                 .get_anonymous_value_string()
                 .trim(),
+            instruction_edit_state.start_address,
         ) {
             Ok(assembled_bytes) => assembled_bytes,
             Err(error) => {

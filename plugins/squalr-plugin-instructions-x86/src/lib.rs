@@ -97,6 +97,16 @@ mod tests {
     }
 
     #[test]
+    fn x64_instruction_set_assembles_absolute_memory_display_text_at_runtime_address() {
+        let instruction_set = X64InstructionSet::new();
+        let assembled_bytes = instruction_set
+            .assemble_at_address("mov [404090h], ebx", 0x401563)
+            .expect("Expected x64 runtime-addressed memory store edit to assemble.");
+
+        assert_eq!(assembled_bytes, &[0x89, 0x1D, 0x27, 0x2B, 0x00, 0x00]);
+    }
+
+    #[test]
     fn i_x86_data_type_disassembles_known_instruction_sequence() {
         let data_type = DataTypeInstructionX86::new();
         let anonymous_value_string = data_type

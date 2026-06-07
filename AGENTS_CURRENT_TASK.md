@@ -18,10 +18,11 @@ Our current task, from `README.md`, is:
   - Follow-up fix: Linux x64 watchpoint trace events now recover the previous instruction from post-trap RIP with `iced-x86` where possible, so trace-context no-op patching targets the accessing instruction instead of the next instruction.
   - Follow-up fix: Linux memory writes now fall back to `/proc/<pid>/mem`, then ptrace word writes, when `process_vm_writev` cannot write a mapping. `/proc/<pid>/mem` is needed when the debugger worker thread owns the ptrace relationship and no-operation patches target executable pages.
   - Follow-up fix: x86/x64 instruction parsing accepts NASM memory address hints such as `[rel 2B2Dh]` for compatibility with existing text, but x86/x64 disassembly now uses iced-x86's Intel formatter so traces and code views present RIP-relative memory as Intel-style operands such as `mov [2B33h], eax`.
+  - Follow-up fix: instruction text writes are now assembled with the runtime instruction address in Code Viewer and project runtime value writes. x64 bare memory targets such as `mov [404090h], ebx` lower back to RIP-relative encodings when appropriate, preventing same-instruction register edits from becoming longer absolute-address patches.
   - Automated WSL smoke passed with `cargo run -p squalr-plugin-debuggers-native --example native_debugger_smoke --locked`: attach, register snapshot, write watchpoint, trace event, and detach completed.
   - Follow-up WSL smoke showed recovered trace attribution: post-trap IP `0x...2a1d`, emitted instruction address `0x...2a18`, 5 instruction bytes, and backend message `trace instruction was recovered from the post-trap RIP`.
   - Windows regression `cargo test -p squalr-tests --locked` passed, including the memory write response tests.
-  - Rebuilt and launched current WSL GUI and watch-value helper visibly for manual attach testing during the Linux debugger validation. A later process check found no active WSL GUI/helper processes.
+  - Rebuilt and launched current WSL GUI and watch-value helper visibly for manual attach testing during the Linux debugger validation. Current relaunched WSL processes are `./target/debug/squalr` PID 22 and `./target/linux-tools/squalr-watch-value` PID 57.
 - Linux WSL sanity check:
   - Used WSL distro `Ubuntu` from the Windows workspace mount `/mnt/c/Projects/squalr_workspace`.
   - `cargo build -p squalr --locked` completed successfully in WSL and produced a Linux ELF GUI binary at `target/debug/squalr`.
