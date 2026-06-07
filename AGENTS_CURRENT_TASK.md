@@ -11,4 +11,8 @@ Our current task, from `README.md`, is:
 - 
 
 ## Important Information
-- 
+- Linux WSL sanity check:
+  - Used WSL distro `Ubuntu` from the Windows workspace mount `/mnt/c/Projects/squalr_workspace`.
+  - `cargo build -p squalr --locked` completed successfully in WSL and produced a Linux ELF GUI binary at `target/debug/squalr`.
+  - Direct launch with `timeout 20s ./target/debug/squalr` reached WSLg/OpenGL initialization and Squalr startup logs, then the timeout stopped it. Interactive GUI behavior still needs human verification after implementation and validation.
+  - Linux-side `git status` reports many files modified from the mounted checkout even when Windows-side Git is clean; observed full-file line-ending churn such as `README.md` showing `353/353` numstat. Do not normalize or commit those WSL-only line-ending artifacts.
