@@ -12,7 +12,8 @@ use crate::{
         code_viewer::{
             code_viewer_footer_view::CodeViewerFooterView,
             view_data::code_viewer_view_data::{
-                CodeViewerInstructionEditState, CodeViewerInstructionEditStatus, CodeViewerInstructionWritePlan, CodeViewerViewData,
+                CodeViewerInstructionEditMode, CodeViewerInstructionEditState, CodeViewerInstructionEditStatus, CodeViewerInstructionWritePlan,
+                CodeViewerViewData,
             },
         },
         process_selector::view_data::process_selector_view_data::ProcessSelectorViewData,
@@ -644,7 +645,11 @@ impl CodeViewerView {
                 theme.font_library.font_ubuntu_mono_bold.font_normal.clone(),
                 theme.hexadecimal_green,
             );
-        if is_instruction_edit_row {
+        if is_instruction_edit_row
+            && instruction_edit_state
+                .map(|instruction_edit_state| instruction_edit_state.mode == CodeViewerInstructionEditMode::AssemblyEdit)
+                .unwrap_or(false)
+        {
             if let Some(instruction_edit_state) = instruction_edit_state {
                 self.render_instruction_text_edit_contents(user_interface, column_layout.text_rect, instruction_edit_state);
             }
@@ -1184,12 +1189,122 @@ impl Widget for CodeViewerView {
                         CodeViewerViewData::get_selected_instruction_addresses(self.code_viewer_view_data.clone(), &visible_instruction_lines);
                     let add_action_label = self.build_context_menu_add_label(context_menu_address, &selected_instruction_addresses);
                     let edit_action_label = self.build_context_menu_edit_label(context_menu_address, &selected_instruction_addresses);
+                    let has_copied_instruction_bytes = CodeViewerViewData::has_copied_instruction_bytes(self.code_viewer_view_data.clone());
+                    let has_copied_instruction_text = CodeViewerViewData::has_copied_instruction_text(self.code_viewer_view_data.clone());
 
                     ContextMenu::new(
                         self.app_context.clone(),
                         "code_viewer_context_menu",
                         context_menu_position,
                         |user_interface, should_close| {
+                            if user_interface
+                                .add(ToolbarMenuItemView::new(
+                                    self.app_context.clone(),
+                                    "Copy bytes",
+                                    "code_viewer_ctx_copy_bytes",
+                                    &None,
+                                    Self::CONTEXT_MENU_WIDTH,
+                                ))
+                                .clicked()
+                            {
+                                if let Some(copied_bytes) = CodeViewerViewData::copy_instruction_bytes(
+                                    self.code_viewer_view_data.clone(),
+                                    context_menu_address,
+                                    &visible_instruction_lines,
+                                ) {
+                                    user_interface
+                                        .ctx()
+                                        .copy_text(Self::build_bytes_text(&copied_bytes));
+                                }
+                                *should_close = true;
+                            }
+
+                            if user_interface
+                                .add(ToolbarMenuItemView::new(
+                                    self.app_context.clone(),
+                                    "Copy instruction",
+                                    "code_viewer_ctx_copy_instruction",
+                                    &None,
+                                    Self::CONTEXT_MENU_WIDTH,
+                                ))
+                                .clicked()
+                            {
+                                if let Some(copied_instruction_text) = CodeViewerViewData::copy_instruction_text(
+                                    self.code_viewer_view_data.clone(),
+                                    context_menu_address,
+                                    &visible_instruction_lines,
+                                ) {
+                                    user_interface.ctx().copy_text(copied_instruction_text);
+                                }
+                                *should_close = true;
+                            }
+
+                            if user_interface
+                                .add(ToolbarMenuItemView::new(
+                                    self.app_context.clone(),
+                                    "Copy address",
+                                    "code_viewer_ctx_copy_address",
+                                    &None,
+                                    Self::CONTEXT_MENU_WIDTH,
+                                ))
+                                .clicked()
+                            {
+                                user_interface
+                                    .ctx()
+                                    .copy_text(format!("0x{:X}", context_menu_address));
+                                CodeViewerViewData::hide_context_menu(self.code_viewer_view_data.clone());
+                                *should_close = true;
+                            }
+
+                            if has_copied_instruction_bytes || has_copied_instruction_text {
+                                user_interface.separator();
+                            }
+
+                            if has_copied_instruction_bytes
+                                && user_interface
+                                    .add(ToolbarMenuItemView::new(
+                                        self.app_context.clone(),
+                                        "Paste bytes",
+                                        "code_viewer_ctx_paste_bytes",
+                                        &None,
+                                        Self::CONTEXT_MENU_WIDTH,
+                                    ))
+                                    .clicked()
+                            {
+                                if let Some(instruction_write_plan) = CodeViewerViewData::evaluate_paste_copied_bytes(
+                                    self.code_viewer_view_data.clone(),
+                                    context_menu_address,
+                                    &visible_instruction_lines,
+                                ) {
+                                    self.dispatch_instruction_write(instruction_write_plan);
+                                }
+                                *should_close = true;
+                            }
+
+                            if has_copied_instruction_text
+                                && user_interface
+                                    .add(ToolbarMenuItemView::new(
+                                        self.app_context.clone(),
+                                        "Paste instruction",
+                                        "code_viewer_ctx_paste_instruction",
+                                        &None,
+                                        Self::CONTEXT_MENU_WIDTH,
+                                    ))
+                                    .clicked()
+                            {
+                                if let Some(instruction_write_plan) = CodeViewerViewData::evaluate_paste_copied_instruction(
+                                    self.code_viewer_view_data.clone(),
+                                    context_menu_address,
+                                    &visible_instruction_lines,
+                                    self.get_instruction_set(),
+                                ) {
+                                    self.dispatch_instruction_write(instruction_write_plan);
+                                }
+                                *should_close = true;
+                            }
+
+                            user_interface.separator();
+
                             if user_interface
                                 .add(ToolbarMenuItemView::new(
                                     self.app_context.clone(),
