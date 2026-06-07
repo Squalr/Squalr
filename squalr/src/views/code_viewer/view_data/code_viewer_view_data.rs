@@ -56,15 +56,30 @@ pub(crate) struct CodeViewerInstructionWritePlan {
     pub written_bytes: Vec<u8>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum CodeViewerInstructionEditMode {
+    AssemblyEdit,
+    PastedBytes,
+    PastedInstruction,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum CodeViewerInstructionEditStatus {
     Invalid(String),
-    PendingFillWithNops { assembled_bytes: Vec<u8>, remaining_byte_count: usize },
-    PendingOverwrite { assembled_bytes: Vec<u8>, overwritten_byte_count: usize },
+    PendingFillWithNops {
+        assembled_bytes: Vec<u8>,
+        remaining_byte_count: usize,
+    },
+    PendingOverwrite {
+        assembled_bytes: Vec<u8>,
+        overwritten_byte_count: usize,
+        nop_fill_byte_count: usize,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct CodeViewerInstructionEditState {
+    pub mode: CodeViewerInstructionEditMode,
     pub start_address: u64,
     pub end_address_exclusive: u64,
     pub edit_value: AnonymousValueString,
@@ -101,6 +116,8 @@ pub struct CodeViewerViewData {
     context_menu_address: Option<u64>,
     context_menu_position: Option<Pos2>,
     instruction_edit_state: Option<CodeViewerInstructionEditState>,
+    copied_instruction_bytes: Option<Vec<u8>>,
+    copied_instruction_text: Option<String>,
     pub go_to_address_input: AnonymousValueString,
     pub bytes_text_splitter_ratio: f32,
     has_keyboard_focus: bool,
@@ -179,6 +196,8 @@ impl CodeViewerViewData {
             context_menu_address: None,
             context_menu_position: None,
             instruction_edit_state: None,
+            copied_instruction_bytes: None,
+            copied_instruction_text: None,
             go_to_address_input: AnonymousValueString::new(String::new(), AnonymousValueStringFormat::Hexadecimal, ContainerType::None),
             bytes_text_splitter_ratio: Self::DEFAULT_BYTES_TEXT_SPLITTER_RATIO,
             has_keyboard_focus: false,
@@ -300,6 +319,9 @@ impl CodeViewerViewData {
             code_viewer_view_data.viewport_start_address = None;
             code_viewer_view_data.context_menu_address = None;
             code_viewer_view_data.context_menu_position = None;
+            code_viewer_view_data.instruction_edit_state = None;
+            code_viewer_view_data.copied_instruction_bytes = None;
+            code_viewer_view_data.copied_instruction_text = None;
             code_viewer_view_data.has_keyboard_focus = false;
             code_viewer_view_data.complete_memory_pages_request();
         }
@@ -741,6 +763,7 @@ impl CodeViewerViewData {
             active_instruction_address: last_instruction.address,
         });
         code_viewer_view_data.instruction_edit_state = Some(CodeViewerInstructionEditState {
+            mode: CodeViewerInstructionEditMode::AssemblyEdit,
             start_address: first_instruction.address,
             end_address_exclusive: last_instruction
                 .address
@@ -751,6 +774,152 @@ impl CodeViewerViewData {
         code_viewer_view_data.context_menu_address = None;
         code_viewer_view_data.context_menu_position = None;
         code_viewer_view_data.has_keyboard_focus = true;
+    }
+
+    pub(crate) fn copy_instruction_bytes(
+        code_viewer_view_data: Dependency<Self>,
+        instruction_address: u64,
+        instruction_lines: &[DisassembledInstruction],
+    ) -> Option<Vec<u8>> {
+        let mut code_viewer_view_data = code_viewer_view_data.write("Code viewer copy instruction bytes")?;
+        let instruction_bytes = code_viewer_view_data
+            .resolve_instruction_slice(instruction_address, instruction_lines)?
+            .iter()
+            .flat_map(|instruction_line| instruction_line.bytes.iter().copied())
+            .collect::<Vec<_>>();
+
+        if instruction_bytes.is_empty() {
+            return None;
+        }
+
+        code_viewer_view_data.copied_instruction_bytes = Some(instruction_bytes.clone());
+        code_viewer_view_data.context_menu_address = None;
+        code_viewer_view_data.context_menu_position = None;
+
+        Some(instruction_bytes)
+    }
+
+    pub(crate) fn copy_instruction_text(
+        code_viewer_view_data: Dependency<Self>,
+        instruction_address: u64,
+        instruction_lines: &[DisassembledInstruction],
+    ) -> Option<String> {
+        let mut code_viewer_view_data = code_viewer_view_data.write("Code viewer copy instruction text")?;
+        let instruction_text = code_viewer_view_data
+            .resolve_instruction_slice(instruction_address, instruction_lines)?
+            .iter()
+            .map(|instruction_line| instruction_line.text.clone())
+            .collect::<Vec<_>>()
+            .join("; ");
+
+        if instruction_text.trim().is_empty() {
+            return None;
+        }
+
+        code_viewer_view_data.copied_instruction_text = Some(instruction_text.clone());
+        code_viewer_view_data.context_menu_address = None;
+        code_viewer_view_data.context_menu_position = None;
+
+        Some(instruction_text)
+    }
+
+    pub(crate) fn has_copied_instruction_bytes(code_viewer_view_data: Dependency<Self>) -> bool {
+        code_viewer_view_data
+            .read("Code viewer has copied instruction bytes")
+            .and_then(|code_viewer_view_data| {
+                code_viewer_view_data
+                    .copied_instruction_bytes
+                    .as_ref()
+                    .map(|copied_bytes| !copied_bytes.is_empty())
+            })
+            .unwrap_or(false)
+    }
+
+    pub(crate) fn has_copied_instruction_text(code_viewer_view_data: Dependency<Self>) -> bool {
+        code_viewer_view_data
+            .read("Code viewer has copied instruction text")
+            .and_then(|code_viewer_view_data| {
+                code_viewer_view_data
+                    .copied_instruction_text
+                    .as_ref()
+                    .map(|copied_instruction_text| !copied_instruction_text.trim().is_empty())
+            })
+            .unwrap_or(false)
+    }
+
+    pub(crate) fn evaluate_paste_copied_bytes(
+        code_viewer_view_data: Dependency<Self>,
+        instruction_address: u64,
+        instruction_lines: &[DisassembledInstruction],
+    ) -> Option<CodeViewerInstructionWritePlan> {
+        let Some(mut code_viewer_view_data) = code_viewer_view_data.write("Code viewer evaluate copied byte paste") else {
+            return None;
+        };
+        let copied_instruction_bytes = code_viewer_view_data.copied_instruction_bytes.clone()?;
+
+        code_viewer_view_data.evaluate_pasted_bytes(
+            instruction_address,
+            instruction_lines,
+            copied_instruction_bytes,
+            CodeViewerInstructionEditMode::PastedBytes,
+            AnonymousValueStringFormat::Hexadecimal,
+        )
+    }
+
+    pub(crate) fn evaluate_paste_copied_instruction(
+        code_viewer_view_data: Dependency<Self>,
+        instruction_address: u64,
+        instruction_lines: &[DisassembledInstruction],
+        instruction_set: Option<Arc<dyn InstructionSet>>,
+    ) -> Option<CodeViewerInstructionWritePlan> {
+        let Some(mut code_viewer_view_data) = code_viewer_view_data.write("Code viewer evaluate copied instruction paste") else {
+            return None;
+        };
+        let copied_instruction_text = code_viewer_view_data.copied_instruction_text.clone()?;
+        let Some((selection_start_index, selection_end_index)) =
+            code_viewer_view_data.resolve_instruction_edit_index_range(instruction_address, instruction_lines)
+        else {
+            return None;
+        };
+        let Some(first_instruction) = instruction_lines.get(selection_start_index) else {
+            return None;
+        };
+        let assembled_bytes = match instruction_set {
+            Some(instruction_set) => match instruction_set.assemble_at_address(copied_instruction_text.trim(), first_instruction.address) {
+                Ok(assembled_bytes) => assembled_bytes,
+                Err(error) => {
+                    code_viewer_view_data.set_paste_edit_status(
+                        instruction_lines,
+                        selection_start_index,
+                        selection_end_index,
+                        CodeViewerInstructionEditMode::PastedInstruction,
+                        AnonymousValueString::new(copied_instruction_text, AnonymousValueStringFormat::String, ContainerType::None),
+                        CodeViewerInstructionEditStatus::Invalid(error),
+                    );
+                    return None;
+                }
+            },
+            None => {
+                code_viewer_view_data.set_paste_edit_status(
+                    instruction_lines,
+                    selection_start_index,
+                    selection_end_index,
+                    CodeViewerInstructionEditMode::PastedInstruction,
+                    AnonymousValueString::new(copied_instruction_text, AnonymousValueStringFormat::String, ContainerType::None),
+                    CodeViewerInstructionEditStatus::Invalid(String::from("No instruction set plugin is enabled for this target.")),
+                );
+                return None;
+            }
+        };
+
+        code_viewer_view_data.evaluate_pasted_bytes_with_range(
+            instruction_lines,
+            selection_start_index,
+            selection_end_index,
+            assembled_bytes,
+            CodeViewerInstructionEditMode::PastedInstruction,
+            AnonymousValueString::new(copied_instruction_text, AnonymousValueStringFormat::String, ContainerType::None),
+        )
     }
 
     pub(crate) fn get_instruction_edit_state(code_viewer_view_data: Dependency<Self>) -> Option<CodeViewerInstructionEditState> {
@@ -793,11 +962,12 @@ impl CodeViewerViewData {
             )));
             return None;
         };
-        let assembled_bytes = match instruction_set.assemble(
+        let assembled_bytes = match instruction_set.assemble_at_address(
             instruction_edit_state
                 .edit_value
                 .get_anonymous_value_string()
                 .trim(),
+            instruction_edit_state.start_address,
         ) {
             Ok(assembled_bytes) => assembled_bytes,
             Err(error) => {
@@ -829,6 +999,7 @@ impl CodeViewerViewData {
         instruction_edit_state.status = Some(CodeViewerInstructionEditStatus::PendingOverwrite {
             overwritten_byte_count: assembled_bytes.len().saturating_sub(original_byte_count),
             assembled_bytes,
+            nop_fill_byte_count: 0,
         });
 
         None
@@ -874,21 +1045,49 @@ impl CodeViewerViewData {
         })
     }
 
-    pub(crate) fn accept_instruction_edit_pending_overwrite(code_viewer_view_data: Dependency<Self>) -> Option<CodeViewerInstructionWritePlan> {
+    pub(crate) fn accept_instruction_edit_pending_overwrite(
+        code_viewer_view_data: Dependency<Self>,
+        instruction_set: Option<Arc<dyn InstructionSet>>,
+    ) -> Option<CodeViewerInstructionWritePlan> {
         let Some(mut code_viewer_view_data) = code_viewer_view_data.write("Code viewer accept instruction overwrite") else {
             return None;
         };
         let Some(instruction_edit_state) = code_viewer_view_data.instruction_edit_state.as_mut() else {
             return None;
         };
-        let Some(CodeViewerInstructionEditStatus::PendingOverwrite { assembled_bytes, .. }) = instruction_edit_state.status.clone() else {
+        let Some(CodeViewerInstructionEditStatus::PendingOverwrite {
+            assembled_bytes,
+            nop_fill_byte_count,
+            ..
+        }) = instruction_edit_state.status.clone()
+        else {
             return None;
         };
+        let mut written_bytes = assembled_bytes;
+
+        if nop_fill_byte_count > 0 {
+            let Some(instruction_set) = instruction_set else {
+                instruction_edit_state.status = Some(CodeViewerInstructionEditStatus::Invalid(String::from(
+                    "No instruction set plugin is enabled for this target.",
+                )));
+                return None;
+            };
+            let nop_fill_bytes = match instruction_set.build_no_operation_fill(nop_fill_byte_count) {
+                Ok(nop_fill_bytes) => nop_fill_bytes,
+                Err(error) => {
+                    instruction_edit_state.status = Some(CodeViewerInstructionEditStatus::Invalid(error));
+                    return None;
+                }
+            };
+
+            written_bytes.extend_from_slice(&nop_fill_bytes);
+        }
+
         instruction_edit_state.status = None;
 
         Some(CodeViewerInstructionWritePlan {
             start_address: instruction_edit_state.start_address,
-            written_bytes: assembled_bytes,
+            written_bytes,
         })
     }
 
@@ -1081,6 +1280,195 @@ impl CodeViewerViewData {
             .max(1);
 
         Some((first_selected_instruction.address, selected_byte_count))
+    }
+
+    fn resolve_instruction_slice<'instruction>(
+        &self,
+        instruction_address: u64,
+        instruction_lines: &'instruction [DisassembledInstruction],
+    ) -> Option<&'instruction [DisassembledInstruction]> {
+        let (selection_start_index, selection_end_index) = self.resolve_instruction_edit_index_range(instruction_address, instruction_lines)?;
+
+        Some(&instruction_lines[selection_start_index..=selection_end_index])
+    }
+
+    fn evaluate_pasted_bytes(
+        &mut self,
+        instruction_address: u64,
+        instruction_lines: &[DisassembledInstruction],
+        pasted_bytes: Vec<u8>,
+        edit_mode: CodeViewerInstructionEditMode,
+        edit_value_format: AnonymousValueStringFormat,
+    ) -> Option<CodeViewerInstructionWritePlan> {
+        let Some((selection_start_index, selection_end_index)) = self.resolve_instruction_edit_index_range(instruction_address, instruction_lines) else {
+            return None;
+        };
+        let edit_value = AnonymousValueString::new(Self::format_byte_string(&pasted_bytes), edit_value_format, ContainerType::None);
+
+        self.evaluate_pasted_bytes_with_range(
+            instruction_lines,
+            selection_start_index,
+            selection_end_index,
+            pasted_bytes,
+            edit_mode,
+            edit_value,
+        )
+    }
+
+    fn evaluate_pasted_bytes_with_range(
+        &mut self,
+        instruction_lines: &[DisassembledInstruction],
+        selection_start_index: usize,
+        selection_end_index: usize,
+        pasted_bytes: Vec<u8>,
+        edit_mode: CodeViewerInstructionEditMode,
+        edit_value: AnonymousValueString,
+    ) -> Option<CodeViewerInstructionWritePlan> {
+        if pasted_bytes.is_empty() {
+            self.set_paste_edit_status(
+                instruction_lines,
+                selection_start_index,
+                selection_end_index,
+                edit_mode,
+                edit_value,
+                CodeViewerInstructionEditStatus::Invalid(String::from("Copied code bytes cannot be empty.")),
+            );
+            return None;
+        }
+
+        let Some((start_address, end_address_exclusive)) = Self::resolve_instruction_span(instruction_lines, selection_start_index, selection_end_index) else {
+            return None;
+        };
+        let original_byte_count = end_address_exclusive.saturating_sub(start_address) as usize;
+
+        if pasted_bytes.len() == original_byte_count {
+            self.instruction_edit_state = None;
+            self.context_menu_address = None;
+            self.context_menu_position = None;
+
+            return Some(CodeViewerInstructionWritePlan {
+                start_address,
+                written_bytes: pasted_bytes,
+            });
+        }
+
+        if pasted_bytes.len() < original_byte_count {
+            self.set_paste_edit_status(
+                instruction_lines,
+                selection_start_index,
+                selection_end_index,
+                edit_mode,
+                edit_value,
+                CodeViewerInstructionEditStatus::PendingFillWithNops {
+                    remaining_byte_count: original_byte_count.saturating_sub(pasted_bytes.len()),
+                    assembled_bytes: pasted_bytes,
+                },
+            );
+
+            return None;
+        }
+
+        let paste_end_address = start_address.saturating_add(pasted_bytes.len() as u64);
+        let (overwrite_end_address_exclusive, nop_fill_byte_count) =
+            Self::resolve_instruction_overwrite_end_address(instruction_lines, selection_end_index, paste_end_address);
+        let overwritten_byte_count = overwrite_end_address_exclusive.saturating_sub(end_address_exclusive) as usize;
+
+        self.set_paste_edit_status(
+            instruction_lines,
+            selection_start_index,
+            selection_end_index,
+            edit_mode,
+            edit_value,
+            CodeViewerInstructionEditStatus::PendingOverwrite {
+                overwritten_byte_count,
+                assembled_bytes: pasted_bytes,
+                nop_fill_byte_count,
+            },
+        );
+
+        None
+    }
+
+    fn set_paste_edit_status(
+        &mut self,
+        instruction_lines: &[DisassembledInstruction],
+        selection_start_index: usize,
+        selection_end_index: usize,
+        edit_mode: CodeViewerInstructionEditMode,
+        edit_value: AnonymousValueString,
+        status: CodeViewerInstructionEditStatus,
+    ) {
+        let Some((start_address, end_address_exclusive)) = Self::resolve_instruction_span(instruction_lines, selection_start_index, selection_end_index) else {
+            return;
+        };
+
+        self.selected_instruction_range = Some(CodeViewerInstructionSelectionRange {
+            anchor_instruction_address: start_address,
+            active_instruction_address: instruction_lines
+                .get(selection_end_index)
+                .map(|instruction_line| instruction_line.address)
+                .unwrap_or(start_address),
+        });
+        self.instruction_edit_state = Some(CodeViewerInstructionEditState {
+            mode: edit_mode,
+            start_address,
+            end_address_exclusive,
+            edit_value,
+            status: Some(status),
+        });
+        self.context_menu_address = None;
+        self.context_menu_position = None;
+        self.has_keyboard_focus = true;
+    }
+
+    fn resolve_instruction_span(
+        instruction_lines: &[DisassembledInstruction],
+        selection_start_index: usize,
+        selection_end_index: usize,
+    ) -> Option<(u64, u64)> {
+        let first_instruction = instruction_lines.get(selection_start_index)?;
+        let last_instruction = instruction_lines.get(selection_end_index)?;
+        let end_address_exclusive = last_instruction
+            .address
+            .saturating_add((last_instruction.length as u64).max(1));
+
+        Some((first_instruction.address, end_address_exclusive))
+    }
+
+    fn resolve_instruction_overwrite_end_address(
+        instruction_lines: &[DisassembledInstruction],
+        selection_end_index: usize,
+        paste_end_address: u64,
+    ) -> (u64, usize) {
+        for instruction_line in instruction_lines
+            .iter()
+            .skip(selection_end_index.saturating_add(1))
+        {
+            let instruction_start_address = instruction_line.address;
+            let instruction_end_address = instruction_line
+                .address
+                .saturating_add((instruction_line.length as u64).max(1));
+
+            if paste_end_address <= instruction_start_address {
+                return (paste_end_address, 0);
+            }
+
+            if paste_end_address <= instruction_end_address {
+                let nop_fill_byte_count = instruction_end_address.saturating_sub(paste_end_address) as usize;
+
+                return (instruction_end_address, nop_fill_byte_count);
+            }
+        }
+
+        (paste_end_address, 0)
+    }
+
+    fn format_byte_string(bytes: &[u8]) -> String {
+        bytes
+            .iter()
+            .map(|byte_value| format!("{:02X}", byte_value))
+            .collect::<Vec<_>>()
+            .join(" ")
     }
 
     fn resolve_instruction_edit_index_range(
@@ -1563,11 +1951,19 @@ mod tests {
     use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
 
     fn decoded_instruction(address: u64) -> DisassembledInstruction {
+        disassembled_instruction(address, vec![0x90], "nop")
+    }
+
+    fn disassembled_instruction(
+        address: u64,
+        bytes: Vec<u8>,
+        text: &str,
+    ) -> DisassembledInstruction {
         DisassembledInstruction {
             address,
-            length: 1,
-            bytes: vec![0x90],
-            text: String::from("nop"),
+            length: bytes.len(),
+            bytes,
+            text: text.to_string(),
             branch_target_address: None,
             is_control_flow: false,
         }
@@ -1638,6 +2034,137 @@ mod tests {
                 .read("Code viewer test pending scroll after resolved row")
                 .and_then(|code_viewer_view_data| code_viewer_view_data.pending_scroll_address),
             None
+        );
+    }
+
+    #[test]
+    fn copy_instruction_bytes_uses_selected_instruction_range() {
+        let mut code_viewer_view_data = CodeViewerViewData::new();
+        code_viewer_view_data.selected_instruction_range = Some(CodeViewerInstructionSelectionRange {
+            anchor_instruction_address: 0x1000,
+            active_instruction_address: 0x1003,
+        });
+        let dependency = DependencyContainer::new().register(code_viewer_view_data);
+        let instruction_lines = vec![
+            disassembled_instruction(0x1000, vec![0x01, 0x02], "first"),
+            disassembled_instruction(0x1002, vec![0x03], "middle"),
+            disassembled_instruction(0x1003, vec![0x04, 0x05], "last"),
+        ];
+
+        let copied_bytes = CodeViewerViewData::copy_instruction_bytes(dependency.clone(), 0x1002, &instruction_lines);
+
+        assert_eq!(copied_bytes, Some(vec![0x01, 0x02, 0x03, 0x04, 0x05]));
+        assert!(CodeViewerViewData::has_copied_instruction_bytes(dependency));
+    }
+
+    #[test]
+    fn paste_copied_bytes_with_matching_size_returns_write_plan() {
+        let dependency = DependencyContainer::new().register(CodeViewerViewData::new());
+        let instruction_lines = vec![
+            disassembled_instruction(0x1000, vec![0x01, 0x02], "first"),
+            disassembled_instruction(0x1002, vec![0x90, 0x90], "nops"),
+        ];
+
+        assert_eq!(
+            CodeViewerViewData::copy_instruction_bytes(dependency.clone(), 0x1002, &instruction_lines),
+            Some(vec![0x90, 0x90])
+        );
+        assert_eq!(
+            CodeViewerViewData::evaluate_paste_copied_bytes(dependency, 0x1000, &instruction_lines),
+            Some(CodeViewerInstructionWritePlan {
+                start_address: 0x1000,
+                written_bytes: vec![0x90, 0x90],
+            })
+        );
+    }
+
+    #[test]
+    fn paste_short_copied_bytes_prompts_for_no_operation_fill() {
+        let dependency = DependencyContainer::new().register(CodeViewerViewData::new());
+        let instruction_lines = vec![
+            disassembled_instruction(0x1000, vec![0x01, 0x02], "first"),
+            disassembled_instruction(0x1002, vec![0x90], "nop"),
+        ];
+
+        assert_eq!(
+            CodeViewerViewData::copy_instruction_bytes(dependency.clone(), 0x1002, &instruction_lines),
+            Some(vec![0x90])
+        );
+        assert_eq!(
+            CodeViewerViewData::evaluate_paste_copied_bytes(dependency.clone(), 0x1000, &instruction_lines),
+            None
+        );
+
+        let paste_state = CodeViewerViewData::get_instruction_edit_state(dependency).expect("Expected paste warning state.");
+        assert_eq!(paste_state.mode, CodeViewerInstructionEditMode::PastedBytes);
+        assert_eq!(paste_state.start_address, 0x1000);
+        assert_eq!(paste_state.end_address_exclusive, 0x1002);
+        assert_eq!(
+            paste_state.status,
+            Some(CodeViewerInstructionEditStatus::PendingFillWithNops {
+                assembled_bytes: vec![0x90],
+                remaining_byte_count: 1,
+            })
+        );
+    }
+
+    #[test]
+    fn paste_long_copied_bytes_prompts_for_clean_multi_instruction_overwrite() {
+        let dependency = DependencyContainer::new().register(CodeViewerViewData::new());
+        let instruction_lines = vec![
+            disassembled_instruction(0x1000, vec![0x01, 0x02], "first"),
+            disassembled_instruction(0x1002, vec![0xCC], "int3"),
+            disassembled_instruction(0x1003, vec![0x90, 0x90, 0x90], "three"),
+        ];
+
+        assert_eq!(
+            CodeViewerViewData::copy_instruction_bytes(dependency.clone(), 0x1003, &instruction_lines),
+            Some(vec![0x90, 0x90, 0x90])
+        );
+        assert_eq!(
+            CodeViewerViewData::evaluate_paste_copied_bytes(dependency.clone(), 0x1000, &instruction_lines),
+            None
+        );
+
+        let paste_state = CodeViewerViewData::get_instruction_edit_state(dependency).expect("Expected paste warning state.");
+        assert_eq!(
+            paste_state.status,
+            Some(CodeViewerInstructionEditStatus::PendingOverwrite {
+                assembled_bytes: vec![0x90, 0x90, 0x90],
+                overwritten_byte_count: 1,
+                nop_fill_byte_count: 0,
+            })
+        );
+    }
+
+    #[test]
+    fn paste_long_copied_bytes_prompts_for_no_operation_fill_on_partial_instruction() {
+        let dependency = DependencyContainer::new().register(CodeViewerViewData::new());
+        let instruction_lines = vec![
+            disassembled_instruction(0x1000, vec![0x01, 0x02], "first"),
+            disassembled_instruction(0x1002, vec![0x90, 0x90, 0x90, 0x90], "four"),
+            disassembled_instruction(0x1006, vec![0xCC], "int3"),
+        ];
+        let copied_bytes = vec![0xAA, 0xBB, 0xCC];
+
+        dependency
+            .write("Code viewer test set copied bytes")
+            .expect("Expected test dependency write to succeed.")
+            .copied_instruction_bytes = Some(copied_bytes.clone());
+
+        assert_eq!(
+            CodeViewerViewData::evaluate_paste_copied_bytes(dependency.clone(), 0x1000, &instruction_lines),
+            None
+        );
+
+        let paste_state = CodeViewerViewData::get_instruction_edit_state(dependency).expect("Expected paste warning state.");
+        assert_eq!(
+            paste_state.status,
+            Some(CodeViewerInstructionEditStatus::PendingOverwrite {
+                assembled_bytes: copied_bytes,
+                overwritten_byte_count: 4,
+                nop_fill_byte_count: 3,
+            })
         );
     }
 }

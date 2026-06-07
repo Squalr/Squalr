@@ -79,4 +79,13 @@ mod tests {
 
         assert!(plugin.can_attach(&process_info));
     }
+
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    #[test]
+    fn plugin_accepts_linux_x64_targets() {
+        let plugin = NativeDebuggersPlugin::new();
+        let process_info = OpenedProcessInfo::new(1, String::from("target"), 1, Bitness::Bit64, None).with_target_architecture(TargetArchitecture::x64());
+
+        assert!(plugin.can_attach(&process_info));
+    }
 }

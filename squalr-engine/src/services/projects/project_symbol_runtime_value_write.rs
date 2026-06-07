@@ -1,9 +1,11 @@
 use squalr_engine_api::commands::memory::write::memory_write_request::{MemoryWriteMode, MemoryWriteRequest};
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
-use squalr_engine_api::plugins::instruction_set::normalize_instruction_data_type_id;
+use squalr_engine_api::plugins::instruction_set::{instruction_set_id_from_instruction_data_type_id, normalize_instruction_data_type_id};
 use squalr_engine_api::structures::data_types::built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
-use squalr_engine_api::structures::data_values::{anonymous_value_string::AnonymousValueString, container_type::ContainerType};
+use squalr_engine_api::structures::data_values::{
+    anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType,
+};
 use squalr_engine_api::structures::projects::{
     project_symbol_catalog::ProjectSymbolCatalog, symbol_layouts::symbol_layout_size_resolver::SymbolLayoutSizeResolver,
 };
@@ -45,36 +47,41 @@ pub fn build_project_symbol_runtime_value_write_request(
     .ok_or_else(|| format!("Unable to resolve symbol type `{}`.", write_plan_request.symbol_type_id))?;
     let field_write_target = resolve_symbol_layout_field_write_target(engine_execution_context, &symbolic_struct_definition, &write_plan_request.field_name)
         .ok_or_else(|| format!("Unable to resolve writable field `{}`.", write_plan_request.field_name))?;
-    let data_value = engine_execution_context
-        .deanonymize_value_string(
-            field_write_target.symbolic_field_definition.get_data_type_ref(),
-            &normalize_anonymous_value_container_type(
-                &write_plan_request.anonymous_value_string,
-                field_write_target
-                    .symbolic_field_definition
-                    .get_container_type(),
-            ),
-        )
-        .map_err(|error| format!("Failed to parse edited symbol value: {}.", error))?;
-    let value_bytes = normalize_runtime_write_value_bytes(
-        &data_value,
-        field_write_target
-            .symbolic_field_definition
-            .get_container_type(),
-    );
     let address = write_plan_request
         .address
         .checked_add(field_write_target.offset)
         .ok_or_else(|| String::from("Edited symbol field address overflowed."))?;
-
-    let write_mode = if normalize_instruction_data_type_id(
+    let instruction_data_type_id = normalize_instruction_data_type_id(
         field_write_target
             .symbolic_field_definition
             .get_data_type_ref()
             .get_base_data_type_id(),
-    )
-    .is_some()
-    {
+    );
+    let normalized_anonymous_value_string = normalize_anonymous_value_container_type(
+        &write_plan_request.anonymous_value_string,
+        field_write_target
+            .symbolic_field_definition
+            .get_container_type(),
+    );
+    let value_bytes = if let Some(instruction_data_type_id) = instruction_data_type_id.as_deref() {
+        build_instruction_runtime_write_bytes(engine_execution_context, instruction_data_type_id, &normalized_anonymous_value_string, address)?
+    } else {
+        let data_value = engine_execution_context
+            .deanonymize_value_string(
+                field_write_target.symbolic_field_definition.get_data_type_ref(),
+                &normalized_anonymous_value_string,
+            )
+            .map_err(|error| format!("Failed to parse edited symbol value: {}.", error))?;
+
+        normalize_runtime_write_value_bytes(
+            &data_value,
+            field_write_target
+                .symbolic_field_definition
+                .get_container_type(),
+        )
+    };
+
+    let write_mode = if instruction_data_type_id.is_some() {
         MemoryWriteMode::CheckedCode
     } else {
         MemoryWriteMode::Raw
@@ -86,6 +93,31 @@ pub fn build_project_symbol_runtime_value_write_request(
         value: value_bytes,
         write_mode,
     })
+}
+
+fn build_instruction_runtime_write_bytes(
+    engine_execution_context: &Arc<dyn EngineExecutionContext>,
+    instruction_data_type_id: &str,
+    anonymous_value_string: &AnonymousValueString,
+    address: u64,
+) -> Result<Vec<u8>, String> {
+    if anonymous_value_string.get_anonymous_value_string_format() != AnonymousValueStringFormat::String {
+        let data_value = engine_execution_context
+            .deanonymize_value_string(&DataTypeRef::new(instruction_data_type_id), anonymous_value_string)
+            .map_err(|error| format!("Failed to parse edited instruction bytes: {}.", error))?;
+
+        return Ok(data_value.get_value_bytes().clone());
+    }
+
+    let instruction_set_id = instruction_set_id_from_instruction_data_type_id(instruction_data_type_id)
+        .ok_or_else(|| format!("Unable to resolve instruction set for data type `{}`.", instruction_data_type_id))?;
+    let instruction_set = engine_execution_context
+        .find_instruction_set(&instruction_set_id)
+        .ok_or_else(|| format!("No instruction set plugin is enabled for `{}`.", instruction_set_id))?;
+
+    instruction_set
+        .assemble_at_address(anonymous_value_string.get_anonymous_value_string().trim(), address)
+        .map_err(|error| format!("Failed to parse edited instruction value: {}.", error))
 }
 
 fn normalize_anonymous_value_container_type(
@@ -316,6 +348,28 @@ mod tests {
         )
         .expect("Expected instruction write request to build.");
 
+        assert_eq!(write_request.write_mode, MemoryWriteMode::CheckedCode);
+    }
+
+    #[test]
+    fn instruction_runtime_value_write_assembles_with_runtime_address() {
+        let engine_unprivileged_state = create_engine_unprivileged_state(MockProjectSymbolsBindings::new());
+        let engine_execution_context: Arc<dyn EngineExecutionContext> = engine_unprivileged_state.clone();
+        let write_request = build_project_symbol_runtime_value_write_request(
+            &engine_execution_context,
+            &ProjectSymbolCatalog::default(),
+            &ProjectSymbolRuntimeValueWritePlanRequest {
+                address: 0x401563,
+                module_name: String::new(),
+                symbol_type_id: String::from("i_x64"),
+                container_type: ContainerType::None,
+                field_name: String::from("value"),
+                anonymous_value_string: AnonymousValueString::new(String::from("mov [404090h], ebx"), AnonymousValueStringFormat::String, ContainerType::None),
+            },
+        )
+        .expect("Expected instruction write request to build.");
+
+        assert_eq!(write_request.value, &[0x89, 0x1D, 0x27, 0x2B, 0x00, 0x00]);
         assert_eq!(write_request.write_mode, MemoryWriteMode::CheckedCode);
     }
 }

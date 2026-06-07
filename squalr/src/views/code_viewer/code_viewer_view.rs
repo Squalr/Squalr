@@ -12,7 +12,8 @@ use crate::{
         code_viewer::{
             code_viewer_footer_view::CodeViewerFooterView,
             view_data::code_viewer_view_data::{
-                CodeViewerInstructionEditState, CodeViewerInstructionEditStatus, CodeViewerInstructionWritePlan, CodeViewerViewData,
+                CodeViewerInstructionEditMode, CodeViewerInstructionEditState, CodeViewerInstructionEditStatus, CodeViewerInstructionWritePlan,
+                CodeViewerViewData,
             },
         },
         process_selector::view_data::process_selector_view_data::ProcessSelectorViewData,
@@ -67,7 +68,8 @@ impl CodeViewerView {
     const CONTENT_HEADER_HEIGHT: f32 = 26.0;
     const CONTENT_HEADER_SEPARATOR_HEIGHT: f32 = 3.0;
     const ROW_HEIGHT: f32 = 22.0;
-    const EDIT_WARNING_ROW_HEIGHT: f32 = 34.0;
+    const EDIT_WARNING_ROW_HEIGHT: f32 = 66.0;
+    const EDIT_WARNING_TEXT_ROW_HEIGHT: f32 = 26.0;
     const BREAKPOINT_GUTTER_WIDTH: f32 = 28.0;
     const BRANCH_GUTTER_WIDTH: f32 = 56.0;
     const ADDRESS_COLUMN_WIDTH: f32 = 118.0;
@@ -82,7 +84,8 @@ impl CodeViewerView {
     const BRANCH_LANE_RIGHT_PADDING: f32 = 8.0;
     const MAX_BRANCH_LANES: usize = 5;
     const CONTEXT_MENU_WIDTH: f32 = 220.0;
-    const EDIT_WARNING_BUTTON_WIDTH: f32 = 128.0;
+    const EDIT_WARNING_BUTTON_WIDTH: f32 = 160.0;
+    const EDIT_WARNING_CANCEL_BUTTON_WIDTH: f32 = 96.0;
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let code_viewer_view_data = app_context
@@ -644,7 +647,11 @@ impl CodeViewerView {
                 theme.font_library.font_ubuntu_mono_bold.font_normal.clone(),
                 theme.hexadecimal_green,
             );
-        if is_instruction_edit_row {
+        if is_instruction_edit_row
+            && instruction_edit_state
+                .map(|instruction_edit_state| instruction_edit_state.mode == CodeViewerInstructionEditMode::AssemblyEdit)
+                .unwrap_or(false)
+        {
             if let Some(instruction_edit_state) = instruction_edit_state {
                 self.render_instruction_text_edit_contents(user_interface, column_layout.text_rect, instruction_edit_state);
             }
@@ -758,11 +765,6 @@ impl CodeViewerView {
         };
         let theme = &self.app_context.theme;
         let (warning_rect, _) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), Self::EDIT_WARNING_ROW_HEIGHT), Sense::hover());
-        let mut warning_user_interface = user_interface.new_child(
-            UiBuilder::new()
-                .max_rect(warning_rect)
-                .layout(Layout::left_to_right(Align::Center)),
-        );
         let warning_color = match instruction_edit_status {
             CodeViewerInstructionEditStatus::Invalid(_) => theme.error_red,
             CodeViewerInstructionEditStatus::PendingFillWithNops { .. } => theme.background_control_primary,
@@ -789,78 +791,139 @@ impl CodeViewerView {
                 theme.foreground,
             );
         };
-        warning_user_interface.painter().rect_stroke(
+        user_interface.painter().rect_stroke(
             warning_rect.shrink2(vec2(1.0, 1.0)),
             CornerRadius::same(3),
             Stroke::new(1.0, warning_color),
             epaint::StrokeKind::Inside,
         );
-        warning_user_interface.add_space((bytes_text_splitter_position_x - warning_rect.min.x + 8.0).max(0.0));
 
-        match instruction_edit_status {
-            CodeViewerInstructionEditStatus::Invalid(error) => {
-                warning_user_interface.label(
-                    RichText::new(error)
-                        .font(theme.font_library.font_noto_sans.font_normal.clone())
-                        .color(theme.error_red),
-                );
+        let content_min_x = safe_clamp_f32(
+            bytes_text_splitter_position_x + 8.0,
+            warning_rect.min.x + 8.0,
+            (warning_rect.max.x - 8.0).max(warning_rect.min.x + 8.0),
+        );
+        let text_rect = Rect::from_min_max(
+            pos2(content_min_x, warning_rect.min.y + 4.0),
+            pos2(warning_rect.max.x - 8.0, warning_rect.min.y + 4.0 + Self::EDIT_WARNING_TEXT_ROW_HEIGHT),
+        );
+        let (warning_text, primary_button) = match instruction_edit_status {
+            CodeViewerInstructionEditStatus::Invalid(error) => (error.clone(), None),
+            CodeViewerInstructionEditStatus::PendingFillWithNops { remaining_byte_count, .. } => (
+                format!(
+                    "Replacement is {} byte(s) shorter. Fill the remainder with code that does nothing?",
+                    remaining_byte_count
+                ),
+                Some((
+                    "Fill + Write",
+                    "Write the replacement and pad the remaining bytes with no-operations.",
+                    theme.background_control_primary,
+                    theme.background_control_primary_dark,
+                )),
+            ),
+            CodeViewerInstructionEditStatus::PendingOverwrite {
+                overwritten_byte_count,
+                nop_fill_byte_count,
+                ..
+            } => {
+                if *nop_fill_byte_count == 0 {
+                    (
+                        format!("Replacement will overwrite {} byte(s) from following instruction(s).", overwritten_byte_count),
+                        Some((
+                            "Overwrite Multiple",
+                            "Write the replacement and overwrite the following complete instruction bytes.",
+                            theme.background_control_warning,
+                            theme.background_control_warning_dark,
+                        )),
+                    )
+                } else {
+                    (
+                        format!(
+                            "Replacement crosses instruction boundaries. Fill {} trailing byte(s) with no-operations?",
+                            nop_fill_byte_count
+                        ),
+                        Some((
+                            "Fill + Overwrite",
+                            "Write the replacement and pad the remaining partially overwritten instruction bytes with no-operations.",
+                            theme.background_control_warning,
+                            theme.background_control_warning_dark,
+                        )),
+                    )
+                }
             }
-            CodeViewerInstructionEditStatus::PendingFillWithNops { remaining_byte_count, .. } => {
-                warning_user_interface.label(
-                    RichText::new(format!(
-                        "Replacement is {} byte(s) shorter. Fill the remainder with code that does nothing?",
-                        remaining_byte_count
-                    ))
-                    .font(theme.font_library.font_noto_sans.font_normal.clone())
-                    .color(warning_text_color),
-                );
-                warning_user_interface.add_space(8.0);
-                let fill_button = warning_user_interface.add_sized(
-                    vec2(Self::EDIT_WARNING_BUTTON_WIDTH, Self::TOOLBAR_ROW_HEIGHT),
-                    warning_button(
-                        theme,
-                        theme.background_control_primary,
-                        theme.background_control_primary_dark,
-                        "Write the replacement and pad the remaining bytes with no-operations.",
-                    ),
-                );
-                draw_button_label(&warning_user_interface, fill_button.rect, "Fill + Write", theme);
+        };
+        let button_row_width = if primary_button.is_some() {
+            Self::EDIT_WARNING_BUTTON_WIDTH + 8.0 + Self::EDIT_WARNING_CANCEL_BUTTON_WIDTH
+        } else {
+            Self::EDIT_WARNING_CANCEL_BUTTON_WIDTH
+        };
+        let button_min_x = safe_clamp_f32(
+            content_min_x,
+            warning_rect.min.x + 8.0,
+            (warning_rect.max.x - button_row_width - 8.0).max(warning_rect.min.x + 8.0),
+        );
+        let button_row_rect = Rect::from_min_max(
+            pos2(button_min_x, text_rect.max.y + 2.0),
+            pos2(warning_rect.max.x - 8.0, warning_rect.max.y - 4.0),
+        );
 
-                if fill_button.clicked() {
-                    if let Some(instruction_write_plan) =
+        user_interface
+            .painter()
+            .with_clip_rect(text_rect.intersect(user_interface.clip_rect()))
+            .text(
+                pos2(text_rect.min.x, text_rect.center().y),
+                Align2::LEFT_CENTER,
+                warning_text,
+                theme.font_library.font_noto_sans.font_normal.clone(),
+                warning_text_color,
+            );
+
+        let mut button_user_interface = user_interface.new_child(
+            UiBuilder::new()
+                .max_rect(button_row_rect)
+                .layout(Layout::left_to_right(Align::Center)),
+        );
+
+        if let Some((button_label, button_tooltip, button_fill_color, button_border_color)) = primary_button {
+            let primary_button_response = button_user_interface.add_sized(
+                vec2(Self::EDIT_WARNING_BUTTON_WIDTH, Self::TOOLBAR_ROW_HEIGHT),
+                warning_button(theme, button_fill_color, button_border_color, button_tooltip),
+            );
+            draw_button_label(&button_user_interface, primary_button_response.rect, button_label, theme);
+
+            if primary_button_response.clicked() {
+                let instruction_write_plan = match instruction_edit_status {
+                    CodeViewerInstructionEditStatus::PendingFillWithNops { .. } => {
                         CodeViewerViewData::accept_instruction_edit_pending_fill_with_nops(self.code_viewer_view_data.clone(), self.get_instruction_set())
-                    {
-                        self.dispatch_instruction_write(instruction_write_plan);
                     }
-                }
-            }
-            CodeViewerInstructionEditStatus::PendingOverwrite { overwritten_byte_count, .. } => {
-                warning_user_interface.label(
-                    RichText::new(format!(
-                        "Replacement is {} byte(s) longer and will overwrite the next instruction(s).",
-                        overwritten_byte_count
-                    ))
-                    .font(theme.font_library.font_noto_sans.font_normal.clone())
-                    .color(warning_text_color),
-                );
-                warning_user_interface.add_space(8.0);
-                let overwrite_button = warning_user_interface.add_sized(
-                    vec2(Self::EDIT_WARNING_BUTTON_WIDTH, Self::TOOLBAR_ROW_HEIGHT),
-                    warning_button(
-                        theme,
-                        theme.background_control_warning,
-                        theme.background_control_warning_dark,
-                        "Write the longer replacement and allow it to overwrite the following bytes.",
-                    ),
-                );
-                draw_button_label(&warning_user_interface, overwrite_button.rect, "Write Anyway", theme);
+                    CodeViewerInstructionEditStatus::PendingOverwrite { .. } => {
+                        CodeViewerViewData::accept_instruction_edit_pending_overwrite(self.code_viewer_view_data.clone(), self.get_instruction_set())
+                    }
+                    CodeViewerInstructionEditStatus::Invalid(_) => None,
+                };
 
-                if overwrite_button.clicked() {
-                    if let Some(instruction_write_plan) = CodeViewerViewData::accept_instruction_edit_pending_overwrite(self.code_viewer_view_data.clone()) {
-                        self.dispatch_instruction_write(instruction_write_plan);
-                    }
+                if let Some(instruction_write_plan) = instruction_write_plan {
+                    self.dispatch_instruction_write(instruction_write_plan);
+                    return;
                 }
             }
+
+            button_user_interface.add_space(8.0);
+        }
+
+        let cancel_button_response = button_user_interface.add_sized(
+            vec2(Self::EDIT_WARNING_CANCEL_BUTTON_WIDTH, Self::TOOLBAR_ROW_HEIGHT),
+            warning_button(
+                theme,
+                theme.background_control_secondary,
+                theme.background_control_secondary_dark,
+                "Cancel this pending instruction write.",
+            ),
+        );
+        draw_button_label(&button_user_interface, cancel_button_response.rect, "Cancel", theme);
+
+        if cancel_button_response.clicked() {
+            CodeViewerViewData::cancel_instruction_edit(self.code_viewer_view_data.clone());
         }
     }
 }
@@ -1184,12 +1247,122 @@ impl Widget for CodeViewerView {
                         CodeViewerViewData::get_selected_instruction_addresses(self.code_viewer_view_data.clone(), &visible_instruction_lines);
                     let add_action_label = self.build_context_menu_add_label(context_menu_address, &selected_instruction_addresses);
                     let edit_action_label = self.build_context_menu_edit_label(context_menu_address, &selected_instruction_addresses);
+                    let has_copied_instruction_bytes = CodeViewerViewData::has_copied_instruction_bytes(self.code_viewer_view_data.clone());
+                    let has_copied_instruction_text = CodeViewerViewData::has_copied_instruction_text(self.code_viewer_view_data.clone());
 
                     ContextMenu::new(
                         self.app_context.clone(),
                         "code_viewer_context_menu",
                         context_menu_position,
                         |user_interface, should_close| {
+                            if user_interface
+                                .add(ToolbarMenuItemView::new(
+                                    self.app_context.clone(),
+                                    "Copy bytes",
+                                    "code_viewer_ctx_copy_bytes",
+                                    &None,
+                                    Self::CONTEXT_MENU_WIDTH,
+                                ))
+                                .clicked()
+                            {
+                                if let Some(copied_bytes) = CodeViewerViewData::copy_instruction_bytes(
+                                    self.code_viewer_view_data.clone(),
+                                    context_menu_address,
+                                    &visible_instruction_lines,
+                                ) {
+                                    user_interface
+                                        .ctx()
+                                        .copy_text(Self::build_bytes_text(&copied_bytes));
+                                }
+                                *should_close = true;
+                            }
+
+                            if user_interface
+                                .add(ToolbarMenuItemView::new(
+                                    self.app_context.clone(),
+                                    "Copy instruction",
+                                    "code_viewer_ctx_copy_instruction",
+                                    &None,
+                                    Self::CONTEXT_MENU_WIDTH,
+                                ))
+                                .clicked()
+                            {
+                                if let Some(copied_instruction_text) = CodeViewerViewData::copy_instruction_text(
+                                    self.code_viewer_view_data.clone(),
+                                    context_menu_address,
+                                    &visible_instruction_lines,
+                                ) {
+                                    user_interface.ctx().copy_text(copied_instruction_text);
+                                }
+                                *should_close = true;
+                            }
+
+                            if user_interface
+                                .add(ToolbarMenuItemView::new(
+                                    self.app_context.clone(),
+                                    "Copy address",
+                                    "code_viewer_ctx_copy_address",
+                                    &None,
+                                    Self::CONTEXT_MENU_WIDTH,
+                                ))
+                                .clicked()
+                            {
+                                user_interface
+                                    .ctx()
+                                    .copy_text(format!("0x{:X}", context_menu_address));
+                                CodeViewerViewData::hide_context_menu(self.code_viewer_view_data.clone());
+                                *should_close = true;
+                            }
+
+                            if has_copied_instruction_bytes || has_copied_instruction_text {
+                                user_interface.separator();
+                            }
+
+                            if has_copied_instruction_bytes
+                                && user_interface
+                                    .add(ToolbarMenuItemView::new(
+                                        self.app_context.clone(),
+                                        "Paste bytes",
+                                        "code_viewer_ctx_paste_bytes",
+                                        &None,
+                                        Self::CONTEXT_MENU_WIDTH,
+                                    ))
+                                    .clicked()
+                            {
+                                if let Some(instruction_write_plan) = CodeViewerViewData::evaluate_paste_copied_bytes(
+                                    self.code_viewer_view_data.clone(),
+                                    context_menu_address,
+                                    &visible_instruction_lines,
+                                ) {
+                                    self.dispatch_instruction_write(instruction_write_plan);
+                                }
+                                *should_close = true;
+                            }
+
+                            if has_copied_instruction_text
+                                && user_interface
+                                    .add(ToolbarMenuItemView::new(
+                                        self.app_context.clone(),
+                                        "Paste instruction",
+                                        "code_viewer_ctx_paste_instruction",
+                                        &None,
+                                        Self::CONTEXT_MENU_WIDTH,
+                                    ))
+                                    .clicked()
+                            {
+                                if let Some(instruction_write_plan) = CodeViewerViewData::evaluate_paste_copied_instruction(
+                                    self.code_viewer_view_data.clone(),
+                                    context_menu_address,
+                                    &visible_instruction_lines,
+                                    self.get_instruction_set(),
+                                ) {
+                                    self.dispatch_instruction_write(instruction_write_plan);
+                                }
+                                *should_close = true;
+                            }
+
+                            user_interface.separator();
+
                             if user_interface
                                 .add(ToolbarMenuItemView::new(
                                     self.app_context.clone(),

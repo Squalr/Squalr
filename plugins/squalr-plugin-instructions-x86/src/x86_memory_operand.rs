@@ -67,6 +67,19 @@ pub fn parse_memory_operand(
         .map(parse_required_segment_register)
         .transpose()?
         .unwrap_or(Register::None);
+
+    if instruction_bitness == Bitness::Bit64 && base_register == Register::None && index_register == Register::None && segment_prefix == Register::None {
+        return Ok(MemoryOperand::new(
+            Register::RIP,
+            Register::None,
+            1,
+            displacement,
+            4,
+            memory_operand.is_broadcast(),
+            Register::None,
+        ));
+    }
+
     let displacement_size = resolve_displacement_size(base_register, index_register, displacement, instruction_bitness);
 
     Ok(MemoryOperand::new(
@@ -332,6 +345,19 @@ mod tests {
 
         assert_eq!(parsed_operand.base, Register::None);
         assert_eq!(parsed_operand.displacement, 0x100579c);
+        assert_eq!(parsed_operand.displ_size, 4);
+    }
+
+    #[test]
+    fn parse_memory_operand_lowers_x64_bare_addresses_as_rip_relative_targets() {
+        let parsed_operand = parse_memory_operand(
+            &InstructionMemoryOperand::new(Some(InstructionMemoryOperandSize::Dword), "404090h"),
+            Bitness::Bit64,
+        )
+        .expect("Expected x64 bare address memory operand to parse.");
+
+        assert_eq!(parsed_operand.base, Register::RIP);
+        assert_eq!(parsed_operand.displacement, 0x404090);
         assert_eq!(parsed_operand.displ_size, 4);
     }
 

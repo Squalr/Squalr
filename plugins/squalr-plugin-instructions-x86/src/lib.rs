@@ -64,6 +64,49 @@ mod tests {
     }
 
     #[test]
+    fn i_x64_data_type_accepts_nasm_rel_memory_operands_from_disassembly() {
+        let data_type = DataTypeInstructionX64::new();
+        let rel_value = data_type
+            .deanonymize_value_string(&AnonymousValueString::new(
+                String::from("mov [rel 2B2Dh], eax"),
+                AnonymousValueStringFormat::String,
+                ContainerType::None,
+            ))
+            .expect("Expected x64 NASM rel memory operand to assemble.");
+        let plain_value = data_type
+            .deanonymize_value_string(&AnonymousValueString::new(
+                String::from("mov [2B2Dh], eax"),
+                AnonymousValueStringFormat::String,
+                ContainerType::None,
+            ))
+            .expect("Expected x64 plain memory operand to assemble.");
+
+        assert_eq!(rel_value.get_value_bytes(), plain_value.get_value_bytes());
+    }
+
+    #[test]
+    fn x64_instruction_set_disassemble_block_formats_rip_relative_memory_as_intel() {
+        let instruction_set = X64InstructionSet::new();
+        let instruction_lines = instruction_set
+            .disassemble_block(&[0x89, 0x05, 0x2D, 0x2B, 0x00, 0x00], 0)
+            .expect("Expected x64 RIP-relative memory instruction to disassemble.");
+
+        assert_eq!(instruction_lines.len(), 1);
+        assert_eq!(instruction_lines[0].text, "mov [2B33h], eax");
+        assert!(!instruction_lines[0].text.contains("rel "));
+    }
+
+    #[test]
+    fn x64_instruction_set_assembles_absolute_memory_display_text_at_runtime_address() {
+        let instruction_set = X64InstructionSet::new();
+        let assembled_bytes = instruction_set
+            .assemble_at_address("mov [404090h], ebx", 0x401563)
+            .expect("Expected x64 runtime-addressed memory store edit to assemble.");
+
+        assert_eq!(assembled_bytes, &[0x89, 0x1D, 0x27, 0x2B, 0x00, 0x00]);
+    }
+
+    #[test]
     fn i_x86_data_type_disassembles_known_instruction_sequence() {
         let data_type = DataTypeInstructionX86::new();
         let anonymous_value_string = data_type
@@ -320,6 +363,16 @@ mod tests {
         assert_eq!(instruction_lines[1].text, "jne short 00401000h");
         assert_eq!(instruction_lines[1].branch_target_address, Some(0x401000));
         assert!(instruction_lines[1].is_control_flow);
+    }
+
+    #[test]
+    fn x86_instruction_set_assembles_disassembler_style_short_branch() {
+        let instruction_set = X86InstructionSet::new();
+        let assembled_bytes = instruction_set
+            .assemble_at_address("jge short 01003007h", 0x01003000)
+            .expect("Expected x86 disassembler-style short branch to assemble.");
+
+        assert_eq!(assembled_bytes, &[0x7D, 0x05]);
     }
 
     #[test]

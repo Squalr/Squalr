@@ -223,6 +223,8 @@ fn parse_operand(operand_text: &str) -> Result<(Option<InstructionOperand>, Inst
         return Ok((None, instruction_decorators));
     }
 
+    let operand_core_text = strip_branch_target_size_hint(operand_core_text);
+
     if let Some(memory_operand) = parse_memory_operand(operand_core_text, memory_operand_broadcast)? {
         return Ok((Some(InstructionOperand::Memory(memory_operand)), instruction_decorators));
     }
@@ -235,6 +237,19 @@ fn parse_operand(operand_text: &str) -> Result<(Option<InstructionOperand>, Inst
         Some(InstructionOperand::Identifier(operand_core_text.to_ascii_lowercase())),
         instruction_decorators,
     ))
+}
+
+fn strip_branch_target_size_hint(operand_text: &str) -> &str {
+    let trimmed_operand_text = operand_text.trim();
+    let lowercase_operand_text = trimmed_operand_text.to_ascii_lowercase();
+
+    for branch_size_hint in ["short ", "near "] {
+        if lowercase_operand_text.starts_with(branch_size_hint) {
+            return trimmed_operand_text[branch_size_hint.len()..].trim_start();
+        }
+    }
+
+    trimmed_operand_text
 }
 
 fn parse_memory_operand(
@@ -296,7 +311,7 @@ fn parse_memory_operand(
         )));
     };
 
-    let expression_text = trimmed_memory_operand_text[open_bracket_index + 1..close_bracket_index].trim();
+    let expression_text = strip_memory_address_hint(trimmed_memory_operand_text[open_bracket_index + 1..close_bracket_index].trim());
 
     if expression_text.is_empty() {
         return Err(InstructionSyntaxError::new(format!("Memory operand '{}' must not be empty.", operand_text)));
@@ -308,6 +323,21 @@ fn parse_memory_operand(
         expression_text,
         is_broadcast,
     )))
+}
+
+fn strip_memory_address_hint(expression_text: &str) -> &str {
+    let trimmed_expression_text = expression_text.trim();
+    let lowercase_expression_text = trimmed_expression_text.to_ascii_lowercase();
+
+    for address_hint in ["rel ", "abs "] {
+        if lowercase_expression_text.starts_with(address_hint) {
+            let expression_start_index = address_hint.len();
+
+            return trimmed_expression_text[expression_start_index..].trim_start();
+        }
+    }
+
+    trimmed_expression_text
 }
 
 fn split_operand_core_and_decorators<'a>(operand_text: &'a str) -> Result<(&'a str, Vec<&'a str>), InstructionSyntaxError> {
@@ -656,6 +686,19 @@ mod tests {
                 Some(InstructionMemoryOperandSize::Dword),
                 "0x100579c"
             ))]
+        );
+    }
+
+    #[test]
+    fn parse_instruction_sequence_accepts_nasm_memory_address_hints() {
+        let parsed_instructions = parse_instruction_sequence("mov [rel 2B2Dh], eax").expect("Expected NASM rel memory operand to parse.");
+
+        assert_eq!(
+            parsed_instructions.instructions()[0].operands(),
+            &[
+                InstructionOperand::Memory(InstructionMemoryOperand::new(None, "2B2Dh")),
+                InstructionOperand::Identifier(String::from("eax"))
+            ]
         );
     }
 
