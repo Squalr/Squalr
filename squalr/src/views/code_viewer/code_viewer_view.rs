@@ -915,7 +915,7 @@ impl CodeViewerView {
             vec2(Self::EDIT_WARNING_CANCEL_BUTTON_WIDTH, Self::TOOLBAR_ROW_HEIGHT),
             warning_button(
                 theme,
-                Color32::TRANSPARENT,
+                theme.background_control_secondary,
                 theme.background_control_secondary_dark,
                 "Cancel this pending instruction write.",
             ),
