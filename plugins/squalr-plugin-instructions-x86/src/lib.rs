@@ -64,6 +64,27 @@ mod tests {
     }
 
     #[test]
+    fn i_x64_data_type_accepts_nasm_rel_memory_operands_from_disassembly() {
+        let data_type = DataTypeInstructionX64::new();
+        let rel_value = data_type
+            .deanonymize_value_string(&AnonymousValueString::new(
+                String::from("mov [rel 2B2Dh], eax"),
+                AnonymousValueStringFormat::String,
+                ContainerType::None,
+            ))
+            .expect("Expected x64 NASM rel memory operand to assemble.");
+        let plain_value = data_type
+            .deanonymize_value_string(&AnonymousValueString::new(
+                String::from("mov [2B2Dh], eax"),
+                AnonymousValueStringFormat::String,
+                ContainerType::None,
+            ))
+            .expect("Expected x64 plain memory operand to assemble.");
+
+        assert_eq!(rel_value.get_value_bytes(), plain_value.get_value_bytes());
+    }
+
+    #[test]
     fn i_x86_data_type_disassembles_known_instruction_sequence() {
         let data_type = DataTypeInstructionX86::new();
         let anonymous_value_string = data_type

@@ -296,7 +296,7 @@ fn parse_memory_operand(
         )));
     };
 
-    let expression_text = trimmed_memory_operand_text[open_bracket_index + 1..close_bracket_index].trim();
+    let expression_text = strip_memory_address_hint(trimmed_memory_operand_text[open_bracket_index + 1..close_bracket_index].trim());
 
     if expression_text.is_empty() {
         return Err(InstructionSyntaxError::new(format!("Memory operand '{}' must not be empty.", operand_text)));
@@ -308,6 +308,21 @@ fn parse_memory_operand(
         expression_text,
         is_broadcast,
     )))
+}
+
+fn strip_memory_address_hint(expression_text: &str) -> &str {
+    let trimmed_expression_text = expression_text.trim();
+    let lowercase_expression_text = trimmed_expression_text.to_ascii_lowercase();
+
+    for address_hint in ["rel ", "abs "] {
+        if lowercase_expression_text.starts_with(address_hint) {
+            let expression_start_index = address_hint.len();
+
+            return trimmed_expression_text[expression_start_index..].trim_start();
+        }
+    }
+
+    trimmed_expression_text
 }
 
 fn split_operand_core_and_decorators<'a>(operand_text: &'a str) -> Result<(&'a str, Vec<&'a str>), InstructionSyntaxError> {
@@ -656,6 +671,19 @@ mod tests {
                 Some(InstructionMemoryOperandSize::Dword),
                 "0x100579c"
             ))]
+        );
+    }
+
+    #[test]
+    fn parse_instruction_sequence_accepts_nasm_memory_address_hints() {
+        let parsed_instructions = parse_instruction_sequence("mov [rel 2B2Dh], eax").expect("Expected NASM rel memory operand to parse.");
+
+        assert_eq!(
+            parsed_instructions.instructions()[0].operands(),
+            &[
+                InstructionOperand::Memory(InstructionMemoryOperand::new(None, "2B2Dh")),
+                InstructionOperand::Identifier(String::from("eax"))
+            ]
         );
     }
 
