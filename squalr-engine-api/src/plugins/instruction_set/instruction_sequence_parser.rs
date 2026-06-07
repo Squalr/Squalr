@@ -223,6 +223,8 @@ fn parse_operand(operand_text: &str) -> Result<(Option<InstructionOperand>, Inst
         return Ok((None, instruction_decorators));
     }
 
+    let operand_core_text = strip_branch_target_size_hint(operand_core_text);
+
     if let Some(memory_operand) = parse_memory_operand(operand_core_text, memory_operand_broadcast)? {
         return Ok((Some(InstructionOperand::Memory(memory_operand)), instruction_decorators));
     }
@@ -235,6 +237,19 @@ fn parse_operand(operand_text: &str) -> Result<(Option<InstructionOperand>, Inst
         Some(InstructionOperand::Identifier(operand_core_text.to_ascii_lowercase())),
         instruction_decorators,
     ))
+}
+
+fn strip_branch_target_size_hint(operand_text: &str) -> &str {
+    let trimmed_operand_text = operand_text.trim();
+    let lowercase_operand_text = trimmed_operand_text.to_ascii_lowercase();
+
+    for branch_size_hint in ["short ", "near "] {
+        if lowercase_operand_text.starts_with(branch_size_hint) {
+            return trimmed_operand_text[branch_size_hint.len()..].trim_start();
+        }
+    }
+
+    trimmed_operand_text
 }
 
 fn parse_memory_operand(

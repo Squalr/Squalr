@@ -66,8 +66,15 @@ pub(crate) enum CodeViewerInstructionEditMode {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum CodeViewerInstructionEditStatus {
     Invalid(String),
-    PendingFillWithNops { assembled_bytes: Vec<u8>, remaining_byte_count: usize },
-    PendingOverwrite { assembled_bytes: Vec<u8>, overwritten_byte_count: usize },
+    PendingFillWithNops {
+        assembled_bytes: Vec<u8>,
+        remaining_byte_count: usize,
+    },
+    PendingOverwrite {
+        assembled_bytes: Vec<u8>,
+        overwritten_byte_count: usize,
+        nop_fill_byte_count: usize,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -992,6 +999,7 @@ impl CodeViewerViewData {
         instruction_edit_state.status = Some(CodeViewerInstructionEditStatus::PendingOverwrite {
             overwritten_byte_count: assembled_bytes.len().saturating_sub(original_byte_count),
             assembled_bytes,
+            nop_fill_byte_count: 0,
         });
 
         None
@@ -1037,21 +1045,49 @@ impl CodeViewerViewData {
         })
     }
 
-    pub(crate) fn accept_instruction_edit_pending_overwrite(code_viewer_view_data: Dependency<Self>) -> Option<CodeViewerInstructionWritePlan> {
+    pub(crate) fn accept_instruction_edit_pending_overwrite(
+        code_viewer_view_data: Dependency<Self>,
+        instruction_set: Option<Arc<dyn InstructionSet>>,
+    ) -> Option<CodeViewerInstructionWritePlan> {
         let Some(mut code_viewer_view_data) = code_viewer_view_data.write("Code viewer accept instruction overwrite") else {
             return None;
         };
         let Some(instruction_edit_state) = code_viewer_view_data.instruction_edit_state.as_mut() else {
             return None;
         };
-        let Some(CodeViewerInstructionEditStatus::PendingOverwrite { assembled_bytes, .. }) = instruction_edit_state.status.clone() else {
+        let Some(CodeViewerInstructionEditStatus::PendingOverwrite {
+            assembled_bytes,
+            nop_fill_byte_count,
+            ..
+        }) = instruction_edit_state.status.clone()
+        else {
             return None;
         };
+        let mut written_bytes = assembled_bytes;
+
+        if nop_fill_byte_count > 0 {
+            let Some(instruction_set) = instruction_set else {
+                instruction_edit_state.status = Some(CodeViewerInstructionEditStatus::Invalid(String::from(
+                    "No instruction set plugin is enabled for this target.",
+                )));
+                return None;
+            };
+            let nop_fill_bytes = match instruction_set.build_no_operation_fill(nop_fill_byte_count) {
+                Ok(nop_fill_bytes) => nop_fill_bytes,
+                Err(error) => {
+                    instruction_edit_state.status = Some(CodeViewerInstructionEditStatus::Invalid(error));
+                    return None;
+                }
+            };
+
+            written_bytes.extend_from_slice(&nop_fill_bytes);
+        }
+
         instruction_edit_state.status = None;
 
         Some(CodeViewerInstructionWritePlan {
             start_address: instruction_edit_state.start_address,
-            written_bytes: assembled_bytes,
+            written_bytes,
         })
     }
 
@@ -1332,6 +1368,11 @@ impl CodeViewerViewData {
             return None;
         }
 
+        let paste_end_address = start_address.saturating_add(pasted_bytes.len() as u64);
+        let (overwrite_end_address_exclusive, nop_fill_byte_count) =
+            Self::resolve_instruction_overwrite_end_address(instruction_lines, selection_end_index, paste_end_address);
+        let overwritten_byte_count = overwrite_end_address_exclusive.saturating_sub(end_address_exclusive) as usize;
+
         self.set_paste_edit_status(
             instruction_lines,
             selection_start_index,
@@ -1339,8 +1380,9 @@ impl CodeViewerViewData {
             edit_mode,
             edit_value,
             CodeViewerInstructionEditStatus::PendingOverwrite {
-                overwritten_byte_count: pasted_bytes.len().saturating_sub(original_byte_count),
+                overwritten_byte_count,
                 assembled_bytes: pasted_bytes,
+                nop_fill_byte_count,
             },
         );
 
@@ -1391,6 +1433,34 @@ impl CodeViewerViewData {
             .saturating_add((last_instruction.length as u64).max(1));
 
         Some((first_instruction.address, end_address_exclusive))
+    }
+
+    fn resolve_instruction_overwrite_end_address(
+        instruction_lines: &[DisassembledInstruction],
+        selection_end_index: usize,
+        paste_end_address: u64,
+    ) -> (u64, usize) {
+        for instruction_line in instruction_lines
+            .iter()
+            .skip(selection_end_index.saturating_add(1))
+        {
+            let instruction_start_address = instruction_line.address;
+            let instruction_end_address = instruction_line
+                .address
+                .saturating_add((instruction_line.length as u64).max(1));
+
+            if paste_end_address <= instruction_start_address {
+                return (paste_end_address, 0);
+            }
+
+            if paste_end_address <= instruction_end_address {
+                let nop_fill_byte_count = instruction_end_address.saturating_sub(paste_end_address) as usize;
+
+                return (instruction_end_address, nop_fill_byte_count);
+            }
+        }
+
+        (paste_end_address, 0)
     }
 
     fn format_byte_string(bytes: &[u8]) -> String {
@@ -2034,6 +2104,66 @@ mod tests {
             Some(CodeViewerInstructionEditStatus::PendingFillWithNops {
                 assembled_bytes: vec![0x90],
                 remaining_byte_count: 1,
+            })
+        );
+    }
+
+    #[test]
+    fn paste_long_copied_bytes_prompts_for_clean_multi_instruction_overwrite() {
+        let dependency = DependencyContainer::new().register(CodeViewerViewData::new());
+        let instruction_lines = vec![
+            disassembled_instruction(0x1000, vec![0x01, 0x02], "first"),
+            disassembled_instruction(0x1002, vec![0xCC], "int3"),
+            disassembled_instruction(0x1003, vec![0x90, 0x90, 0x90], "three"),
+        ];
+
+        assert_eq!(
+            CodeViewerViewData::copy_instruction_bytes(dependency.clone(), 0x1003, &instruction_lines),
+            Some(vec![0x90, 0x90, 0x90])
+        );
+        assert_eq!(
+            CodeViewerViewData::evaluate_paste_copied_bytes(dependency.clone(), 0x1000, &instruction_lines),
+            None
+        );
+
+        let paste_state = CodeViewerViewData::get_instruction_edit_state(dependency).expect("Expected paste warning state.");
+        assert_eq!(
+            paste_state.status,
+            Some(CodeViewerInstructionEditStatus::PendingOverwrite {
+                assembled_bytes: vec![0x90, 0x90, 0x90],
+                overwritten_byte_count: 1,
+                nop_fill_byte_count: 0,
+            })
+        );
+    }
+
+    #[test]
+    fn paste_long_copied_bytes_prompts_for_no_operation_fill_on_partial_instruction() {
+        let dependency = DependencyContainer::new().register(CodeViewerViewData::new());
+        let instruction_lines = vec![
+            disassembled_instruction(0x1000, vec![0x01, 0x02], "first"),
+            disassembled_instruction(0x1002, vec![0x90, 0x90, 0x90, 0x90], "four"),
+            disassembled_instruction(0x1006, vec![0xCC], "int3"),
+        ];
+        let copied_bytes = vec![0xAA, 0xBB, 0xCC];
+
+        dependency
+            .write("Code viewer test set copied bytes")
+            .expect("Expected test dependency write to succeed.")
+            .copied_instruction_bytes = Some(copied_bytes.clone());
+
+        assert_eq!(
+            CodeViewerViewData::evaluate_paste_copied_bytes(dependency.clone(), 0x1000, &instruction_lines),
+            None
+        );
+
+        let paste_state = CodeViewerViewData::get_instruction_edit_state(dependency).expect("Expected paste warning state.");
+        assert_eq!(
+            paste_state.status,
+            Some(CodeViewerInstructionEditStatus::PendingOverwrite {
+                assembled_bytes: copied_bytes,
+                overwritten_byte_count: 4,
+                nop_fill_byte_count: 3,
             })
         );
     }

@@ -366,6 +366,16 @@ mod tests {
     }
 
     #[test]
+    fn x86_instruction_set_assembles_disassembler_style_short_branch() {
+        let instruction_set = X86InstructionSet::new();
+        let assembled_bytes = instruction_set
+            .assemble_at_address("jge short 01003007h", 0x01003000)
+            .expect("Expected x86 disassembler-style short branch to assemble.");
+
+        assert_eq!(assembled_bytes, &[0x7D, 0x05]);
+    }
+
+    #[test]
     fn x86_instruction_set_disassemble_block_does_not_report_call_targets_as_jump_lines() {
         let instruction_set = X86InstructionSet::new();
         let instruction_lines = instruction_set

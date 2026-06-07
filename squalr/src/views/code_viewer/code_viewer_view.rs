@@ -83,7 +83,7 @@ impl CodeViewerView {
     const BRANCH_LANE_RIGHT_PADDING: f32 = 8.0;
     const MAX_BRANCH_LANES: usize = 5;
     const CONTEXT_MENU_WIDTH: f32 = 220.0;
-    const EDIT_WARNING_BUTTON_WIDTH: f32 = 128.0;
+    const EDIT_WARNING_BUTTON_WIDTH: f32 = 160.0;
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let code_viewer_view_data = app_context
@@ -839,29 +839,46 @@ impl CodeViewerView {
                     }
                 }
             }
-            CodeViewerInstructionEditStatus::PendingOverwrite { overwritten_byte_count, .. } => {
+            CodeViewerInstructionEditStatus::PendingOverwrite {
+                overwritten_byte_count,
+                nop_fill_byte_count,
+                ..
+            } => {
+                let warning_text = if *nop_fill_byte_count == 0 {
+                    format!("Replacement will overwrite {} byte(s) from following instruction(s).", overwritten_byte_count)
+                } else {
+                    format!(
+                        "Replacement crosses instruction boundaries. Fill {} trailing byte(s) with no-operations?",
+                        nop_fill_byte_count
+                    )
+                };
+                let button_label = if *nop_fill_byte_count == 0 {
+                    "Overwrite Multiple"
+                } else {
+                    "Fill + Overwrite"
+                };
+                let button_tooltip = if *nop_fill_byte_count == 0 {
+                    "Write the replacement and overwrite the following complete instruction bytes."
+                } else {
+                    "Write the replacement and pad the remaining partially overwritten instruction bytes with no-operations."
+                };
+
                 warning_user_interface.label(
-                    RichText::new(format!(
-                        "Replacement is {} byte(s) longer and will overwrite the next instruction(s).",
-                        overwritten_byte_count
-                    ))
-                    .font(theme.font_library.font_noto_sans.font_normal.clone())
-                    .color(warning_text_color),
+                    RichText::new(warning_text)
+                        .font(theme.font_library.font_noto_sans.font_normal.clone())
+                        .color(warning_text_color),
                 );
                 warning_user_interface.add_space(8.0);
                 let overwrite_button = warning_user_interface.add_sized(
                     vec2(Self::EDIT_WARNING_BUTTON_WIDTH, Self::TOOLBAR_ROW_HEIGHT),
-                    warning_button(
-                        theme,
-                        theme.background_control_warning,
-                        theme.background_control_warning_dark,
-                        "Write the longer replacement and allow it to overwrite the following bytes.",
-                    ),
+                    warning_button(theme, theme.background_control_warning, theme.background_control_warning_dark, button_tooltip),
                 );
-                draw_button_label(&warning_user_interface, overwrite_button.rect, "Write Anyway", theme);
+                draw_button_label(&warning_user_interface, overwrite_button.rect, button_label, theme);
 
                 if overwrite_button.clicked() {
-                    if let Some(instruction_write_plan) = CodeViewerViewData::accept_instruction_edit_pending_overwrite(self.code_viewer_view_data.clone()) {
+                    if let Some(instruction_write_plan) =
+                        CodeViewerViewData::accept_instruction_edit_pending_overwrite(self.code_viewer_view_data.clone(), self.get_instruction_set())
+                    {
                         self.dispatch_instruction_write(instruction_write_plan);
                     }
                 }
