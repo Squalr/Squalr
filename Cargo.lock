@@ -5315,6 +5315,7 @@ dependencies = [
 name = "squalr-plugin-debuggers-native"
 version = "0.4.0"
 dependencies = [
+ "iced-x86",
  "libc",
  "log",
  "mach2",

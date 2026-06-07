@@ -14,10 +14,13 @@ Our current task, from `README.md`, is:
 - Linux debugger implementation status:
   - The native debugger plugin now advertises Linux x86_64 attach support for x86/x64 targets only.
   - The Linux backend uses `PTRACE_ATTACH`, `PTRACE_GETREGS`, `PTRACE_SETREGS`, `PTRACE_PEEKUSER`, `PTRACE_POKEUSER`, and x86_64 DR0-DR3/DR6/DR7 hardware watchpoints.
-  - Linux x64 data watchpoint hits report the post-trap RIP; the backend includes a trace message because instruction attribution may point after the accessing instruction.
+  - Linux x64 data watchpoint hits arrive with a post-trap RIP; the backend now tries to recover the preceding instruction and keeps a fallback trace message if attribution still points after the accessing instruction.
+  - Follow-up fix: Linux x64 watchpoint trace events now recover the previous instruction from post-trap RIP with `iced-x86` where possible, so trace-context no-op patching targets the accessing instruction instead of the next instruction.
+  - Follow-up fix: Linux memory writes now fall back to `/proc/<pid>/mem`, then ptrace word writes, when `process_vm_writev` cannot write a mapping. `/proc/<pid>/mem` is needed when the debugger worker thread owns the ptrace relationship and no-operation patches target executable pages.
   - Automated WSL smoke passed with `cargo run -p squalr-plugin-debuggers-native --example native_debugger_smoke --locked`: attach, register snapshot, write watchpoint, trace event, and detach completed.
+  - Follow-up WSL smoke showed recovered trace attribution: post-trap IP `0x...2a1d`, emitted instruction address `0x...2a18`, 5 instruction bytes, and backend message `trace instruction was recovered from the post-trap RIP`.
   - Windows regression `cargo test -p squalr-tests --locked` passed, including the memory write response tests.
-  - Rebuilt and launched current WSL GUI and watch-value helper visibly for manual attach testing. At the time of update, WSL showed `./target/debug/squalr` PID 1960 and `./target/linux-tools/squalr-watch-value` PID 1957.
+  - Rebuilt and launched current WSL GUI and watch-value helper visibly for manual attach testing. At the time of update, WSL showed `./target/debug/squalr` PID 1269 and `./target/linux-tools/squalr-watch-value` PID 1275.
 - Linux WSL sanity check:
   - Used WSL distro `Ubuntu` from the Windows workspace mount `/mnt/c/Projects/squalr_workspace`.
   - `cargo build -p squalr --locked` completed successfully in WSL and produced a Linux ELF GUI binary at `target/debug/squalr`.

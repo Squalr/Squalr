@@ -1,4 +1,5 @@
 use crate::constants::NATIVE_DEBUGGERS_PLUGIN_ID;
+use iced_x86::{Decoder, DecoderOptions};
 use libc::{SIGSTOP, SIGTRAP, WNOHANG, c_void, pid_t};
 use squalr_engine_api::{
     plugins::debugger::{DebuggerPluginError, DebuggerTraceEventSink},
@@ -23,6 +24,7 @@ const ATTACH_WAIT_TIMEOUT: Duration = Duration::from_secs(10);
 const IDLE_COMMAND_WAIT_TIMEOUT_MS: u64 = 50;
 const RUNNING_EVENT_WAIT_TIMEOUT_MS: u64 = 50;
 const TRACE_INSTRUCTION_BYTE_WINDOW: usize = 16;
+const X64_MAX_INSTRUCTION_LENGTH: usize = 15;
 const WATCHPOINT_SLOT_COUNT: usize = 4;
 const X86_64_DEBUG_REGISTER_BASE_OFFSET: usize = 848;
 const X86_64_DEBUG_REGISTER_SIZE: usize = 8;
@@ -671,11 +673,7 @@ impl ActiveLinuxSession {
         let dr6 = read_debug_register(self.process_id, 6)?;
         let breakpoint_descriptor = self.describe_hit_breakpoint(dr6);
         let register_snapshot = self.read_registers()?;
-        let instruction_address = register_snapshot.get_instruction_pointer();
-        let instruction_bytes = self.read_instruction_bytes(instruction_address);
-        let backend_message = Some(String::from(
-            "Linux x64 hardware data breakpoint hit; instruction pointer is the post-trap RIP and may point after the accessing instruction.",
-        ));
+        let (instruction_address, instruction_bytes, backend_message) = self.resolve_trace_instruction(register_snapshot.get_instruction_pointer());
 
         clear_debug_status(self.process_id)?;
 
@@ -694,6 +692,44 @@ impl ActiveLinuxSession {
         }
 
         Ok(())
+    }
+
+    fn resolve_trace_instruction(
+        &self,
+        post_trap_instruction_pointer: Option<u64>,
+    ) -> (Option<u64>, Vec<u8>, Option<String>) {
+        let Some(post_trap_instruction_pointer) = post_trap_instruction_pointer else {
+            return (None, Vec::new(), None);
+        };
+
+        if let Some((instruction_address, instruction_bytes)) = self.resolve_x64_post_trap_instruction(post_trap_instruction_pointer) {
+            return (
+                Some(instruction_address),
+                instruction_bytes,
+                Some(String::from(
+                    "Linux x64 hardware data breakpoint hit; trace instruction was recovered from the post-trap RIP.",
+                )),
+            );
+        }
+
+        (
+            Some(post_trap_instruction_pointer),
+            self.read_instruction_bytes(Some(post_trap_instruction_pointer)),
+            Some(String::from(
+                "Linux x64 hardware data breakpoint hit; instruction pointer is the post-trap RIP and may point after the accessing instruction.",
+            )),
+        )
+    }
+
+    fn resolve_x64_post_trap_instruction(
+        &self,
+        post_trap_instruction_pointer: u64,
+    ) -> Option<(u64, Vec<u8>)> {
+        let window_start_address = post_trap_instruction_pointer.saturating_sub(X64_MAX_INSTRUCTION_LENGTH as u64);
+        let window_byte_count = post_trap_instruction_pointer.saturating_sub(window_start_address) as usize;
+        let window_bytes = self.read_memory_bytes(window_start_address, window_byte_count)?;
+
+        resolve_x64_post_trap_instruction_from_window(post_trap_instruction_pointer, window_start_address, &window_bytes)
     }
 
     fn describe_hit_breakpoint(
@@ -732,6 +768,32 @@ impl ActiveLinuxSession {
         }
 
         instruction_bytes
+    }
+
+    fn read_memory_bytes(
+        &self,
+        base_address: u64,
+        byte_count: usize,
+    ) -> Option<Vec<u8>> {
+        let mut memory_bytes = Vec::with_capacity(byte_count);
+
+        while memory_bytes.len() < byte_count {
+            let read_address = base_address.saturating_add(memory_bytes.len() as u64);
+            let word = match ptrace_peek_data(self.process_id, read_address) {
+                Ok(word) => word,
+                Err(error) => {
+                    log::debug!("Failed to read Linux memory bytes at 0x{:X}: {}", read_address, error);
+                    return None;
+                }
+            };
+            let word_bytes = word.to_ne_bytes();
+            let remaining_byte_count = byte_count - memory_bytes.len();
+            let copied_byte_count = remaining_byte_count.min(word_bytes.len());
+
+            memory_bytes.extend_from_slice(&word_bytes[..copied_byte_count]);
+        }
+
+        Some(memory_bytes)
     }
 
     fn apply_watchpoints(&self) -> Result<(), DebuggerPluginError> {
@@ -1116,9 +1178,36 @@ fn x64_watchpoint_length_bits(size_in_bytes: u8) -> Result<u64, DebuggerPluginEr
     }
 }
 
+fn resolve_x64_post_trap_instruction_from_window(
+    post_trap_instruction_pointer: u64,
+    window_start_address: u64,
+    window_bytes: &[u8],
+) -> Option<(u64, Vec<u8>)> {
+    let mut resolved_instruction = None;
+
+    for candidate_offset in 0..window_bytes.len() {
+        let candidate_address = window_start_address.saturating_add(candidate_offset as u64);
+        let candidate_bytes = &window_bytes[candidate_offset..];
+        let mut decoder = Decoder::with_ip(64, candidate_bytes, candidate_address, DecoderOptions::NONE);
+        let instruction = decoder.decode();
+        let instruction_length = instruction.len();
+
+        if instruction.is_invalid() || instruction_length == 0 {
+            continue;
+        }
+
+        if candidate_address.saturating_add(instruction_length as u64) == post_trap_instruction_pointer {
+            resolved_instruction = Some((candidate_address, candidate_bytes[..instruction_length].to_vec()));
+            break;
+        }
+    }
+
+    resolved_instruction
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{x64_watchpoint_access_bits, x64_watchpoint_length_bits};
+    use super::{resolve_x64_post_trap_instruction_from_window, x64_watchpoint_access_bits, x64_watchpoint_length_bits};
     use squalr_engine_api::structures::debugger::DebuggerDataBreakpointAccess;
 
     #[test]
@@ -1135,5 +1224,16 @@ mod tests {
         assert_eq!(x64_watchpoint_access_bits(DebuggerDataBreakpointAccess::Write), 0b01);
         assert_eq!(x64_watchpoint_access_bits(DebuggerDataBreakpointAccess::Read), 0b11);
         assert_eq!(x64_watchpoint_access_bits(DebuggerDataBreakpointAccess::ReadWrite), 0b11);
+    }
+
+    #[test]
+    fn resolves_x64_post_trap_memory_instruction_from_prior_bytes() {
+        let window_start_address = 0x1000;
+        let post_trap_instruction_pointer = 0x1004;
+        let window_bytes = [0x90, 0x48, 0xFF, 0x00];
+
+        let resolved_instruction = resolve_x64_post_trap_instruction_from_window(post_trap_instruction_pointer, window_start_address, &window_bytes);
+
+        assert_eq!(resolved_instruction, Some((0x1001, vec![0x48, 0xFF, 0x00])));
     }
 }
