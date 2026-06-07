@@ -24,7 +24,7 @@ Our current task, from `README.md`, is:
   - Automated WSL smoke passed with `cargo run -p squalr-plugin-debuggers-native --example native_debugger_smoke --locked`: attach, register snapshot, write watchpoint, trace event, and detach completed.
   - Follow-up WSL smoke showed recovered trace attribution: post-trap IP `0x...2a1d`, emitted instruction address `0x...2a18`, 5 instruction bytes, and backend message `trace instruction was recovered from the post-trap RIP`.
   - Windows regression `cargo test -p squalr-tests --locked` passed, including the memory write response tests.
-  - Rebuilt and launched current WSL GUI and watch-value helper visibly for manual attach testing during the Linux debugger validation. Current relaunched WSL processes are `./target/debug/squalr` PID 22 and `./target/linux-tools/squalr-watch-value` PID 57.
+  - Rebuilt and launched current WSL GUI and watch-value helper visibly for manual attach testing during the Linux debugger validation. Current relaunched WSL processes are `./target/debug/squalr` PID 29 and `./target/linux-tools/squalr-watch-value` PID 26.
 - Linux WSL sanity check:
   - Used WSL distro `Ubuntu` from the Windows workspace mount `/mnt/c/Projects/squalr_workspace`.
   - `cargo build -p squalr --locked` completed successfully in WSL and produced a Linux ELF GUI binary at `target/debug/squalr`.
