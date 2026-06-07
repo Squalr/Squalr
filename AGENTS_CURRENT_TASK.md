@@ -8,9 +8,16 @@ Our current task, from `README.md`, is:
 - Do not declare behavior as fixed. Use "needs human verification" after implementation and validation.
 
 ## Current Tasklist
-- 
+- Linux x86_64 native debugger watchpoints are implemented in `squalr-plugin-debuggers-native` with ptrace hardware data breakpoints for read/write/access tracing. GUI workflow still needs human verification after implementation and validation.
 
 ## Important Information
+- Linux debugger implementation status:
+  - The native debugger plugin now advertises Linux x86_64 attach support for x86/x64 targets only.
+  - The Linux backend uses `PTRACE_ATTACH`, `PTRACE_GETREGS`, `PTRACE_SETREGS`, `PTRACE_PEEKUSER`, `PTRACE_POKEUSER`, and x86_64 DR0-DR3/DR6/DR7 hardware watchpoints.
+  - Linux x64 data watchpoint hits report the post-trap RIP; the backend includes a trace message because instruction attribution may point after the accessing instruction.
+  - Automated WSL smoke passed with `cargo run -p squalr-plugin-debuggers-native --example native_debugger_smoke --locked`: attach, register snapshot, write watchpoint, trace event, and detach completed.
+  - Windows regression `cargo test -p squalr-tests --locked` passed, including the memory write response tests.
+  - Rebuilt and launched current WSL GUI and watch-value helper visibly for manual attach testing. At the time of update, WSL showed `./target/debug/squalr` PID 1960 and `./target/linux-tools/squalr-watch-value` PID 1957.
 - Linux WSL sanity check:
   - Used WSL distro `Ubuntu` from the Windows workspace mount `/mnt/c/Projects/squalr_workspace`.
   - `cargo build -p squalr --locked` completed successfully in WSL and produced a Linux ELF GUI binary at `target/debug/squalr`.

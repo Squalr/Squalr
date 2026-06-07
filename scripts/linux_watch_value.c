@@ -4,7 +4,19 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef __linux__
+#include <sys/prctl.h>
+#endif
 #include <unistd.h>
+
+#ifdef __linux__
+#ifndef PR_SET_PTRACER
+#define PR_SET_PTRACER 0x59616d61
+#endif
+#ifndef PR_SET_PTRACER_ANY
+#define PR_SET_PTRACER_ANY ((unsigned long)-1)
+#endif
+#endif
 
 static volatile int watch_value = 1337;
 static volatile unsigned long write_count = 0;
@@ -23,12 +35,21 @@ static void print_current_state(void) {
     fflush(stdout);
 }
 
+static void allow_external_ptrace(void) {
+#ifdef __linux__
+    if (prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY, 0, 0, 0) != 0) {
+        fprintf(stderr, "warning: failed to allow external ptrace: %s\n", strerror(errno));
+    }
+#endif
+}
+
 int main(void) {
     char input_buffer[128];
 
     setvbuf(stdout, NULL, _IONBF, 0);
     signal(SIGINT, handle_exit_signal);
     signal(SIGTERM, handle_exit_signal);
+    allow_external_ptrace();
 
     puts("Squalr Linux watch-value target.");
     puts("Scan this process for the current i32 value, then type a new integer here.");
