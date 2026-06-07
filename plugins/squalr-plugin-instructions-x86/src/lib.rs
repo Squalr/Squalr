@@ -85,6 +85,18 @@ mod tests {
     }
 
     #[test]
+    fn x64_instruction_set_disassemble_block_formats_rip_relative_memory_as_intel() {
+        let instruction_set = X64InstructionSet::new();
+        let instruction_lines = instruction_set
+            .disassemble_block(&[0x89, 0x05, 0x2D, 0x2B, 0x00, 0x00], 0)
+            .expect("Expected x64 RIP-relative memory instruction to disassemble.");
+
+        assert_eq!(instruction_lines.len(), 1);
+        assert_eq!(instruction_lines[0].text, "mov [2B33h], eax");
+        assert!(!instruction_lines[0].text.contains("rel "));
+    }
+
+    #[test]
     fn i_x86_data_type_disassembles_known_instruction_sequence() {
         let data_type = DataTypeInstructionX86::new();
         let anonymous_value_string = data_type

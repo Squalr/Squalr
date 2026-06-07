@@ -1,5 +1,5 @@
 use crate::x86_operand_lowering::build_candidate_instructions;
-use iced_x86::{Decoder, DecoderOptions, Encoder, FlowControl, Formatter, NasmFormatter};
+use iced_x86::{Decoder, DecoderOptions, Encoder, FlowControl, Formatter, IntelFormatter};
 use squalr_engine_api::{
     plugins::instruction_set::{DisassembledInstruction, InstructionSet, ParsedInstruction, normalize_instruction_text, parse_instruction_sequence},
     structures::memory::bitness::Bitness,
@@ -163,7 +163,7 @@ impl X86InstructionSetBase {
         }
 
         let mut instruction_lines = Vec::new();
-        let mut formatter = NasmFormatter::new();
+        let mut formatter = IntelFormatter::new();
         let mut byte_offset = 0usize;
 
         while byte_offset < instruction_bytes.len() {
