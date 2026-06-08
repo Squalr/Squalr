@@ -28,7 +28,7 @@ const RUNNING_EVENT_WAIT_TIMEOUT_MS: u64 = 50;
 const WATCHPOINT_REARM_DELAY_MS: u64 = 100;
 #[cfg(all(target_os = "android", target_arch = "aarch64"))]
 const ARM64_INSTRUCTION_BYTE_LENGTH: usize = 4;
-#[cfg(all(target_os = "android", target_arch = "aarch64"))]
+#[cfg(any(test, all(target_os = "android", target_arch = "aarch64")))]
 const ARM64_WATCH_GRANULE_SIZE: u64 = 8;
 #[cfg(all(target_os = "android", target_arch = "aarch64"))]
 const NT_ARM_HW_WATCH: usize = 0x403;
@@ -1413,9 +1413,8 @@ impl ActiveLinuxSession {
                     return false;
                 };
                 let watch_start = stored_breakpoint.descriptor.get_address();
-                let watch_end = watch_start.saturating_add(u64::from(size_in_bytes));
 
-                fault_address >= watch_start && fault_address < watch_end
+                arm64_fault_matches_watchpoint(fault_address, watch_start, size_in_bytes)
             })
             .map(|stored_breakpoint| stored_breakpoint.descriptor.clone()))
     }
@@ -1880,6 +1879,19 @@ fn validate_arm64_watchpoint(
     Ok(())
 }
 
+#[cfg(any(test, all(target_os = "android", target_arch = "aarch64")))]
+fn arm64_fault_matches_watchpoint(
+    fault_address: u64,
+    watch_start: u64,
+    size_in_bytes: u8,
+) -> bool {
+    let watch_end = watch_start.saturating_add(u64::from(size_in_bytes));
+    let granule_start = watch_start & !(ARM64_WATCH_GRANULE_SIZE - 1);
+    let granule_end = granule_start.saturating_add(ARM64_WATCH_GRANULE_SIZE);
+
+    (fault_address >= watch_start && fault_address < watch_end) || (fault_address >= granule_start && fault_address < granule_end)
+}
+
 #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 fn clear_debug_status(process_id: pid_t) -> Result<(), DebuggerPluginError> {
     write_debug_user_offset(process_id, X86_64_DR6_OFFSET, 0)
@@ -2108,7 +2120,7 @@ fn resolve_x64_post_trap_instruction_from_window(
 
 #[cfg(test)]
 mod tests {
-    use super::{arm64_watch_control, is_linux_task_stale_attach_error};
+    use super::{arm64_fault_matches_watchpoint, arm64_watch_control, is_linux_task_stale_attach_error};
     #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
     use super::{resolve_x64_post_trap_instruction_from_window, x64_watchpoint_access_bits, x64_watchpoint_length_bits};
     use squalr_engine_api::plugins::debugger::DebuggerPluginError;
@@ -2140,6 +2152,15 @@ mod tests {
         assert_eq!((control >> 1) & 0b11, 0b10);
         assert_eq!((control >> 3) & 0b11, 0b10);
         assert_eq!((control >> 5) & 0xff, 0b1111);
+    }
+
+    #[test]
+    fn arm64_fault_matching_accepts_reported_granule_base_for_offset_watchpoint() {
+        let watch_start = 0x1004;
+
+        assert!(arm64_fault_matches_watchpoint(0x1004, watch_start, 4));
+        assert!(arm64_fault_matches_watchpoint(0x1000, watch_start, 4));
+        assert!(!arm64_fault_matches_watchpoint(0x1008, watch_start, 4));
     }
 
     #[test]

@@ -131,8 +131,10 @@ def launch_http_ipc_server():
     raise SmokeFailure(f"Timed out waiting for HTTP IPC health response.\nHTTP log:\n{http_log}")
 
 
-def launch_watch_target():
-    run_adb_shell(f"{REMOTE_TARGET_PATH} >{REMOTE_TARGET_LOG_PATH} 2>&1 &")
+def launch_watch_target(target_mode):
+    target_arguments = " --single-thread" if target_mode == "single-thread" else ""
+    run_adb_shell(f"rm -f {REMOTE_TARGET_LOG_PATH}", allow_failure=True)
+    run_adb_shell(f"{REMOTE_TARGET_PATH}{target_arguments} >{REMOTE_TARGET_LOG_PATH} 2>&1 &")
 
     deadline = time.monotonic() + 15
     while time.monotonic() < deadline:
@@ -142,7 +144,7 @@ def launch_watch_target():
             process_id = int(ready_match.group("process_id"))
             target_address = int(ready_match.group("address"), 16)
             target_size = int(ready_match.group("size"))
-            print(f"Watch target ready: pid={process_id}, address={target_address:#x}, size={target_size}.", flush=True)
+            print(f"Watch target ready: mode={target_mode}, pid={process_id}, address={target_address:#x}, size={target_size}.", flush=True)
             return process_id, target_address, target_size
 
         time.sleep(0.25)
@@ -198,7 +200,7 @@ def open_process(process_id):
     print(f"Opened process through HTTP IPC: {opened_process_info.get('name', '<unknown>')}.", flush=True)
 
 
-def start_trace(target_address, target_size, access_label):
+def start_trace(target_address, target_size, access_label, trace_label):
     debugger_response = http_post_command(
         {
             "Debugger": {
@@ -207,7 +209,7 @@ def start_trace(target_address, target_size, access_label):
                         "address": target_address,
                         "size_in_bytes": target_size,
                         "access": access_label,
-                        "label": f"android-http-smoke-{access_label.lower()}",
+                        "label": trace_label,
                     }
                 }
             }
@@ -266,7 +268,7 @@ def require_debugger_status(status, operation_name):
         raise SmokeFailure(f"{operation_name} failed: {status.get('message') or 'no diagnostic message'}")
 
 
-def wait_for_trace_event(after_event_id, access_label, *, timeout_seconds=15):
+def wait_for_trace_event(after_event_id, trace_label, *, timeout_seconds=15):
     deadline = time.monotonic() + timeout_seconds
     latest_event_id = after_event_id
 
@@ -282,11 +284,11 @@ def wait_for_trace_event(after_event_id, access_label, *, timeout_seconds=15):
                 instruction_address = trace_event.get("instruction_address")
                 instruction_bytes = trace_event.get("instruction_bytes") or []
                 if instruction_address is None:
-                    raise SmokeFailure(f"{access_label} trace event did not include an instruction address.")
+                    raise SmokeFailure(f"{trace_label} trace event did not include an instruction address.")
                 if not instruction_bytes:
-                    raise SmokeFailure(f"{access_label} trace event did not include instruction bytes.")
+                    raise SmokeFailure(f"{trace_label} trace event did not include instruction bytes.")
                 print(
-                    f"{access_label} trace event: instruction_address={format_optional_address(instruction_address)}, "
+                    f"{trace_label} trace event: instruction_address={format_optional_address(instruction_address)}, "
                     f"bytes={len(instruction_bytes)}, instruction={instruction_text!r}.",
                     flush=True,
                 )
@@ -294,7 +296,7 @@ def wait_for_trace_event(after_event_id, access_label, *, timeout_seconds=15):
 
         time.sleep(0.1)
 
-    raise SmokeFailure(f"Timed out waiting for {access_label} trace event after event id {after_event_id}.")
+    raise SmokeFailure(f"Timed out waiting for {trace_label} trace event after event id {after_event_id}.")
 
 
 def extract_trace_event(event_envelope):
@@ -337,19 +339,39 @@ def read_latest_heartbeat():
     return latest_heartbeat
 
 
-def require_heartbeat_progress(process_id, previous_heartbeat, operation_name, *, timeout_seconds=5):
+def require_heartbeat_progress(process_id, previous_heartbeat, operation_name, *, require_counter_progress=False, timeout_seconds=5):
     deadline = time.monotonic() + timeout_seconds
 
     while time.monotonic() < deadline:
         current_heartbeat = read_latest_heartbeat()
-        if current_heartbeat is not None and previous_heartbeat is not None and current_heartbeat[0] > previous_heartbeat[0]:
-            print(f"Target heartbeat progressed after {operation_name}: {previous_heartbeat[0]} -> {current_heartbeat[0]}.", flush=True)
+        has_sequence_progress = current_heartbeat is not None and previous_heartbeat is not None and current_heartbeat[0] > previous_heartbeat[0]
+        has_counter_progress = current_heartbeat is not None and previous_heartbeat is not None and current_heartbeat[1] > previous_heartbeat[1]
+
+        if has_sequence_progress and (has_counter_progress or not require_counter_progress):
+            print(
+                f"Target heartbeat progressed after {operation_name}: "
+                f"sequence {previous_heartbeat[0]} -> {current_heartbeat[0]}, value {previous_heartbeat[1]} -> {current_heartbeat[1]}.",
+                flush=True,
+            )
             return current_heartbeat
 
         time.sleep(0.25)
 
     process_status = run_adb_shell(f"cat /proc/{process_id}/status 2>/dev/null || true", allow_failure=True)
     raise SmokeFailure(f"Watch target heartbeat did not progress after {operation_name}. Last status probe: {process_status}")
+
+
+def require_heartbeat_progress_while_trace_is_active(process_id, previous_heartbeat, trace_label):
+    current_heartbeat = require_heartbeat_progress(
+        process_id,
+        previous_heartbeat,
+        f"active {trace_label} trace",
+        require_counter_progress=True,
+        timeout_seconds=3,
+    )
+    require_no_persistent_tracing_stop(process_id, f"active {trace_label} trace")
+
+    return current_heartbeat
 
 
 def require_no_persistent_tracing_stop(process_id, operation_name):
@@ -370,10 +392,12 @@ def format_optional_address(address):
     return f"{int(address):#x}"
 
 
-def run_trace_flow(process_id, target_address, target_size, access_label, after_event_id):
+def run_trace_flow(process_id, target_address, target_size, access_label, trace_label, after_event_id):
     heartbeat_before_trace = read_latest_heartbeat()
-    trace_session_id = start_trace(target_address, target_size, access_label)
-    latest_event_id, trace_event = wait_for_trace_event(after_event_id, access_label)
+    trace_session_id = start_trace(target_address, target_size, access_label, trace_label)
+    latest_event_id, trace_event = wait_for_trace_event(after_event_id, trace_label)
+    heartbeat_after_hit = read_latest_heartbeat() or heartbeat_before_trace
+    heartbeat_after_active_hit = require_heartbeat_progress_while_trace_is_active(process_id, heartbeat_after_hit, trace_label)
     trace_records = list_trace_records(trace_session_id)
 
     if not trace_records:
@@ -381,9 +405,9 @@ def run_trace_flow(process_id, target_address, target_size, access_label, after_
 
     stop_trace(trace_session_id)
     detach_debugger()
-    heartbeat_after_trace = require_heartbeat_progress(process_id, heartbeat_before_trace, f"{access_label} trace")
-    require_no_persistent_tracing_stop(process_id, f"{access_label} trace")
-    print(f"{access_label} trace captured {len(trace_records)} instruction record(s).", flush=True)
+    heartbeat_after_trace = require_heartbeat_progress(process_id, heartbeat_after_active_hit, f"{trace_label} trace stop")
+    require_no_persistent_tracing_stop(process_id, f"{trace_label} trace")
+    print(f"{trace_label} trace captured {len(trace_records)} instruction record(s).", flush=True)
 
     return latest_event_id, heartbeat_after_trace, trace_event
 
@@ -394,6 +418,36 @@ def parse_arguments():
     return argument_parser.parse_args()
 
 
+def run_target_mode(target_mode):
+    run_adb_shell(f"pkill -f {REMOTE_TARGET_PATH} || true", allow_failure=True)
+    process_id, target_address, target_size = launch_watch_target(target_mode)
+    open_process(process_id)
+
+    latest_event_id = get_latest_event_id()
+    latest_heartbeat = read_latest_heartbeat()
+    if latest_heartbeat is None:
+        raise SmokeFailure("Watch target did not emit an initial heartbeat.")
+
+    trace_cases = [
+        ("Write", target_address, target_size, "Write aligned-u64"),
+        ("Write", target_address + 4, 4, "Write upper-u32-offset"),
+        ("ReadWrite", target_address, target_size, "ReadWrite aligned-u64"),
+        ("Read", target_address, target_size, "Read aligned-u64"),
+    ]
+
+    for access_label, trace_address, trace_size, trace_label in trace_cases:
+        latest_event_id, latest_heartbeat, _trace_event = run_trace_flow(
+            process_id,
+            trace_address,
+            trace_size,
+            access_label,
+            trace_label,
+            latest_event_id,
+        )
+
+    print(f"Android HTTP IPC debugger smoke passed for {target_mode} target mode.", flush=True)
+
+
 def main():
     arguments = parse_arguments()
 
@@ -402,22 +456,8 @@ def main():
         reset_remote_processes()
         push_android_artifacts()
         launch_http_ipc_server()
-        process_id, target_address, target_size = launch_watch_target()
-        open_process(process_id)
-
-        latest_event_id = get_latest_event_id()
-        latest_heartbeat = read_latest_heartbeat()
-        if latest_heartbeat is None:
-            raise SmokeFailure("Watch target did not emit an initial heartbeat.")
-
-        for access_label in ["Write", "ReadWrite", "Read"]:
-            latest_event_id, latest_heartbeat, _trace_event = run_trace_flow(
-                process_id,
-                target_address,
-                target_size,
-                access_label,
-                latest_event_id,
-            )
+        for target_mode in ["worker-thread", "single-thread"]:
+            run_target_mode(target_mode)
 
         print("Android HTTP IPC debugger smoke passed.", flush=True)
     finally:
