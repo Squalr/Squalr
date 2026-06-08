@@ -178,6 +178,14 @@ The initial endpoints are:
 - `POST /command` with a serialized `PrivilegedCommand` JSON body, returning a `PrivilegedCommandResult`
 - `GET /events?after=<event_id>` for polling engine events
 
+To validate the Android debugger path end-to-end through HTTP IPC, run:
+
+```text
+python ./scripts/android_http_debugger_smoke.py
+```
+
+The smoke builds release Android artifacts, pushes a native watch-target process that advertises a static counter address, drives `Process.Open` plus read/write/access debugger traces over HTTP, and verifies the target keeps emitting heartbeats after each trace is stopped and detached.
+
 Common preflight failure example:
 ```text
 > rustup target list --installed
