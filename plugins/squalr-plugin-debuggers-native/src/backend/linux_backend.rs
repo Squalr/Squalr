@@ -415,6 +415,12 @@ struct ActiveLinuxSession {
     trace_event_sink: DebuggerTraceEventSink,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum AttachThreadResult {
+    Attached,
+    SkippedStaleThread,
+}
+
 impl ActiveLinuxSession {
     fn attach(
         process_info: &OpenedProcessInfo,
@@ -1380,9 +1386,16 @@ impl ActiveLinuxSession {
     }
 
     fn attach_existing_threads(&mut self) -> Result<(), DebuggerPluginError> {
-        for thread_id in enumerate_linux_thread_ids(self.process_id)? {
+        let mut thread_ids = enumerate_linux_thread_ids(self.process_id)?;
+        thread_ids.sort_by_key(|thread_id| if *thread_id == self.process_id { 0 } else { 1 });
+
+        for thread_id in thread_ids {
             if !self.traced_threads_by_id.contains_key(&thread_id) {
-                self.attach_thread(thread_id)?;
+                let attach_result = self.attach_thread(thread_id)?;
+
+                if attach_result == AttachThreadResult::SkippedStaleThread {
+                    continue;
+                }
             }
         }
 
@@ -1404,8 +1417,23 @@ impl ActiveLinuxSession {
     fn attach_thread(
         &mut self,
         thread_id: pid_t,
-    ) -> Result<(), DebuggerPluginError> {
-        ptrace_request(libc::PTRACE_ATTACH, thread_id, null_mut(), null_mut(), "PTRACE_ATTACH")?;
+    ) -> Result<AttachThreadResult, DebuggerPluginError> {
+        let attach_operation_name = format!("PTRACE_ATTACH thread {} in process {}", thread_id, self.process_id);
+
+        if let Err(error) = ptrace_request(libc::PTRACE_ATTACH, thread_id, null_mut(), null_mut(), &attach_operation_name) {
+            if is_linux_task_stale_attach_error(&error, self.process_id, thread_id) {
+                log::debug!(
+                    "Skipping stale Linux thread {} during debugger attach for process {}.",
+                    thread_id,
+                    self.process_id
+                );
+
+                return Ok(AttachThreadResult::SkippedStaleThread);
+            }
+
+            return Err(error);
+        }
+
         if let Err(error) = wait_for_stop(thread_id, ATTACH_WAIT_TIMEOUT, "initial Linux thread attach") {
             let _ = ptrace_request(
                 libc::PTRACE_DETACH,
@@ -1415,6 +1443,16 @@ impl ActiveLinuxSession {
                 "PTRACE_DETACH after failed thread attach",
             );
 
+            if is_linux_task_stale_attach_error(&error, self.process_id, thread_id) {
+                log::debug!(
+                    "Skipping stale Linux thread {} after attach wait failed for process {}.",
+                    thread_id,
+                    self.process_id
+                );
+
+                return Ok(AttachThreadResult::SkippedStaleThread);
+            }
+
             return Err(error);
         }
 
@@ -1423,13 +1461,14 @@ impl ActiveLinuxSession {
         self.apply_watchpoints_to_thread(thread_id)?;
 
         if self.session_state == DebuggerSessionState::Running {
-            ptrace_request(libc::PTRACE_CONT, thread_id, null_mut(), null_mut(), "PTRACE_CONT newly attached Linux thread")?;
+            let resume_operation_name = format!("PTRACE_CONT newly attached Linux thread {}", thread_id);
+            ptrace_request(libc::PTRACE_CONT, thread_id, null_mut(), null_mut(), &resume_operation_name)?;
             if let Some(traced_thread) = self.traced_threads_by_id.get_mut(&thread_id) {
                 traced_thread.is_stopped = false;
             }
         }
 
-        Ok(())
+        Ok(AttachThreadResult::Attached)
     }
 
     fn resume_stopped_threads(
@@ -1502,6 +1541,21 @@ fn linux_task_exists(
     thread_id: pid_t,
 ) -> bool {
     fs::metadata(format!("/proc/{}/task/{}", process_id, thread_id)).is_ok()
+}
+
+fn is_linux_task_stale_attach_error(
+    error: &DebuggerPluginError,
+    process_id: pid_t,
+    thread_id: pid_t,
+) -> bool {
+    if thread_id == process_id {
+        return false;
+    }
+
+    let error_message = error.get_message();
+    let is_no_such_process = error_message.contains("No such process") || error_message.contains("os error 3");
+
+    is_no_such_process && !linux_task_exists(process_id, thread_id)
 }
 
 fn linux_worker_main(
@@ -2009,9 +2063,10 @@ fn resolve_x64_post_trap_instruction_from_window(
 
 #[cfg(test)]
 mod tests {
-    use super::arm64_watch_control;
+    use super::{arm64_watch_control, is_linux_task_stale_attach_error};
     #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
     use super::{resolve_x64_post_trap_instruction_from_window, x64_watchpoint_access_bits, x64_watchpoint_length_bits};
+    use squalr_engine_api::plugins::debugger::DebuggerPluginError;
     use squalr_engine_api::structures::debugger::DebuggerDataBreakpointAccess;
 
     #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
@@ -2040,6 +2095,14 @@ mod tests {
         assert_eq!((control >> 1) & 0b11, 0b10);
         assert_eq!((control >> 3) & 0b11, 0b10);
         assert_eq!((control >> 5) & 0xff, 0b1111);
+    }
+
+    #[test]
+    fn stale_attach_filter_skips_only_missing_non_leader_threads() {
+        let missing_thread_error = DebuggerPluginError::new("test.debugger", "PTRACE_ATTACH thread 12 in process 10 failed: No such process (os error 3).");
+
+        assert!(is_linux_task_stale_attach_error(&missing_thread_error, 10, 12));
+        assert!(!is_linux_task_stale_attach_error(&missing_thread_error, 10, 10));
     }
 
     #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
