@@ -738,7 +738,6 @@ impl ActiveLinuxSession {
         }
 
         self.sync_thread_list()?;
-        self.refresh_expired_watchpoint_suppressions()?;
         let mut wait_status = 0;
         let wait_result = unsafe { libc::waitpid(-1, &mut wait_status, WAIT_ALL_TRACED_THREADS) };
 
@@ -766,15 +765,11 @@ impl ActiveLinuxSession {
                 traced_thread.is_stopped = true;
             }
 
-            let is_watchpoint_suppressed = if stop_signal == SIGTRAP {
-                self.handle_breakpoint_trap(event_thread_id)?
-            } else {
-                false
-            };
+            if stop_signal == SIGTRAP {
+                self.handle_breakpoint_trap(event_thread_id)?;
+            }
 
-            if is_watchpoint_suppressed {
-                self.apply_suppressed_watchpoints_and_resume()?;
-            } else if self.session_state != DebuggerSessionState::Detached {
+            if self.session_state != DebuggerSessionState::Detached {
                 self.apply_watchpoints_to_thread(event_thread_id)?;
                 ptrace_request(libc::PTRACE_CONT, event_thread_id, null_mut(), null_mut(), "PTRACE_CONT after debug event")?;
                 if let Some(traced_thread) = self.traced_threads_by_id.get_mut(&event_thread_id) {
@@ -790,7 +785,7 @@ impl ActiveLinuxSession {
     fn handle_breakpoint_trap(
         &mut self,
         event_thread_id: pid_t,
-    ) -> Result<bool, DebuggerPluginError> {
+    ) -> Result<(), DebuggerPluginError> {
         let breakpoint_descriptor = self.describe_hit_breakpoint(event_thread_id)?;
         let register_snapshot = self.read_registers_for_thread(event_thread_id)?;
         let (instruction_address, instruction_bytes, backend_message) =
@@ -812,9 +807,9 @@ impl ActiveLinuxSession {
             (self.trace_event_sink)(trace_event);
         }
 
-        let is_watchpoint_suppressed = self.suppress_hit_breakpoint_temporarily(breakpoint_descriptor.as_ref());
+        self.suppress_hit_breakpoint_temporarily(breakpoint_descriptor.as_ref());
 
-        Ok(is_watchpoint_suppressed)
+        Ok(())
     }
 
     fn resolve_trace_instruction(
@@ -1054,61 +1049,6 @@ impl ActiveLinuxSession {
         stored_breakpoint.suppressed_until = Some(Instant::now() + Duration::from_millis(WATCHPOINT_REARM_DELAY_MS));
 
         true
-    }
-
-    fn apply_suppressed_watchpoints_and_resume(&mut self) -> Result<(), DebuggerPluginError> {
-        if self.session_state == DebuggerSessionState::Detached {
-            return Ok(());
-        }
-
-        self.pause()?;
-        self.apply_watchpoints()?;
-        self.resume_stopped_threads("PTRACE_CONT after watchpoint suppression")?;
-        self.session_state = DebuggerSessionState::Running;
-
-        Ok(())
-    }
-
-    fn refresh_expired_watchpoint_suppressions(&mut self) -> Result<(), DebuggerPluginError> {
-        let now = Instant::now();
-        let expired_breakpoint_ids = self
-            .breakpoints_by_id
-            .iter()
-            .filter_map(|(breakpoint_id, stored_breakpoint)| {
-                stored_breakpoint
-                    .suppressed_until
-                    .is_some_and(|suppressed_until| suppressed_until <= now)
-                    .then(|| breakpoint_id.clone())
-            })
-            .collect::<Vec<_>>();
-
-        if expired_breakpoint_ids.is_empty() {
-            return Ok(());
-        }
-
-        for breakpoint_id in &expired_breakpoint_ids {
-            if let Some(stored_breakpoint) = self.breakpoints_by_id.get_mut(breakpoint_id) {
-                stored_breakpoint.suppressed_until = None;
-            }
-        }
-
-        let rearm_result = self.pause().and_then(|_| {
-            self.apply_watchpoints()?;
-            self.resume()
-        });
-        if let Err(error) = rearm_result {
-            let retry_after = Instant::now() + Duration::from_millis(WATCHPOINT_REARM_DELAY_MS);
-
-            for breakpoint_id in expired_breakpoint_ids {
-                if let Some(stored_breakpoint) = self.breakpoints_by_id.get_mut(&breakpoint_id) {
-                    stored_breakpoint.suppressed_until = Some(retry_after);
-                }
-            }
-
-            return Err(error);
-        }
-
-        Ok(())
     }
 
     fn allocate_watchpoint_slot(&self) -> Result<usize, DebuggerPluginError> {

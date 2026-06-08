@@ -476,6 +476,28 @@ impl PrivilegedCommandRequestExecutor for DebuggerTraceStartRequest {
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
+        let Some(opened_process_info) = engine_privileged_state
+            .get_process_manager()
+            .get_opened_process()
+        else {
+            return DebuggerTraceStartResponse {
+                status: no_opened_process_status(),
+                trace_session: None,
+                instruction_records: Vec::new(),
+            };
+        };
+
+        if let Err(error_message) = engine_privileged_state
+            .get_debugger_service()
+            .attach(&opened_process_info, None)
+        {
+            return DebuggerTraceStartResponse {
+                status: failure_status(error_message),
+                trace_session: None,
+                instruction_records: Vec::new(),
+            };
+        }
+
         match engine_privileged_state
             .get_debugger_service()
             .start_trace_session(self.address, self.size_in_bytes, self.access, self.label.clone())

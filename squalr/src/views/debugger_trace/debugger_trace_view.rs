@@ -23,9 +23,8 @@ use epaint::{CornerRadius, Margin, Stroke, Vec2};
 use squalr_engine_api::{
     commands::{
         debugger::{
-            attach::debugger_attach_request::DebuggerAttachRequest, trace_pause::debugger_trace_pause_request::DebuggerTracePauseRequest,
-            trace_resume::debugger_trace_resume_request::DebuggerTraceResumeRequest, trace_start::debugger_trace_start_request::DebuggerTraceStartRequest,
-            trace_stop::debugger_trace_stop_request::DebuggerTraceStopRequest,
+            trace_pause::debugger_trace_pause_request::DebuggerTracePauseRequest, trace_resume::debugger_trace_resume_request::DebuggerTraceResumeRequest,
+            trace_start::debugger_trace_start_request::DebuggerTraceStartRequest, trace_stop::debugger_trace_stop_request::DebuggerTraceStopRequest,
         },
         privileged_command_request::PrivilegedCommandRequest,
         project_items::create::project_items_create_request::ProjectItemsCreateRequest,
@@ -336,7 +335,7 @@ impl DebuggerTraceView {
                                     },
                                 );
                             } else {
-                                self.show_attach_prompt_buttons(user_interface);
+                                self.show_trace_start_prompt_buttons(user_interface);
                             }
                         })
                         .desired_width(panel_width),
@@ -346,7 +345,7 @@ impl DebuggerTraceView {
         );
     }
 
-    fn show_attach_prompt_buttons(
+    fn show_trace_start_prompt_buttons(
         &self,
         user_interface: &mut Ui,
     ) {
@@ -377,14 +376,14 @@ impl DebuggerTraceView {
                     }
                 }
 
-                let attach_response = user_interface.add_sized(
+                let start_response = user_interface.add_sized(
                     button_size,
-                    Button::new(RichText::new("Attach").color(theme.foreground))
+                    Button::new(RichText::new("Start").color(theme.foreground))
                         .fill(theme.background_control_primary)
                         .stroke(Stroke::new(1.0, theme.background_control_primary_dark)),
                 );
 
-                if attach_response.clicked() {
+                if start_response.clicked() {
                     self.confirm_pending_trace_start();
                 }
             });
@@ -394,7 +393,7 @@ impl DebuggerTraceView {
     fn confirm_pending_trace_start(&self) {
         let pending_trace_start_operation = self
             .debugger_trace_view_data
-            .read("Debugger trace begin attach prompt")
+            .read("Debugger trace begin start prompt")
             .and_then(|debugger_trace_view_data| debugger_trace_view_data.begin_pending_trace_start());
         let Some(pending_trace_start_operation) = pending_trace_start_operation else {
             return;
@@ -405,61 +404,37 @@ impl DebuggerTraceView {
         let engine_unprivileged_state = self.app_context.engine_unprivileged_state.clone();
         let debugger_trace_view_data = self.debugger_trace_view_data.clone();
         let dispatch_failure_debugger_trace_view_data = debugger_trace_view_data.clone();
-        let is_attach_dispatched = DebuggerAttachRequest { plugin_id: None }.send(&engine_unprivileged_state.clone(), move |debugger_attach_response| {
-            if !debugger_attach_response.status.get_success() {
-                let status_message = format!(
-                    "Debugger attach failed: {}.",
-                    debugger_attach_response
-                        .status
-                        .get_message()
-                        .unwrap_or("unknown error")
-                );
-
-                if let Some(debugger_trace_view_data) = debugger_trace_view_data.read("Debugger trace attach failed") {
-                    debugger_trace_view_data.fail_pending_trace_start(operation_id, status_message);
+        let is_trace_start_dispatched = DebuggerTraceStartRequest {
+            address: pending_trace_start_request.get_address(),
+            size_in_bytes: pending_trace_start_request.get_size_in_bytes(),
+            access: pending_trace_start_request.get_access(),
+            label: pending_trace_start_request.get_label().map(String::from),
+        }
+        .send(&engine_unprivileged_state, move |debugger_trace_start_response| {
+            if debugger_trace_start_response.status.get_success() {
+                if let Some(debugger_trace_view_data) = debugger_trace_view_data.read("Debugger trace start completed") {
+                    debugger_trace_view_data.complete_pending_trace_start(operation_id);
                 }
 
                 return;
             }
 
-            let debugger_trace_view_data = debugger_trace_view_data.clone();
-            let trace_start_dispatch_failure_debugger_trace_view_data = debugger_trace_view_data.clone();
-            let is_trace_start_dispatched = DebuggerTraceStartRequest {
-                address: pending_trace_start_request.get_address(),
-                size_in_bytes: pending_trace_start_request.get_size_in_bytes(),
-                access: pending_trace_start_request.get_access(),
-                label: pending_trace_start_request.get_label().map(String::from),
-            }
-            .send(&engine_unprivileged_state, move |debugger_trace_start_response| {
-                if debugger_trace_start_response.status.get_success() {
-                    if let Some(debugger_trace_view_data) = debugger_trace_view_data.read("Debugger trace start completed") {
-                        debugger_trace_view_data.complete_pending_trace_start(operation_id);
-                    }
-                } else {
-                    let status_message = format!(
-                        "Debugger trace start failed: {}.",
-                        debugger_trace_start_response
-                            .status
-                            .get_message()
-                            .unwrap_or("unknown error")
-                    );
+            let status_message = format!(
+                "Debugger trace start failed: {}.",
+                debugger_trace_start_response
+                    .status
+                    .get_message()
+                    .unwrap_or("unknown error")
+            );
 
-                    if let Some(debugger_trace_view_data) = debugger_trace_view_data.read("Debugger trace start failed") {
-                        debugger_trace_view_data.fail_pending_trace_start(operation_id, status_message);
-                    }
-                }
-            });
-
-            if !is_trace_start_dispatched {
-                if let Some(debugger_trace_view_data) = trace_start_dispatch_failure_debugger_trace_view_data.read("Debugger trace start dispatch failed") {
-                    debugger_trace_view_data.fail_pending_trace_start(operation_id, String::from("Debugger trace start failed: command dispatch failed."));
-                }
+            if let Some(debugger_trace_view_data) = debugger_trace_view_data.read("Debugger trace start failed") {
+                debugger_trace_view_data.fail_pending_trace_start(operation_id, status_message);
             }
         });
 
-        if !is_attach_dispatched {
-            if let Some(debugger_trace_view_data) = dispatch_failure_debugger_trace_view_data.read("Debugger attach dispatch failed") {
-                debugger_trace_view_data.fail_pending_trace_start(operation_id, String::from("Debugger attach failed: command dispatch failed."));
+        if !is_trace_start_dispatched {
+            if let Some(debugger_trace_view_data) = dispatch_failure_debugger_trace_view_data.read("Debugger trace start dispatch failed") {
+                debugger_trace_view_data.fail_pending_trace_start(operation_id, String::from("Debugger trace start failed: command dispatch failed."));
             }
         }
     }
