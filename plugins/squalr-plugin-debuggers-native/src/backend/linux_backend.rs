@@ -1,4 +1,5 @@
 use crate::constants::NATIVE_DEBUGGERS_PLUGIN_ID;
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 use iced_x86::{Decoder, DecoderOptions};
 use libc::{SIGSTOP, SIGTRAP, WNOHANG, c_void, pid_t};
 use squalr_engine_api::{
@@ -24,13 +25,30 @@ use std::{
 const ATTACH_WAIT_TIMEOUT: Duration = Duration::from_secs(10);
 const IDLE_COMMAND_WAIT_TIMEOUT_MS: u64 = 50;
 const RUNNING_EVENT_WAIT_TIMEOUT_MS: u64 = 50;
+#[cfg(all(target_os = "android", target_arch = "aarch64"))]
+const ARM64_INSTRUCTION_BYTE_LENGTH: usize = 4;
+#[cfg(all(target_os = "android", target_arch = "aarch64"))]
+const ARM64_WATCH_GRANULE_SIZE: u64 = 8;
+#[cfg(all(target_os = "android", target_arch = "aarch64"))]
+const NT_ARM_HW_WATCH: usize = 0x403;
+#[cfg(all(target_os = "android", target_arch = "aarch64"))]
+const NT_PRSTATUS: usize = 1;
 const TRACE_INSTRUCTION_BYTE_WINDOW: usize = 16;
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 const X64_MAX_INSTRUCTION_LENGTH: usize = 15;
 const WATCHPOINT_SLOT_COUNT: usize = 4;
 const WAIT_ALL_TRACED_THREADS: libc::c_int = WNOHANG | 0x40000000;
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 const X86_64_DEBUG_REGISTER_BASE_OFFSET: usize = 848;
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 const X86_64_DEBUG_REGISTER_SIZE: usize = 8;
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 const X86_64_DR6_OFFSET: usize = X86_64_DEBUG_REGISTER_BASE_OFFSET + 6 * X86_64_DEBUG_REGISTER_SIZE;
+
+#[cfg(all(target_os = "android", target_arch = "aarch64"))]
+type PtraceRequest = libc::c_int;
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+type PtraceRequest = libc::c_uint;
 
 pub(crate) struct LinuxDebuggerBackend {
     process_info: OpenedProcessInfo,
@@ -402,9 +420,9 @@ impl ActiveLinuxSession {
     ) -> Result<Self, DebuggerPluginError> {
         let process_id = process_info.get_process_id() as pid_t;
 
-        if !matches!(process_info.get_target_architecture().get_instruction_set_id(), "x86" | "x64") {
+        if !Self::is_supported_target_architecture(process_info.get_target_architecture()) {
             return Err(LinuxDebuggerBackend::plugin_error(format!(
-                "Linux native debugger currently supports x86/x64 targets only; target architecture was '{}'.",
+                "Native ptrace debugger does not support target architecture '{}'.",
                 process_info.get_target_architecture().get_instruction_set_id()
             )));
         }
@@ -427,12 +445,19 @@ impl ActiveLinuxSession {
 
         if active_session.traced_threads_by_id.is_empty() {
             return Err(LinuxDebuggerBackend::plugin_error(format!(
-                "Linux debugger found no traceable threads for process {}.",
+                "Native ptrace debugger found no traceable threads for process {}.",
                 process_id
             )));
         }
 
         Ok(active_session)
+    }
+
+    fn is_supported_target_architecture(target_architecture: &TargetArchitecture) -> bool {
+        let instruction_set_id = target_architecture.get_instruction_set_id();
+
+        (cfg!(all(target_os = "linux", target_arch = "x86_64")) && matches!(instruction_set_id, "x86" | "x64"))
+            || (cfg!(all(target_os = "android", target_arch = "aarch64")) && instruction_set_id == "arm64")
     }
 
     fn pause(&mut self) -> Result<(), DebuggerPluginError> {
@@ -449,8 +474,7 @@ impl ActiveLinuxSession {
             .collect::<Vec<_>>();
 
         for thread_id in &running_thread_ids {
-            let signal_result = unsafe { libc::kill(*thread_id, SIGSTOP) };
-            if signal_result != 0 {
+            if send_thread_signal(self.process_id, *thread_id, SIGSTOP) != 0 {
                 return Err(last_os_error("SIGSTOP Linux debugger pause"));
             }
         }
@@ -481,7 +505,7 @@ impl ActiveLinuxSession {
     }
 
     fn read_registers(&self) -> Result<DebuggerRegisterSnapshot, DebuggerPluginError> {
-        self.read_x64_registers(self.select_register_thread_id()?)
+        self.read_registers_for_thread(self.select_register_thread_id()?)
     }
 
     fn write_register(
@@ -514,6 +538,30 @@ impl ActiveLinuxSession {
         value: u64,
     ) -> Result<DebuggerRegisterSnapshot, DebuggerPluginError> {
         let register_thread_id = self.select_register_thread_id()?;
+
+        #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+        if self.target_architecture.get_instruction_set_id() == "x64" {
+            return self.write_x64_register(register_thread_id, register_name, value);
+        }
+
+        #[cfg(all(target_os = "android", target_arch = "aarch64"))]
+        if self.target_architecture.get_instruction_set_id() == "arm64" {
+            return self.write_arm64_register(register_thread_id, register_name, value);
+        }
+
+        Err(LinuxDebuggerBackend::plugin_error(format!(
+            "Native ptrace debugger register writes are unsupported for architecture '{}'.",
+            self.target_architecture.get_instruction_set_id()
+        )))
+    }
+
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    fn write_x64_register(
+        &self,
+        register_thread_id: pid_t,
+        register_name: &str,
+        value: u64,
+    ) -> Result<DebuggerRegisterSnapshot, DebuggerPluginError> {
         let mut registers = get_registers(register_thread_id)?;
         let normalized_register_name = register_name.trim().to_ascii_lowercase();
 
@@ -573,13 +621,13 @@ impl ActiveLinuxSession {
     ) -> Result<DebuggerBreakpointDescriptor, DebuggerPluginError> {
         if !matches!(kind, DebuggerBreakpointKind::HardwareData { .. }) {
             return Err(LinuxDebuggerBackend::plugin_error(
-                "The Linux native debugger backend currently supports hardware data breakpoints only.",
+                "The native ptrace debugger backend currently supports hardware data breakpoints only.",
             ));
         }
 
-        validate_hardware_breakpoint(address, &kind)?;
+        self.validate_hardware_breakpoint(address, &kind)?;
         let slot = self.allocate_watchpoint_slot()?;
-        let breakpoint_id = format!("linux-{}", self.next_breakpoint_number);
+        let breakpoint_id = format!("ptrace-{}", self.next_breakpoint_number);
         self.next_breakpoint_number = self.next_breakpoint_number.saturating_add(1);
         let descriptor = DebuggerBreakpointDescriptor::new(breakpoint_id.clone(), address, kind, true, label);
 
@@ -729,13 +777,12 @@ impl ActiveLinuxSession {
         &mut self,
         event_thread_id: pid_t,
     ) -> Result<(), DebuggerPluginError> {
-        let dr6 = read_debug_register(event_thread_id, 6)?;
-        let breakpoint_descriptor = self.describe_hit_breakpoint(dr6);
-        let register_snapshot = self.read_x64_registers(event_thread_id)?;
+        let breakpoint_descriptor = self.describe_hit_breakpoint(event_thread_id)?;
+        let register_snapshot = self.read_registers_for_thread(event_thread_id)?;
         let (instruction_address, instruction_bytes, backend_message) =
             self.resolve_trace_instruction(event_thread_id, register_snapshot.get_instruction_pointer());
 
-        clear_debug_status(event_thread_id)?;
+        self.clear_debug_status(event_thread_id)?;
 
         if breakpoint_descriptor.is_some() {
             let trace_event = DebuggerTraceEvent::new(
@@ -763,12 +810,35 @@ impl ActiveLinuxSession {
             return (None, Vec::new(), None);
         };
 
-        if let Some((instruction_address, instruction_bytes)) = self.resolve_x64_post_trap_instruction(thread_id, post_trap_instruction_pointer) {
+        #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+        if self.target_architecture.get_instruction_set_id() == "x64" {
+            if let Some((instruction_address, instruction_bytes)) = self.resolve_x64_post_trap_instruction(thread_id, post_trap_instruction_pointer) {
+                return (
+                    Some(instruction_address),
+                    instruction_bytes,
+                    Some(String::from(
+                        "Linux x64 hardware data breakpoint hit; trace instruction was recovered from the post-trap RIP.",
+                    )),
+                );
+            }
+
             return (
-                Some(instruction_address),
-                instruction_bytes,
+                Some(post_trap_instruction_pointer),
+                self.read_instruction_bytes(thread_id, Some(post_trap_instruction_pointer)),
                 Some(String::from(
-                    "Linux x64 hardware data breakpoint hit; trace instruction was recovered from the post-trap RIP.",
+                    "Linux x64 hardware data breakpoint hit; instruction pointer is the post-trap RIP and may point after the accessing instruction.",
+                )),
+            );
+        }
+
+        #[cfg(all(target_os = "android", target_arch = "aarch64"))]
+        if self.target_architecture.get_instruction_set_id() == "arm64" {
+            return (
+                Some(post_trap_instruction_pointer),
+                self.read_memory_bytes(thread_id, post_trap_instruction_pointer, ARM64_INSTRUCTION_BYTE_LENGTH)
+                    .unwrap_or_default(),
+                Some(String::from(
+                    "Android arm64 hardware data breakpoint hit; instruction pointer was reported by ptrace and needs human verification.",
                 )),
             );
         }
@@ -777,11 +847,12 @@ impl ActiveLinuxSession {
             Some(post_trap_instruction_pointer),
             self.read_instruction_bytes(thread_id, Some(post_trap_instruction_pointer)),
             Some(String::from(
-                "Linux x64 hardware data breakpoint hit; instruction pointer is the post-trap RIP and may point after the accessing instruction.",
+                "Native ptrace hardware data breakpoint hit; instruction attribution is unsupported for this architecture.",
             )),
         )
     }
 
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
     fn resolve_x64_post_trap_instruction(
         &self,
         thread_id: pid_t,
@@ -795,6 +866,25 @@ impl ActiveLinuxSession {
     }
 
     fn describe_hit_breakpoint(
+        &self,
+        thread_id: pid_t,
+    ) -> Result<Option<DebuggerBreakpointDescriptor>, DebuggerPluginError> {
+        #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+        if self.target_architecture.get_instruction_set_id() == "x64" {
+            let dr6 = read_debug_register(thread_id, 6)?;
+            return Ok(self.describe_x64_hit_breakpoint(dr6));
+        }
+
+        #[cfg(all(target_os = "android", target_arch = "aarch64"))]
+        if self.target_architecture.get_instruction_set_id() == "arm64" {
+            return self.describe_arm64_hit_breakpoint(thread_id);
+        }
+
+        Ok(None)
+    }
+
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    fn describe_x64_hit_breakpoint(
         &self,
         dr6: u64,
     ) -> Option<DebuggerBreakpointDescriptor> {
@@ -874,6 +964,27 @@ impl ActiveLinuxSession {
         &self,
         thread_id: pid_t,
     ) -> Result<(), DebuggerPluginError> {
+        #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+        if self.target_architecture.get_instruction_set_id() == "x64" {
+            return self.apply_x64_watchpoints_to_thread(thread_id);
+        }
+
+        #[cfg(all(target_os = "android", target_arch = "aarch64"))]
+        if self.target_architecture.get_instruction_set_id() == "arm64" {
+            return self.apply_arm64_watchpoints_to_thread(thread_id);
+        }
+
+        Err(LinuxDebuggerBackend::plugin_error(format!(
+            "Native ptrace debugger watchpoints are unsupported for architecture '{}'.",
+            self.target_architecture.get_instruction_set_id()
+        )))
+    }
+
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    fn apply_x64_watchpoints_to_thread(
+        &self,
+        thread_id: pid_t,
+    ) -> Result<(), DebuggerPluginError> {
         let mut dr7 = 0u64;
 
         clear_debug_status(thread_id)?;
@@ -947,6 +1058,76 @@ impl ActiveLinuxSession {
         }
     }
 
+    fn validate_hardware_breakpoint(
+        &self,
+        address: u64,
+        kind: &DebuggerBreakpointKind,
+    ) -> Result<(), DebuggerPluginError> {
+        let DebuggerBreakpointKind::HardwareData { size_in_bytes, .. } = *kind else {
+            return Ok(());
+        };
+
+        #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+        if self.target_architecture.get_instruction_set_id() == "x64" {
+            x64_watchpoint_length_bits(size_in_bytes)?;
+
+            if address % u64::from(size_in_bytes) != 0 {
+                return Err(LinuxDebuggerBackend::plugin_error(format!(
+                    "Linux x64 hardware data breakpoint at 0x{:X} must be aligned to its {} byte size.",
+                    address, size_in_bytes
+                )));
+            }
+
+            return Ok(());
+        }
+
+        #[cfg(all(target_os = "android", target_arch = "aarch64"))]
+        if self.target_architecture.get_instruction_set_id() == "arm64" {
+            validate_arm64_watchpoint(address, size_in_bytes)?;
+
+            return Ok(());
+        }
+
+        Err(LinuxDebuggerBackend::plugin_error(format!(
+            "Native ptrace hardware data breakpoints are unsupported for architecture '{}'.",
+            self.target_architecture.get_instruction_set_id()
+        )))
+    }
+
+    fn read_registers_for_thread(
+        &self,
+        thread_id: pid_t,
+    ) -> Result<DebuggerRegisterSnapshot, DebuggerPluginError> {
+        #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+        if self.target_architecture.get_instruction_set_id() == "x64" {
+            return self.read_x64_registers(thread_id);
+        }
+
+        #[cfg(all(target_os = "android", target_arch = "aarch64"))]
+        if self.target_architecture.get_instruction_set_id() == "arm64" {
+            return self.read_arm64_registers(thread_id);
+        }
+
+        Err(LinuxDebuggerBackend::plugin_error(format!(
+            "Native ptrace debugger register reads are unsupported for architecture '{}'.",
+            self.target_architecture.get_instruction_set_id()
+        )))
+    }
+
+    fn clear_debug_status(
+        &self,
+        thread_id: pid_t,
+    ) -> Result<(), DebuggerPluginError> {
+        #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+        if self.target_architecture.get_instruction_set_id() == "x64" {
+            return clear_debug_status(thread_id);
+        }
+
+        let _ = thread_id;
+        Ok(())
+    }
+
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
     fn read_x64_registers(
         &self,
         thread_id: pid_t,
@@ -974,6 +1155,135 @@ impl ActiveLinuxSession {
         ];
 
         Ok(DebuggerRegisterSnapshot::new(Some(registers.rip), Some(registers.rsp), register_values))
+    }
+
+    #[cfg(all(target_os = "android", target_arch = "aarch64"))]
+    fn read_arm64_registers(
+        &self,
+        thread_id: pid_t,
+    ) -> Result<DebuggerRegisterSnapshot, DebuggerPluginError> {
+        let registers = read_arm64_raw_registers(thread_id)?;
+        let mut register_values = Vec::with_capacity(34);
+
+        for register_number in 0..31 {
+            register_values.push(DebuggerRegisterValue::new(format!("x{}", register_number), registers.regs[register_number], 64));
+        }
+        register_values.push(DebuggerRegisterValue::new("sp", registers.sp, 64));
+        register_values.push(DebuggerRegisterValue::new("pc", registers.pc, 64));
+        register_values.push(DebuggerRegisterValue::new("pstate", registers.pstate, 64));
+
+        Ok(DebuggerRegisterSnapshot::new(Some(registers.pc), Some(registers.sp), register_values))
+    }
+
+    #[cfg(all(target_os = "android", target_arch = "aarch64"))]
+    fn write_arm64_register(
+        &self,
+        register_thread_id: pid_t,
+        register_name: &str,
+        value: u64,
+    ) -> Result<DebuggerRegisterSnapshot, DebuggerPluginError> {
+        let mut registers = read_arm64_raw_registers(register_thread_id)?;
+        let normalized_register_name = register_name.trim().to_ascii_lowercase();
+
+        match normalized_register_name.as_str() {
+            "sp" => registers.sp = value,
+            "pc" => registers.pc = value,
+            "pstate" => registers.pstate = value,
+            "fp" => registers.regs[29] = value,
+            "lr" => registers.regs[30] = value,
+            register_name if register_name.starts_with('x') => {
+                let register_number = register_name
+                    .trim_start_matches('x')
+                    .parse::<usize>()
+                    .map_err(|_| LinuxDebuggerBackend::plugin_error(format!("Android arm64 register '{}' is not supported for writes.", register_name)))?;
+                if register_number >= registers.regs.len() {
+                    return Err(LinuxDebuggerBackend::plugin_error(format!(
+                        "Android arm64 register '{}' is not supported for writes.",
+                        register_name
+                    )));
+                }
+
+                registers.regs[register_number] = value;
+            }
+            unsupported_register_name => {
+                return Err(LinuxDebuggerBackend::plugin_error(format!(
+                    "Android arm64 register '{}' is not supported for writes.",
+                    unsupported_register_name
+                )));
+            }
+        }
+
+        write_arm64_raw_registers(register_thread_id, &mut registers)?;
+        self.read_arm64_registers(register_thread_id)
+    }
+
+    #[cfg(all(target_os = "android", target_arch = "aarch64"))]
+    fn apply_arm64_watchpoints_to_thread(
+        &self,
+        thread_id: pid_t,
+    ) -> Result<(), DebuggerPluginError> {
+        let mut debug_state = read_arm64_hardware_watchpoint_state(thread_id)?;
+        let supported_slot_count = (debug_state.dbg_info & 0xff) as usize;
+
+        for debug_register in &mut debug_state.dbg_regs {
+            *debug_register = Arm64HardwareDebugRegister::default();
+        }
+
+        for stored_breakpoint in self.breakpoints_by_id.values() {
+            if !stored_breakpoint.descriptor.get_is_enabled() {
+                continue;
+            }
+
+            let DebuggerBreakpointKind::HardwareData { access, size_in_bytes } = *stored_breakpoint.descriptor.get_kind() else {
+                continue;
+            };
+            let slot = stored_breakpoint.slot;
+            if slot >= supported_slot_count {
+                return Err(LinuxDebuggerBackend::plugin_error(format!(
+                    "Android arm64 hardware watchpoint slot {} is unavailable; this device reported {} slot(s).",
+                    slot, supported_slot_count
+                )));
+            }
+
+            let address = stored_breakpoint.descriptor.get_address();
+            let granule_base = address & !(ARM64_WATCH_GRANULE_SIZE - 1);
+            let byte_offset = address - granule_base;
+            let byte_count = u64::from(size_in_bytes);
+            let byte_mask = ((1u64 << byte_count) - 1) << byte_offset;
+
+            debug_state.dbg_regs[slot].address = granule_base;
+            debug_state.dbg_regs[slot].control = arm64_watch_control(access, byte_mask);
+        }
+
+        write_arm64_hardware_watchpoint_state(thread_id, &mut debug_state)
+    }
+
+    #[cfg(all(target_os = "android", target_arch = "aarch64"))]
+    fn describe_arm64_hit_breakpoint(
+        &self,
+        thread_id: pid_t,
+    ) -> Result<Option<DebuggerBreakpointDescriptor>, DebuggerPluginError> {
+        let Some(fault_address) = read_signal_fault_address(thread_id)? else {
+            return Ok(None);
+        };
+
+        Ok(self
+            .breakpoints_by_id
+            .values()
+            .find(|stored_breakpoint| {
+                if !stored_breakpoint.descriptor.get_is_enabled() {
+                    return false;
+                }
+
+                let DebuggerBreakpointKind::HardwareData { size_in_bytes, .. } = *stored_breakpoint.descriptor.get_kind() else {
+                    return false;
+                };
+                let watch_start = stored_breakpoint.descriptor.get_address();
+                let watch_end = watch_start.saturating_add(u64::from(size_in_bytes));
+
+                fault_address >= watch_start && fault_address < watch_end
+            })
+            .map(|stored_breakpoint| stored_breakpoint.descriptor.clone()))
     }
 
     fn attach_existing_threads(&mut self) -> Result<(), DebuggerPluginError> {
@@ -1198,6 +1508,7 @@ fn handle_worker_command(
     false
 }
 
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 fn get_registers(process_id: pid_t) -> Result<libc::user_regs_struct, DebuggerPluginError> {
     let mut registers = unsafe { zeroed::<libc::user_regs_struct>() };
 
@@ -1212,19 +1523,149 @@ fn get_registers(process_id: pid_t) -> Result<libc::user_regs_struct, DebuggerPl
     Ok(registers)
 }
 
-fn validate_hardware_breakpoint(
+#[cfg(all(target_os = "android", target_arch = "aarch64"))]
+#[repr(C)]
+#[derive(Clone, Copy)]
+struct Arm64HardwareDebugRegister {
     address: u64,
-    kind: &DebuggerBreakpointKind,
+    control: u32,
+    padding: u32,
+}
+
+#[cfg(all(target_os = "android", target_arch = "aarch64"))]
+impl Default for Arm64HardwareDebugRegister {
+    fn default() -> Self {
+        unsafe { zeroed() }
+    }
+}
+
+#[cfg(all(target_os = "android", target_arch = "aarch64"))]
+#[repr(C)]
+#[derive(Clone, Copy)]
+struct Arm64HardwareDebugState {
+    dbg_info: u32,
+    pad: u32,
+    dbg_regs: [Arm64HardwareDebugRegister; 16],
+}
+
+#[cfg(all(target_os = "android", target_arch = "aarch64"))]
+impl Default for Arm64HardwareDebugState {
+    fn default() -> Self {
+        unsafe { zeroed() }
+    }
+}
+
+#[cfg(all(target_os = "android", target_arch = "aarch64"))]
+fn read_arm64_raw_registers(thread_id: pid_t) -> Result<libc::user_regs_struct, DebuggerPluginError> {
+    let mut registers = unsafe { zeroed::<libc::user_regs_struct>() };
+
+    ptrace_get_regset(thread_id, NT_PRSTATUS, &mut registers, "PTRACE_GETREGSET NT_PRSTATUS")?;
+
+    Ok(registers)
+}
+
+#[cfg(all(target_os = "android", target_arch = "aarch64"))]
+fn write_arm64_raw_registers(
+    thread_id: pid_t,
+    registers: &mut libc::user_regs_struct,
 ) -> Result<(), DebuggerPluginError> {
-    let DebuggerBreakpointKind::HardwareData { size_in_bytes, .. } = *kind else {
-        return Ok(());
+    ptrace_set_regset(thread_id, NT_PRSTATUS, registers, "PTRACE_SETREGSET NT_PRSTATUS")
+}
+
+#[cfg(all(target_os = "android", target_arch = "aarch64"))]
+fn read_arm64_hardware_watchpoint_state(thread_id: pid_t) -> Result<Arm64HardwareDebugState, DebuggerPluginError> {
+    let mut debug_state = Arm64HardwareDebugState::default();
+
+    ptrace_get_regset(thread_id, NT_ARM_HW_WATCH, &mut debug_state, "PTRACE_GETREGSET NT_ARM_HW_WATCH")?;
+
+    Ok(debug_state)
+}
+
+#[cfg(all(target_os = "android", target_arch = "aarch64"))]
+fn write_arm64_hardware_watchpoint_state(
+    thread_id: pid_t,
+    debug_state: &mut Arm64HardwareDebugState,
+) -> Result<(), DebuggerPluginError> {
+    ptrace_set_regset(thread_id, NT_ARM_HW_WATCH, debug_state, "PTRACE_SETREGSET NT_ARM_HW_WATCH")
+}
+
+#[cfg(all(target_os = "android", target_arch = "aarch64"))]
+fn ptrace_get_regset<T>(
+    thread_id: pid_t,
+    register_set_id: usize,
+    register_set: &mut T,
+    operation_name: &str,
+) -> Result<(), DebuggerPluginError> {
+    let mut io_vector = libc::iovec {
+        iov_base: (register_set as *mut T).cast::<c_void>(),
+        iov_len: std::mem::size_of::<T>(),
     };
 
-    x64_watchpoint_length_bits(size_in_bytes)?;
+    ptrace_request(
+        libc::PTRACE_GETREGSET,
+        thread_id,
+        register_set_id as *mut c_void,
+        (&mut io_vector as *mut libc::iovec).cast::<c_void>(),
+        operation_name,
+    )
+}
 
-    if address % u64::from(size_in_bytes) != 0 {
+#[cfg(all(target_os = "android", target_arch = "aarch64"))]
+fn ptrace_set_regset<T>(
+    thread_id: pid_t,
+    register_set_id: usize,
+    register_set: &mut T,
+    operation_name: &str,
+) -> Result<(), DebuggerPluginError> {
+    let mut io_vector = libc::iovec {
+        iov_base: (register_set as *mut T).cast::<c_void>(),
+        iov_len: std::mem::size_of::<T>(),
+    };
+
+    ptrace_request(
+        libc::PTRACE_SETREGSET,
+        thread_id,
+        register_set_id as *mut c_void,
+        (&mut io_vector as *mut libc::iovec).cast::<c_void>(),
+        operation_name,
+    )
+}
+
+#[cfg(all(target_os = "android", target_arch = "aarch64"))]
+fn read_signal_fault_address(thread_id: pid_t) -> Result<Option<u64>, DebuggerPluginError> {
+    let mut signal_info = unsafe { zeroed::<libc::siginfo_t>() };
+
+    ptrace_request(
+        libc::PTRACE_GETSIGINFO,
+        thread_id,
+        null_mut(),
+        (&mut signal_info as *mut libc::siginfo_t).cast::<c_void>(),
+        "PTRACE_GETSIGINFO",
+    )?;
+
+    let fault_address = unsafe { signal_info.si_addr() };
+    if fault_address.is_null() { Ok(None) } else { Ok(Some(fault_address as u64)) }
+}
+
+#[cfg(all(target_os = "android", target_arch = "aarch64"))]
+fn validate_arm64_watchpoint(
+    address: u64,
+    size_in_bytes: u8,
+) -> Result<(), DebuggerPluginError> {
+    match size_in_bytes {
+        1 | 2 | 4 | 8 => {}
+        _ => {
+            return Err(LinuxDebuggerBackend::plugin_error(format!(
+                "Android arm64 hardware data breakpoint size {} is unsupported. Expected 1, 2, 4, or 8 bytes.",
+                size_in_bytes
+            )));
+        }
+    }
+
+    let byte_offset = address & (ARM64_WATCH_GRANULE_SIZE - 1);
+    if byte_offset + u64::from(size_in_bytes) > ARM64_WATCH_GRANULE_SIZE {
         return Err(LinuxDebuggerBackend::plugin_error(format!(
-            "Linux x64 hardware data breakpoint at 0x{:X} must be aligned to its {} byte size.",
+            "Android arm64 watchpoint at 0x{:X} with size {} crosses an 8-byte watchpoint granule.",
             address, size_in_bytes
         )));
     }
@@ -1232,10 +1673,12 @@ fn validate_hardware_breakpoint(
     Ok(())
 }
 
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 fn clear_debug_status(process_id: pid_t) -> Result<(), DebuggerPluginError> {
     write_debug_user_offset(process_id, X86_64_DR6_OFFSET, 0)
 }
 
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 fn read_debug_register(
     process_id: pid_t,
     debug_register_index: usize,
@@ -1244,6 +1687,7 @@ fn read_debug_register(
     read_debug_user_offset(process_id, offset)
 }
 
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 fn write_debug_register(
     process_id: pid_t,
     debug_register_index: usize,
@@ -1253,6 +1697,7 @@ fn write_debug_register(
     write_debug_user_offset(process_id, offset, value)
 }
 
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 fn read_debug_user_offset(
     process_id: pid_t,
     offset: usize,
@@ -1262,6 +1707,7 @@ fn read_debug_user_offset(
     Ok(ptrace_result as u64)
 }
 
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 fn write_debug_user_offset(
     process_id: pid_t,
     offset: usize,
@@ -1276,6 +1722,7 @@ fn write_debug_user_offset(
     )
 }
 
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 fn ptrace_peek_user(
     process_id: pid_t,
     offset: usize,
@@ -1306,8 +1753,16 @@ fn ptrace_peek_data(
     }
 }
 
+fn send_thread_signal(
+    process_id: pid_t,
+    thread_id: pid_t,
+    signal: libc::c_int,
+) -> libc::c_long {
+    unsafe { libc::syscall(libc::SYS_tgkill, process_id, thread_id, signal) }
+}
+
 fn ptrace_request(
-    request: libc::c_uint,
+    request: PtraceRequest,
     process_id: pid_t,
     address: *mut c_void,
     data: *mut c_void,
@@ -1353,15 +1808,30 @@ fn last_os_error(operation_name: &str) -> DebuggerPluginError {
 }
 
 fn clear_errno() {
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
     unsafe {
         *libc::__errno_location() = 0;
+    }
+
+    #[cfg(all(target_os = "android", target_arch = "aarch64"))]
+    unsafe {
+        *libc::__errno() = 0;
     }
 }
 
 fn current_errno() -> i32 {
-    unsafe { *libc::__errno_location() }
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    unsafe {
+        *libc::__errno_location()
+    }
+
+    #[cfg(all(target_os = "android", target_arch = "aarch64"))]
+    unsafe {
+        *libc::__errno()
+    }
 }
 
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 fn x64_watchpoint_access_bits(access: DebuggerDataBreakpointAccess) -> u64 {
     match access {
         DebuggerDataBreakpointAccess::Write => 0b01,
@@ -1369,6 +1839,7 @@ fn x64_watchpoint_access_bits(access: DebuggerDataBreakpointAccess) -> u64 {
     }
 }
 
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 fn x64_watchpoint_length_bits(size_in_bytes: u8) -> Result<u64, DebuggerPluginError> {
     match size_in_bytes {
         1 => Ok(0b00),
@@ -1382,6 +1853,25 @@ fn x64_watchpoint_length_bits(size_in_bytes: u8) -> Result<u64, DebuggerPluginEr
     }
 }
 
+#[cfg(any(test, all(target_os = "android", target_arch = "aarch64")))]
+fn arm64_watch_control(
+    access: DebuggerDataBreakpointAccess,
+    byte_mask: u64,
+) -> u32 {
+    const BYTE_ADDRESS_SELECT_SHIFT: u64 = 5;
+    const ENABLE: u64 = 1 << 0;
+    const LOAD_STORE_CONTROL_SHIFT: u64 = 3;
+    const USER_ACCESS_ONLY: u64 = 0b10 << 1;
+    let load_store_control = match access {
+        DebuggerDataBreakpointAccess::Read => 0b01,
+        DebuggerDataBreakpointAccess::Write => 0b10,
+        DebuggerDataBreakpointAccess::ReadWrite => 0b11,
+    };
+
+    (ENABLE | USER_ACCESS_ONLY | (load_store_control << LOAD_STORE_CONTROL_SHIFT) | (byte_mask << BYTE_ADDRESS_SELECT_SHIFT)) as u32
+}
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 fn resolve_x64_post_trap_instruction_from_window(
     post_trap_instruction_pointer: u64,
     window_start_address: u64,
@@ -1411,9 +1901,12 @@ fn resolve_x64_post_trap_instruction_from_window(
 
 #[cfg(test)]
 mod tests {
+    use super::arm64_watch_control;
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
     use super::{resolve_x64_post_trap_instruction_from_window, x64_watchpoint_access_bits, x64_watchpoint_length_bits};
     use squalr_engine_api::structures::debugger::DebuggerDataBreakpointAccess;
 
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
     #[test]
     fn x64_watchpoint_lengths_match_debug_register_encoding() {
         assert_eq!(x64_watchpoint_length_bits(1).unwrap_or(u64::MAX), 0b00);
@@ -1423,6 +1916,7 @@ mod tests {
         assert!(x64_watchpoint_length_bits(3).is_err());
     }
 
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
     #[test]
     fn x64_watchpoint_accesses_match_debug_register_encoding() {
         assert_eq!(x64_watchpoint_access_bits(DebuggerDataBreakpointAccess::Write), 0b01);
@@ -1430,6 +1924,17 @@ mod tests {
         assert_eq!(x64_watchpoint_access_bits(DebuggerDataBreakpointAccess::ReadWrite), 0b11);
     }
 
+    #[test]
+    fn arm64_watch_control_sets_access_and_byte_mask() {
+        let control = arm64_watch_control(DebuggerDataBreakpointAccess::Write, 0b1111);
+
+        assert_eq!(control & 1, 1);
+        assert_eq!((control >> 1) & 0b11, 0b10);
+        assert_eq!((control >> 3) & 0b11, 0b10);
+        assert_eq!((control >> 5) & 0xff, 0b1111);
+    }
+
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
     #[test]
     fn resolves_x64_post_trap_memory_instruction_from_prior_bytes() {
         let window_start_address = 0x1000;
