@@ -158,6 +158,26 @@ Notes:
 - If `adb install` fails on a previous install, uninstall first:
   - `adb uninstall com.squalr.android`
 
+### Headless HTTP IPC
+
+`squalr-cli` can expose a JSON HTTP control surface for automation and integration tests:
+
+```text
+squalr-cli --http-ipc 127.0.0.1:49321
+```
+
+On Android, run it as root and forward the port from the host:
+
+```text
+adb shell su 0 sh -c "/data/local/tmp/squalr-cli --http-ipc 127.0.0.1:49321"
+adb forward tcp:49321 tcp:49321
+```
+
+The initial endpoints are:
+- `GET /health`
+- `POST /command` with a serialized `PrivilegedCommand` JSON body, returning a `PrivilegedCommandResult`
+- `GET /events?after=<event_id>` for polling engine events
+
 Common preflight failure example:
 ```text
 > rustup target list --installed
