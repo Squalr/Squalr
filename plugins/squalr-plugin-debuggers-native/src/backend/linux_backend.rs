@@ -13,6 +13,7 @@ use squalr_engine_api::{
 };
 use std::{
     collections::HashMap,
+    fs,
     mem::zeroed,
     ptr::null_mut,
     sync::mpsc::{self, Receiver, RecvTimeoutError, Sender},
@@ -26,6 +27,7 @@ const RUNNING_EVENT_WAIT_TIMEOUT_MS: u64 = 50;
 const TRACE_INSTRUCTION_BYTE_WINDOW: usize = 16;
 const X64_MAX_INSTRUCTION_LENGTH: usize = 15;
 const WATCHPOINT_SLOT_COUNT: usize = 4;
+const WAIT_ALL_TRACED_THREADS: libc::c_int = WNOHANG | 0x40000000;
 const X86_64_DEBUG_REGISTER_BASE_OFFSET: usize = 848;
 const X86_64_DEBUG_REGISTER_SIZE: usize = 8;
 const X86_64_DR6_OFFSET: usize = X86_64_DEBUG_REGISTER_BASE_OFFSET + 6 * X86_64_DEBUG_REGISTER_SIZE;
@@ -377,9 +379,16 @@ struct StoredLinuxBreakpoint {
     slot: usize,
 }
 
+#[derive(Clone, Copy)]
+struct TracedLinuxThread {
+    thread_id: pid_t,
+    is_stopped: bool,
+}
+
 struct ActiveLinuxSession {
     process_id: pid_t,
     target_architecture: TargetArchitecture,
+    traced_threads_by_id: HashMap<pid_t, TracedLinuxThread>,
     breakpoints_by_id: HashMap<String, StoredLinuxBreakpoint>,
     session_state: DebuggerSessionState,
     next_breakpoint_number: u64,
@@ -400,21 +409,30 @@ impl ActiveLinuxSession {
             )));
         }
 
-        ptrace_request(libc::PTRACE_ATTACH, process_id, null_mut(), null_mut(), "PTRACE_ATTACH")?;
-        if let Err(error) = wait_for_stop(process_id, ATTACH_WAIT_TIMEOUT, "initial Linux attach") {
-            let _ = ptrace_request(libc::PTRACE_DETACH, process_id, null_mut(), null_mut(), "PTRACE_DETACH after failed attach");
-
-            return Err(error);
-        }
-
-        Ok(Self {
+        let mut active_session = Self {
             process_id,
             target_architecture: process_info.get_target_architecture().clone(),
+            traced_threads_by_id: HashMap::new(),
             breakpoints_by_id: HashMap::new(),
             session_state: DebuggerSessionState::Paused,
             next_breakpoint_number: 1,
             trace_event_sink,
-        })
+        };
+
+        if let Err(error) = active_session.attach_existing_threads() {
+            let _ = active_session.detach();
+
+            return Err(error);
+        }
+
+        if active_session.traced_threads_by_id.is_empty() {
+            return Err(LinuxDebuggerBackend::plugin_error(format!(
+                "Linux debugger found no traceable threads for process {}.",
+                process_id
+            )));
+        }
+
+        Ok(active_session)
     }
 
     fn pause(&mut self) -> Result<(), DebuggerPluginError> {
@@ -422,12 +440,28 @@ impl ActiveLinuxSession {
             return Ok(());
         }
 
-        let signal_result = unsafe { libc::kill(self.process_id, SIGSTOP) };
-        if signal_result != 0 {
-            return Err(last_os_error("SIGSTOP Linux debugger pause"));
+        self.sync_thread_list()?;
+        let running_thread_ids = self
+            .traced_threads_by_id
+            .values()
+            .filter(|traced_thread| !traced_thread.is_stopped)
+            .map(|traced_thread| traced_thread.thread_id)
+            .collect::<Vec<_>>();
+
+        for thread_id in &running_thread_ids {
+            let signal_result = unsafe { libc::kill(*thread_id, SIGSTOP) };
+            if signal_result != 0 {
+                return Err(last_os_error("SIGSTOP Linux debugger pause"));
+            }
         }
 
-        wait_for_stop(self.process_id, ATTACH_WAIT_TIMEOUT, "Linux debugger pause")?;
+        for thread_id in running_thread_ids {
+            wait_for_stop(thread_id, ATTACH_WAIT_TIMEOUT, "Linux debugger pause")?;
+            if let Some(traced_thread) = self.traced_threads_by_id.get_mut(&thread_id) {
+                traced_thread.is_stopped = true;
+            }
+        }
+
         self.session_state = DebuggerSessionState::Paused;
 
         Ok(())
@@ -438,15 +472,16 @@ impl ActiveLinuxSession {
             return Ok(());
         }
 
+        self.sync_thread_list()?;
         self.apply_watchpoints()?;
-        ptrace_request(libc::PTRACE_CONT, self.process_id, null_mut(), null_mut(), "PTRACE_CONT resume")?;
+        self.resume_stopped_threads("PTRACE_CONT resume")?;
         self.session_state = DebuggerSessionState::Running;
 
         Ok(())
     }
 
     fn read_registers(&self) -> Result<DebuggerRegisterSnapshot, DebuggerPluginError> {
-        self.read_x64_registers()
+        self.read_x64_registers(self.select_register_thread_id()?)
     }
 
     fn write_register(
@@ -478,7 +513,8 @@ impl ActiveLinuxSession {
         register_name: &str,
         value: u64,
     ) -> Result<DebuggerRegisterSnapshot, DebuggerPluginError> {
-        let mut registers = get_registers(self.process_id)?;
+        let register_thread_id = self.select_register_thread_id()?;
+        let mut registers = get_registers(register_thread_id)?;
         let normalized_register_name = register_name.trim().to_ascii_lowercase();
 
         match normalized_register_name.as_str() {
@@ -509,13 +545,13 @@ impl ActiveLinuxSession {
 
         ptrace_request(
             libc::PTRACE_SETREGS,
-            self.process_id,
+            register_thread_id,
             null_mut(),
             (&mut registers as *mut libc::user_regs_struct).cast::<c_void>(),
             "PTRACE_SETREGS",
         )?;
 
-        self.read_x64_registers()
+        self.read_x64_registers(register_thread_id)
     }
 
     fn set_breakpoint(
@@ -620,10 +656,20 @@ impl ActiveLinuxSession {
 
         self.breakpoints_by_id.clear();
         let clear_result = self.apply_watchpoints();
-        let detach_result = ptrace_request(libc::PTRACE_DETACH, self.process_id, null_mut(), null_mut(), "PTRACE_DETACH");
+        let thread_ids = self.traced_threads_by_id.keys().copied().collect::<Vec<_>>();
+        let mut detach_result = Ok(());
+
+        for thread_id in thread_ids {
+            if let Err(error) = ptrace_request(libc::PTRACE_DETACH, thread_id, null_mut(), null_mut(), "PTRACE_DETACH") {
+                if detach_result.is_ok() {
+                    detach_result = Err(error);
+                }
+            }
+        }
 
         clear_result?;
         detach_result?;
+        self.traced_threads_by_id.clear();
         self.session_state = DebuggerSessionState::Detached;
 
         Ok(())
@@ -634,8 +680,9 @@ impl ActiveLinuxSession {
             return Ok(());
         }
 
+        self.sync_thread_list()?;
         let mut wait_status = 0;
-        let wait_result = unsafe { libc::waitpid(self.process_id, &mut wait_status, WNOHANG) };
+        let wait_result = unsafe { libc::waitpid(-1, &mut wait_status, WAIT_ALL_TRACED_THREADS) };
 
         if wait_result == 0 {
             thread::sleep(Duration::from_millis(RUNNING_EVENT_WAIT_TIMEOUT_MS));
@@ -646,22 +693,31 @@ impl ActiveLinuxSession {
             return Err(last_os_error("waitpid while polling Linux debug events"));
         }
 
+        let event_thread_id = wait_result;
         if libc::WIFEXITED(wait_status) || libc::WIFSIGNALED(wait_status) {
-            self.session_state = DebuggerSessionState::Detached;
+            self.traced_threads_by_id.remove(&event_thread_id);
+            if self.traced_threads_by_id.is_empty() {
+                self.session_state = DebuggerSessionState::Detached;
+            }
             return Ok(());
         }
 
         if libc::WIFSTOPPED(wait_status) {
             let stop_signal = libc::WSTOPSIG(wait_status);
-            self.session_state = DebuggerSessionState::Paused;
+            if let Some(traced_thread) = self.traced_threads_by_id.get_mut(&event_thread_id) {
+                traced_thread.is_stopped = true;
+            }
 
             if stop_signal == SIGTRAP {
-                self.handle_breakpoint_trap()?;
+                self.handle_breakpoint_trap(event_thread_id)?;
             }
 
             if self.session_state != DebuggerSessionState::Detached {
-                self.apply_watchpoints()?;
-                ptrace_request(libc::PTRACE_CONT, self.process_id, null_mut(), null_mut(), "PTRACE_CONT after debug event")?;
+                self.apply_watchpoints_to_thread(event_thread_id)?;
+                ptrace_request(libc::PTRACE_CONT, event_thread_id, null_mut(), null_mut(), "PTRACE_CONT after debug event")?;
+                if let Some(traced_thread) = self.traced_threads_by_id.get_mut(&event_thread_id) {
+                    traced_thread.is_stopped = false;
+                }
                 self.session_state = DebuggerSessionState::Running;
             }
         }
@@ -669,13 +725,17 @@ impl ActiveLinuxSession {
         Ok(())
     }
 
-    fn handle_breakpoint_trap(&mut self) -> Result<(), DebuggerPluginError> {
-        let dr6 = read_debug_register(self.process_id, 6)?;
+    fn handle_breakpoint_trap(
+        &mut self,
+        event_thread_id: pid_t,
+    ) -> Result<(), DebuggerPluginError> {
+        let dr6 = read_debug_register(event_thread_id, 6)?;
         let breakpoint_descriptor = self.describe_hit_breakpoint(dr6);
-        let register_snapshot = self.read_registers()?;
-        let (instruction_address, instruction_bytes, backend_message) = self.resolve_trace_instruction(register_snapshot.get_instruction_pointer());
+        let register_snapshot = self.read_x64_registers(event_thread_id)?;
+        let (instruction_address, instruction_bytes, backend_message) =
+            self.resolve_trace_instruction(event_thread_id, register_snapshot.get_instruction_pointer());
 
-        clear_debug_status(self.process_id)?;
+        clear_debug_status(event_thread_id)?;
 
         if breakpoint_descriptor.is_some() {
             let trace_event = DebuggerTraceEvent::new(
@@ -696,13 +756,14 @@ impl ActiveLinuxSession {
 
     fn resolve_trace_instruction(
         &self,
+        thread_id: pid_t,
         post_trap_instruction_pointer: Option<u64>,
     ) -> (Option<u64>, Vec<u8>, Option<String>) {
         let Some(post_trap_instruction_pointer) = post_trap_instruction_pointer else {
             return (None, Vec::new(), None);
         };
 
-        if let Some((instruction_address, instruction_bytes)) = self.resolve_x64_post_trap_instruction(post_trap_instruction_pointer) {
+        if let Some((instruction_address, instruction_bytes)) = self.resolve_x64_post_trap_instruction(thread_id, post_trap_instruction_pointer) {
             return (
                 Some(instruction_address),
                 instruction_bytes,
@@ -714,7 +775,7 @@ impl ActiveLinuxSession {
 
         (
             Some(post_trap_instruction_pointer),
-            self.read_instruction_bytes(Some(post_trap_instruction_pointer)),
+            self.read_instruction_bytes(thread_id, Some(post_trap_instruction_pointer)),
             Some(String::from(
                 "Linux x64 hardware data breakpoint hit; instruction pointer is the post-trap RIP and may point after the accessing instruction.",
             )),
@@ -723,11 +784,12 @@ impl ActiveLinuxSession {
 
     fn resolve_x64_post_trap_instruction(
         &self,
+        thread_id: pid_t,
         post_trap_instruction_pointer: u64,
     ) -> Option<(u64, Vec<u8>)> {
         let window_start_address = post_trap_instruction_pointer.saturating_sub(X64_MAX_INSTRUCTION_LENGTH as u64);
         let window_byte_count = post_trap_instruction_pointer.saturating_sub(window_start_address) as usize;
-        let window_bytes = self.read_memory_bytes(window_start_address, window_byte_count)?;
+        let window_bytes = self.read_memory_bytes(thread_id, window_start_address, window_byte_count)?;
 
         resolve_x64_post_trap_instruction_from_window(post_trap_instruction_pointer, window_start_address, &window_bytes)
     }
@@ -744,6 +806,7 @@ impl ActiveLinuxSession {
 
     fn read_instruction_bytes(
         &self,
+        thread_id: pid_t,
         instruction_pointer: Option<u64>,
     ) -> Vec<u8> {
         let Some(instruction_pointer) = instruction_pointer else {
@@ -753,7 +816,7 @@ impl ActiveLinuxSession {
 
         while instruction_bytes.len() < TRACE_INSTRUCTION_BYTE_WINDOW {
             let read_address = instruction_pointer.saturating_add(instruction_bytes.len() as u64);
-            let word = match ptrace_peek_data(self.process_id, read_address) {
+            let word = match ptrace_peek_data(thread_id, read_address) {
                 Ok(word) => word,
                 Err(error) => {
                     log::debug!("Failed to read Linux instruction bytes at 0x{:X}: {}", read_address, error);
@@ -772,6 +835,7 @@ impl ActiveLinuxSession {
 
     fn read_memory_bytes(
         &self,
+        thread_id: pid_t,
         base_address: u64,
         byte_count: usize,
     ) -> Option<Vec<u8>> {
@@ -779,7 +843,7 @@ impl ActiveLinuxSession {
 
         while memory_bytes.len() < byte_count {
             let read_address = base_address.saturating_add(memory_bytes.len() as u64);
-            let word = match ptrace_peek_data(self.process_id, read_address) {
+            let word = match ptrace_peek_data(thread_id, read_address) {
                 Ok(word) => word,
                 Err(error) => {
                     log::debug!("Failed to read Linux memory bytes at 0x{:X}: {}", read_address, error);
@@ -797,11 +861,24 @@ impl ActiveLinuxSession {
     }
 
     fn apply_watchpoints(&self) -> Result<(), DebuggerPluginError> {
+        for traced_thread in self.traced_threads_by_id.values() {
+            if traced_thread.is_stopped {
+                self.apply_watchpoints_to_thread(traced_thread.thread_id)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn apply_watchpoints_to_thread(
+        &self,
+        thread_id: pid_t,
+    ) -> Result<(), DebuggerPluginError> {
         let mut dr7 = 0u64;
 
-        clear_debug_status(self.process_id)?;
+        clear_debug_status(thread_id)?;
         for slot in 0..WATCHPOINT_SLOT_COUNT {
-            write_debug_register(self.process_id, slot, 0)?;
+            write_debug_register(thread_id, slot, 0)?;
         }
 
         for stored_breakpoint in self.breakpoints_by_id.values() {
@@ -816,13 +893,13 @@ impl ActiveLinuxSession {
             let length_bits = x64_watchpoint_length_bits(size_in_bytes)?;
             let access_bits = x64_watchpoint_access_bits(access);
 
-            write_debug_register(self.process_id, slot, stored_breakpoint.descriptor.get_address())?;
+            write_debug_register(thread_id, slot, stored_breakpoint.descriptor.get_address())?;
             dr7 |= 1u64 << (slot * 2);
             dr7 |= access_bits << (16 + slot * 4);
             dr7 |= length_bits << (18 + slot * 4);
         }
 
-        write_debug_register(self.process_id, 7, dr7)
+        write_debug_register(thread_id, 7, dr7)
     }
 
     fn allocate_watchpoint_slot(&self) -> Result<usize, DebuggerPluginError> {
@@ -870,8 +947,11 @@ impl ActiveLinuxSession {
         }
     }
 
-    fn read_x64_registers(&self) -> Result<DebuggerRegisterSnapshot, DebuggerPluginError> {
-        let registers = get_registers(self.process_id)?;
+    fn read_x64_registers(
+        &self,
+        thread_id: pid_t,
+    ) -> Result<DebuggerRegisterSnapshot, DebuggerPluginError> {
+        let registers = get_registers(thread_id)?;
         let register_values = vec![
             DebuggerRegisterValue::new("rax", registers.rax, 64),
             DebuggerRegisterValue::new("rbx", registers.rbx, 64),
@@ -895,6 +975,130 @@ impl ActiveLinuxSession {
 
         Ok(DebuggerRegisterSnapshot::new(Some(registers.rip), Some(registers.rsp), register_values))
     }
+
+    fn attach_existing_threads(&mut self) -> Result<(), DebuggerPluginError> {
+        for thread_id in enumerate_linux_thread_ids(self.process_id)? {
+            if !self.traced_threads_by_id.contains_key(&thread_id) {
+                self.attach_thread(thread_id)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn sync_thread_list(&mut self) -> Result<(), DebuggerPluginError> {
+        let known_thread_ids = self.traced_threads_by_id.keys().copied().collect::<Vec<_>>();
+
+        for thread_id in known_thread_ids {
+            if !linux_task_exists(self.process_id, thread_id) {
+                self.traced_threads_by_id.remove(&thread_id);
+            }
+        }
+
+        self.attach_existing_threads()
+    }
+
+    fn attach_thread(
+        &mut self,
+        thread_id: pid_t,
+    ) -> Result<(), DebuggerPluginError> {
+        ptrace_request(libc::PTRACE_ATTACH, thread_id, null_mut(), null_mut(), "PTRACE_ATTACH")?;
+        if let Err(error) = wait_for_stop(thread_id, ATTACH_WAIT_TIMEOUT, "initial Linux thread attach") {
+            let _ = ptrace_request(
+                libc::PTRACE_DETACH,
+                thread_id,
+                null_mut(),
+                null_mut(),
+                "PTRACE_DETACH after failed thread attach",
+            );
+
+            return Err(error);
+        }
+
+        self.traced_threads_by_id
+            .insert(thread_id, TracedLinuxThread { thread_id, is_stopped: true });
+        self.apply_watchpoints_to_thread(thread_id)?;
+
+        if self.session_state == DebuggerSessionState::Running {
+            ptrace_request(libc::PTRACE_CONT, thread_id, null_mut(), null_mut(), "PTRACE_CONT newly attached Linux thread")?;
+            if let Some(traced_thread) = self.traced_threads_by_id.get_mut(&thread_id) {
+                traced_thread.is_stopped = false;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn resume_stopped_threads(
+        &mut self,
+        operation_name: &str,
+    ) -> Result<(), DebuggerPluginError> {
+        let stopped_thread_ids = self
+            .traced_threads_by_id
+            .values()
+            .filter(|traced_thread| traced_thread.is_stopped)
+            .map(|traced_thread| traced_thread.thread_id)
+            .collect::<Vec<_>>();
+
+        for thread_id in stopped_thread_ids {
+            ptrace_request(libc::PTRACE_CONT, thread_id, null_mut(), null_mut(), operation_name)?;
+            if let Some(traced_thread) = self.traced_threads_by_id.get_mut(&thread_id) {
+                traced_thread.is_stopped = false;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn select_register_thread_id(&self) -> Result<pid_t, DebuggerPluginError> {
+        if self
+            .traced_threads_by_id
+            .get(&self.process_id)
+            .map(|traced_thread| traced_thread.is_stopped)
+            .unwrap_or(false)
+        {
+            return Ok(self.process_id);
+        }
+
+        self.traced_threads_by_id
+            .values()
+            .find(|traced_thread| traced_thread.is_stopped)
+            .map(|traced_thread| traced_thread.thread_id)
+            .ok_or_else(|| LinuxDebuggerBackend::plugin_error("Cannot access Linux registers because no traced thread is currently stopped."))
+    }
+}
+
+fn enumerate_linux_thread_ids(process_id: pid_t) -> Result<Vec<pid_t>, DebuggerPluginError> {
+    let task_directory_path = format!("/proc/{}/task", process_id);
+    let task_directory_entries = fs::read_dir(&task_directory_path)
+        .map_err(|error| LinuxDebuggerBackend::plugin_error(format!("Failed to enumerate Linux process threads from '{}': {}.", task_directory_path, error)))?;
+    let mut thread_ids = Vec::new();
+
+    for task_directory_entry_result in task_directory_entries {
+        let task_directory_entry = match task_directory_entry_result {
+            Ok(task_directory_entry) => task_directory_entry,
+            Err(error) => {
+                log::debug!("Failed to read Linux task directory entry: {}", error);
+                continue;
+            }
+        };
+        let thread_id_text = task_directory_entry.file_name().to_string_lossy().to_string();
+        let Ok(thread_id) = thread_id_text.parse::<pid_t>() else {
+            continue;
+        };
+
+        thread_ids.push(thread_id);
+    }
+
+    thread_ids.sort_unstable();
+    Ok(thread_ids)
+}
+
+fn linux_task_exists(
+    process_id: pid_t,
+    thread_id: pid_t,
+) -> bool {
+    fs::metadata(format!("/proc/{}/task/{}", process_id, thread_id)).is_ok()
 }
 
 fn linux_worker_main(
@@ -1123,7 +1327,7 @@ fn wait_for_stop(
 
     loop {
         let mut wait_status = 0;
-        let wait_result = unsafe { libc::waitpid(process_id, &mut wait_status, WNOHANG) };
+        let wait_result = unsafe { libc::waitpid(process_id, &mut wait_status, WAIT_ALL_TRACED_THREADS) };
 
         if wait_result < 0 {
             return Err(last_os_error(operation_name));

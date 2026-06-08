@@ -51,9 +51,23 @@ fn main() -> Result<(), Box<dyn Error>> {
 fn run_child_process() -> Result<(), Box<dyn Error>> {
     let target_address = &SMOKE_TARGET_VALUE as *const AtomicU64 as u64;
 
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    let _worker_thread_handle = thread::spawn(|| {
+        loop {
+            SMOKE_TARGET_VALUE.fetch_add(1, Ordering::Relaxed);
+            thread::sleep(Duration::from_millis(10));
+        }
+    });
+
     println!("{} {target_address:#x}", std::process::id());
     std::io::stdout().flush()?;
 
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    loop {
+        thread::sleep(Duration::from_secs(1));
+    }
+
+    #[cfg(not(all(target_os = "linux", target_arch = "x86_64")))]
     loop {
         SMOKE_TARGET_VALUE.fetch_add(1, Ordering::Relaxed);
         thread::sleep(Duration::from_millis(10));
