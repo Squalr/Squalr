@@ -421,6 +421,13 @@ enum AttachThreadResult {
     SkippedStaleThread,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum DebugStopHandling {
+    NonBreakpointSignal,
+    RecognizedHardwareBreakpoint,
+    UnrecognizedTrap,
+}
+
 impl ActiveLinuxSession {
     fn attach(
         process_info: &OpenedProcessInfo,
@@ -784,12 +791,15 @@ impl ActiveLinuxSession {
         let event_result = if stop_signal == SIGTRAP {
             self.handle_breakpoint_trap(event_thread_id)
         } else {
-            Ok(())
+            Ok(DebugStopHandling::NonBreakpointSignal)
         };
 
         let watchpoint_result = if self.session_state == DebuggerSessionState::Detached {
             Ok(())
-        } else if event_result.is_ok() {
+        } else if matches!(
+            &event_result,
+            Ok(DebugStopHandling::NonBreakpointSignal | DebugStopHandling::RecognizedHardwareBreakpoint)
+        ) {
             self.apply_watchpoints_to_thread(event_thread_id)
         } else {
             self.clear_watchpoints_for_thread(event_thread_id)
@@ -833,31 +843,102 @@ impl ActiveLinuxSession {
     fn handle_breakpoint_trap(
         &mut self,
         event_thread_id: pid_t,
-    ) -> Result<(), DebuggerPluginError> {
+    ) -> Result<DebugStopHandling, DebuggerPluginError> {
         let breakpoint_descriptor = self.describe_hit_breakpoint(event_thread_id)?;
+        if breakpoint_descriptor.is_none() {
+            let fault_address = self.read_signal_fault_address_for_log(event_thread_id);
+
+            log::warn!(
+                "Linux debugger received unrecognized SIGTRAP on thread {} with fault_address={}; clearing watchpoints on the event thread before continuing. Armed watchpoints: {}.",
+                event_thread_id,
+                format_optional_address(fault_address),
+                self.format_armed_watchpoints_for_log()
+            );
+            self.clear_debug_status(event_thread_id)?;
+
+            return Ok(DebugStopHandling::UnrecognizedTrap);
+        }
+
         let register_snapshot = self.read_registers_for_thread(event_thread_id)?;
         let (instruction_address, instruction_bytes, backend_message) =
             self.resolve_trace_instruction(event_thread_id, register_snapshot.get_instruction_pointer());
 
         self.clear_debug_status(event_thread_id)?;
 
-        if breakpoint_descriptor.is_some() {
-            let trace_event = DebuggerTraceEvent::new(
-                breakpoint_descriptor.clone(),
-                register_snapshot,
-                instruction_address,
-                instruction_bytes,
-                None,
-                backend_message,
-            )
-            .with_target_architecture(self.target_architecture.clone());
+        let trace_event = DebuggerTraceEvent::new(
+            breakpoint_descriptor.clone(),
+            register_snapshot,
+            instruction_address,
+            instruction_bytes,
+            None,
+            backend_message,
+        )
+        .with_target_architecture(self.target_architecture.clone());
 
-            (self.trace_event_sink)(trace_event);
-        }
+        (self.trace_event_sink)(trace_event);
 
         self.suppress_hit_breakpoint_temporarily(breakpoint_descriptor.as_ref());
 
-        Ok(())
+        Ok(DebugStopHandling::RecognizedHardwareBreakpoint)
+    }
+
+    fn read_signal_fault_address_for_log(
+        &self,
+        thread_id: pid_t,
+    ) -> Option<u64> {
+        #[cfg(all(target_os = "android", target_arch = "aarch64"))]
+        {
+            return read_signal_fault_address(thread_id).ok().flatten();
+        }
+
+        #[cfg(not(all(target_os = "android", target_arch = "aarch64")))]
+        {
+            let _ = thread_id;
+
+            None
+        }
+    }
+
+    fn format_armed_watchpoints_for_log(&self) -> String {
+        let now = Instant::now();
+        let mut watchpoint_descriptions = self
+            .breakpoints_by_id
+            .values()
+            .map(|stored_breakpoint| {
+                let enabled_state = if Self::is_watchpoint_armed(stored_breakpoint, now) {
+                    "armed"
+                } else {
+                    "suppressed"
+                };
+
+                match *stored_breakpoint.descriptor.get_kind() {
+                    DebuggerBreakpointKind::HardwareData { access, size_in_bytes } => format!(
+                        "{}@0x{:X}/slot{}/{}byte/{:?}/{}",
+                        stored_breakpoint.descriptor.get_breakpoint_id(),
+                        stored_breakpoint.descriptor.get_address(),
+                        stored_breakpoint.slot,
+                        size_in_bytes,
+                        access,
+                        enabled_state
+                    ),
+                    DebuggerBreakpointKind::Software => format!(
+                        "{}@0x{:X}/slot{}/software/{}",
+                        stored_breakpoint.descriptor.get_breakpoint_id(),
+                        stored_breakpoint.descriptor.get_address(),
+                        stored_breakpoint.slot,
+                        enabled_state
+                    ),
+                }
+            })
+            .collect::<Vec<_>>();
+
+        watchpoint_descriptions.sort();
+
+        if watchpoint_descriptions.is_empty() {
+            String::from("<none>")
+        } else {
+            watchpoint_descriptions.join(", ")
+        }
     }
 
     fn resolve_trace_instruction(
@@ -1990,6 +2071,10 @@ fn ptrace_request(
     let ptrace_result = unsafe { libc::ptrace(request, process_id, address, data) };
 
     if ptrace_result == 0 { Ok(()) } else { Err(last_os_error(operation_name)) }
+}
+
+fn format_optional_address(address: Option<u64>) -> String {
+    address.map_or_else(|| String::from("<none>"), |address| format!("0x{:X}", address))
 }
 
 fn wait_for_stop(
