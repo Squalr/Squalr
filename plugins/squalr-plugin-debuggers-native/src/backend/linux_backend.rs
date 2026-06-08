@@ -1586,7 +1586,22 @@ fn write_arm64_hardware_watchpoint_state(
     thread_id: pid_t,
     debug_state: &mut Arm64HardwareDebugState,
 ) -> Result<(), DebuggerPluginError> {
-    ptrace_set_regset(thread_id, NT_ARM_HW_WATCH, debug_state, "PTRACE_SETREGSET NT_ARM_HW_WATCH")
+    let reported_slot_count = (debug_state.dbg_info & 0xff) as usize;
+    let written_slot_count = reported_slot_count.min(debug_state.dbg_regs.len());
+    let header_byte_count = std::mem::offset_of!(Arm64HardwareDebugState, dbg_regs);
+    let register_byte_count = written_slot_count.saturating_mul(std::mem::size_of::<Arm64HardwareDebugRegister>());
+    let mut io_vector = libc::iovec {
+        iov_base: (debug_state as *mut Arm64HardwareDebugState).cast::<c_void>(),
+        iov_len: header_byte_count.saturating_add(register_byte_count),
+    };
+
+    ptrace_request(
+        libc::PTRACE_SETREGSET,
+        thread_id,
+        NT_ARM_HW_WATCH as *mut c_void,
+        (&mut io_vector as *mut libc::iovec).cast::<c_void>(),
+        "PTRACE_SETREGSET NT_ARM_HW_WATCH",
+    )
 }
 
 #[cfg(all(target_os = "android", target_arch = "aarch64"))]
