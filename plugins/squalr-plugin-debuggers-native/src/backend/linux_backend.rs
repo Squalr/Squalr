@@ -500,7 +500,12 @@ impl ActiveLinuxSession {
     }
 
     fn resume(&mut self) -> Result<(), DebuggerPluginError> {
-        if self.session_state == DebuggerSessionState::Running {
+        let has_stopped_threads = self
+            .traced_threads_by_id
+            .values()
+            .any(|traced_thread| traced_thread.is_stopped);
+
+        if self.session_state == DebuggerSessionState::Running && !has_stopped_threads {
             return Ok(());
         }
 
@@ -765,21 +770,64 @@ impl ActiveLinuxSession {
                 traced_thread.is_stopped = true;
             }
 
-            if stop_signal == SIGTRAP {
-                self.handle_breakpoint_trap(event_thread_id)?;
-            }
-
-            if self.session_state != DebuggerSessionState::Detached {
-                self.apply_watchpoints_to_thread(event_thread_id)?;
-                ptrace_request(libc::PTRACE_CONT, event_thread_id, null_mut(), null_mut(), "PTRACE_CONT after debug event")?;
-                if let Some(traced_thread) = self.traced_threads_by_id.get_mut(&event_thread_id) {
-                    traced_thread.is_stopped = false;
-                }
-                self.session_state = DebuggerSessionState::Running;
-            }
+            self.handle_stopped_thread_event(event_thread_id, stop_signal)?;
         }
 
         Ok(())
+    }
+
+    fn handle_stopped_thread_event(
+        &mut self,
+        event_thread_id: pid_t,
+        stop_signal: i32,
+    ) -> Result<(), DebuggerPluginError> {
+        let event_result = if stop_signal == SIGTRAP {
+            self.handle_breakpoint_trap(event_thread_id)
+        } else {
+            Ok(())
+        };
+
+        let watchpoint_result = if self.session_state == DebuggerSessionState::Detached {
+            Ok(())
+        } else if event_result.is_ok() {
+            self.apply_watchpoints_to_thread(event_thread_id)
+        } else {
+            self.clear_watchpoints_for_thread(event_thread_id)
+        };
+
+        let continue_result = if self.session_state == DebuggerSessionState::Detached {
+            Ok(())
+        } else {
+            self.continue_stopped_thread(event_thread_id, "PTRACE_CONT after debug event")
+        };
+
+        let mut error_messages = Vec::new();
+        if let Err(error) = event_result {
+            error_messages.push(error.to_string());
+        }
+        if let Err(error) = watchpoint_result {
+            error_messages.push(error.to_string());
+        }
+        if let Err(error) = continue_result {
+            error_messages.push(error.to_string());
+        }
+
+        if error_messages.is_empty() {
+            self.session_state = DebuggerSessionState::Running;
+            return Ok(());
+        }
+
+        log::warn!(
+            "Linux debugger recovered stopped thread {} after debug event error(s): {}.",
+            event_thread_id,
+            error_messages.join("; ")
+        );
+
+        Err(LinuxDebuggerBackend::plugin_error(format!(
+            "Linux debugger recovered stopped thread {} after debug event error(s): {}.",
+            event_thread_id,
+            error_messages.join("; ")
+        )))
     }
 
     fn handle_breakpoint_trap(
@@ -991,6 +1039,26 @@ impl ActiveLinuxSession {
         )))
     }
 
+    fn clear_watchpoints_for_thread(
+        &self,
+        thread_id: pid_t,
+    ) -> Result<(), DebuggerPluginError> {
+        #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+        if self.target_architecture.get_instruction_set_id() == "x64" {
+            return self.clear_x64_watchpoints_for_thread(thread_id);
+        }
+
+        #[cfg(all(target_os = "android", target_arch = "aarch64"))]
+        if self.target_architecture.get_instruction_set_id() == "arm64" {
+            return self.clear_arm64_watchpoints_for_thread(thread_id);
+        }
+
+        Err(LinuxDebuggerBackend::plugin_error(format!(
+            "Native ptrace debugger watchpoints are unsupported for architecture '{}'.",
+            self.target_architecture.get_instruction_set_id()
+        )))
+    }
+
     #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
     fn apply_x64_watchpoints_to_thread(
         &self,
@@ -1023,6 +1091,19 @@ impl ActiveLinuxSession {
         }
 
         write_debug_register(thread_id, 7, dr7)
+    }
+
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    fn clear_x64_watchpoints_for_thread(
+        &self,
+        thread_id: pid_t,
+    ) -> Result<(), DebuggerPluginError> {
+        clear_debug_status(thread_id)?;
+        for slot in 0..WATCHPOINT_SLOT_COUNT {
+            write_debug_register(thread_id, slot, 0)?;
+        }
+
+        write_debug_register(thread_id, 7, 0)
     }
 
     fn is_watchpoint_armed(
@@ -1298,6 +1379,20 @@ impl ActiveLinuxSession {
     }
 
     #[cfg(all(target_os = "android", target_arch = "aarch64"))]
+    fn clear_arm64_watchpoints_for_thread(
+        &self,
+        thread_id: pid_t,
+    ) -> Result<(), DebuggerPluginError> {
+        let mut debug_state = read_arm64_hardware_watchpoint_state(thread_id)?;
+
+        for debug_register in &mut debug_state.dbg_regs {
+            *debug_register = Arm64HardwareDebugRegister::default();
+        }
+
+        write_arm64_hardware_watchpoint_state(thread_id, &mut debug_state)
+    }
+
+    #[cfg(all(target_os = "android", target_arch = "aarch64"))]
     fn describe_arm64_hit_breakpoint(
         &self,
         thread_id: pid_t,
@@ -1423,10 +1518,20 @@ impl ActiveLinuxSession {
             .collect::<Vec<_>>();
 
         for thread_id in stopped_thread_ids {
-            ptrace_request(libc::PTRACE_CONT, thread_id, null_mut(), null_mut(), operation_name)?;
-            if let Some(traced_thread) = self.traced_threads_by_id.get_mut(&thread_id) {
-                traced_thread.is_stopped = false;
-            }
+            self.continue_stopped_thread(thread_id, operation_name)?;
+        }
+
+        Ok(())
+    }
+
+    fn continue_stopped_thread(
+        &mut self,
+        thread_id: pid_t,
+        operation_name: &str,
+    ) -> Result<(), DebuggerPluginError> {
+        ptrace_request(libc::PTRACE_CONT, thread_id, null_mut(), null_mut(), operation_name)?;
+        if let Some(traced_thread) = self.traced_threads_by_id.get_mut(&thread_id) {
+            traced_thread.is_stopped = false;
         }
 
         Ok(())
