@@ -6,3 +6,5 @@ edition = "2024"
 
 [dependencies]
 squalr-engine-api = { path = "../../squalr-engine-api" }
+yaxpeax-arch = { version = "0.3", default-features = false }
+yaxpeax-arm = { version = "0.3", default-features = false }

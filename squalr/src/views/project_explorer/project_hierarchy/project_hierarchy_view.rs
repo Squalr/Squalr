@@ -679,6 +679,18 @@ impl Widget for ProjectHierarchyView {
 
                 self.start_debugger_trace_for_address(address, &module_name, size_in_bytes, access, label);
             }
+            ProjectHierarchyFrameAction::StartInstructionTraceForAddress {
+                instruction_address,
+                module_name,
+                access,
+                label,
+            } => {
+                if has_blocking_take_over {
+                    return response;
+                }
+
+                self.start_instruction_trace_for_address(instruction_address, &module_name, access, label);
+            }
             ProjectHierarchyFrameAction::ReplaceInstructionWithNoOperation { address, module_name, label } => {
                 if has_blocking_take_over {
                     return response;
@@ -938,6 +950,26 @@ impl ProjectHierarchyView {
         DebuggerTraceViewData::request_trace_start(
             self.debugger_trace_view_data.clone(),
             PendingDebuggerTraceStartRequest::new(resolved_target_address, size_in_bytes, access, label),
+        );
+    }
+
+    fn start_instruction_trace_for_address(
+        &self,
+        instruction_address: u64,
+        module_name: &str,
+        access: DebuggerDataBreakpointAccess,
+        label: Option<String>,
+    ) {
+        let (resolved_instruction_address, _resolved_target_module_name) = ProjectHierarchyModuleAddressResolver::resolve_pointer_scanner_target(
+            &self.app_context.engine_unprivileged_state,
+            instruction_address,
+            module_name,
+        );
+
+        self.focus_debugger_trace_window();
+        DebuggerTraceViewData::request_trace_start(
+            self.debugger_trace_view_data.clone(),
+            PendingDebuggerTraceStartRequest::new_for_instruction(resolved_instruction_address, access, label),
         );
     }
 

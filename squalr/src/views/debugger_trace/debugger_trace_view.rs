@@ -1,7 +1,10 @@
 use crate::{
     app_context::AppContext,
     ui::widgets::controls::{
+        combo_box::combo_box_view::ComboBoxView,
         context_menu::context_menu::{ContextMenu, ContextMenuSizing},
+        data_type_selector::data_type_selector_view::DataTypeSelectorView,
+        data_value_box::data_value_box_convert_item_view::DataValueBoxConvertItemView,
         groupbox::GroupBox,
         icon_button::IconButtonView,
         toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView,
@@ -33,11 +36,21 @@ use squalr_engine_api::{
     dependency_injection::dependency::Dependency,
     events::debugger::trace_session_updated::debugger_trace_session_updated_event::DebuggerTraceSessionUpdatedEvent,
     structures::{
-        debugger::{DebuggerDataBreakpointAccess, DebuggerTraceInstructionRecord, DebuggerTraceSessionDescriptor},
+        data_types::data_type_ref::DataTypeRef,
+        data_values::{
+            anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType,
+        },
+        debugger::{DebuggerDataBreakpointAccess, DebuggerTraceInstructionRecord, DebuggerTraceSessionDescriptor, DebuggerTraceTargetKind},
         memory::address_display::format_module_address,
         processes::target_architecture::TargetArchitecture,
+        structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition},
     },
 };
+use squalr_engine_session::virtual_snapshots::{virtual_snapshot_query::VirtualSnapshotQuery, virtual_snapshot_query_result::VirtualSnapshotQueryResult};
+use std::collections::HashSet;
+use std::collections::HashMap;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -49,6 +62,14 @@ pub struct DebuggerTraceView {
     process_selector_view_data: Dependency<ProcessSelectorViewData>,
 }
 
+#[derive(Clone, Copy)]
+struct TraceColumnSplitters {
+    hit_count: f32,
+    instruction: f32,
+    address: f32,
+    value: f32,
+}
+
 impl DebuggerTraceView {
     pub const WINDOW_ID: &'static str = "window_debugger_trace";
     const PENDING_TRACE_START_TIMEOUT: Duration = Duration::from_secs(15);
@@ -58,6 +79,25 @@ impl DebuggerTraceView {
     const REPLACE_WITH_NO_OPERATION_ID: &'static str = "debugger_trace_ctx_replace_with_nop";
     const RESTORE_ORIGINAL_CODE_LABEL: &'static str = "Restore Original Code";
     const RESTORE_ORIGINAL_CODE_ID: &'static str = "debugger_trace_ctx_restore_original_code";
+    const TRACE_PREVIEW_VIRTUAL_SNAPSHOT_ID: &'static str = "debugger_trace_preview";
+    const VALUE_DISPLAY_FORMAT_POPUP_WIDTH: f32 = 220.0;
+
+    fn display_format_icon(
+        &self,
+        anonymous_value_string_format: AnonymousValueStringFormat,
+    ) -> eframe::egui::TextureHandle {
+        let icon_library = &self.app_context.theme.icon_library;
+
+        match anonymous_value_string_format {
+            AnonymousValueStringFormat::Binary => icon_library.icon_handle_display_type_binary.clone(),
+            AnonymousValueStringFormat::Decimal => icon_library.icon_handle_display_type_decimal.clone(),
+            AnonymousValueStringFormat::Hexadecimal | AnonymousValueStringFormat::Address => icon_library.icon_handle_display_type_hexadecimal.clone(),
+            AnonymousValueStringFormat::String
+            | AnonymousValueStringFormat::Bool
+            | AnonymousValueStringFormat::DataTypeRef
+            | AnonymousValueStringFormat::Enumeration => icon_library.icon_handle_display_type_string.clone(),
+        }
+    }
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let debugger_trace_view_data = app_context
@@ -246,6 +286,22 @@ impl DebuggerTraceView {
         }
     }
 
+    fn instruction_access_label(access: DebuggerDataBreakpointAccess) -> &'static str {
+        match access {
+            DebuggerDataBreakpointAccess::Read => "Reads From",
+            DebuggerDataBreakpointAccess::Write => "Writes To",
+            DebuggerDataBreakpointAccess::ReadWrite => "Accesses",
+        }
+    }
+
+    fn instruction_prompt_action_label(access: DebuggerDataBreakpointAccess) -> &'static str {
+        match access {
+            DebuggerDataBreakpointAccess::Read => "Find What This Reads From",
+            DebuggerDataBreakpointAccess::Write => "Find What This Writes To",
+            DebuggerDataBreakpointAccess::ReadWrite => "Find What This Accesses",
+        }
+    }
+
     fn instruction_text(instruction_record: &DebuggerTraceInstructionRecord) -> String {
         instruction_record
             .get_instruction_text()
@@ -262,12 +318,19 @@ impl DebuggerTraceView {
     }
 
     fn format_trace_target(trace_session: &DebuggerTraceSessionDescriptor) -> String {
-        format!(
-            "{} 0x{:X} [{} bytes]",
-            Self::access_label(trace_session.get_access()),
-            trace_session.get_address(),
-            trace_session.get_size_in_bytes()
-        )
+        match trace_session.get_target_kind() {
+            DebuggerTraceTargetKind::Instruction => format!(
+                "Instruction at 0x{:X} {}",
+                trace_session.get_address(),
+                Self::instruction_access_label(trace_session.get_access())
+            ),
+            DebuggerTraceTargetKind::Address => format!(
+                "{} 0x{:X} [{} bytes]",
+                Self::access_label(trace_session.get_access()),
+                trace_session.get_address(),
+                trace_session.get_size_in_bytes()
+            ),
+        }
     }
 
     fn format_pending_trace_target(pending_trace_start_request: &PendingDebuggerTraceStartRequest) -> String {
@@ -276,13 +339,158 @@ impl DebuggerTraceView {
             .filter(|label| !label.is_empty())
             .unwrap_or("selected address");
 
-        format!(
-            "{} for {} at 0x{:X} [{} bytes]",
-            Self::prompt_action_label(pending_trace_start_request.get_access()),
-            label,
-            pending_trace_start_request.get_address(),
-            pending_trace_start_request.get_size_in_bytes()
-        )
+        match pending_trace_start_request.get_target_kind() {
+            DebuggerTraceTargetKind::Instruction => format!(
+                "{} for {} at 0x{:X}",
+                Self::instruction_prompt_action_label(pending_trace_start_request.get_access()),
+                label,
+                pending_trace_start_request.get_address()
+            ),
+            DebuggerTraceTargetKind::Address => format!(
+                "{} for {} at 0x{:X} [{} bytes]",
+                Self::prompt_action_label(pending_trace_start_request.get_access()),
+                label,
+                pending_trace_start_request.get_address(),
+                pending_trace_start_request.get_size_in_bytes()
+            ),
+        }
+    }
+
+    /// Reads the live value at each instruction-directed record's accessed address through the virtual-snapshot pipeline
+    /// (the same path the project explorer / scanner use), interpreting the memory with the user-selected data type and
+    /// display format. Values are cached per address and only the snapshot queries — not the cached values — are reset
+    /// when the address set or interpretation changes, so cells never blank between refreshes (avoids flicker). Keyed by
+    /// accessed address; address-directed records have no data address and so get no value.
+    fn read_record_preview_values(
+        &self,
+        instruction_records: &[DebuggerTraceInstructionRecord],
+    ) -> HashMap<u64, String> {
+        let engine_unprivileged_state = &self.app_context.engine_unprivileged_state;
+        let Some(debugger_trace_view_data) = self.debugger_trace_view_data.read("Debugger trace preview values") else {
+            return HashMap::new();
+        };
+
+        let value_data_type_id = debugger_trace_view_data.get_value_data_type_id();
+        let value_data_type_ref = DataTypeRef::new(&value_data_type_id);
+        let active_display_format = debugger_trace_view_data
+            .get_value_display_format()
+            .unwrap_or_else(|| engine_unprivileged_state.get_default_anonymous_value_string_format(&value_data_type_ref));
+
+        // Unique accessed addresses, in first-seen order.
+        let mut accessed_addresses = Vec::new();
+        let mut seen_accessed_addresses = HashSet::new();
+        for instruction_record in instruction_records {
+            if let Some(accessed_address) = instruction_record.get_accessed_address() {
+                if seen_accessed_addresses.insert(accessed_address) {
+                    accessed_addresses.push(accessed_address);
+                }
+            }
+        }
+
+        // Rebuild the snapshot queries only when the queried address set or data type changes (rebuilding clears the
+        // snapshot results, which would flicker). The signature is order-independent because the records list is not
+        // stably ordered. Cached values are cleared separately, only when the interpretation changes.
+        let query_signature = Self::preview_query_signature(&accessed_addresses, &value_data_type_id);
+        if debugger_trace_view_data.update_preview_query_signature(query_signature) {
+            if accessed_addresses.is_empty() {
+                engine_unprivileged_state.set_virtual_snapshot_queries(Self::TRACE_PREVIEW_VIRTUAL_SNAPSHOT_ID, Duration::from_millis(250), Vec::new());
+            } else {
+                let symbolic_struct_definition =
+                    SymbolicStructDefinition::new_anonymous(vec![SymbolicFieldDefinition::new(value_data_type_ref.clone(), ContainerType::None)]);
+                let virtual_snapshot_queries = accessed_addresses
+                    .iter()
+                    .map(|accessed_address| VirtualSnapshotQuery::Address {
+                        query_id: format!("0x{:X}", accessed_address),
+                        address: *accessed_address,
+                        module_name: String::new(),
+                        symbolic_struct_definition: symbolic_struct_definition.clone(),
+                    })
+                    .collect::<Vec<_>>();
+
+                engine_unprivileged_state.set_virtual_snapshot_queries(Self::TRACE_PREVIEW_VIRTUAL_SNAPSHOT_ID, Duration::from_millis(250), virtual_snapshot_queries);
+            }
+        }
+
+        // Clearing the cache is tied to the interpretation (data type + display format) only, so a growing address set
+        // never wipes already-read values.
+        debugger_trace_view_data.update_preview_interpretation_signature(Self::preview_interpretation_signature(&value_data_type_id, active_display_format));
+
+        // Drive the refresh every frame; it self-throttles to the 250ms interval, so values stay current as the target
+        // mutates without rebuilding (and clearing) the snapshot.
+        if !accessed_addresses.is_empty() {
+            engine_unprivileged_state.request_virtual_snapshot_refresh(Self::TRACE_PREVIEW_VIRTUAL_SNAPSHOT_ID);
+        }
+
+        // Merge any freshly-read values into the persistent cache, keeping previously-read values for addresses that are
+        // momentarily missing from the snapshot.
+        if let Some(virtual_snapshot) = engine_unprivileged_state.get_virtual_snapshot(Self::TRACE_PREVIEW_VIRTUAL_SNAPSHOT_ID) {
+            let mut fresh_preview_values = HashMap::new();
+
+            for accessed_address in &accessed_addresses {
+                if let Some(query_result) = virtual_snapshot.get_query_results().get(&format!("0x{:X}", accessed_address)) {
+                    if let Some(preview_value) = self.format_preview_value(query_result, active_display_format) {
+                        fresh_preview_values.insert(*accessed_address, preview_value);
+                    }
+                }
+            }
+
+            debugger_trace_view_data.merge_preview_values(fresh_preview_values);
+        }
+
+        debugger_trace_view_data.get_preview_values()
+    }
+
+    /// An order-independent signature over the queried address set plus the data type, used to detect when the snapshot
+    /// query set must be rebuilt. Order independence matters because the records list is not stably ordered.
+    fn preview_query_signature(
+        accessed_addresses: &[u64],
+        value_data_type_id: &str,
+    ) -> u64 {
+        let mut combined_address_hash: u64 = 0;
+        for accessed_address in accessed_addresses {
+            let mut address_hasher = DefaultHasher::new();
+            accessed_address.hash(&mut address_hasher);
+            combined_address_hash ^= address_hasher.finish();
+        }
+
+        let mut hasher = DefaultHasher::new();
+        accessed_addresses.len().hash(&mut hasher);
+        combined_address_hash.hash(&mut hasher);
+        value_data_type_id.hash(&mut hasher);
+        hasher.finish()
+    }
+
+    /// Signature over how values are interpreted (data type + display format); a change clears the cached values so they
+    /// are re-read/re-formatted.
+    fn preview_interpretation_signature(
+        value_data_type_id: &str,
+        active_display_format: AnonymousValueStringFormat,
+    ) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        value_data_type_id.hash(&mut hasher);
+        (active_display_format as u8).hash(&mut hasher);
+        hasher.finish()
+    }
+
+    /// Interprets the first read field as the active data type and renders it in the active display format.
+    fn format_preview_value(
+        &self,
+        query_result: &VirtualSnapshotQueryResult,
+        active_display_format: AnonymousValueStringFormat,
+    ) -> Option<String> {
+        let memory_read_response = query_result.memory_read_response.as_ref()?;
+
+        if !memory_read_response.success {
+            return None;
+        }
+
+        let data_value = memory_read_response.valued_struct.get_fields().first()?.get_data_value()?;
+
+        self.app_context
+            .engine_unprivileged_state
+            .anonymize_value(data_value, active_display_format)
+            .ok()
+            .map(|anonymous_value_string| anonymous_value_string.get_anonymous_value_string().to_string())
     }
 
     fn show_attach_prompt(
@@ -409,6 +617,7 @@ impl DebuggerTraceView {
             size_in_bytes: pending_trace_start_request.get_size_in_bytes(),
             access: pending_trace_start_request.get_access(),
             label: pending_trace_start_request.get_label().map(String::from),
+            target_kind: pending_trace_start_request.get_target_kind(),
         }
         .send(&engine_unprivileged_state, move |debugger_trace_start_response| {
             if debugger_trace_start_response.status.get_success() {
@@ -459,10 +668,9 @@ impl DebuggerTraceView {
             .painter()
             .rect_filled(separator_rectangle, CornerRadius::ZERO, theme.background_control);
 
-        let content_width = content_rectangle.width().max(1.0);
-        let hit_count_splitter_position_x = content_rectangle.min.x + 36.0;
-        let instruction_splitter_position_x = content_rectangle.min.x + content_width * 0.18;
-        let address_splitter_position_x = content_rectangle.min.x + content_width * 0.72;
+        let column_ratios = self.column_splitter_ratios();
+        let (instruction_ratio, address_ratio, value_ratio) = column_ratios;
+        let column_splitters = Self::trace_column_splitter_positions(content_rectangle, column_ratios);
         let text_left_padding = 8.0;
         let paint_header_label = |user_interface: &mut Ui, x_position: f32, label: &str| {
             user_interface.painter().text(
@@ -474,9 +682,199 @@ impl DebuggerTraceView {
             );
         };
 
-        paint_header_label(user_interface, hit_count_splitter_position_x, "Count");
-        paint_header_label(user_interface, instruction_splitter_position_x, "Instruction");
-        paint_header_label(user_interface, address_splitter_position_x, "Address");
+        // A compact "#" keeps the hit-count column narrow.
+        paint_header_label(user_interface, column_splitters.hit_count, "#");
+        paint_header_label(user_interface, column_splitters.instruction, "Instruction");
+        paint_header_label(user_interface, column_splitters.address, "Address");
+
+        // Type and Value are a single column: its header hosts the data-type selector (showing the active type) on the
+        // left and a compact display-format picker on the far right. The rows below show only the formatted value.
+        let control_height = 20.0;
+        let control_center_y = header_rectangle.center().y;
+        let format_selector_size = vec2(24.0, control_height);
+        let format_selector_rectangle = Rect::from_min_size(
+            pos2(
+                (content_rectangle.max.x - format_selector_size.x - 6.0).max(column_splitters.value + text_left_padding),
+                control_center_y - control_height * 0.5,
+            ),
+            format_selector_size,
+        );
+        let type_selector_rectangle = Rect::from_min_max(
+            pos2(column_splitters.value + text_left_padding, control_center_y - control_height * 0.5),
+            pos2(
+                (format_selector_rectangle.min.x - 6.0).max(column_splitters.value + text_left_padding + 1.0),
+                control_center_y + control_height * 0.5,
+            ),
+        );
+
+        let stored_data_type_id = self
+            .debugger_trace_view_data
+            .read("Debugger trace header value data type")
+            .map(|debugger_trace_view_data| debugger_trace_view_data.get_value_data_type_id())
+            .unwrap_or_else(|| String::from("i32"));
+        let default_display_format = self
+            .app_context
+            .engine_unprivileged_state
+            .get_default_anonymous_value_string_format(&DataTypeRef::new(&stored_data_type_id));
+
+        if let Some(debugger_trace_view_data) = self.debugger_trace_view_data.read("Debugger trace header value format controls") {
+            debugger_trace_view_data.with_value_format_controls(default_display_format, |data_type_selection, display_format| {
+                user_interface.put(
+                    type_selector_rectangle,
+                    DataTypeSelectorView::new(self.app_context.clone(), data_type_selection, "debugger_trace_value_data_type")
+                        .single_select()
+                        .width(type_selector_rectangle.width())
+                        .height(type_selector_rectangle.height()),
+                );
+
+                let active_data_type_ref = data_type_selection.active_data_type().clone();
+                let mut supported_display_formats = self
+                    .app_context
+                    .engine_unprivileged_state
+                    .get_supported_anonymous_value_string_formats(&active_data_type_ref);
+
+                if supported_display_formats.is_empty() {
+                    supported_display_formats.push(*display_format);
+                }
+                if !supported_display_formats.contains(display_format) {
+                    *display_format = supported_display_formats[0];
+                }
+
+                let mut header_display_format_value = AnonymousValueString::new(String::new(), *display_format, ContainerType::None);
+
+                user_interface.put(
+                    format_selector_rectangle,
+                    ComboBoxView::new(
+                        self.app_context.clone(),
+                        String::new(),
+                        "debugger_trace_value_display_format",
+                        Some(self.display_format_icon(*display_format)),
+                        |popup_user_interface, should_close| {
+                            for anonymous_value_string_format in &supported_display_formats {
+                                if popup_user_interface
+                                    .add(
+                                        DataValueBoxConvertItemView::new(
+                                            self.app_context.clone(),
+                                            &mut header_display_format_value,
+                                            anonymous_value_string_format,
+                                            None,
+                                            false,
+                                            false,
+                                            Self::VALUE_DISPLAY_FORMAT_POPUP_WIDTH,
+                                        )
+                                        .width(Self::VALUE_DISPLAY_FORMAT_POPUP_WIDTH),
+                                    )
+                                    .clicked()
+                                {
+                                    *should_close = true;
+                                }
+                            }
+                        },
+                    )
+                    .width(format_selector_rectangle.width())
+                    .height(format_selector_rectangle.height())
+                    .show_dropdown_arrow(false),
+                );
+
+                *display_format = header_display_format_value.get_anonymous_value_string_format();
+            });
+        }
+
+        // Always-visible, draggable column dividers at the instruction / address / value splitters.
+        if let Some(new_instruction_ratio) = self.show_column_resize_handle(user_interface, content_rectangle, header_rectangle, column_splitters.instruction, "instruction") {
+            self.update_column_splitter_ratios(new_instruction_ratio, address_ratio, value_ratio);
+        } else if let Some(new_address_ratio) = self.show_column_resize_handle(user_interface, content_rectangle, header_rectangle, column_splitters.address, "address") {
+            self.update_column_splitter_ratios(instruction_ratio, new_address_ratio, value_ratio);
+        } else if let Some(new_value_ratio) = self.show_column_resize_handle(user_interface, content_rectangle, header_rectangle, column_splitters.value, "value") {
+            self.update_column_splitter_ratios(instruction_ratio, address_ratio, new_value_ratio);
+        }
+    }
+
+    fn update_column_splitter_ratios(
+        &self,
+        instruction_splitter_ratio: f32,
+        address_splitter_ratio: f32,
+        value_splitter_ratio: f32,
+    ) {
+        if let Some(debugger_trace_view_data) = self.debugger_trace_view_data.read("Debugger trace set column splitter ratios") {
+            debugger_trace_view_data.set_column_splitter_ratios(instruction_splitter_ratio, address_splitter_ratio, value_splitter_ratio);
+        }
+    }
+
+    fn trace_column_splitter_positions(
+        content_rectangle: Rect,
+        column_splitter_ratios: (f32, f32, f32),
+    ) -> TraceColumnSplitters {
+        let content_width = content_rectangle.width().max(1.0);
+        let (instruction_ratio, address_ratio, value_ratio) = column_splitter_ratios;
+
+        // The count column needs room for several digits even on narrow windows, so enforce a pixel minimum and cascade
+        // the minimum widths rightward so columns never collapse below something readable.
+        let hit_count = content_rectangle.min.x + 28.0;
+        let minimum_count_width = 42.0;
+        let minimum_column_width = 64.0;
+        let instruction = (content_rectangle.min.x + content_width * instruction_ratio).max(hit_count + minimum_count_width);
+        let address = (content_rectangle.min.x + content_width * address_ratio).max(instruction + minimum_column_width);
+        let value = (content_rectangle.min.x + content_width * value_ratio).max(address + minimum_column_width);
+
+        TraceColumnSplitters {
+            hit_count,
+            instruction,
+            address,
+            value,
+        }
+    }
+
+    fn column_splitter_ratios(&self) -> (f32, f32, f32) {
+        self.debugger_trace_view_data
+            .read("Debugger trace column splitter ratios")
+            .map(|debugger_trace_view_data| debugger_trace_view_data.get_column_splitter_ratios())
+            .unwrap_or((0.14, 0.42, 0.66))
+    }
+
+    /// Renders an always-visible column divider at `splitter_position_x` that spans the full table height, doubling as a
+    /// draggable resize handle. Returns the new fraction while dragging.
+    fn show_column_resize_handle(
+        &self,
+        user_interface: &mut Ui,
+        content_rectangle: Rect,
+        header_rectangle: Rect,
+        splitter_position_x: f32,
+        id_suffix: &str,
+    ) -> Option<f32> {
+        let theme = &self.app_context.theme;
+
+        // Always paint a thin divider line down the whole content area so the columns are clearly delineated.
+        let divider_rectangle = Rect::from_min_max(
+            pos2(splitter_position_x - 0.5, header_rectangle.min.y),
+            pos2(splitter_position_x + 0.5, content_rectangle.max.y),
+        );
+        user_interface.painter().rect_filled(divider_rectangle, 0.0, theme.background_control);
+
+        let handle_half_width = 3.0;
+        let handle_rectangle = Rect::from_min_max(
+            pos2(splitter_position_x - handle_half_width, header_rectangle.min.y),
+            pos2(splitter_position_x + handle_half_width, header_rectangle.max.y),
+        );
+        let handle_id = user_interface.id().with(("debugger_trace_column_resize", id_suffix));
+        let handle_response = user_interface.interact(handle_rectangle, handle_id, Sense::drag());
+
+        if handle_response.hovered() || handle_response.dragged() {
+            user_interface.painter().rect_filled(handle_rectangle, 0.0, theme.selected_border);
+            user_interface.ctx().set_cursor_icon(eframe::egui::CursorIcon::ResizeHorizontal);
+        }
+
+        if handle_response.dragged() {
+            let pointer_x = handle_response
+                .interact_pointer_pos()
+                .map(|pointer_position| pointer_position.x)
+                .unwrap_or(splitter_position_x);
+            let content_width = content_rectangle.width().max(1.0);
+
+            return Some(((pointer_x - content_rectangle.min.x) / content_width).clamp(0.0, 1.0));
+        }
+
+        None
     }
 
     fn show_trace_session_header(
@@ -587,22 +985,27 @@ impl DebuggerTraceView {
 
         let content_rectangle = user_interface.available_rect_before_wrap();
         self.show_trace_header(user_interface, content_rectangle);
-        let content_width = content_rectangle.width().max(1.0);
-        let hit_count_splitter_position_x = content_rectangle.min.x + 36.0;
-        let instruction_splitter_position_x = content_rectangle.min.x + content_width * 0.18;
-        let address_splitter_position_x = content_rectangle.min.x + content_width * 0.72;
+        let column_splitters = Self::trace_column_splitter_positions(content_rectangle, self.column_splitter_ratios());
+        let record_preview_values = self.read_record_preview_values(instruction_records);
 
         for instruction_record in instruction_records {
             let instruction_key = DebuggerTraceInstructionKey::from_record(instruction_record);
             let is_selected = selected_instruction_keys.contains(&instruction_key);
+            let preview_value = instruction_record
+                .get_accessed_address()
+                .and_then(|accessed_address| record_preview_values.get(&accessed_address))
+                .cloned()
+                .unwrap_or_default();
             let row_response = user_interface.add(DebuggerTraceEntryView::new(
                 self.app_context.clone(),
                 instruction_record,
                 &instruction_key,
                 is_selected,
-                hit_count_splitter_position_x,
-                instruction_splitter_position_x,
-                address_splitter_position_x,
+                column_splitters.hit_count,
+                column_splitters.instruction,
+                column_splitters.address,
+                column_splitters.value,
+                preview_value,
             ));
 
             if row_response.clicked() {
@@ -762,25 +1165,39 @@ impl DebuggerTraceView {
         &self,
         instruction_record: &DebuggerTraceInstructionRecord,
     ) {
-        let Some(instruction_address) = instruction_record.get_instruction_address() else {
-            log::warn!("Cannot add debugger trace instruction without an instruction address.");
+        // Instruction-directed records: double-clicking an accessed-address row adds that DATA address (the thing the
+        // instruction touched) as a plain address item. Address-directed records add the accessing instruction itself.
+        let is_accessed_address_record = instruction_record.get_accessed_address().is_some();
+        let Some(target_address) = instruction_record
+            .get_accessed_address()
+            .or_else(|| instruction_record.get_instruction_address())
+        else {
+            log::warn!("Cannot add debugger trace record without a resolvable address.");
             return;
         };
         let target_directory_path = ProjectHierarchyViewData::get_selected_directory_path(self.project_hierarchy_view_data.clone()).unwrap_or_default();
         let (project_item_address, project_item_module_name) = ProjectHierarchyModuleAddressResolver::resolve_absolute_address_to_project_item_address(
             &self.app_context.engine_unprivileged_state,
-            instruction_address,
+            target_address,
         );
-        let project_item_name = Self::build_instruction_project_item_name(project_item_address, &project_item_module_name, instruction_record);
+        let (project_item_name, data_type_id, initial_preview_value) = if is_accessed_address_record {
+            (format!("Accessed 0x{:X}", project_item_address), String::from("i32"), None)
+        } else {
+            (
+                Self::build_instruction_project_item_name(project_item_address, &project_item_module_name, instruction_record),
+                self.instruction_data_type_id(instruction_record),
+                Some(Self::instruction_text(instruction_record)),
+            )
+        };
         let project_items_create_request = ProjectItemsCreateRequest {
             parent_directory_path: target_directory_path,
             project_item_name,
             is_directory: false,
             address: Some(project_item_address),
             module_name: Some(project_item_module_name),
-            data_type_id: Some(self.instruction_data_type_id(instruction_record)),
+            data_type_id: Some(data_type_id),
             pointer_offsets: None,
-            initial_preview_value: Some(Self::instruction_text(instruction_record)),
+            initial_preview_value,
         };
         let app_context = self.app_context.clone();
         let project_hierarchy_view_data = self.project_hierarchy_view_data.clone();

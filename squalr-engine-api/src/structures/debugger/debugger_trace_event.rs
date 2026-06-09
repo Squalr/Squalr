@@ -12,6 +12,11 @@ pub struct DebuggerTraceEvent {
     #[serde(default)]
     target_architecture: Option<TargetArchitecture>,
     backend_message: Option<String>,
+    /// For instruction-directed (execute-breakpoint) traces: the memory address this instruction accessed on this hit,
+    /// computed from the instruction's memory operand and the register snapshot. `None` for data-watchpoint traces or
+    /// when the accessed address could not be resolved.
+    #[serde(default)]
+    accessed_address: Option<u64>,
 }
 
 impl DebuggerTraceEvent {
@@ -31,7 +36,21 @@ impl DebuggerTraceEvent {
             instruction_text,
             target_architecture: None,
             backend_message,
+            accessed_address: None,
         }
+    }
+
+    pub fn with_accessed_address(
+        mut self,
+        accessed_address: Option<u64>,
+    ) -> Self {
+        self.accessed_address = accessed_address;
+
+        self
+    }
+
+    pub fn get_accessed_address(&self) -> Option<u64> {
+        self.accessed_address
     }
 
     pub fn with_target_architecture(

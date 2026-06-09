@@ -1,7 +1,7 @@
 use crate::constants::NATIVE_DEBUGGERS_PLUGIN_ID;
 #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 use iced_x86::{Decoder, DecoderOptions};
-use libc::{SIGSTOP, SIGTRAP, WNOHANG, c_void, pid_t};
+use libc::{SIGTRAP, WNOHANG, c_void, pid_t};
 use squalr_engine_api::{
     plugins::debugger::{DebuggerPluginError, DebuggerTraceEventSink},
     structures::{
@@ -24,14 +24,20 @@ use std::{
 
 const ATTACH_WAIT_TIMEOUT: Duration = Duration::from_secs(10);
 const IDLE_COMMAND_WAIT_TIMEOUT_MS: u64 = 50;
-const RUNNING_EVENT_WAIT_TIMEOUT_MS: u64 = 50;
-const WATCHPOINT_REARM_DELAY_MS: u64 = 100;
+const WATCHPOINT_REARM_POLL_TIMEOUT_MS: u64 = 2;
+// How long a hit thread runs with its watchpoint disabled before we interrupt it to re-arm. Long enough for the
+// accessing instruction (including an LDXR/STXR atomic sequence) to retire so re-arming does not livelock the atomic.
+const WATCHPOINT_REARM_DELAY_MS: u64 = 30;
+const RESUME_STOP_DRAIN_TIMEOUT_MS: u64 = 250;
+const MAX_DEBUG_EVENTS_PER_DRAIN: usize = 4096;
 #[cfg(all(target_os = "android", target_arch = "aarch64"))]
 const ARM64_INSTRUCTION_BYTE_LENGTH: usize = 4;
 #[cfg(any(test, all(target_os = "android", target_arch = "aarch64")))]
 const ARM64_WATCH_GRANULE_SIZE: u64 = 8;
 #[cfg(all(target_os = "android", target_arch = "aarch64"))]
 const NT_ARM_HW_WATCH: usize = 0x403;
+#[cfg(all(target_os = "android", target_arch = "aarch64"))]
+const NT_ARM_HW_BREAK: usize = 0x402;
 #[cfg(all(target_os = "android", target_arch = "aarch64"))]
 const NT_PRSTATUS: usize = 1;
 const TRACE_INSTRUCTION_BYTE_WINDOW: usize = 16;
@@ -50,6 +56,15 @@ const X86_64_DR6_OFFSET: usize = X86_64_DEBUG_REGISTER_BASE_OFFSET + 6 * X86_64_
 type PtraceRequest = libc::c_int;
 #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 type PtraceRequest = libc::c_uint;
+
+// PTRACE_SEIZE attaches a tracee without injecting a SIGSTOP. Unlike PTRACE_ATTACH, it does not group-stop the whole
+// thread group, so resuming a heavily-multithreaded target (hundreds of threads) does not strand threads in ptrace_stop.
+// These are not exposed by the libc crate for all targets, so define them from the kernel ABI (uapi/linux/ptrace.h).
+const PTRACE_SEIZE_REQUEST: PtraceRequest = 0x4206;
+const PTRACE_INTERRUPT_REQUEST: PtraceRequest = 0x4207;
+// PTRACE_O_TRACECLONE: auto-attach threads cloned by a SEIZEd tracee, so new threads are watched without re-attaching
+// (which would re-deliver SIGSTOP and re-trigger the group-stop deadlock).
+const PTRACE_CLONE_TRACE_OPTION: libc::c_long = 0x0000_0008;
 
 pub(crate) struct LinuxDebuggerBackend {
     process_info: OpenedProcessInfo,
@@ -396,7 +411,6 @@ enum LinuxWorkerCommandKind {
 struct StoredLinuxBreakpoint {
     descriptor: DebuggerBreakpointDescriptor,
     slot: usize,
-    suppressed_until: Option<Instant>,
 }
 
 #[derive(Clone, Copy)]
@@ -413,6 +427,13 @@ struct ActiveLinuxSession {
     session_state: DebuggerSessionState,
     next_breakpoint_number: u64,
     trace_event_sink: DebuggerTraceEventSink,
+    // Threads whose watchpoint we disabled right after a hit (so they run past the accessing instruction without
+    // immediately re-trapping), mapped to when they should be re-armed. We re-arm by interrupting them only after a
+    // delay long enough for the access to retire: on arm64 the watched location is often accessed via an LDXR/STXR
+    // exclusive pair, and stopping the thread between LDXR and STXR clears the monitor and livelocks the atomic. The
+    // delay lets the atomic complete first, then a proactive interrupt re-arms reliably (unlike waiting for an
+    // incidental stop, which left hot watchpoints silent after the first hit).
+    rearm_at_by_thread: HashMap<pid_t, Instant>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -443,7 +464,12 @@ impl ActiveLinuxSession {
             session_state: DebuggerSessionState::Paused,
             next_breakpoint_number: 1,
             trace_event_sink,
+            rearm_at_by_thread: HashMap::new(),
         };
+
+        // Android (and recent Linux) freeze backgrounded apps with the cgroup v2 freezer. A frozen task never processes
+        // the SIGSTOP that PTRACE_ATTACH delivers, so the attach wait times out. Thaw the target before attaching.
+        thaw_process_cgroup_freezer(process_id);
 
         if let Err(error) = active_session.attach_existing_threads() {
             let _ = active_session.detach();
@@ -482,9 +508,7 @@ impl ActiveLinuxSession {
             .collect::<Vec<_>>();
 
         for thread_id in &running_thread_ids {
-            if send_thread_signal(self.process_id, *thread_id, SIGSTOP) != 0 {
-                return Err(last_os_error("SIGSTOP Linux debugger pause"));
-            }
+            ptrace_interrupt(*thread_id, "PTRACE_INTERRUPT Linux debugger pause")?;
         }
 
         for thread_id in running_thread_ids {
@@ -513,6 +537,7 @@ impl ActiveLinuxSession {
         self.apply_watchpoints()?;
         self.resume_stopped_threads("PTRACE_CONT resume")?;
         self.session_state = DebuggerSessionState::Running;
+        self.drain_pending_stops_after_resume()?;
 
         Ok(())
     }
@@ -632,9 +657,9 @@ impl ActiveLinuxSession {
         kind: DebuggerBreakpointKind,
         label: Option<String>,
     ) -> Result<DebuggerBreakpointDescriptor, DebuggerPluginError> {
-        if !matches!(kind, DebuggerBreakpointKind::HardwareData { .. }) {
+        if !matches!(kind, DebuggerBreakpointKind::HardwareData { .. } | DebuggerBreakpointKind::HardwareExecute) {
             return Err(LinuxDebuggerBackend::plugin_error(
-                "The native ptrace debugger backend currently supports hardware data breakpoints only.",
+                "The native ptrace debugger backend currently supports hardware data and hardware execute breakpoints only.",
             ));
         }
 
@@ -649,7 +674,6 @@ impl ActiveLinuxSession {
             StoredLinuxBreakpoint {
                 descriptor: descriptor.clone(),
                 slot,
-                suppressed_until: None,
             },
         );
 
@@ -742,35 +766,164 @@ impl ActiveLinuxSession {
             return Ok(());
         }
 
+        // Keep the target thawed: a backgrounded app can be re-frozen mid-session by the cgroup v2 freezer, which would
+        // wedge ptrace stops and strand stopped threads holding runtime locks.
+        thaw_process_cgroup_freezer(self.process_id);
         self.sync_thread_list()?;
+
+        // Drain every stop that is already pending this tick. Handling one event per idle cycle let watchpoint-stopped
+        // threads pile up faster than they were continued; while they sit in tracing-stop they hold runtime locks and
+        // deadlock the whole target. The per-tick cap keeps the worker responsive to pause/stop/detach commands.
+        let mut drained_event_count = 0;
+
+        while self.session_state == DebuggerSessionState::Running && self.try_process_one_debug_event()? {
+            drained_event_count += 1;
+            if drained_event_count >= MAX_DEBUG_EVENTS_PER_DRAIN {
+                break;
+            }
+        }
+
+        // Re-arm threads whose post-hit disable window has elapsed. They have now run past the access (and finished any
+        // LDXR/STXR atomic), so interrupting them to re-arm is safe and reliable.
+        self.interrupt_due_rearm_threads();
+
+        Ok(())
+    }
+
+    /// Returns whether any thread is awaiting re-arm after a hit, so the worker loop can poll quickly (keeping the
+    /// disabled window close to the configured delay) instead of idling for the full command timeout.
+    fn has_pending_rearms(&self) -> bool {
+        !self.rearm_at_by_thread.is_empty()
+    }
+
+    fn interrupt_due_rearm_threads(&mut self) {
+        if self.rearm_at_by_thread.is_empty() {
+            return;
+        }
+
+        let now = Instant::now();
+
+        for (thread_id, rearm_at) in self
+            .rearm_at_by_thread
+            .iter()
+            .map(|(thread_id, rearm_at)| (*thread_id, *rearm_at))
+            .collect::<Vec<_>>()
+        {
+            if !self.traced_threads_by_id.contains_key(&thread_id) {
+                self.rearm_at_by_thread.remove(&thread_id);
+                continue;
+            }
+
+            if rearm_at > now {
+                continue;
+            }
+
+            // Interrupt the (now safely-past-the-access) thread so its stop is reaped by the event loop, which re-arms
+            // its watchpoint. Interrupt errors (e.g. it is already stopping) are non-fatal; the stop handler re-arms it.
+            let _ = ptrace_interrupt(thread_id, "PTRACE_INTERRUPT to re-arm watchpoint");
+        }
+    }
+
+    fn try_process_one_debug_event(&mut self) -> Result<bool, DebuggerPluginError> {
         let mut wait_status = 0;
         let wait_result = unsafe { libc::waitpid(-1, &mut wait_status, WAIT_ALL_TRACED_THREADS) };
 
         if wait_result == 0 {
-            thread::sleep(Duration::from_millis(RUNNING_EVENT_WAIT_TIMEOUT_MS));
-            return Ok(());
+            return Ok(false);
         }
 
         if wait_result < 0 {
             return Err(last_os_error("waitpid while polling Linux debug events"));
         }
 
-        let event_thread_id = wait_result;
+        self.handle_wait_status(wait_result, wait_status)?;
+
+        Ok(true)
+    }
+
+    fn handle_wait_status(
+        &mut self,
+        event_thread_id: pid_t,
+        wait_status: libc::c_int,
+    ) -> Result<(), DebuggerPluginError> {
         if libc::WIFEXITED(wait_status) || libc::WIFSIGNALED(wait_status) {
             self.traced_threads_by_id.remove(&event_thread_id);
+            self.rearm_at_by_thread.remove(&event_thread_id);
             if self.traced_threads_by_id.is_empty() {
                 self.session_state = DebuggerSessionState::Detached;
             }
+
             return Ok(());
         }
 
-        if libc::WIFSTOPPED(wait_status) {
-            let stop_signal = libc::WSTOPSIG(wait_status);
+        if !libc::WIFSTOPPED(wait_status) {
+            return Ok(());
+        }
+
+        let stop_signal = libc::WSTOPSIG(wait_status);
+        let ptrace_event_code = (wait_status >> 16) & 0xff;
+        let is_known_thread = self.traced_threads_by_id.contains_key(&event_thread_id);
+
+        if is_known_thread {
             if let Some(traced_thread) = self.traced_threads_by_id.get_mut(&event_thread_id) {
                 traced_thread.is_stopped = true;
             }
+        } else {
+            // A thread cloned by a SEIZEd tracee is auto-attached and reported here the first time it stops. Register it,
+            // mirror clone tracing onto it, and let handle_stopped_thread_event arm its watchpoints and continue it.
+            let _ = ptrace_set_clone_tracing(event_thread_id);
+            self.traced_threads_by_id.insert(
+                event_thread_id,
+                TracedLinuxThread {
+                    thread_id: event_thread_id,
+                    is_stopped: true,
+                },
+            );
+        }
 
-            self.handle_stopped_thread_event(event_thread_id, stop_signal)?;
+        // Decide which signal to re-inject when continuing the thread. A tracee that stopped because a signal was about
+        // to be delivered (a signal-delivery-stop) must be restarted WITH that signal, otherwise the signal is silently
+        // discarded. This matters enormously on Android: the ART runtime relies on SIGSEGV (implicit null checks, GC
+        // read barriers) and SIGABRT for normal operation. Swallowing them makes the faulting instruction re-fault
+        // forever, which storms the tracer and deadlocks the whole app. We only swallow our own debug traps:
+        //   - ptrace event/interrupt/group stops (event_code != 0): not real pending signals; restart with 0.
+        //   - a watchpoint SIGTRAP (event_code == 0): our hardware breakpoint; swallow it.
+        //   - anything else (SIGSEGV, SIGBUS, SIGABRT, ...): a real signal the tracee must still receive; re-inject it.
+        let signal_to_inject = if ptrace_event_code != 0 || stop_signal == SIGTRAP { 0 } else { stop_signal };
+
+        // This thread's watchpoint was disabled after a hit so it could run past the access. This stop (our re-arm
+        // interrupt, or a real signal that arrived first) is where we re-arm and continue, forwarding any real signal.
+        // Re-arming early on a signal is harmless: the access already retired while the thread ran free.
+        if self.rearm_at_by_thread.remove(&event_thread_id).is_some() {
+            let rearm_result = self.apply_watchpoints_to_thread(event_thread_id);
+            let continue_result = self.continue_stopped_thread_with_signal(event_thread_id, signal_to_inject, "PTRACE_CONT after watchpoint re-arm");
+
+            return self.finalize_thread_event(event_thread_id, [rearm_result, continue_result]);
+        }
+
+        // Only a pure signal-delivery SIGTRAP (no ptrace event code) can be a hardware watchpoint hit. Clone events,
+        // interrupt/group stops (PTRACE_EVENT_STOP), and a brand-new thread's first stop must not be mis-read as hits.
+        let is_watchpoint_candidate = is_known_thread && stop_signal == SIGTRAP && ptrace_event_code == 0;
+
+        self.handle_stopped_thread_event(event_thread_id, is_watchpoint_candidate, signal_to_inject)
+    }
+
+    fn drain_pending_stops_after_resume(&mut self) -> Result<(), DebuggerPluginError> {
+        let drain_started_at = Instant::now();
+
+        while drain_started_at.elapsed() < Duration::from_millis(RESUME_STOP_DRAIN_TIMEOUT_MS) {
+            let mut wait_status = 0;
+            let wait_result = unsafe { libc::waitpid(-1, &mut wait_status, WAIT_ALL_TRACED_THREADS) };
+
+            if wait_result == 0 {
+                return Ok(());
+            }
+
+            if wait_result < 0 {
+                return Err(last_os_error("waitpid while draining Linux resume stops"));
+            }
+
+            self.handle_wait_status(wait_result, wait_status)?;
         }
 
         Ok(())
@@ -779,41 +932,62 @@ impl ActiveLinuxSession {
     fn handle_stopped_thread_event(
         &mut self,
         event_thread_id: pid_t,
-        stop_signal: i32,
+        is_watchpoint_candidate: bool,
+        signal_to_inject: i32,
     ) -> Result<(), DebuggerPluginError> {
-        let event_result = if stop_signal == SIGTRAP {
-            self.handle_breakpoint_trap(event_thread_id)
-        } else {
-            Ok(())
-        };
-
-        let watchpoint_result = if self.session_state == DebuggerSessionState::Detached {
-            Ok(())
-        } else if event_result.is_ok() {
-            self.apply_watchpoints_to_thread(event_thread_id)
-        } else {
-            self.clear_watchpoints_for_thread(event_thread_id)
-        };
-
-        let continue_result = if self.session_state == DebuggerSessionState::Detached {
-            Ok(())
-        } else {
-            self.continue_stopped_thread(event_thread_id, "PTRACE_CONT after debug event")
-        };
-
-        let mut error_messages = Vec::new();
-        if let Err(error) = event_result {
-            error_messages.push(error.to_string());
+        if self.session_state == DebuggerSessionState::Detached {
+            return Ok(());
         }
-        if let Err(error) = watchpoint_result {
-            error_messages.push(error.to_string());
+
+        if is_watchpoint_candidate {
+            match self.handle_breakpoint_trap(event_thread_id) {
+                // A real watchpoint hit was recorded. On arm64 the hit is reported before the accessing instruction
+                // retires, so continuing with the watchpoint armed would immediately re-trap forever. Disable the
+                // watchpoint on this thread and let it run; interrupt_due_rearm_threads() re-arms it after a short delay
+                // (once the access — possibly an LDXR/STXR atomic — has retired), so subsequent accesses keep counting
+                // without a re-trap livelock.
+                Ok(true) => {
+                    let disarm_result = self.clear_watchpoints_for_thread(event_thread_id);
+                    if disarm_result.is_ok() {
+                        self.rearm_at_by_thread
+                            .insert(event_thread_id, Instant::now() + Duration::from_millis(WATCHPOINT_REARM_DELAY_MS));
+                    }
+                    // signal_to_inject is 0 here (a watchpoint hit is reported as SIGTRAP, which we swallow).
+                    let continue_result = self.continue_stopped_thread_with_signal(event_thread_id, signal_to_inject, "PTRACE_CONT after watchpoint hit");
+
+                    return self.finalize_thread_event(event_thread_id, [disarm_result, continue_result]);
+                }
+                // A SIGTRAP that is not one of our watchpoints: re-arm and continue normally (handled below).
+                Ok(false) => {}
+                Err(record_error) => {
+                    // Recording failed; clear watchpoints and continue so the thread is never stranded stopped.
+                    let clear_result = self.clear_watchpoints_for_thread(event_thread_id);
+                    let continue_result = self.continue_stopped_thread_with_signal(event_thread_id, signal_to_inject, "PTRACE_CONT after failed trace record");
+
+                    return self.finalize_thread_event(event_thread_id, [Err(record_error), clear_result, continue_result]);
+                }
+            }
         }
-        if let Err(error) = continue_result {
-            error_messages.push(error.to_string());
-        }
+
+        let watchpoint_result = self.apply_watchpoints_to_thread(event_thread_id);
+        let continue_result = self.continue_stopped_thread_with_signal(event_thread_id, signal_to_inject, "PTRACE_CONT after debug event");
+
+        self.finalize_thread_event(event_thread_id, [watchpoint_result, continue_result])
+    }
+
+    fn finalize_thread_event<const RESULT_COUNT: usize>(
+        &mut self,
+        event_thread_id: pid_t,
+        results: [Result<(), DebuggerPluginError>; RESULT_COUNT],
+    ) -> Result<(), DebuggerPluginError> {
+        let error_messages = results
+            .into_iter()
+            .filter_map(|result| result.err().map(|error| error.to_string()))
+            .collect::<Vec<_>>();
 
         if error_messages.is_empty() {
             self.session_state = DebuggerSessionState::Running;
+
             return Ok(());
         }
 
@@ -830,44 +1004,78 @@ impl ActiveLinuxSession {
         )))
     }
 
+    /// Handles a SIGTRAP that may be a hardware watchpoint hit. Returns `true` when the trap was attributed to one of
+    /// our watchpoints and a trace event was emitted; the caller then single-steps the thread past the accessing
+    /// instruction before re-arming, so every subsequent access is caught (and counted) instead of re-trapping forever.
     fn handle_breakpoint_trap(
         &mut self,
         event_thread_id: pid_t,
-    ) -> Result<(), DebuggerPluginError> {
+    ) -> Result<bool, DebuggerPluginError> {
         let breakpoint_descriptor = self.describe_hit_breakpoint(event_thread_id)?;
+        let is_execute_breakpoint = matches!(
+            breakpoint_descriptor
+                .as_ref()
+                .map(DebuggerBreakpointDescriptor::get_kind),
+            Some(DebuggerBreakpointKind::HardwareExecute)
+        );
         let register_snapshot = self.read_registers_for_thread(event_thread_id)?;
         let (instruction_address, instruction_bytes, backend_message) =
-            self.resolve_trace_instruction(event_thread_id, register_snapshot.get_instruction_pointer());
+            self.resolve_trace_instruction(event_thread_id, register_snapshot.get_instruction_pointer(), is_execute_breakpoint);
 
         self.clear_debug_status(event_thread_id)?;
 
-        if breakpoint_descriptor.is_some() {
-            let trace_event = DebuggerTraceEvent::new(
-                breakpoint_descriptor.clone(),
-                register_snapshot,
-                instruction_address,
-                instruction_bytes,
-                None,
-                backend_message,
-            )
-            .with_target_architecture(self.target_architecture.clone());
+        let Some(breakpoint_descriptor) = breakpoint_descriptor else {
+            return Ok(false);
+        };
 
-            (self.trace_event_sink)(trace_event);
-        }
+        let trace_event = DebuggerTraceEvent::new(
+            Some(breakpoint_descriptor),
+            register_snapshot,
+            instruction_address,
+            instruction_bytes,
+            None,
+            backend_message,
+        )
+        .with_target_architecture(self.target_architecture.clone());
 
-        self.suppress_hit_breakpoint_temporarily(breakpoint_descriptor.as_ref());
+        (self.trace_event_sink)(trace_event);
 
-        Ok(())
+        Ok(true)
     }
 
     fn resolve_trace_instruction(
         &self,
         thread_id: pid_t,
         post_trap_instruction_pointer: Option<u64>,
+        is_execute_breakpoint: bool,
     ) -> (Option<u64>, Vec<u8>, Option<String>) {
         let Some(post_trap_instruction_pointer) = post_trap_instruction_pointer else {
             return (None, Vec::new(), None);
         };
+
+        // For an execute breakpoint the trap is taken before the instruction runs, so the instruction pointer already
+        // points at the instruction itself (no post-trap recovery needed). The bytes there are exactly what executed.
+        if is_execute_breakpoint {
+            let execute_message = Some(String::from("Hardware execute breakpoint hit; instruction pointer is the instruction that trapped."));
+
+            // arm64's block disassembler joins a whole byte window into one line, so read exactly one instruction to
+            // keep the trace's instruction text (and accessed-address resolution) to the single trapped instruction.
+            #[cfg(all(target_os = "android", target_arch = "aarch64"))]
+            if self.target_architecture.get_instruction_set_id() == "arm64" {
+                return (
+                    Some(post_trap_instruction_pointer),
+                    self.read_memory_bytes(thread_id, post_trap_instruction_pointer, ARM64_INSTRUCTION_BYTE_LENGTH)
+                        .unwrap_or_default(),
+                    execute_message,
+                );
+            }
+
+            return (
+                Some(post_trap_instruction_pointer),
+                self.read_instruction_bytes(thread_id, Some(post_trap_instruction_pointer)),
+                execute_message,
+            );
+        }
 
         #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
         if self.target_architecture.get_instruction_set_id() == "x64" {
@@ -1065,7 +1273,6 @@ impl ActiveLinuxSession {
         thread_id: pid_t,
     ) -> Result<(), DebuggerPluginError> {
         let mut dr7 = 0u64;
-        let now = Instant::now();
 
         clear_debug_status(thread_id)?;
         for slot in 0..WATCHPOINT_SLOT_COUNT {
@@ -1073,21 +1280,29 @@ impl ActiveLinuxSession {
         }
 
         for stored_breakpoint in self.breakpoints_by_id.values() {
-            if !Self::is_watchpoint_armed(stored_breakpoint, now) {
+            if !Self::is_watchpoint_armed(stored_breakpoint) {
                 continue;
             }
 
-            let DebuggerBreakpointKind::HardwareData { access, size_in_bytes } = *stored_breakpoint.descriptor.get_kind() else {
-                continue;
-            };
             let slot = stored_breakpoint.slot;
-            let length_bits = x64_watchpoint_length_bits(size_in_bytes)?;
-            let access_bits = x64_watchpoint_access_bits(access);
 
-            write_debug_register(thread_id, slot, stored_breakpoint.descriptor.get_address())?;
-            dr7 |= 1u64 << (slot * 2);
-            dr7 |= access_bits << (16 + slot * 4);
-            dr7 |= length_bits << (18 + slot * 4);
+            match stored_breakpoint.descriptor.get_kind() {
+                DebuggerBreakpointKind::HardwareData { access, size_in_bytes } => {
+                    let length_bits = x64_watchpoint_length_bits(*size_in_bytes)?;
+                    let access_bits = x64_watchpoint_access_bits(*access);
+
+                    write_debug_register(thread_id, slot, stored_breakpoint.descriptor.get_address())?;
+                    dr7 |= 1u64 << (slot * 2);
+                    dr7 |= access_bits << (16 + slot * 4);
+                    dr7 |= length_bits << (18 + slot * 4);
+                }
+                DebuggerBreakpointKind::HardwareExecute => {
+                    // Execute breakpoint: rw = 00 and len = 00 (those bit fields stay zero); just enable the slot.
+                    write_debug_register(thread_id, slot, stored_breakpoint.descriptor.get_address())?;
+                    dr7 |= 1u64 << (slot * 2);
+                }
+                DebuggerBreakpointKind::Software => {}
+            }
         }
 
         write_debug_register(thread_id, 7, dr7)
@@ -1106,30 +1321,8 @@ impl ActiveLinuxSession {
         write_debug_register(thread_id, 7, 0)
     }
 
-    fn is_watchpoint_armed(
-        stored_breakpoint: &StoredLinuxBreakpoint,
-        now: Instant,
-    ) -> bool {
+    fn is_watchpoint_armed(stored_breakpoint: &StoredLinuxBreakpoint) -> bool {
         stored_breakpoint.descriptor.get_is_enabled()
-            && stored_breakpoint
-                .suppressed_until
-                .is_none_or(|suppressed_until| suppressed_until <= now)
-    }
-
-    fn suppress_hit_breakpoint_temporarily(
-        &mut self,
-        breakpoint_descriptor: Option<&DebuggerBreakpointDescriptor>,
-    ) -> bool {
-        let Some(breakpoint_id) = breakpoint_descriptor.map(DebuggerBreakpointDescriptor::get_breakpoint_id) else {
-            return false;
-        };
-        let Some(stored_breakpoint) = self.breakpoints_by_id.get_mut(breakpoint_id) else {
-            return false;
-        };
-
-        stored_breakpoint.suppressed_until = Some(Instant::now() + Duration::from_millis(WATCHPOINT_REARM_DELAY_MS));
-
-        true
     }
 
     fn allocate_watchpoint_slot(&self) -> Result<usize, DebuggerPluginError> {
@@ -1182,6 +1375,19 @@ impl ActiveLinuxSession {
         address: u64,
         kind: &DebuggerBreakpointKind,
     ) -> Result<(), DebuggerPluginError> {
+        // Instruction (execute) breakpoints: arm64 requires the instruction be 4-byte aligned; x86 has no alignment rule.
+        if matches!(kind, DebuggerBreakpointKind::HardwareExecute) {
+            #[cfg(all(target_os = "android", target_arch = "aarch64"))]
+            if self.target_architecture.get_instruction_set_id() == "arm64" && address % 4 != 0 {
+                return Err(LinuxDebuggerBackend::plugin_error(format!(
+                    "Android arm64 hardware execute breakpoint at 0x{:X} must be 4-byte aligned.",
+                    address
+                )));
+            }
+
+            return Ok(());
+        }
+
         let DebuggerBreakpointKind::HardwareData { size_in_bytes, .. } = *kind else {
             return Ok(());
         };
@@ -1343,14 +1549,13 @@ impl ActiveLinuxSession {
     ) -> Result<(), DebuggerPluginError> {
         let mut debug_state = read_arm64_hardware_watchpoint_state(thread_id)?;
         let supported_slot_count = (debug_state.dbg_info & 0xff) as usize;
-        let now = Instant::now();
 
         for debug_register in &mut debug_state.dbg_regs {
             *debug_register = Arm64HardwareDebugRegister::default();
         }
 
         for stored_breakpoint in self.breakpoints_by_id.values() {
-            if !Self::is_watchpoint_armed(stored_breakpoint, now) {
+            if !Self::is_watchpoint_armed(stored_breakpoint) {
                 continue;
             }
 
@@ -1375,7 +1580,41 @@ impl ActiveLinuxSession {
             debug_state.dbg_regs[slot].control = arm64_watch_control(access, byte_mask);
         }
 
-        write_arm64_hardware_watchpoint_state(thread_id, &mut debug_state)
+        write_arm64_hardware_watchpoint_state(thread_id, &mut debug_state)?;
+        self.apply_arm64_breakpoints_to_thread(thread_id)
+    }
+
+    /// Programs the hardware instruction-breakpoint bank (NT_ARM_HW_BREAK) for any armed HardwareExecute breakpoints.
+    #[cfg(all(target_os = "android", target_arch = "aarch64"))]
+    fn apply_arm64_breakpoints_to_thread(
+        &self,
+        thread_id: pid_t,
+    ) -> Result<(), DebuggerPluginError> {
+        let mut debug_state = read_arm64_hardware_breakpoint_state(thread_id)?;
+        let supported_slot_count = (debug_state.dbg_info & 0xff) as usize;
+
+        for debug_register in &mut debug_state.dbg_regs {
+            *debug_register = Arm64HardwareDebugRegister::default();
+        }
+
+        for stored_breakpoint in self.breakpoints_by_id.values() {
+            if !Self::is_watchpoint_armed(stored_breakpoint) || !matches!(stored_breakpoint.descriptor.get_kind(), DebuggerBreakpointKind::HardwareExecute) {
+                continue;
+            }
+
+            let slot = stored_breakpoint.slot;
+            if slot >= supported_slot_count {
+                return Err(LinuxDebuggerBackend::plugin_error(format!(
+                    "Android arm64 hardware breakpoint slot {} is unavailable; this device reported {} slot(s).",
+                    slot, supported_slot_count
+                )));
+            }
+
+            debug_state.dbg_regs[slot].address = stored_breakpoint.descriptor.get_address();
+            debug_state.dbg_regs[slot].control = arm64_breakpoint_control();
+        }
+
+        write_arm64_hardware_breakpoint_state(thread_id, &mut debug_state)
     }
 
     #[cfg(all(target_os = "android", target_arch = "aarch64"))]
@@ -1389,7 +1628,15 @@ impl ActiveLinuxSession {
             *debug_register = Arm64HardwareDebugRegister::default();
         }
 
-        write_arm64_hardware_watchpoint_state(thread_id, &mut debug_state)
+        write_arm64_hardware_watchpoint_state(thread_id, &mut debug_state)?;
+
+        let mut breakpoint_state = read_arm64_hardware_breakpoint_state(thread_id)?;
+
+        for debug_register in &mut breakpoint_state.dbg_regs {
+            *debug_register = Arm64HardwareDebugRegister::default();
+        }
+
+        write_arm64_hardware_breakpoint_state(thread_id, &mut breakpoint_state)
     }
 
     #[cfg(all(target_os = "android", target_arch = "aarch64"))]
@@ -1397,9 +1644,12 @@ impl ActiveLinuxSession {
         &self,
         thread_id: pid_t,
     ) -> Result<Option<DebuggerBreakpointDescriptor>, DebuggerPluginError> {
-        let Some(fault_address) = read_signal_fault_address(thread_id)? else {
-            return Ok(None);
-        };
+        let fault_address = read_signal_fault_address(thread_id)?;
+        // Execute breakpoints are identified by the program counter (the instruction that trapped), data watchpoints by
+        // the faulting access address reported in the signal info.
+        let program_counter = read_arm64_raw_registers(thread_id)
+            .ok()
+            .map(|registers| registers.pc);
 
         Ok(self
             .breakpoints_by_id
@@ -1409,12 +1659,17 @@ impl ActiveLinuxSession {
                     return false;
                 }
 
-                let DebuggerBreakpointKind::HardwareData { size_in_bytes, .. } = *stored_breakpoint.descriptor.get_kind() else {
-                    return false;
-                };
-                let watch_start = stored_breakpoint.descriptor.get_address();
+                match *stored_breakpoint.descriptor.get_kind() {
+                    DebuggerBreakpointKind::HardwareData { size_in_bytes, .. } => {
+                        let Some(fault_address) = fault_address else {
+                            return false;
+                        };
 
-                arm64_fault_matches_watchpoint(fault_address, watch_start, size_in_bytes)
+                        arm64_fault_matches_watchpoint(fault_address, stored_breakpoint.descriptor.get_address(), size_in_bytes)
+                    }
+                    DebuggerBreakpointKind::HardwareExecute => program_counter == Some(stored_breakpoint.descriptor.get_address()),
+                    DebuggerBreakpointKind::Software => false,
+                }
             })
             .map(|stored_breakpoint| stored_breakpoint.descriptor.clone()))
     }
@@ -1445,16 +1700,23 @@ impl ActiveLinuxSession {
             }
         }
 
-        self.attach_existing_threads()
+        // NOTE: We deliberately do NOT re-attach newly-created threads here. PTRACE_ATTACH delivers a SIGSTOP, which
+        // is a process-wide job-control stop: every attach group-stops all ~300 threads of the target. PTRACE_CONT
+        // does not lift a group-stop (only SIGCONT does), and the kernel will not re-report an already-reported
+        // group-stop, so repeatedly attaching strands threads in ptrace_stop and deadlocks the app. New threads are
+        // therefore not watched in this build; the watchpoint is mirrored across the threads present at attach time.
+        Ok(())
     }
 
     fn attach_thread(
         &mut self,
         thread_id: pid_t,
     ) -> Result<AttachThreadResult, DebuggerPluginError> {
-        let attach_operation_name = format!("PTRACE_ATTACH thread {} in process {}", thread_id, self.process_id);
+        let attach_operation_name = format!("PTRACE_SEIZE thread {} in process {}", thread_id, self.process_id);
 
-        if let Err(error) = ptrace_request(libc::PTRACE_ATTACH, thread_id, null_mut(), null_mut(), &attach_operation_name) {
+        // SEIZE attaches without delivering a SIGSTOP (no group-stop). PTRACE_O_TRACECLONE makes threads cloned later
+        // auto-attach, so we never have to re-deliver SIGSTOP to pick up new threads.
+        if let Err(error) = ptrace_seize(thread_id, &attach_operation_name) {
             if is_linux_task_stale_attach_error(&error, self.process_id, thread_id) {
                 log::debug!(
                     "Skipping stale Linux thread {} during debugger attach for process {}.",
@@ -1468,7 +1730,10 @@ impl ActiveLinuxSession {
             return Err(error);
         }
 
-        if let Err(error) = wait_for_stop(thread_id, ATTACH_WAIT_TIMEOUT, "initial Linux thread attach") {
+        // SEIZE leaves the thread running; interrupt it so its debug (watchpoint) registers can be programmed.
+        if let Err(error) = ptrace_interrupt(thread_id, "PTRACE_INTERRUPT initial Linux thread attach")
+            .and_then(|_| wait_for_stop(thread_id, ATTACH_WAIT_TIMEOUT, "initial Linux thread attach"))
+        {
             let _ = ptrace_request(
                 libc::PTRACE_DETACH,
                 thread_id,
@@ -1528,7 +1793,23 @@ impl ActiveLinuxSession {
         thread_id: pid_t,
         operation_name: &str,
     ) -> Result<(), DebuggerPluginError> {
-        ptrace_request(libc::PTRACE_CONT, thread_id, null_mut(), null_mut(), operation_name)?;
+        self.continue_stopped_thread_with_signal(thread_id, 0, operation_name)
+    }
+
+    fn continue_stopped_thread_with_signal(
+        &mut self,
+        thread_id: pid_t,
+        signal_to_inject: i32,
+        operation_name: &str,
+    ) -> Result<(), DebuggerPluginError> {
+        // The signal number is passed in ptrace's `data` argument; 0 means "deliver no signal" (swallow it).
+        ptrace_request(
+            libc::PTRACE_CONT,
+            thread_id,
+            null_mut(),
+            signal_to_inject as usize as *mut c_void,
+            operation_name,
+        )?;
         if let Some(traced_thread) = self.traced_threads_by_id.get_mut(&thread_id) {
             traced_thread.is_stopped = false;
         }
@@ -1634,7 +1915,16 @@ fn wait_for_worker_commands(
             log::debug!("Failed to process pending Linux debugger event before worker command poll: {}", error);
         }
 
-        match worker_command_receiver.recv_timeout(Duration::from_millis(IDLE_COMMAND_WAIT_TIMEOUT_MS)) {
+        // While watchpoints are awaiting re-arm after a hit, poll quickly so the disabled window stays close to the
+        // configured delay (tighter hit counts) instead of idling for the full command timeout. Otherwise idle until a
+        // command or the next tick.
+        let command_wait_timeout = if active_session.has_pending_rearms() {
+            Duration::from_millis(WATCHPOINT_REARM_POLL_TIMEOUT_MS)
+        } else {
+            Duration::from_millis(IDLE_COMMAND_WAIT_TIMEOUT_MS)
+        };
+
+        match worker_command_receiver.recv_timeout(command_wait_timeout) {
             Ok(worker_command) => {
                 if handle_worker_command(&mut active_session, worker_command) {
                     return;
@@ -1792,6 +2082,38 @@ fn write_arm64_hardware_watchpoint_state(
         NT_ARM_HW_WATCH as *mut c_void,
         (&mut io_vector as *mut libc::iovec).cast::<c_void>(),
         "PTRACE_SETREGSET NT_ARM_HW_WATCH",
+    )
+}
+
+#[cfg(all(target_os = "android", target_arch = "aarch64"))]
+fn read_arm64_hardware_breakpoint_state(thread_id: pid_t) -> Result<Arm64HardwareDebugState, DebuggerPluginError> {
+    let mut debug_state = Arm64HardwareDebugState::default();
+
+    ptrace_get_regset(thread_id, NT_ARM_HW_BREAK, &mut debug_state, "PTRACE_GETREGSET NT_ARM_HW_BREAK")?;
+
+    Ok(debug_state)
+}
+
+#[cfg(all(target_os = "android", target_arch = "aarch64"))]
+fn write_arm64_hardware_breakpoint_state(
+    thread_id: pid_t,
+    debug_state: &mut Arm64HardwareDebugState,
+) -> Result<(), DebuggerPluginError> {
+    let reported_slot_count = (debug_state.dbg_info & 0xff) as usize;
+    let written_slot_count = reported_slot_count.min(debug_state.dbg_regs.len());
+    let header_byte_count = std::mem::offset_of!(Arm64HardwareDebugState, dbg_regs);
+    let register_byte_count = written_slot_count.saturating_mul(std::mem::size_of::<Arm64HardwareDebugRegister>());
+    let mut io_vector = libc::iovec {
+        iov_base: (debug_state as *mut Arm64HardwareDebugState).cast::<c_void>(),
+        iov_len: header_byte_count.saturating_add(register_byte_count),
+    };
+
+    ptrace_request(
+        libc::PTRACE_SETREGSET,
+        thread_id,
+        NT_ARM_HW_BREAK as *mut c_void,
+        (&mut io_vector as *mut libc::iovec).cast::<c_void>(),
+        "PTRACE_SETREGSET NT_ARM_HW_BREAK",
     )
 }
 
@@ -1972,12 +2294,81 @@ fn ptrace_peek_data(
     }
 }
 
-fn send_thread_signal(
-    process_id: pid_t,
+fn ptrace_seize(
     thread_id: pid_t,
-    signal: libc::c_int,
-) -> libc::c_long {
-    unsafe { libc::syscall(libc::SYS_tgkill, process_id, thread_id, signal) }
+    operation_name: &str,
+) -> Result<(), DebuggerPluginError> {
+    ptrace_request(
+        PTRACE_SEIZE_REQUEST,
+        thread_id,
+        null_mut(),
+        PTRACE_CLONE_TRACE_OPTION as *mut c_void,
+        operation_name,
+    )
+}
+
+fn ptrace_interrupt(
+    thread_id: pid_t,
+    operation_name: &str,
+) -> Result<(), DebuggerPluginError> {
+    ptrace_request(PTRACE_INTERRUPT_REQUEST, thread_id, null_mut(), null_mut(), operation_name)
+}
+
+fn ptrace_set_clone_tracing(thread_id: pid_t) -> Result<(), DebuggerPluginError> {
+    ptrace_request(
+        libc::PTRACE_SETOPTIONS as PtraceRequest,
+        thread_id,
+        null_mut(),
+        PTRACE_CLONE_TRACE_OPTION as *mut c_void,
+        "PTRACE_SETOPTIONS clone tracing",
+    )
+}
+
+/// Best-effort thaw of the target's cgroup v2 freezer. Android (`CachedAppOptimizer`) and recent Linux kernels freeze
+/// backgrounded tasks; a frozen task never processes the SIGSTOP that `PTRACE_ATTACH` and pausing rely on, so attach
+/// hangs and stopped threads cannot make progress. This only ever thaws (writes `0`); it never freezes the target.
+fn thaw_process_cgroup_freezer(process_id: pid_t) {
+    let Some(freeze_control_path) = resolve_cgroup_v2_freeze_path(process_id) else {
+        return;
+    };
+
+    // Avoid a needless write (and noisy audit) when the target is already thawed.
+    match fs::read_to_string(&freeze_control_path) {
+        Ok(current_state) if current_state.trim() == "0" => return,
+        Ok(_) => {}
+        Err(_) => return,
+    }
+
+    if let Err(error) = fs::write(&freeze_control_path, b"0") {
+        log::debug!("Failed to thaw cgroup freezer at '{}': {}", freeze_control_path, error);
+    }
+}
+
+fn resolve_cgroup_v2_freeze_path(process_id: pid_t) -> Option<String> {
+    let cgroup_contents = fs::read_to_string(format!("/proc/{}/cgroup", process_id)).ok()?;
+
+    // The unified (v2) hierarchy is the entry with an empty controller list, formatted as "0::<path>".
+    for cgroup_line in cgroup_contents.lines() {
+        let mut cgroup_fields = cgroup_line.splitn(3, ':');
+        let hierarchy_id = cgroup_fields.next()?;
+        let controllers = cgroup_fields.next()?;
+        let cgroup_path = cgroup_fields.next()?;
+
+        if hierarchy_id != "0" || !controllers.is_empty() {
+            continue;
+        }
+
+        let normalized_path = cgroup_path.trim_end_matches('/');
+
+        // The root cgroup has no freeze control; only descend into a real app cgroup path.
+        if normalized_path.is_empty() {
+            return None;
+        }
+
+        return Some(format!("/sys/fs/cgroup{}/cgroup.freeze", normalized_path));
+    }
+
+    None
 }
 
 fn ptrace_request(
@@ -1998,6 +2389,11 @@ fn wait_for_stop(
     operation_name: &str,
 ) -> Result<(), DebuggerPluginError> {
     let wait_started_at = Instant::now();
+    // An interrupt/attach stop usually lands within microseconds, but enumerating hundreds of threads with a flat
+    // coarse poll added seconds of attach latency. Back off from a tight poll so the common fast case returns almost
+    // immediately while a genuinely slow/stuck thread still falls back to a cheap wait.
+    let mut poll_interval = Duration::from_micros(100);
+    let max_poll_interval = Duration::from_millis(5);
 
     loop {
         let mut wait_status = 0;
@@ -2018,7 +2414,8 @@ fn wait_for_stop(
             )));
         }
 
-        thread::sleep(Duration::from_millis(25));
+        thread::sleep(poll_interval);
+        poll_interval = (poll_interval * 2).min(max_poll_interval);
     }
 }
 
@@ -2088,6 +2485,18 @@ fn arm64_watch_control(
     };
 
     (ENABLE | USER_ACCESS_ONLY | (load_store_control << LOAD_STORE_CONTROL_SHIFT) | (byte_mask << BYTE_ADDRESS_SELECT_SHIFT)) as u32
+}
+
+/// Control word (DBGBCR) for an EL0 instruction (execute) breakpoint matching a whole 4-byte instruction:
+/// enable, user-mode (EL0) privilege, byte-address-select = 0xF, breakpoint type = unlinked instruction address match.
+#[cfg(any(test, all(target_os = "android", target_arch = "aarch64")))]
+fn arm64_breakpoint_control() -> u32 {
+    const ENABLE: u64 = 1 << 0;
+    const USER_ACCESS_ONLY: u64 = 0b10 << 1;
+    const BYTE_ADDRESS_SELECT_SHIFT: u64 = 5;
+    const BYTE_ADDRESS_SELECT_ALL: u64 = 0xF;
+
+    (ENABLE | USER_ACCESS_ONLY | (BYTE_ADDRESS_SELECT_ALL << BYTE_ADDRESS_SELECT_SHIFT)) as u32
 }
 
 #[cfg(all(target_os = "linux", target_arch = "x86_64"))]

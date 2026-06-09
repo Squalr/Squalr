@@ -79,12 +79,18 @@ impl<'lifetime> ProjectHierarchyProjectItemContextMenuView<'lifetime> {
     const PROJECT_ITEM_CTX_OPEN_MEMORY_VIEWER_LABEL: &'static str = OPEN_IN_MEMORY_VIEWER_LABEL;
     const PROJECT_ITEM_CTX_OPEN_CODE_VIEWER_LABEL: &'static str = OPEN_IN_CODE_VIEWER_LABEL;
     const PROJECT_ITEM_CTX_OPEN_RUNTIME_VIEWER_ID: &'static str = "project_hierarchy_ctx_open_runtime_viewer";
-    const PROJECT_ITEM_CTX_FIND_READS_LABEL: &'static str = "Find What Reads";
-    const PROJECT_ITEM_CTX_FIND_WRITES_LABEL: &'static str = "Find What Writes";
-    const PROJECT_ITEM_CTX_FIND_ACCESSES_LABEL: &'static str = "Find What Accesses";
+    const PROJECT_ITEM_CTX_FIND_READS_LABEL: &'static str = "Find What Reads from this Address";
+    const PROJECT_ITEM_CTX_FIND_WRITES_LABEL: &'static str = "Find What Writes to this Address";
+    const PROJECT_ITEM_CTX_FIND_ACCESSES_LABEL: &'static str = "Find What Accesses this Address";
     const PROJECT_ITEM_CTX_FIND_READS_ID: &'static str = "project_hierarchy_ctx_find_reads";
     const PROJECT_ITEM_CTX_FIND_WRITES_ID: &'static str = "project_hierarchy_ctx_find_writes";
     const PROJECT_ITEM_CTX_FIND_ACCESSES_ID: &'static str = "project_hierarchy_ctx_find_accesses";
+    const PROJECT_ITEM_CTX_FIND_THIS_READS_LABEL: &'static str = "Find What This Reads From";
+    const PROJECT_ITEM_CTX_FIND_THIS_WRITES_LABEL: &'static str = "Find What This Writes To";
+    const PROJECT_ITEM_CTX_FIND_THIS_ACCESSES_LABEL: &'static str = "Find What This Accesses";
+    const PROJECT_ITEM_CTX_FIND_THIS_READS_ID: &'static str = "project_hierarchy_ctx_find_this_reads";
+    const PROJECT_ITEM_CTX_FIND_THIS_WRITES_ID: &'static str = "project_hierarchy_ctx_find_this_writes";
+    const PROJECT_ITEM_CTX_FIND_THIS_ACCESSES_ID: &'static str = "project_hierarchy_ctx_find_this_accesses";
     const PROJECT_ITEM_CTX_REPLACE_WITH_NO_OPERATION_LABEL: &'static str = "Replace with Code That Does Nothing";
     const PROJECT_ITEM_CTX_REPLACE_WITH_NO_OPERATION_ID: &'static str = "project_hierarchy_ctx_replace_with_nop";
     const PROJECT_ITEM_CTX_RESTORE_ORIGINAL_CODE_LABEL: &'static str = "Restore Original Code";
@@ -190,6 +196,9 @@ impl<'lifetime> ProjectHierarchyProjectItemContextMenuView<'lifetime> {
         let can_open_in_memory_viewer = can_open_project_item_in_memory_viewer(&self.tree_entry.project_item);
         let should_open_in_code_viewer = should_open_project_item_in_code_viewer(&self.tree_entry.project_item);
         let can_start_debugger_trace = can_open_in_memory_viewer;
+        // Instruction-directed traces ("find what addresses this instruction accesses") only make sense for instruction
+        // items (those shown in the code viewer).
+        let can_start_instruction_trace = should_open_in_code_viewer;
         let can_replace_with_no_operation = should_open_in_code_viewer;
         let runtime_viewer_label = if should_open_in_code_viewer {
             Self::PROJECT_ITEM_CTX_OPEN_CODE_VIEWER_LABEL
@@ -208,6 +217,12 @@ impl<'lifetime> ProjectHierarchyProjectItemContextMenuView<'lifetime> {
 
         if can_open_in_memory_viewer {
             project_item_menu_labels.push(runtime_viewer_label);
+        }
+        // Instruction-directed actions are listed first for instruction items.
+        if can_start_instruction_trace {
+            project_item_menu_labels.push(Self::PROJECT_ITEM_CTX_FIND_THIS_READS_LABEL);
+            project_item_menu_labels.push(Self::PROJECT_ITEM_CTX_FIND_THIS_WRITES_LABEL);
+            project_item_menu_labels.push(Self::PROJECT_ITEM_CTX_FIND_THIS_ACCESSES_LABEL);
         }
         if can_start_debugger_trace {
             project_item_menu_labels.push(Self::PROJECT_ITEM_CTX_FIND_READS_LABEL);
@@ -254,6 +269,7 @@ impl<'lifetime> ProjectHierarchyProjectItemContextMenuView<'lifetime> {
                     should_open_in_code_viewer,
                     can_open_in_memory_viewer,
                     can_start_debugger_trace,
+                    can_start_instruction_trace,
                     can_replace_with_no_operation,
                     project_item_menu_width,
                     should_close,
@@ -377,6 +393,7 @@ impl<'lifetime> ProjectHierarchyProjectItemContextMenuView<'lifetime> {
         should_open_in_code_viewer: bool,
         can_open_in_memory_viewer: bool,
         can_start_debugger_trace: bool,
+        can_start_instruction_trace: bool,
         can_replace_with_no_operation: bool,
         project_item_menu_width: f32,
         should_close: &mut bool,
@@ -469,37 +486,80 @@ impl<'lifetime> ProjectHierarchyProjectItemContextMenuView<'lifetime> {
             }
         }
 
+        // "Find What…" actions live in their own section, separated by horizontal lines. Instruction-directed actions
+        // ("find what this instruction accesses") are listed first for instruction items, then the address-directed
+        // actions ("find what accesses this address").
+        let has_find_what_actions = can_start_instruction_trace || can_start_debugger_trace;
+        let has_content_above_find_what = !pointer_scanner_context_actions.is_empty() || can_open_in_memory_viewer;
+
+        if has_find_what_actions && has_content_above_find_what {
+            user_interface.separator();
+        }
+
+        if can_start_instruction_trace {
+            for (label, id, access) in [
+                (
+                    Self::PROJECT_ITEM_CTX_FIND_THIS_READS_LABEL,
+                    Self::PROJECT_ITEM_CTX_FIND_THIS_READS_ID,
+                    DebuggerDataBreakpointAccess::Read,
+                ),
+                (
+                    Self::PROJECT_ITEM_CTX_FIND_THIS_WRITES_LABEL,
+                    Self::PROJECT_ITEM_CTX_FIND_THIS_WRITES_ID,
+                    DebuggerDataBreakpointAccess::Write,
+                ),
+                (
+                    Self::PROJECT_ITEM_CTX_FIND_THIS_ACCESSES_LABEL,
+                    Self::PROJECT_ITEM_CTX_FIND_THIS_ACCESSES_ID,
+                    DebuggerDataBreakpointAccess::ReadWrite,
+                ),
+            ] {
+                self.show_instruction_trace_context_menu_item(
+                    user_interface,
+                    tree_entry_project_item_path,
+                    label,
+                    id,
+                    access,
+                    project_item_menu_width,
+                    should_close,
+                    frame_actions,
+                );
+            }
+        }
+
         if can_start_debugger_trace {
-            self.show_trace_context_menu_item(
-                user_interface,
-                tree_entry_project_item_path,
-                Self::PROJECT_ITEM_CTX_FIND_READS_LABEL,
-                Self::PROJECT_ITEM_CTX_FIND_READS_ID,
-                DebuggerDataBreakpointAccess::Read,
-                project_item_menu_width,
-                should_close,
-                frame_actions,
-            );
-            self.show_trace_context_menu_item(
-                user_interface,
-                tree_entry_project_item_path,
-                Self::PROJECT_ITEM_CTX_FIND_WRITES_LABEL,
-                Self::PROJECT_ITEM_CTX_FIND_WRITES_ID,
-                DebuggerDataBreakpointAccess::Write,
-                project_item_menu_width,
-                should_close,
-                frame_actions,
-            );
-            self.show_trace_context_menu_item(
-                user_interface,
-                tree_entry_project_item_path,
-                Self::PROJECT_ITEM_CTX_FIND_ACCESSES_LABEL,
-                Self::PROJECT_ITEM_CTX_FIND_ACCESSES_ID,
-                DebuggerDataBreakpointAccess::ReadWrite,
-                project_item_menu_width,
-                should_close,
-                frame_actions,
-            );
+            for (label, id, access) in [
+                (
+                    Self::PROJECT_ITEM_CTX_FIND_READS_LABEL,
+                    Self::PROJECT_ITEM_CTX_FIND_READS_ID,
+                    DebuggerDataBreakpointAccess::Read,
+                ),
+                (
+                    Self::PROJECT_ITEM_CTX_FIND_WRITES_LABEL,
+                    Self::PROJECT_ITEM_CTX_FIND_WRITES_ID,
+                    DebuggerDataBreakpointAccess::Write,
+                ),
+                (
+                    Self::PROJECT_ITEM_CTX_FIND_ACCESSES_LABEL,
+                    Self::PROJECT_ITEM_CTX_FIND_ACCESSES_ID,
+                    DebuggerDataBreakpointAccess::ReadWrite,
+                ),
+            ] {
+                self.show_trace_context_menu_item(
+                    user_interface,
+                    tree_entry_project_item_path,
+                    label,
+                    id,
+                    access,
+                    project_item_menu_width,
+                    should_close,
+                    frame_actions,
+                );
+            }
+        }
+
+        if has_find_what_actions && can_replace_with_no_operation {
+            user_interface.separator();
         }
 
         if can_replace_with_no_operation {
@@ -561,6 +621,49 @@ impl<'lifetime> ProjectHierarchyProjectItemContextMenuView<'lifetime> {
             *should_close = true;
         } else {
             log::error!("Failed to resolve debugger trace target for project item: {:?}.", tree_entry_project_item_path);
+        }
+    }
+
+    fn show_instruction_trace_context_menu_item(
+        &self,
+        user_interface: &mut Ui,
+        tree_entry_project_item_path: &Path,
+        label: &'static str,
+        id: &'static str,
+        access: DebuggerDataBreakpointAccess,
+        project_item_menu_width: f32,
+        should_close: &mut bool,
+        frame_actions: &mut Vec<ProjectHierarchyFrameAction>,
+    ) {
+        if !user_interface
+            .add(ToolbarMenuItemView::new(self.app_context.clone(), label, id, &None, project_item_menu_width))
+            .clicked()
+        {
+            return;
+        }
+
+        let engine_execution_context: Arc<dyn EngineExecutionContext> = self.app_context.engine_unprivileged_state.clone();
+        let project_symbol_catalog = self
+            .opened_project_info
+            .map(|opened_project_info| opened_project_info.get_project_symbol_catalog());
+
+        if let Some((instruction_address, module_name)) =
+            resolve_project_item_runtime_value_target(&engine_execution_context, project_symbol_catalog, &self.tree_entry.project_item)
+        {
+            let label = Some(format!("{}: {}", label, self.tree_entry.display_name));
+
+            frame_actions.push(ProjectHierarchyFrameAction::StartInstructionTraceForAddress {
+                instruction_address,
+                module_name,
+                access,
+                label,
+            });
+            *should_close = true;
+        } else {
+            log::error!(
+                "Failed to resolve instruction trace target for project item: {:?}.",
+                tree_entry_project_item_path
+            );
         }
     }
 

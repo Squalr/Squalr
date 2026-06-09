@@ -1,6 +1,7 @@
 use crate::{
     arm_memory_operand::parse_arm_memory_expression,
     arm32_register::{format_arm32_register_name, parse_arm32_register_name},
+    arm64_effective_address::resolve_arm64_accessed_address,
     arm64_register::{
         Arm64Register, Arm64RegisterKind, Arm64RegisterWidth, format_arm64_base_register, format_arm64_general_register, parse_arm64_register_name,
     },
@@ -187,7 +188,21 @@ impl InstructionSet for Arm64InstructionSet {
         &self,
         instruction_bytes: &[u8],
     ) -> Result<String, String> {
-        disassemble_instruction_sequence(ArmMode::Arm64, instruction_bytes)
+        // Prefer the in-house decoder (stable mnemonics for the forms it knows, and the inverse of our assembler), but
+        // fall back to a full ARM64 disassembler for everything it does not cover (atomics like LDXR/STXR, SIMD, etc.).
+        // Watchpoint traces land on arbitrary instructions, so without the fallback they would show only raw bytes.
+        match disassemble_instruction_sequence(ArmMode::Arm64, instruction_bytes) {
+            Ok(instruction_text) => Ok(instruction_text),
+            Err(in_house_error) => disassemble_arm64_with_full_decoder(instruction_bytes).ok_or(in_house_error),
+        }
+    }
+
+    fn resolve_accessed_address(
+        &self,
+        disassembled_instruction: &DisassembledInstruction,
+        register_value_by_name: &dyn Fn(&str) -> Option<u64>,
+    ) -> Option<u64> {
+        resolve_arm64_accessed_address(&disassembled_instruction.text, register_value_by_name)
     }
 
     fn get_first_instruction_length(
@@ -270,6 +285,33 @@ fn assemble_instruction_sequence(
     }
 
     Ok(instruction_bytes)
+}
+
+/// Disassembles a sequence of 4-byte ARM64 instructions with a complete decoder, joining them like the in-house path.
+/// Used as a fallback for instruction forms the in-house decoder does not implement (atomics, SIMD, system, ...).
+fn disassemble_arm64_with_full_decoder(instruction_bytes: &[u8]) -> Option<String> {
+    use yaxpeax_arch::{Decoder, U8Reader};
+    use yaxpeax_arm::armv8::a64::InstDecoder;
+
+    if instruction_bytes.is_empty() || instruction_bytes.len() % 4 != 0 {
+        return None;
+    }
+
+    let decoder = InstDecoder::default();
+    let mut instruction_texts = Vec::with_capacity(instruction_bytes.len() / 4);
+
+    for instruction_word_bytes in instruction_bytes.chunks_exact(4) {
+        let mut reader = U8Reader::new(instruction_word_bytes);
+        let instruction = decoder.decode(&mut reader).ok()?;
+
+        instruction_texts.push(instruction.to_string());
+    }
+
+    if instruction_texts.is_empty() {
+        None
+    } else {
+        Some(instruction_texts.join("; "))
+    }
 }
 
 fn disassemble_instruction_sequence(

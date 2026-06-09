@@ -1,4 +1,5 @@
 mod arm32_register;
+mod arm64_effective_address;
 mod arm64_register;
 mod arm_memory_operand;
 mod constants;

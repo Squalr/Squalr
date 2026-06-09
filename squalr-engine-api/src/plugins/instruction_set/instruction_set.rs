@@ -58,6 +58,20 @@ pub trait InstructionSet: Debug + Send + Sync {
         }])
     }
 
+    /// Computes the memory address a disassembled instruction accesses, given a way to look up the runtime value of a
+    /// register by name (e.g. "rax", "x19", "sp"). Used by instruction-directed traces ("find what addresses this
+    /// instruction accesses"). Returns `None` if the instruction has no resolvable memory operand or the architecture
+    /// does not implement this. Default implementation resolves nothing.
+    fn resolve_accessed_address(
+        &self,
+        disassembled_instruction: &DisassembledInstruction,
+        register_value_by_name: &dyn Fn(&str) -> Option<u64>,
+    ) -> Option<u64> {
+        let _ = (disassembled_instruction, register_value_by_name);
+
+        None
+    }
+
     fn get_first_instruction_length(
         &self,
         instruction_bytes: &[u8],

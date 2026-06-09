@@ -1,8 +1,11 @@
+use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
 use eframe::egui::Pos2;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
+use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
+use squalr_engine_api::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
 use squalr_engine_api::{
     events::debugger::trace_session_updated::debugger_trace_session_updated_event::DebuggerTraceSessionUpdatedEvent,
-    structures::debugger::{DebuggerDataBreakpointAccess, DebuggerTraceInstructionRecord, DebuggerTraceSessionDescriptor},
+    structures::debugger::{DebuggerDataBreakpointAccess, DebuggerTraceInstructionRecord, DebuggerTraceSessionDescriptor, DebuggerTraceTargetKind},
 };
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock};
@@ -26,6 +29,22 @@ struct DebuggerTraceViewState {
     is_starting_pending_trace: bool,
     pending_control_trace_session_ids: HashSet<String>,
     instruction_context_menu_target: Option<DebuggerTraceInstructionContextMenuTarget>,
+    // Column splitter positions as fractions of the table width (0 = unset → fall back to defaults). Lets the trace
+    // table columns be resized like the scan results / other tables.
+    instruction_splitter_ratio: f32,
+    address_splitter_ratio: f32,
+    value_splitter_ratio: f32,
+    // How the accessed memory at each address is interpreted/formatted for the Value column (mirrors the scanner's
+    // data-type + display-format selectors). None falls back to defaults (i32 / the type's default format).
+    value_data_type_id: Option<String>,
+    value_display_format: Option<AnonymousValueStringFormat>,
+    // Persistent cache of the last successfully-read value per accessed address. Keeping prior values across frames (and
+    // only resetting the snapshot queries when the queried address set / data type changes) avoids the per-frame flicker
+    // that occurred when values briefly blanked between virtual-snapshot refreshes. The cache is only cleared when the
+    // *interpretation* (data type or display format) changes, so a growing address set never wipes already-read values.
+    preview_value_by_address: HashMap<u64, String>,
+    preview_query_signature: u64,
+    preview_interpretation_signature: u64,
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -33,6 +52,8 @@ pub struct DebuggerTraceInstructionKey {
     trace_session_id: String,
     instruction_address: Option<u64>,
     instruction_bytes: Vec<u8>,
+    // Instruction-directed records share one instruction but differ by accessed address, so it is part of the key.
+    accessed_address: Option<u64>,
 }
 
 #[derive(Clone, Debug)]
@@ -47,6 +68,7 @@ pub struct PendingDebuggerTraceStartRequest {
     size_in_bytes: u8,
     access: DebuggerDataBreakpointAccess,
     label: Option<String>,
+    target_kind: DebuggerTraceTargetKind,
 }
 
 #[derive(Clone, Debug)]
@@ -77,6 +99,7 @@ impl DebuggerTraceInstructionKey {
             } else {
                 instruction_record.get_instruction_bytes().to_vec()
             },
+            accessed_address: instruction_record.get_accessed_address(),
         }
     }
 
@@ -114,6 +137,22 @@ impl PendingDebuggerTraceStartRequest {
             size_in_bytes,
             access,
             label,
+            target_kind: DebuggerTraceTargetKind::Address,
+        }
+    }
+
+    /// Instruction-directed trace: execute breakpoint at `instruction_address`, recording what it accesses.
+    pub fn new_for_instruction(
+        instruction_address: u64,
+        access: DebuggerDataBreakpointAccess,
+        label: Option<String>,
+    ) -> Self {
+        Self {
+            address: instruction_address,
+            size_in_bytes: 0,
+            access,
+            label,
+            target_kind: DebuggerTraceTargetKind::Instruction,
         }
     }
 
@@ -132,6 +171,10 @@ impl PendingDebuggerTraceStartRequest {
     pub fn get_label(&self) -> Option<&str> {
         self.label.as_deref()
     }
+
+    pub fn get_target_kind(&self) -> DebuggerTraceTargetKind {
+        self.target_kind
+    }
 }
 
 impl PendingDebuggerTraceStartOperation {
@@ -145,8 +188,152 @@ impl PendingDebuggerTraceStartOperation {
 }
 
 impl DebuggerTraceViewData {
+    const DEFAULT_INSTRUCTION_SPLITTER_RATIO: f32 = 0.14;
+    const DEFAULT_ADDRESS_SPLITTER_RATIO: f32 = 0.42;
+    const DEFAULT_VALUE_SPLITTER_RATIO: f32 = 0.66;
+    const DEFAULT_VALUE_DATA_TYPE_ID: &'static str = "i32";
+
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Returns the (instruction, address, value) column splitter fractions, falling back to defaults when unset. The Type
+    /// and Value controls share a single column whose left edge is the value splitter.
+    pub fn get_column_splitter_ratios(&self) -> (f32, f32, f32) {
+        self.inner
+            .read()
+            .ok()
+            .map(|state| {
+                (
+                    Self::effective_ratio(state.instruction_splitter_ratio, Self::DEFAULT_INSTRUCTION_SPLITTER_RATIO),
+                    Self::effective_ratio(state.address_splitter_ratio, Self::DEFAULT_ADDRESS_SPLITTER_RATIO),
+                    Self::effective_ratio(state.value_splitter_ratio, Self::DEFAULT_VALUE_SPLITTER_RATIO),
+                )
+            })
+            .unwrap_or((
+                Self::DEFAULT_INSTRUCTION_SPLITTER_RATIO,
+                Self::DEFAULT_ADDRESS_SPLITTER_RATIO,
+                Self::DEFAULT_VALUE_SPLITTER_RATIO,
+            ))
+    }
+
+    pub fn set_column_splitter_ratios(
+        &self,
+        instruction_splitter_ratio: f32,
+        address_splitter_ratio: f32,
+        value_splitter_ratio: f32,
+    ) {
+        if let Ok(mut state) = self.inner.write() {
+            // Keep the splitters ordered with a minimum column width so columns cannot collapse or cross over.
+            let instruction_splitter_ratio = instruction_splitter_ratio.clamp(0.05, 0.70);
+            let address_splitter_ratio = address_splitter_ratio.clamp(instruction_splitter_ratio + 0.05, 0.85);
+            let value_splitter_ratio = value_splitter_ratio.clamp(address_splitter_ratio + 0.05, 0.92);
+
+            state.instruction_splitter_ratio = instruction_splitter_ratio;
+            state.address_splitter_ratio = address_splitter_ratio;
+            state.value_splitter_ratio = value_splitter_ratio;
+        }
+    }
+
+    fn effective_ratio(
+        stored_ratio: f32,
+        default_ratio: f32,
+    ) -> f32 {
+        if stored_ratio > 0.0 && stored_ratio < 1.0 { stored_ratio } else { default_ratio }
+    }
+
+    /// The data type id used to interpret the accessed memory for the Value column (defaults to i32).
+    pub fn get_value_data_type_id(&self) -> String {
+        self.inner
+            .read()
+            .ok()
+            .and_then(|state| state.value_data_type_id.clone())
+            .unwrap_or_else(|| Self::DEFAULT_VALUE_DATA_TYPE_ID.to_string())
+    }
+
+    /// The display format used to render the Value column, if the user has chosen one.
+    pub fn get_value_display_format(&self) -> Option<AnonymousValueStringFormat> {
+        self.inner.read().ok().and_then(|state| state.value_display_format)
+    }
+
+    /// Runs `render` with mutable access to the value-column data-type selection and display format so the header can host
+    /// the data-type + display-format selector widgets, persisting any user changes back into the view state.
+    pub fn with_value_format_controls<R>(
+        &self,
+        default_display_format: AnonymousValueStringFormat,
+        render: impl FnOnce(&mut DataTypeSelection, &mut AnonymousValueStringFormat) -> R,
+    ) -> Option<R> {
+        let mut state = self.inner.write().ok()?;
+        let data_type_id = state
+            .value_data_type_id
+            .clone()
+            .unwrap_or_else(|| Self::DEFAULT_VALUE_DATA_TYPE_ID.to_string());
+        let mut data_type_selection = DataTypeSelection::new(DataTypeRef::new(&data_type_id));
+        let mut display_format = state.value_display_format.unwrap_or(default_display_format);
+
+        let result = render(&mut data_type_selection, &mut display_format);
+
+        state.value_data_type_id = Some(data_type_selection.active_data_type().get_data_type_id().to_string());
+        state.value_display_format = Some(display_format);
+
+        Some(result)
+    }
+
+    /// Updates the signature describing the queried address set + data type. Returns true when it changed, signalling the
+    /// caller to rebuild the virtual snapshot queries. Does NOT clear cached values, so a growing address set keeps the
+    /// values already read for existing addresses.
+    pub fn update_preview_query_signature(
+        &self,
+        signature: u64,
+    ) -> bool {
+        if let Ok(mut state) = self.inner.write() {
+            if state.preview_query_signature != signature {
+                state.preview_query_signature = signature;
+                return true;
+            }
+        }
+
+        false
+    }
+
+    /// Updates the signature describing how values are interpreted (data type + display format). When it changes the
+    /// cached values are cleared so they get re-read/re-formatted under the new interpretation.
+    pub fn update_preview_interpretation_signature(
+        &self,
+        signature: u64,
+    ) {
+        if let Ok(mut state) = self.inner.write() {
+            if state.preview_interpretation_signature != signature {
+                state.preview_interpretation_signature = signature;
+                state.preview_value_by_address.clear();
+            }
+        }
+    }
+
+    /// Merges freshly-read values into the persistent per-address cache (values already present are overwritten with the
+    /// newer read; addresses missing from this batch keep their previous value to avoid flicker).
+    pub fn merge_preview_values(
+        &self,
+        fresh_preview_values: HashMap<u64, String>,
+    ) {
+        if fresh_preview_values.is_empty() {
+            return;
+        }
+
+        if let Ok(mut state) = self.inner.write() {
+            for (accessed_address, preview_value) in fresh_preview_values {
+                state.preview_value_by_address.insert(accessed_address, preview_value);
+            }
+        }
+    }
+
+    /// Snapshot of the cached per-address preview values.
+    pub fn get_preview_values(&self) -> HashMap<u64, String> {
+        self.inner
+            .read()
+            .ok()
+            .map(|state| state.preview_value_by_address.clone())
+            .unwrap_or_default()
     }
 
     pub fn request_trace_start(

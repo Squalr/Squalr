@@ -42,6 +42,12 @@ pub enum ProjectHierarchyFrameAction {
         access: DebuggerDataBreakpointAccess,
         label: Option<String>,
     },
+    StartInstructionTraceForAddress {
+        instruction_address: u64,
+        module_name: String,
+        access: DebuggerDataBreakpointAccess,
+        label: Option<String>,
+    },
     ReplaceInstructionWithNoOperation {
         address: u64,
         module_name: String,

@@ -6,7 +6,7 @@ use squalr_engine_api::events::engine_event::{EngineEvent, EngineEventRequest};
 use squalr_engine_api::plugins::debugger::{DebuggerSession, DebuggerTraceEventSink};
 use squalr_engine_api::structures::debugger::{
     DebuggerBreakpointDescriptor, DebuggerBreakpointKind, DebuggerDataBreakpointAccess, DebuggerRegisterSnapshot, DebuggerSessionState, DebuggerTraceEvent,
-    DebuggerTraceInstructionRecord, DebuggerTraceSessionDescriptor,
+    DebuggerTraceInstructionRecord, DebuggerTraceSessionDescriptor, DebuggerTraceTargetKind,
 };
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::processes::target_architecture::TargetArchitecture;
@@ -178,16 +178,33 @@ impl DebuggerTraceSessionStore {
             return None;
         }
 
-        let instruction_address = trace_event.get_instruction_address();
-        let instruction_bytes = trace_event.get_instruction_bytes();
+        // Instruction-directed sessions aggregate by the accessed memory address (what the instruction touched);
+        // address-directed sessions aggregate by the accessing instruction. An instruction-directed hit with an
+        // unresolved accessed address is dropped (there is nothing meaningful to show or key on).
+        let existing_instruction_record = match trace_session.descriptor.get_target_kind() {
+            DebuggerTraceTargetKind::Instruction => {
+                trace_event.get_accessed_address()?;
+                let accessed_address = trace_event.get_accessed_address();
 
-        if let Some(instruction_record) = trace_session
-            .instruction_records
-            .iter_mut()
-            .find(|instruction_record| {
-                instruction_record.get_instruction_address() == instruction_address && instruction_record.get_instruction_bytes() == instruction_bytes
-            })
-        {
+                trace_session
+                    .instruction_records
+                    .iter_mut()
+                    .find(|instruction_record| instruction_record.get_accessed_address() == accessed_address)
+            }
+            DebuggerTraceTargetKind::Address => {
+                let instruction_address = trace_event.get_instruction_address();
+                let instruction_bytes = trace_event.get_instruction_bytes();
+
+                trace_session
+                    .instruction_records
+                    .iter_mut()
+                    .find(|instruction_record| {
+                        instruction_record.get_instruction_address() == instruction_address && instruction_record.get_instruction_bytes() == instruction_bytes
+                    })
+            }
+        };
+
+        if let Some(instruction_record) = existing_instruction_record {
             instruction_record.record_hit(trace_event);
         } else {
             trace_session
@@ -405,6 +422,55 @@ impl DebuggerService {
             }
         };
         let trace_session = DebuggerTraceSessionDescriptor::new(trace_session_id, address, size_in_bytes, access, breakpoint, label, true);
+
+        self.trace_sessions
+            .write()
+            .map_err(|error| format!("Failed to cache debugger trace session: {}", error))?
+            .insert_session(trace_session.clone());
+
+        self.emit_trace_session_updated(trace_session.clone(), Vec::new());
+
+        let resume_status = self.with_debugger_session(&active_session.session, |debugger_session| {
+            debugger_session.resume().map_err(|error| error.to_string())
+        })?;
+        self.emit_session_state_changed(resume_status, Some(active_session.plugin_id.clone()));
+
+        Ok((trace_session, Vec::new()))
+    }
+
+    /// Instruction-directed trace: sets a hardware execute breakpoint at `instruction_address` and records which memory
+    /// addresses the instruction accesses ("find what addresses this instruction accesses").
+    pub fn start_instruction_trace_session(
+        &self,
+        instruction_address: u64,
+        access: DebuggerDataBreakpointAccess,
+        label: Option<String>,
+    ) -> Result<(DebuggerTraceSessionDescriptor, Vec<DebuggerTraceInstructionRecord>), String> {
+        let active_session = self.get_cached_session()?;
+        let trace_session_number = self.next_trace_session_number.fetch_add(1, Ordering::Relaxed);
+        let trace_session_id = format!("trace-{}", trace_session_number);
+        let breakpoint_label = label
+            .clone()
+            .unwrap_or_else(|| format!("{} instruction trace at 0x{:X}", access.get_cli_label(), instruction_address));
+        let breakpoint_result = self.with_debugger_session(&active_session.session, |debugger_session| {
+            debugger_session
+                .set_breakpoint(instruction_address, DebuggerBreakpointKind::hardware_execute(), Some(breakpoint_label))
+                .map_err(|error| error.to_string())
+        });
+        let breakpoint = match breakpoint_result {
+            Ok(breakpoint) => breakpoint,
+            Err(error) => {
+                let _ = self.with_debugger_session(&active_session.session, |debugger_session| {
+                    debugger_session
+                        .resume()
+                        .map(|_| ())
+                        .map_err(|resume_error| resume_error.to_string())
+                });
+
+                return Err(error);
+            }
+        };
+        let trace_session = DebuggerTraceSessionDescriptor::new_for_instruction(trace_session_id, instruction_address, access, breakpoint, label, true);
 
         self.trace_sessions
             .write()
@@ -719,25 +785,46 @@ impl DebuggerService {
             .map(|(instruction_target_architecture, normalized_instruction_address)| (instruction_target_architecture, Some(normalized_instruction_address)))
             .unwrap_or_else(|| (target_architecture.clone(), None));
         let trace_event = trace_event.with_instruction_address(normalized_instruction_address);
+        let is_instruction_directed = matches!(
+            trace_event
+                .get_breakpoint()
+                .map(DebuggerBreakpointDescriptor::get_kind),
+            Some(DebuggerBreakpointKind::HardwareExecute)
+        );
 
-        if trace_event.get_instruction_text().is_some() || trace_event.get_instruction_bytes().is_empty() {
+        // Already disassembled and not instruction-directed (no accessed address to compute): nothing to do.
+        if trace_event.get_instruction_bytes().is_empty() || (trace_event.get_instruction_text().is_some() && !is_instruction_directed) {
             return trace_event.with_target_architecture(instruction_target_architecture);
         }
 
-        let instruction_text = plugin_registry
+        let disassembled_instruction = plugin_registry
             .find_instruction_set(instruction_target_architecture.get_instruction_set_id())
             .and_then(|instruction_set| {
-                instruction_set
+                let disassembled_instruction = instruction_set
                     .disassemble_block(trace_event.get_instruction_bytes(), trace_event.get_instruction_address().unwrap_or(0))
                     .ok()
-            })
-            .and_then(|instructions| instructions.into_iter().next())
-            .map(|instruction| instruction.text)
-            .filter(|instruction_text| Self::is_meaningful_instruction_text(instruction_text));
+                    .and_then(|instructions| instructions.into_iter().next())?;
+                // For instruction-directed traces, resolve which memory address this instruction touched on this hit.
+                let accessed_address = if is_instruction_directed {
+                    let register_lookup = Self::build_register_lookup(trace_event.get_register_snapshot());
 
-        if instruction_text.is_none() {
+                    instruction_set.resolve_accessed_address(&disassembled_instruction, &register_lookup)
+                } else {
+                    None
+                };
+
+                Some((disassembled_instruction, accessed_address))
+            });
+
+        let Some((disassembled_instruction, accessed_address)) = disassembled_instruction else {
             return trace_event.with_target_architecture(instruction_target_architecture);
-        }
+        };
+
+        let instruction_text = trace_event
+            .get_instruction_text()
+            .map(String::from)
+            .or_else(|| Some(disassembled_instruction.text.clone()))
+            .filter(|instruction_text| Self::is_meaningful_instruction_text(instruction_text));
 
         DebuggerTraceEvent::new(
             trace_event.get_breakpoint().cloned(),
@@ -748,6 +835,47 @@ impl DebuggerService {
             trace_event.get_backend_message().map(String::from),
         )
         .with_target_architecture(instruction_target_architecture)
+        .with_accessed_address(accessed_address)
+    }
+
+    /// Builds a register-value lookup over a snapshot for effective-address computation. Names are matched
+    /// case-insensitively; arm64 `wN` falls back to `xN`, and x86 `eN`/`r*d` fall back to their 64-bit form.
+    fn build_register_lookup(register_snapshot: &DebuggerRegisterSnapshot) -> impl Fn(&str) -> Option<u64> {
+        let register_values = register_snapshot
+            .get_registers()
+            .iter()
+            .map(|register_value| (register_value.get_name().to_ascii_lowercase(), register_value.get_value()))
+            .collect::<HashMap<String, u64>>();
+
+        move |register_name: &str| {
+            let register_name = register_name.to_ascii_lowercase();
+
+            if let Some(register_value) = register_values.get(&register_name) {
+                return Some(*register_value);
+            }
+
+            // arm64: wN is the low 32 bits of xN.
+            if let Some(register_index) = register_name.strip_prefix('w') {
+                if register_index
+                    .chars()
+                    .all(|character| character.is_ascii_digit())
+                    && !register_index.is_empty()
+                {
+                    return register_values
+                        .get(&format!("x{}", register_index))
+                        .map(|value| value & 0xFFFF_FFFF);
+                }
+            }
+
+            // x86: eN is the low 32 bits of rN; r8d/r8w/r8b are sub-registers of r8.
+            if let Some(register_suffix) = register_name.strip_prefix('e') {
+                if let Some(register_value) = register_values.get(&format!("r{}", register_suffix)) {
+                    return Some(register_value & 0xFFFF_FFFF);
+                }
+            }
+
+            None
+        }
     }
 
     fn is_meaningful_instruction_text(instruction_text: &str) -> bool {
