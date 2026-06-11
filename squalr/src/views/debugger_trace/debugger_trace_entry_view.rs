@@ -1,6 +1,6 @@
 use crate::{
     app_context::AppContext,
-    ui::{draw::icon_draw::IconDraw, widgets::controls::state_layer::StateLayer},
+    ui::widgets::controls::state_layer::StateLayer,
     views::debugger_trace::view_data::debugger_trace_view_data::DebuggerTraceInstructionKey,
 };
 use eframe::egui::{Align2, Rect, Response, Sense, Ui, UiBuilder, Widget, pos2, vec2};
@@ -123,15 +123,6 @@ impl Widget for DebuggerTraceEntryView<'_> {
         .ui(&mut row_user_interface);
 
         let row_center_y = row_rectangle.center().y;
-        let icon_size = vec2(16.0, 16.0);
-        let icon_rectangle = Rect::from_min_size(pos2(row_rectangle.min.x + 8.0, row_center_y - icon_size.y * 0.5), icon_size);
-        IconDraw::draw_sized(
-            &mut row_user_interface,
-            icon_rectangle.center(),
-            icon_size,
-            &theme.icon_library.icon_handle_project_cpu_instruction,
-        );
-
         let text_left_padding = 8.0;
         let hits_text = self.instruction_record.get_hit_count().to_string();
         let instruction_text = Self::instruction_text(self.instruction_record);
@@ -193,19 +184,6 @@ impl Widget for DebuggerTraceEntryView<'_> {
             theme.foreground,
             theme.font_library.font_ubuntu_mono_bold.font_normal.clone(),
         );
-
-        // Thin column dividers carried through each row so the columns read as continuous separators down the table.
-        for splitter_position_x in [
-            self.instruction_splitter_position_x,
-            self.address_splitter_position_x,
-            self.value_splitter_position_x,
-        ] {
-            row_user_interface.painter().rect_filled(
-                Rect::from_min_max(pos2(splitter_position_x - 0.5, row_rectangle.min.y), pos2(splitter_position_x + 0.5, row_rectangle.max.y)),
-                CornerRadius::ZERO,
-                theme.background_control_secondary_dark,
-            );
-        }
 
         response.on_hover_text(format!(
             "{}\n{}\n{}\nTrace: {}",

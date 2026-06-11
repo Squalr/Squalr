@@ -30,6 +30,14 @@ impl App {
         let theme = Arc::new(Theme::new(context));
         context.style_mut(|style| {
             style.interaction.tooltip_grace_time = 0.0;
+
+            // Default egui scrollbars are thin floating bars that are unusable on touch (Android). Make them solid,
+            // always-visible and finger-width with a comfortably large drag handle.
+            style.spacing.scroll.floating = false;
+            style.spacing.scroll.bar_width = 16.0;
+            style.spacing.scroll.handle_min_length = 48.0;
+            style.spacing.scroll.bar_inner_margin = 4.0;
+            style.spacing.scroll.bar_outer_margin = 0.0;
         });
         // Create built in docked windows.
         let main_dock_root = DockableWindowSettings::get_dock_layout_settings();

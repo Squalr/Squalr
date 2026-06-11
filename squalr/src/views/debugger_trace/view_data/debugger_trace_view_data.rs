@@ -38,13 +38,6 @@ struct DebuggerTraceViewState {
     // data-type + display-format selectors). None falls back to defaults (i32 / the type's default format).
     value_data_type_id: Option<String>,
     value_display_format: Option<AnonymousValueStringFormat>,
-    // Persistent cache of the last successfully-read value per accessed address. Keeping prior values across frames (and
-    // only resetting the snapshot queries when the queried address set / data type changes) avoids the per-frame flicker
-    // that occurred when values briefly blanked between virtual-snapshot refreshes. The cache is only cleared when the
-    // *interpretation* (data type or display format) changes, so a growing address set never wipes already-read values.
-    preview_value_by_address: HashMap<u64, String>,
-    preview_query_signature: u64,
-    preview_interpretation_signature: u64,
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -279,62 +272,6 @@ impl DebuggerTraceViewData {
         Some(result)
     }
 
-    /// Updates the signature describing the queried address set + data type. Returns true when it changed, signalling the
-    /// caller to rebuild the virtual snapshot queries. Does NOT clear cached values, so a growing address set keeps the
-    /// values already read for existing addresses.
-    pub fn update_preview_query_signature(
-        &self,
-        signature: u64,
-    ) -> bool {
-        if let Ok(mut state) = self.inner.write() {
-            if state.preview_query_signature != signature {
-                state.preview_query_signature = signature;
-                return true;
-            }
-        }
-
-        false
-    }
-
-    /// Updates the signature describing how values are interpreted (data type + display format). When it changes the
-    /// cached values are cleared so they get re-read/re-formatted under the new interpretation.
-    pub fn update_preview_interpretation_signature(
-        &self,
-        signature: u64,
-    ) {
-        if let Ok(mut state) = self.inner.write() {
-            if state.preview_interpretation_signature != signature {
-                state.preview_interpretation_signature = signature;
-                state.preview_value_by_address.clear();
-            }
-        }
-    }
-
-    /// Merges freshly-read values into the persistent per-address cache (values already present are overwritten with the
-    /// newer read; addresses missing from this batch keep their previous value to avoid flicker).
-    pub fn merge_preview_values(
-        &self,
-        fresh_preview_values: HashMap<u64, String>,
-    ) {
-        if fresh_preview_values.is_empty() {
-            return;
-        }
-
-        if let Ok(mut state) = self.inner.write() {
-            for (accessed_address, preview_value) in fresh_preview_values {
-                state.preview_value_by_address.insert(accessed_address, preview_value);
-            }
-        }
-    }
-
-    /// Snapshot of the cached per-address preview values.
-    pub fn get_preview_values(&self) -> HashMap<u64, String> {
-        self.inner
-            .read()
-            .ok()
-            .map(|state| state.preview_value_by_address.clone())
-            .unwrap_or_default()
-    }
 
     pub fn request_trace_start(
         debugger_trace_view_data: Dependency<Self>,
