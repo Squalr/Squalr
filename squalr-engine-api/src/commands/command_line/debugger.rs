@@ -285,6 +285,7 @@ impl From<CommandLineDebuggerTraceStartRequest> for api::commands::debugger::tra
             size_in_bytes: request.size_in_bytes,
             access: request.access,
             label: request.label,
+            target_kind: api::structures::debugger::DebuggerTraceTargetKind::Address,
         }
     }
 }
@@ -299,6 +300,7 @@ impl CommandLineDebuggerTraceTargetRequest {
             size_in_bytes: self.size_in_bytes,
             access,
             label: self.label,
+            target_kind: api::structures::debugger::DebuggerTraceTargetKind::Address,
         }
     }
 }

@@ -1,6 +1,17 @@
 use crate::structures::debugger::{DebuggerBreakpointDescriptor, DebuggerDataBreakpointAccess};
 use serde::{Deserialize, Serialize};
 
+/// Which direction a trace session runs in.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub enum DebuggerTraceTargetKind {
+    /// Address-directed: a hardware data watchpoint on `address`/`size_in_bytes` records which instructions access it.
+    #[default]
+    Address,
+    /// Instruction-directed: a hardware execute breakpoint at `address` (the instruction) records which memory
+    /// addresses the instruction accesses.
+    Instruction,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct DebuggerTraceSessionDescriptor {
     trace_session_id: String,
@@ -10,6 +21,8 @@ pub struct DebuggerTraceSessionDescriptor {
     breakpoint: DebuggerBreakpointDescriptor,
     label: Option<String>,
     is_active: bool,
+    #[serde(default)]
+    target_kind: DebuggerTraceTargetKind,
 }
 
 impl DebuggerTraceSessionDescriptor {
@@ -30,7 +43,34 @@ impl DebuggerTraceSessionDescriptor {
             breakpoint,
             label,
             is_active,
+            target_kind: DebuggerTraceTargetKind::Address,
         }
+    }
+
+    /// Instruction-directed session: `instruction_address` is the execute-breakpoint address. `size_in_bytes` is stored
+    /// as the instruction length (informational); `access` is the user-selected filter/label.
+    pub fn new_for_instruction(
+        trace_session_id: impl Into<String>,
+        instruction_address: u64,
+        access: DebuggerDataBreakpointAccess,
+        breakpoint: DebuggerBreakpointDescriptor,
+        label: Option<String>,
+        is_active: bool,
+    ) -> Self {
+        Self {
+            trace_session_id: trace_session_id.into(),
+            address: instruction_address,
+            size_in_bytes: 0,
+            access,
+            breakpoint,
+            label,
+            is_active,
+            target_kind: DebuggerTraceTargetKind::Instruction,
+        }
+    }
+
+    pub fn get_target_kind(&self) -> DebuggerTraceTargetKind {
+        self.target_kind
     }
 
     pub fn get_trace_session_id(&self) -> &str {

@@ -31,7 +31,9 @@ use squalr_engine_api::commands::debugger::trace_start::debugger_trace_start_res
 use squalr_engine_api::commands::debugger::trace_stop::debugger_trace_stop_request::DebuggerTraceStopRequest;
 use squalr_engine_api::commands::debugger::trace_stop::debugger_trace_stop_response::DebuggerTraceStopResponse;
 use squalr_engine_api::commands::privileged_command_response::{PrivilegedCommandResponse, TypedPrivilegedCommandResponse};
-use squalr_engine_api::structures::debugger::{DebuggerBreakpointDescriptor, DebuggerBreakpointKind, DebuggerCommandStatus, DebuggerSessionState};
+use squalr_engine_api::structures::debugger::{
+    DebuggerBreakpointDescriptor, DebuggerBreakpointKind, DebuggerCommandStatus, DebuggerSessionState, DebuggerTraceTargetKind,
+};
 use squalr_engine_api::structures::patches::PatchKind;
 use std::sync::Arc;
 
@@ -476,10 +478,35 @@ impl PrivilegedCommandRequestExecutor for DebuggerTraceStartRequest {
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
-        match engine_privileged_state
+        let Some(opened_process_info) = engine_privileged_state
+            .get_process_manager()
+            .get_opened_process()
+        else {
+            return DebuggerTraceStartResponse {
+                status: no_opened_process_status(),
+                trace_session: None,
+                instruction_records: Vec::new(),
+            };
+        };
+
+        if let Err(error_message) = engine_privileged_state
             .get_debugger_service()
-            .start_trace_session(self.address, self.size_in_bytes, self.access, self.label.clone())
+            .attach(&opened_process_info, None)
         {
+            return DebuggerTraceStartResponse {
+                status: failure_status(error_message),
+                trace_session: None,
+                instruction_records: Vec::new(),
+            };
+        }
+
+        let debugger_service = engine_privileged_state.get_debugger_service();
+        let trace_start_result = match self.target_kind {
+            DebuggerTraceTargetKind::Address => debugger_service.start_trace_session(self.address, self.size_in_bytes, self.access, self.label.clone()),
+            DebuggerTraceTargetKind::Instruction => debugger_service.start_instruction_trace_session(self.address, self.access, self.label.clone()),
+        };
+
+        match trace_start_result {
             Ok((trace_session, instruction_records)) => DebuggerTraceStartResponse {
                 status: DebuggerCommandStatus::success(),
                 trace_session: Some(trace_session),

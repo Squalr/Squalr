@@ -1,6 +1,6 @@
 use crate::{
     app_context::AppContext,
-    ui::{draw::icon_draw::IconDraw, widgets::controls::state_layer::StateLayer},
+    ui::widgets::controls::state_layer::StateLayer,
     views::debugger_trace::view_data::debugger_trace_view_data::DebuggerTraceInstructionKey,
 };
 use eframe::egui::{Align2, Rect, Response, Sense, Ui, UiBuilder, Widget, pos2, vec2};
@@ -16,6 +16,8 @@ pub struct DebuggerTraceEntryView<'view> {
     hit_count_splitter_position_x: f32,
     instruction_splitter_position_x: f32,
     address_splitter_position_x: f32,
+    value_splitter_position_x: f32,
+    preview_value: String,
 }
 
 impl<'view> DebuggerTraceEntryView<'view> {
@@ -27,6 +29,8 @@ impl<'view> DebuggerTraceEntryView<'view> {
         hit_count_splitter_position_x: f32,
         instruction_splitter_position_x: f32,
         address_splitter_position_x: f32,
+        value_splitter_position_x: f32,
+        preview_value: String,
     ) -> Self {
         Self {
             app_context,
@@ -36,6 +40,8 @@ impl<'view> DebuggerTraceEntryView<'view> {
             hit_count_splitter_position_x,
             instruction_splitter_position_x,
             address_splitter_position_x,
+            value_splitter_position_x,
+            preview_value,
         }
     }
 
@@ -117,19 +123,16 @@ impl Widget for DebuggerTraceEntryView<'_> {
         .ui(&mut row_user_interface);
 
         let row_center_y = row_rectangle.center().y;
-        let icon_size = vec2(16.0, 16.0);
-        let icon_rectangle = Rect::from_min_size(pos2(row_rectangle.min.x + 8.0, row_center_y - icon_size.y * 0.5), icon_size);
-        IconDraw::draw_sized(
-            &mut row_user_interface,
-            icon_rectangle.center(),
-            icon_size,
-            &theme.icon_library.icon_handle_project_cpu_instruction,
-        );
-
         let text_left_padding = 8.0;
         let hits_text = self.instruction_record.get_hit_count().to_string();
         let instruction_text = Self::instruction_text(self.instruction_record);
-        let address_text = Self::format_address(self.instruction_record.get_instruction_address());
+        // Instruction-directed records carry the accessed memory address (what the instruction touched); show that in
+        // the address column. Address-directed records have no accessed address, so fall back to the instruction address.
+        let address_text = Self::format_address(
+            self.instruction_record
+                .get_accessed_address()
+                .or_else(|| self.instruction_record.get_instruction_address()),
+        );
 
         let hits_cell_rectangle = Rect::from_min_max(
             pos2(self.hit_count_splitter_position_x, row_rectangle.min.y),
@@ -141,6 +144,10 @@ impl Widget for DebuggerTraceEntryView<'_> {
         );
         let address_cell_rectangle = Rect::from_min_max(
             pos2(self.address_splitter_position_x, row_rectangle.min.y),
+            pos2(self.value_splitter_position_x, row_rectangle.max.y),
+        );
+        let value_cell_rectangle = Rect::from_min_max(
+            pos2(self.value_splitter_position_x, row_rectangle.min.y),
             pos2(row_rectangle.max.x, row_rectangle.max.y),
         );
 
@@ -169,10 +176,20 @@ impl Widget for DebuggerTraceEntryView<'_> {
             theme.font_library.font_ubuntu_mono_bold.font_normal.clone(),
         );
 
+        Self::paint_clipped_text(
+            &mut row_user_interface,
+            value_cell_rectangle,
+            pos2(self.value_splitter_position_x + text_left_padding, row_center_y),
+            &self.preview_value,
+            theme.foreground,
+            theme.font_library.font_ubuntu_mono_bold.font_normal.clone(),
+        );
+
         response.on_hover_text(format!(
-            "{}\n{}\nTrace: {}",
+            "{}\n{}\n{}\nTrace: {}",
             instruction_text,
             address_text,
+            self.preview_value,
             self.instruction_key.get_trace_session_id()
         ))
     }

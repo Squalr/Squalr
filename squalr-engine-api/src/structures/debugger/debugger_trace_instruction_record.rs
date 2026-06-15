@@ -13,6 +13,10 @@ pub struct DebuggerTraceInstructionRecord {
     hit_count: u64,
     last_register_snapshot: DebuggerRegisterSnapshot,
     last_backend_message: Option<String>,
+    /// For instruction-directed traces: the memory address this instruction accessed (records are keyed by this for
+    /// instruction sessions). `None` for data-watchpoint records.
+    #[serde(default)]
+    accessed_address: Option<u64>,
 }
 
 impl DebuggerTraceInstructionRecord {
@@ -29,6 +33,7 @@ impl DebuggerTraceInstructionRecord {
             hit_count: 1,
             last_register_snapshot: trace_event.get_register_snapshot().clone(),
             last_backend_message: trace_event.get_backend_message().map(String::from),
+            accessed_address: trace_event.get_accessed_address(),
         }
     }
 
@@ -42,6 +47,11 @@ impl DebuggerTraceInstructionRecord {
         self.target_architecture = trace_event.get_target_architecture().cloned();
         self.last_register_snapshot = trace_event.get_register_snapshot().clone();
         self.last_backend_message = trace_event.get_backend_message().map(String::from);
+        self.accessed_address = trace_event.get_accessed_address();
+    }
+
+    pub fn get_accessed_address(&self) -> Option<u64> {
+        self.accessed_address
     }
 
     pub fn get_trace_session_id(&self) -> &str {

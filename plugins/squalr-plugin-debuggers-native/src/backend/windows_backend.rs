@@ -1163,6 +1163,8 @@ impl ActiveDbgEngSession {
     fn debug_breakpoint_type(kind: &DebuggerBreakpointKind) -> u32 {
         match kind {
             DebuggerBreakpointKind::Software => DEBUG_BREAKPOINT_CODE,
+            // A code (execute) breakpoint is exactly the DbgEng primitive for an instruction breakpoint.
+            DebuggerBreakpointKind::HardwareExecute => DEBUG_BREAKPOINT_CODE,
             DebuggerBreakpointKind::HardwareData { .. } => DEBUG_BREAKPOINT_DATA,
         }
     }

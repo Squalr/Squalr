@@ -147,6 +147,7 @@ fn run_smoke_against_child(child_process: &mut std::process::Child) -> Result<()
         size_in_bytes: 8,
         access: DebuggerDataBreakpointAccess::Write,
         label: Some(String::from("command-native-smoke-write")),
+        target_kind: squalr_engine_api::structures::debugger::DebuggerTraceTargetKind::Address,
     }
     .execute(&engine_privileged_state);
     require_status(&trace_start_response.status, "debugger trace start")?;
@@ -235,6 +236,7 @@ fn run_smoke_against_child(child_process: &mut std::process::Child) -> Result<()
         size_in_bytes: 8,
         access: DebuggerDataBreakpointAccess::Write,
         label: Some(String::from("command-native-smoke-write-restart")),
+        target_kind: squalr_engine_api::structures::debugger::DebuggerTraceTargetKind::Address,
     }
     .execute(&engine_privileged_state);
     require_status(&restarted_trace_start_response.status, "debugger restarted trace start")?;

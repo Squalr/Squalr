@@ -1,4 +1,9 @@
-#[cfg(any(windows, target_os = "macos", all(target_os = "linux", target_arch = "x86_64")))]
+#[cfg(any(
+    windows,
+    target_os = "macos",
+    all(target_os = "linux", target_arch = "x86_64"),
+    all(target_os = "android", target_arch = "aarch64")
+))]
 use squalr_engine_api::{
     plugins::debugger::DebuggerPlugin,
     structures::{
@@ -7,9 +12,19 @@ use squalr_engine_api::{
         processes::{opened_process_info::OpenedProcessInfo, target_architecture::TargetArchitecture},
     },
 };
-#[cfg(any(windows, target_os = "macos", all(target_os = "linux", target_arch = "x86_64")))]
+#[cfg(any(
+    windows,
+    target_os = "macos",
+    all(target_os = "linux", target_arch = "x86_64"),
+    all(target_os = "android", target_arch = "aarch64")
+))]
 use squalr_plugin_debuggers_native::NativeDebuggersPlugin;
-#[cfg(any(windows, target_os = "macos", all(target_os = "linux", target_arch = "x86_64")))]
+#[cfg(any(
+    windows,
+    target_os = "macos",
+    all(target_os = "linux", target_arch = "x86_64"),
+    all(target_os = "android", target_arch = "aarch64")
+))]
 use std::{
     error::Error,
     io::{BufRead, BufReader, Write},
@@ -31,10 +46,20 @@ use mach2::{
     traps::{mach_task_self, task_for_pid},
 };
 
-#[cfg(any(windows, target_os = "macos", all(target_os = "linux", target_arch = "x86_64")))]
+#[cfg(any(
+    windows,
+    target_os = "macos",
+    all(target_os = "linux", target_arch = "x86_64"),
+    all(target_os = "android", target_arch = "aarch64")
+))]
 static SMOKE_TARGET_VALUE: AtomicU64 = AtomicU64::new(0);
 
-#[cfg(any(windows, target_os = "macos", all(target_os = "linux", target_arch = "x86_64")))]
+#[cfg(any(
+    windows,
+    target_os = "macos",
+    all(target_os = "linux", target_arch = "x86_64"),
+    all(target_os = "android", target_arch = "aarch64")
+))]
 fn main() -> Result<(), Box<dyn Error>> {
     let is_child_process = std::env::args().any(|argument| argument == "--child");
 
@@ -47,20 +72,44 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-#[cfg(any(windows, target_os = "macos", all(target_os = "linux", target_arch = "x86_64")))]
+#[cfg(any(
+    windows,
+    target_os = "macos",
+    all(target_os = "linux", target_arch = "x86_64"),
+    all(target_os = "android", target_arch = "aarch64")
+))]
 fn run_child_process() -> Result<(), Box<dyn Error>> {
     let target_address = &SMOKE_TARGET_VALUE as *const AtomicU64 as u64;
+
+    #[cfg(any(all(target_os = "linux", target_arch = "x86_64"), all(target_os = "android", target_arch = "aarch64")))]
+    let _worker_thread_handle = thread::spawn(|| {
+        loop {
+            SMOKE_TARGET_VALUE.fetch_add(1, Ordering::Relaxed);
+            thread::sleep(Duration::from_millis(10));
+        }
+    });
 
     println!("{} {target_address:#x}", std::process::id());
     std::io::stdout().flush()?;
 
+    #[cfg(any(all(target_os = "linux", target_arch = "x86_64"), all(target_os = "android", target_arch = "aarch64")))]
+    loop {
+        thread::sleep(Duration::from_secs(1));
+    }
+
+    #[cfg(not(any(all(target_os = "linux", target_arch = "x86_64"), all(target_os = "android", target_arch = "aarch64"))))]
     loop {
         SMOKE_TARGET_VALUE.fetch_add(1, Ordering::Relaxed);
         thread::sleep(Duration::from_millis(10));
     }
 }
 
-#[cfg(any(windows, target_os = "macos", all(target_os = "linux", target_arch = "x86_64")))]
+#[cfg(any(
+    windows,
+    target_os = "macos",
+    all(target_os = "linux", target_arch = "x86_64"),
+    all(target_os = "android", target_arch = "aarch64")
+))]
 fn run_parent_process() -> Result<(), Box<dyn Error>> {
     let current_executable_path = std::env::current_exe()?;
     let mut child_process = Command::new(current_executable_path)
@@ -75,7 +124,12 @@ fn run_parent_process() -> Result<(), Box<dyn Error>> {
     smoke_result
 }
 
-#[cfg(any(windows, target_os = "macos", all(target_os = "linux", target_arch = "x86_64")))]
+#[cfg(any(
+    windows,
+    target_os = "macos",
+    all(target_os = "linux", target_arch = "x86_64"),
+    all(target_os = "android", target_arch = "aarch64")
+))]
 fn run_smoke_against_child(child_process: &mut std::process::Child) -> Result<(), Box<dyn Error>> {
     let child_stdout = child_process
         .stdout
@@ -102,7 +156,12 @@ fn run_smoke_against_child(child_process: &mut std::process::Child) -> Result<()
     smoke_result
 }
 
-#[cfg(any(windows, target_os = "macos", all(target_os = "linux", target_arch = "x86_64")))]
+#[cfg(any(
+    windows,
+    target_os = "macos",
+    all(target_os = "linux", target_arch = "x86_64"),
+    all(target_os = "android", target_arch = "aarch64")
+))]
 fn run_debugger_flow(
     process_info: OpenedProcessInfo,
     target_address: u64,
@@ -174,13 +233,23 @@ fn run_debugger_flow(
     Ok(())
 }
 
-#[cfg(any(windows, target_os = "macos", all(target_os = "linux", target_arch = "x86_64")))]
+#[cfg(any(
+    windows,
+    target_os = "macos",
+    all(target_os = "linux", target_arch = "x86_64"),
+    all(target_os = "android", target_arch = "aarch64")
+))]
 struct SmokeOpenedProcess {
     handle: u64,
     target_architecture: TargetArchitecture,
 }
 
-#[cfg(any(windows, target_os = "macos", all(target_os = "linux", target_arch = "x86_64")))]
+#[cfg(any(
+    windows,
+    target_os = "macos",
+    all(target_os = "linux", target_arch = "x86_64"),
+    all(target_os = "android", target_arch = "aarch64")
+))]
 impl SmokeOpenedProcess {
     fn close(&self) {
         close_smoke_process(self.handle);
@@ -222,6 +291,14 @@ fn open_smoke_process(target_process_id: u32) -> Result<SmokeOpenedProcess, Box<
     })
 }
 
+#[cfg(all(target_os = "android", target_arch = "aarch64"))]
+fn open_smoke_process(_target_process_id: u32) -> Result<SmokeOpenedProcess, Box<dyn Error>> {
+    Ok(SmokeOpenedProcess {
+        handle: 0,
+        target_architecture: TargetArchitecture::arm64(),
+    })
+}
+
 #[cfg(windows)]
 fn close_smoke_process(_handle: u64) {}
 
@@ -233,6 +310,9 @@ fn close_smoke_process(handle: u64) {
 }
 
 #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+fn close_smoke_process(_handle: u64) {}
+
+#[cfg(all(target_os = "android", target_arch = "aarch64"))]
 fn close_smoke_process(_handle: u64) {}
 
 #[cfg(target_os = "macos")]
@@ -248,7 +328,12 @@ fn current_macos_target_architecture() -> TargetArchitecture {
     }
 }
 
-#[cfg(any(windows, target_os = "macos", all(target_os = "linux", target_arch = "x86_64")))]
+#[cfg(any(
+    windows,
+    target_os = "macos",
+    all(target_os = "linux", target_arch = "x86_64"),
+    all(target_os = "android", target_arch = "aarch64")
+))]
 fn parse_child_ready_line(child_ready_line: &str) -> Result<(u32, u64), Box<dyn Error>> {
     let mut child_ready_parts = child_ready_line.split_whitespace();
     let target_process_id = child_ready_parts
@@ -263,7 +348,12 @@ fn parse_child_ready_line(child_ready_line: &str) -> Result<(u32, u64), Box<dyn 
     Ok((target_process_id, target_address))
 }
 
-#[cfg(any(windows, target_os = "macos", all(target_os = "linux", target_arch = "x86_64")))]
+#[cfg(any(
+    windows,
+    target_os = "macos",
+    all(target_os = "linux", target_arch = "x86_64"),
+    all(target_os = "android", target_arch = "aarch64")
+))]
 fn wait_for_trace_event(
     trace_event_receiver: &mpsc::Receiver<DebuggerTraceEvent>,
     timeout: Duration,
@@ -281,14 +371,24 @@ fn wait_for_trace_event(
     }
 }
 
-#[cfg(any(windows, target_os = "macos", all(target_os = "linux", target_arch = "x86_64")))]
+#[cfg(any(
+    windows,
+    target_os = "macos",
+    all(target_os = "linux", target_arch = "x86_64"),
+    all(target_os = "android", target_arch = "aarch64")
+))]
 fn format_optional_address(address: Option<u64>) -> String {
     address
         .map(|address| format!("{address:#x}"))
         .unwrap_or_else(|| String::from("<unknown>"))
 }
 
-#[cfg(not(any(windows, target_os = "macos", all(target_os = "linux", target_arch = "x86_64"))))]
+#[cfg(not(any(
+    windows,
+    target_os = "macos",
+    all(target_os = "linux", target_arch = "x86_64"),
+    all(target_os = "android", target_arch = "aarch64")
+)))]
 fn main() {
-    println!("The native debugger smoke example is only available on Windows, macOS, and Linux x86_64 right now.");
+    println!("The native debugger smoke example is only available on Windows, macOS, Linux x86_64, and Android arm64 right now.");
 }

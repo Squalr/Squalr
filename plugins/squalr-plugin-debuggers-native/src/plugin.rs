@@ -60,11 +60,13 @@ impl DebuggerPlugin for NativeDebuggersPlugin {
         process_info: &OpenedProcessInfo,
     ) -> bool {
         let instruction_set_id = process_info.get_target_architecture().get_instruction_set_id();
+        let has_attach_identity = process_info.get_handle() != 0 || cfg!(target_os = "android");
+        let is_supported_target = (cfg!(windows) && matches!(instruction_set_id, "x86" | "x64"))
+            || (cfg!(target_os = "macos") && matches!(instruction_set_id, "x64" | "arm64"))
+            || (cfg!(all(target_os = "linux", target_arch = "x86_64")) && matches!(instruction_set_id, "x86" | "x64"))
+            || (cfg!(all(target_os = "android", target_arch = "aarch64")) && instruction_set_id == "arm64");
 
-        process_info.get_handle() != 0
-            && ((cfg!(windows) && matches!(instruction_set_id, "x86" | "x64"))
-                || (cfg!(target_os = "macos") && matches!(instruction_set_id, "x64" | "arm64"))
-                || (cfg!(all(target_os = "linux", target_arch = "x86_64")) && matches!(instruction_set_id, "x86" | "x64")))
+        has_attach_identity && is_supported_target
     }
 
     fn create_session(

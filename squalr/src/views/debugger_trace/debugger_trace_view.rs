@@ -1,7 +1,10 @@
 use crate::{
     app_context::AppContext,
     ui::widgets::controls::{
+        combo_box::combo_box_view::ComboBoxView,
         context_menu::context_menu::{ContextMenu, ContextMenuSizing},
+        data_type_selector::data_type_selector_view::DataTypeSelectorView,
+        data_value_box::data_value_box_convert_item_view::DataValueBoxConvertItemView,
         groupbox::GroupBox,
         icon_button::IconButtonView,
         toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView,
@@ -18,14 +21,13 @@ use crate::{
         },
     },
 };
-use eframe::egui::{Align, Align2, Button, Direction, Layout, Rect, RichText, ScrollArea, Sense, Spinner, Ui, UiBuilder, Widget, pos2, vec2};
+use eframe::egui::{Align, Align2, Button, CursorIcon, Direction, Layout, Rect, Response, RichText, ScrollArea, Sense, Spinner, Ui, UiBuilder, Widget, pos2, vec2};
 use epaint::{CornerRadius, Margin, Stroke, Vec2};
 use squalr_engine_api::{
     commands::{
         debugger::{
-            attach::debugger_attach_request::DebuggerAttachRequest, trace_pause::debugger_trace_pause_request::DebuggerTracePauseRequest,
-            trace_resume::debugger_trace_resume_request::DebuggerTraceResumeRequest, trace_start::debugger_trace_start_request::DebuggerTraceStartRequest,
-            trace_stop::debugger_trace_stop_request::DebuggerTraceStopRequest,
+            trace_pause::debugger_trace_pause_request::DebuggerTracePauseRequest, trace_resume::debugger_trace_resume_request::DebuggerTraceResumeRequest,
+            trace_start::debugger_trace_start_request::DebuggerTraceStartRequest, trace_stop::debugger_trace_stop_request::DebuggerTraceStopRequest,
         },
         privileged_command_request::PrivilegedCommandRequest,
         project_items::create::project_items_create_request::ProjectItemsCreateRequest,
@@ -34,11 +36,18 @@ use squalr_engine_api::{
     dependency_injection::dependency::Dependency,
     events::debugger::trace_session_updated::debugger_trace_session_updated_event::DebuggerTraceSessionUpdatedEvent,
     structures::{
-        debugger::{DebuggerDataBreakpointAccess, DebuggerTraceInstructionRecord, DebuggerTraceSessionDescriptor},
+        data_types::data_type_ref::DataTypeRef,
+        data_values::{
+            anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType,
+        },
+        debugger::{DebuggerDataBreakpointAccess, DebuggerTraceInstructionRecord, DebuggerTraceSessionDescriptor, DebuggerTraceTargetKind},
         memory::address_display::format_module_address,
         processes::target_architecture::TargetArchitecture,
+        structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition},
     },
 };
+use squalr_engine_session::virtual_snapshots::{virtual_snapshot_query::VirtualSnapshotQuery, virtual_snapshot_query_result::VirtualSnapshotQueryResult};
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -50,6 +59,14 @@ pub struct DebuggerTraceView {
     process_selector_view_data: Dependency<ProcessSelectorViewData>,
 }
 
+#[derive(Clone, Copy)]
+struct TraceColumnSplitters {
+    hit_count: f32,
+    instruction: f32,
+    address: f32,
+    value: f32,
+}
+
 impl DebuggerTraceView {
     pub const WINDOW_ID: &'static str = "window_debugger_trace";
     const PENDING_TRACE_START_TIMEOUT: Duration = Duration::from_secs(15);
@@ -59,6 +76,26 @@ impl DebuggerTraceView {
     const REPLACE_WITH_NO_OPERATION_ID: &'static str = "debugger_trace_ctx_replace_with_nop";
     const RESTORE_ORIGINAL_CODE_LABEL: &'static str = "Restore Original Code";
     const RESTORE_ORIGINAL_CODE_ID: &'static str = "debugger_trace_ctx_restore_original_code";
+    const TRACE_PREVIEW_VIRTUAL_SNAPSHOT_ID: &'static str = "debugger_trace_preview";
+    const TRACE_PREVIEW_REFRESH_INTERVAL: Duration = Duration::from_millis(250);
+    const VALUE_DISPLAY_FORMAT_POPUP_WIDTH: f32 = 220.0;
+
+    fn display_format_icon(
+        &self,
+        anonymous_value_string_format: AnonymousValueStringFormat,
+    ) -> eframe::egui::TextureHandle {
+        let icon_library = &self.app_context.theme.icon_library;
+
+        match anonymous_value_string_format {
+            AnonymousValueStringFormat::Binary => icon_library.icon_handle_display_type_binary.clone(),
+            AnonymousValueStringFormat::Decimal => icon_library.icon_handle_display_type_decimal.clone(),
+            AnonymousValueStringFormat::Hexadecimal | AnonymousValueStringFormat::Address => icon_library.icon_handle_display_type_hexadecimal.clone(),
+            AnonymousValueStringFormat::String
+            | AnonymousValueStringFormat::Bool
+            | AnonymousValueStringFormat::DataTypeRef
+            | AnonymousValueStringFormat::Enumeration => icon_library.icon_handle_display_type_string.clone(),
+        }
+    }
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let debugger_trace_view_data = app_context
@@ -247,6 +284,22 @@ impl DebuggerTraceView {
         }
     }
 
+    fn instruction_access_label(access: DebuggerDataBreakpointAccess) -> &'static str {
+        match access {
+            DebuggerDataBreakpointAccess::Read => "Reads From",
+            DebuggerDataBreakpointAccess::Write => "Writes To",
+            DebuggerDataBreakpointAccess::ReadWrite => "Accesses",
+        }
+    }
+
+    fn instruction_prompt_action_label(access: DebuggerDataBreakpointAccess) -> &'static str {
+        match access {
+            DebuggerDataBreakpointAccess::Read => "Find What This Reads From",
+            DebuggerDataBreakpointAccess::Write => "Find What This Writes To",
+            DebuggerDataBreakpointAccess::ReadWrite => "Find What This Accesses",
+        }
+    }
+
     fn instruction_text(instruction_record: &DebuggerTraceInstructionRecord) -> String {
         instruction_record
             .get_instruction_text()
@@ -263,12 +316,19 @@ impl DebuggerTraceView {
     }
 
     fn format_trace_target(trace_session: &DebuggerTraceSessionDescriptor) -> String {
-        format!(
-            "{} 0x{:X} [{} bytes]",
-            Self::access_label(trace_session.get_access()),
-            trace_session.get_address(),
-            trace_session.get_size_in_bytes()
-        )
+        match trace_session.get_target_kind() {
+            DebuggerTraceTargetKind::Instruction => format!(
+                "Instruction at 0x{:X} {}",
+                trace_session.get_address(),
+                Self::instruction_access_label(trace_session.get_access())
+            ),
+            DebuggerTraceTargetKind::Address => format!(
+                "{} 0x{:X} [{} bytes]",
+                Self::access_label(trace_session.get_access()),
+                trace_session.get_address(),
+                trace_session.get_size_in_bytes()
+            ),
+        }
     }
 
     fn format_pending_trace_target(pending_trace_start_request: &PendingDebuggerTraceStartRequest) -> String {
@@ -277,13 +337,191 @@ impl DebuggerTraceView {
             .filter(|label| !label.is_empty())
             .unwrap_or("selected address");
 
-        format!(
-            "{} for {} at 0x{:X} [{} bytes]",
-            Self::prompt_action_label(pending_trace_start_request.get_access()),
-            label,
-            pending_trace_start_request.get_address(),
-            pending_trace_start_request.get_size_in_bytes()
-        )
+        match pending_trace_start_request.get_target_kind() {
+            DebuggerTraceTargetKind::Instruction => format!(
+                "{} for {} at 0x{:X}",
+                Self::instruction_prompt_action_label(pending_trace_start_request.get_access()),
+                label,
+                pending_trace_start_request.get_address()
+            ),
+            DebuggerTraceTargetKind::Address => format!(
+                "{} for {} at 0x{:X} [{} bytes]",
+                Self::prompt_action_label(pending_trace_start_request.get_access()),
+                label,
+                pending_trace_start_request.get_address(),
+                pending_trace_start_request.get_size_in_bytes()
+            ),
+        }
+    }
+
+    /// Reads the live value at each instruction-directed record's accessed address through the virtual-snapshot pipeline
+    /// (the same path the project explorer / scanner use), interpreting the memory with the user-selected data type and
+    /// display format. Values are cached per address and only the snapshot queries — not the cached values — are reset
+    /// when the address set or interpretation changes, so cells never blank between refreshes (avoids flicker). Keyed by
+    /// accessed address; address-directed records have no data address and so get no value.
+    /// The memory address whose value the Value column should show for a record, by trace direction:
+    /// - Instruction-directed: the per-record accessed address (the data the instruction touched).
+    /// - Address-directed: the session's watched address (the same for every row — the value being written to).
+    fn record_value_address(
+        instruction_record: &DebuggerTraceInstructionRecord,
+        trace_session: &DebuggerTraceSessionDescriptor,
+    ) -> Option<u64> {
+        match trace_session.get_target_kind() {
+            DebuggerTraceTargetKind::Instruction => instruction_record.get_accessed_address(),
+            DebuggerTraceTargetKind::Address => Some(trace_session.get_address()),
+        }
+    }
+
+    fn read_record_preview_values(
+        &self,
+        instruction_records: &[DebuggerTraceInstructionRecord],
+        trace_session: &DebuggerTraceSessionDescriptor,
+    ) -> HashMap<u64, String> {
+        let engine_unprivileged_state = &self.app_context.engine_unprivileged_state;
+        let (value_data_type_id, stored_display_format) = self
+            .debugger_trace_view_data
+            .read("Debugger trace preview values")
+            .map(|debugger_trace_view_data| (debugger_trace_view_data.get_value_data_type_id(), debugger_trace_view_data.get_value_display_format()))
+            .unwrap_or_else(|| (String::from("i32"), None));
+        let value_data_type_ref = DataTypeRef::new(&value_data_type_id);
+        let active_display_format =
+            stored_display_format.unwrap_or_else(|| engine_unprivileged_state.get_default_anonymous_value_string_format(&value_data_type_ref));
+
+        // Unique value addresses in a STABLE (sorted) order. Stable order matters: the snapshot's set_queries is a no-op
+        // when the query list is unchanged, so identical ordering frame-to-frame avoids needlessly clearing the results
+        // (which caused the earlier flicker).
+        let mut accessed_addresses = instruction_records
+            .iter()
+            .filter_map(|instruction_record| Self::record_value_address(instruction_record, trace_session))
+            .collect::<Vec<_>>();
+        accessed_addresses.sort_unstable();
+        accessed_addresses.dedup();
+
+        // Same set/refresh/get pattern the project explorer uses for live address previews (and reads route through the
+        // privileged worker). Driven every frame; set_queries no-ops when unchanged, request_refresh self-throttles.
+        if accessed_addresses.is_empty() {
+            engine_unprivileged_state.set_virtual_snapshot_queries(Self::TRACE_PREVIEW_VIRTUAL_SNAPSHOT_ID, Self::TRACE_PREVIEW_REFRESH_INTERVAL, Vec::new());
+            return HashMap::new();
+        }
+
+        let symbolic_struct_definition = SymbolicStructDefinition::new_anonymous(vec![SymbolicFieldDefinition::new(value_data_type_ref, ContainerType::None)]);
+        let virtual_snapshot_queries = accessed_addresses
+            .iter()
+            .map(|accessed_address| VirtualSnapshotQuery::Address {
+                query_id: format!("0x{:X}", accessed_address),
+                address: *accessed_address,
+                module_name: String::new(),
+                symbolic_struct_definition: symbolic_struct_definition.clone(),
+            })
+            .collect::<Vec<_>>();
+
+        engine_unprivileged_state.set_virtual_snapshot_queries(Self::TRACE_PREVIEW_VIRTUAL_SNAPSHOT_ID, Self::TRACE_PREVIEW_REFRESH_INTERVAL, virtual_snapshot_queries);
+        engine_unprivileged_state.request_virtual_snapshot_refresh(Self::TRACE_PREVIEW_VIRTUAL_SNAPSHOT_ID);
+
+        let Some(virtual_snapshot) = engine_unprivileged_state.get_virtual_snapshot(Self::TRACE_PREVIEW_VIRTUAL_SNAPSHOT_ID) else {
+            return HashMap::new();
+        };
+
+        accessed_addresses
+            .into_iter()
+            .filter_map(|accessed_address| {
+                let query_result = virtual_snapshot.get_query_results().get(&format!("0x{:X}", accessed_address))?;
+
+                Some((accessed_address, self.format_preview_value(query_result, active_display_format)?))
+            })
+            .collect()
+    }
+
+    /// Interprets the first read field as the active data type and renders it in the active display format. Prefers the
+    /// engine's anonymizer (handles every registered type), falling back to a self-contained byte formatter so values
+    /// always render even if the anonymizer is unavailable for a given type.
+    fn format_preview_value(
+        &self,
+        query_result: &VirtualSnapshotQueryResult,
+        active_display_format: AnonymousValueStringFormat,
+    ) -> Option<String> {
+        let memory_read_response = query_result.memory_read_response.as_ref()?;
+
+        if !memory_read_response.success {
+            return None;
+        }
+
+        let data_value = memory_read_response.valued_struct.get_fields().first()?.get_data_value()?;
+
+        if let Ok(anonymous_value_string) = self.app_context.engine_unprivileged_state.anonymize_value(data_value, active_display_format) {
+            let formatted = anonymous_value_string.get_anonymous_value_string();
+            if !formatted.is_empty() {
+                return Some(formatted.to_string());
+            }
+        }
+
+        Some(Self::format_value_bytes(data_value.get_data_type_id(), data_value.get_value_bytes(), active_display_format))
+    }
+
+    /// Self-contained value formatter: interprets raw bytes as the given scalar data type and renders them in the chosen
+    /// display format. Covers the common integer/float types; unknown types fall back to an unsigned little-endian read.
+    fn format_value_bytes(
+        data_type_id: &str,
+        value_bytes: &[u8],
+        active_display_format: AnonymousValueStringFormat,
+    ) -> String {
+        if value_bytes.is_empty() {
+            return String::new();
+        }
+
+        let is_big_endian = data_type_id.ends_with("be");
+
+        if data_type_id.starts_with("f32") && value_bytes.len() >= 4 {
+            let mut float_bytes = [0u8; 4];
+            float_bytes.copy_from_slice(&value_bytes[..4]);
+            let float_value = if is_big_endian { f32::from_be_bytes(float_bytes) } else { f32::from_le_bytes(float_bytes) };
+
+            return match active_display_format {
+                AnonymousValueStringFormat::Hexadecimal | AnonymousValueStringFormat::Address => format!("0x{:X}", float_value.to_bits()),
+                _ => format!("{}", float_value),
+            };
+        }
+        if data_type_id.starts_with("f64") && value_bytes.len() >= 8 {
+            let mut float_bytes = [0u8; 8];
+            float_bytes.copy_from_slice(&value_bytes[..8]);
+            let float_value = if is_big_endian { f64::from_be_bytes(float_bytes) } else { f64::from_le_bytes(float_bytes) };
+
+            return match active_display_format {
+                AnonymousValueStringFormat::Hexadecimal | AnonymousValueStringFormat::Address => format!("0x{:X}", float_value.to_bits()),
+                _ => format!("{}", float_value),
+            };
+        }
+
+        let is_signed = data_type_id.starts_with('i');
+        let byte_count = value_bytes.len().min(16);
+        let mut little_endian_bytes = [0u8; 16];
+        if is_big_endian {
+            for byte_index in 0..byte_count {
+                little_endian_bytes[byte_index] = value_bytes[byte_count - 1 - byte_index];
+            }
+        } else {
+            little_endian_bytes[..byte_count].copy_from_slice(&value_bytes[..byte_count]);
+        }
+        let unsigned_value = u128::from_le_bytes(little_endian_bytes);
+
+        match active_display_format {
+            AnonymousValueStringFormat::Hexadecimal | AnonymousValueStringFormat::Address => format!("0x{:X}", unsigned_value),
+            AnonymousValueStringFormat::Binary => format!("0b{:b}", unsigned_value),
+            AnonymousValueStringFormat::Bool => (unsigned_value != 0).to_string(),
+            _ => {
+                if is_signed {
+                    let bit_count = (byte_count as u32) * 8;
+                    let signed_value = if bit_count < 128 && (unsigned_value >> (bit_count - 1)) & 1 == 1 {
+                        (unsigned_value as i128) - (1i128 << bit_count)
+                    } else {
+                        unsigned_value as i128
+                    };
+                    signed_value.to_string()
+                } else {
+                    unsigned_value.to_string()
+                }
+            }
+        }
     }
 
     fn show_attach_prompt(
@@ -336,7 +574,7 @@ impl DebuggerTraceView {
                                     },
                                 );
                             } else {
-                                self.show_attach_prompt_buttons(user_interface);
+                                self.show_trace_start_prompt_buttons(user_interface);
                             }
                         })
                         .desired_width(panel_width),
@@ -346,7 +584,7 @@ impl DebuggerTraceView {
         );
     }
 
-    fn show_attach_prompt_buttons(
+    fn show_trace_start_prompt_buttons(
         &self,
         user_interface: &mut Ui,
     ) {
@@ -377,14 +615,14 @@ impl DebuggerTraceView {
                     }
                 }
 
-                let attach_response = user_interface.add_sized(
+                let start_response = user_interface.add_sized(
                     button_size,
-                    Button::new(RichText::new("Attach").color(theme.foreground))
+                    Button::new(RichText::new("Start").color(theme.foreground))
                         .fill(theme.background_control_primary)
                         .stroke(Stroke::new(1.0, theme.background_control_primary_dark)),
                 );
 
-                if attach_response.clicked() {
+                if start_response.clicked() {
                     self.confirm_pending_trace_start();
                 }
             });
@@ -394,7 +632,7 @@ impl DebuggerTraceView {
     fn confirm_pending_trace_start(&self) {
         let pending_trace_start_operation = self
             .debugger_trace_view_data
-            .read("Debugger trace begin attach prompt")
+            .read("Debugger trace begin start prompt")
             .and_then(|debugger_trace_view_data| debugger_trace_view_data.begin_pending_trace_start());
         let Some(pending_trace_start_operation) = pending_trace_start_operation else {
             return;
@@ -405,61 +643,38 @@ impl DebuggerTraceView {
         let engine_unprivileged_state = self.app_context.engine_unprivileged_state.clone();
         let debugger_trace_view_data = self.debugger_trace_view_data.clone();
         let dispatch_failure_debugger_trace_view_data = debugger_trace_view_data.clone();
-        let is_attach_dispatched = DebuggerAttachRequest { plugin_id: None }.send(&engine_unprivileged_state.clone(), move |debugger_attach_response| {
-            if !debugger_attach_response.status.get_success() {
-                let status_message = format!(
-                    "Debugger attach failed: {}.",
-                    debugger_attach_response
-                        .status
-                        .get_message()
-                        .unwrap_or("unknown error")
-                );
-
-                if let Some(debugger_trace_view_data) = debugger_trace_view_data.read("Debugger trace attach failed") {
-                    debugger_trace_view_data.fail_pending_trace_start(operation_id, status_message);
+        let is_trace_start_dispatched = DebuggerTraceStartRequest {
+            address: pending_trace_start_request.get_address(),
+            size_in_bytes: pending_trace_start_request.get_size_in_bytes(),
+            access: pending_trace_start_request.get_access(),
+            label: pending_trace_start_request.get_label().map(String::from),
+            target_kind: pending_trace_start_request.get_target_kind(),
+        }
+        .send(&engine_unprivileged_state, move |debugger_trace_start_response| {
+            if debugger_trace_start_response.status.get_success() {
+                if let Some(debugger_trace_view_data) = debugger_trace_view_data.read("Debugger trace start completed") {
+                    debugger_trace_view_data.complete_pending_trace_start(operation_id);
                 }
 
                 return;
             }
 
-            let debugger_trace_view_data = debugger_trace_view_data.clone();
-            let trace_start_dispatch_failure_debugger_trace_view_data = debugger_trace_view_data.clone();
-            let is_trace_start_dispatched = DebuggerTraceStartRequest {
-                address: pending_trace_start_request.get_address(),
-                size_in_bytes: pending_trace_start_request.get_size_in_bytes(),
-                access: pending_trace_start_request.get_access(),
-                label: pending_trace_start_request.get_label().map(String::from),
-            }
-            .send(&engine_unprivileged_state, move |debugger_trace_start_response| {
-                if debugger_trace_start_response.status.get_success() {
-                    if let Some(debugger_trace_view_data) = debugger_trace_view_data.read("Debugger trace start completed") {
-                        debugger_trace_view_data.complete_pending_trace_start(operation_id);
-                    }
-                } else {
-                    let status_message = format!(
-                        "Debugger trace start failed: {}.",
-                        debugger_trace_start_response
-                            .status
-                            .get_message()
-                            .unwrap_or("unknown error")
-                    );
+            let status_message = format!(
+                "Debugger trace start failed: {}.",
+                debugger_trace_start_response
+                    .status
+                    .get_message()
+                    .unwrap_or("unknown error")
+            );
 
-                    if let Some(debugger_trace_view_data) = debugger_trace_view_data.read("Debugger trace start failed") {
-                        debugger_trace_view_data.fail_pending_trace_start(operation_id, status_message);
-                    }
-                }
-            });
-
-            if !is_trace_start_dispatched {
-                if let Some(debugger_trace_view_data) = trace_start_dispatch_failure_debugger_trace_view_data.read("Debugger trace start dispatch failed") {
-                    debugger_trace_view_data.fail_pending_trace_start(operation_id, String::from("Debugger trace start failed: command dispatch failed."));
-                }
+            if let Some(debugger_trace_view_data) = debugger_trace_view_data.read("Debugger trace start failed") {
+                debugger_trace_view_data.fail_pending_trace_start(operation_id, status_message);
             }
         });
 
-        if !is_attach_dispatched {
-            if let Some(debugger_trace_view_data) = dispatch_failure_debugger_trace_view_data.read("Debugger attach dispatch failed") {
-                debugger_trace_view_data.fail_pending_trace_start(operation_id, String::from("Debugger attach failed: command dispatch failed."));
+        if !is_trace_start_dispatched {
+            if let Some(debugger_trace_view_data) = dispatch_failure_debugger_trace_view_data.read("Debugger trace start dispatch failed") {
+                debugger_trace_view_data.fail_pending_trace_start(operation_id, String::from("Debugger trace start failed: command dispatch failed."));
             }
         }
     }
@@ -484,10 +699,8 @@ impl DebuggerTraceView {
             .painter()
             .rect_filled(separator_rectangle, CornerRadius::ZERO, theme.background_control);
 
-        let content_width = content_rectangle.width().max(1.0);
-        let hit_count_splitter_position_x = content_rectangle.min.x + 36.0;
-        let instruction_splitter_position_x = content_rectangle.min.x + content_width * 0.18;
-        let address_splitter_position_x = content_rectangle.min.x + content_width * 0.72;
+        let column_ratios = self.column_splitter_ratios();
+        let column_splitters = Self::trace_column_splitter_positions(content_rectangle, column_ratios);
         let text_left_padding = 8.0;
         let paint_header_label = |user_interface: &mut Ui, x_position: f32, label: &str| {
             user_interface.painter().text(
@@ -499,9 +712,205 @@ impl DebuggerTraceView {
             );
         };
 
-        paint_header_label(user_interface, hit_count_splitter_position_x, "Count");
-        paint_header_label(user_interface, instruction_splitter_position_x, "Instruction");
-        paint_header_label(user_interface, address_splitter_position_x, "Address");
+        // A compact "#" keeps the hit-count column narrow.
+        paint_header_label(user_interface, column_splitters.hit_count, "#");
+        paint_header_label(user_interface, column_splitters.instruction, "Instruction");
+        paint_header_label(user_interface, column_splitters.address, "Address");
+
+        // Type and Value are a single column: its header hosts the data-type selector (showing the active type) on the
+        // left and a compact display-format picker on the far right. The rows below show only the formatted value.
+        let control_height = 20.0;
+        let control_center_y = header_rectangle.center().y;
+        let format_selector_size = vec2(24.0, control_height);
+        let format_selector_rectangle = Rect::from_min_size(
+            pos2(
+                (content_rectangle.max.x - format_selector_size.x - 6.0).max(column_splitters.value + text_left_padding),
+                control_center_y - control_height * 0.5,
+            ),
+            format_selector_size,
+        );
+        let type_selector_rectangle = Rect::from_min_max(
+            pos2(column_splitters.value + text_left_padding, control_center_y - control_height * 0.5),
+            pos2(
+                (format_selector_rectangle.min.x - 6.0).max(column_splitters.value + text_left_padding + 1.0),
+                control_center_y + control_height * 0.5,
+            ),
+        );
+
+        let stored_data_type_id = self
+            .debugger_trace_view_data
+            .read("Debugger trace header value data type")
+            .map(|debugger_trace_view_data| debugger_trace_view_data.get_value_data_type_id())
+            .unwrap_or_else(|| String::from("i32"));
+        let default_display_format = self
+            .app_context
+            .engine_unprivileged_state
+            .get_default_anonymous_value_string_format(&DataTypeRef::new(&stored_data_type_id));
+
+        if let Some(debugger_trace_view_data) = self.debugger_trace_view_data.read("Debugger trace header value format controls") {
+            debugger_trace_view_data.with_value_format_controls(default_display_format, |data_type_selection, display_format| {
+                user_interface.put(
+                    type_selector_rectangle,
+                    DataTypeSelectorView::new(self.app_context.clone(), data_type_selection, "debugger_trace_value_data_type")
+                        .single_select()
+                        .width(type_selector_rectangle.width())
+                        .height(type_selector_rectangle.height()),
+                );
+
+                let active_data_type_ref = data_type_selection.active_data_type().clone();
+                let mut supported_display_formats = self
+                    .app_context
+                    .engine_unprivileged_state
+                    .get_supported_anonymous_value_string_formats(&active_data_type_ref);
+
+                if supported_display_formats.is_empty() {
+                    supported_display_formats.push(*display_format);
+                }
+                if !supported_display_formats.contains(display_format) {
+                    *display_format = supported_display_formats[0];
+                }
+
+                let mut header_display_format_value = AnonymousValueString::new(String::new(), *display_format, ContainerType::None);
+
+                user_interface.put(
+                    format_selector_rectangle,
+                    ComboBoxView::new(
+                        self.app_context.clone(),
+                        String::new(),
+                        "debugger_trace_value_display_format",
+                        Some(self.display_format_icon(*display_format)),
+                        |popup_user_interface, should_close| {
+                            for anonymous_value_string_format in &supported_display_formats {
+                                if popup_user_interface
+                                    .add(
+                                        DataValueBoxConvertItemView::new(
+                                            self.app_context.clone(),
+                                            &mut header_display_format_value,
+                                            anonymous_value_string_format,
+                                            None,
+                                            false,
+                                            false,
+                                            Self::VALUE_DISPLAY_FORMAT_POPUP_WIDTH,
+                                        )
+                                        .width(Self::VALUE_DISPLAY_FORMAT_POPUP_WIDTH),
+                                    )
+                                    .clicked()
+                                {
+                                    *should_close = true;
+                                }
+                            }
+                        },
+                    )
+                    .width(format_selector_rectangle.width())
+                    .height(format_selector_rectangle.height())
+                    .show_dropdown_arrow(false),
+                );
+
+                *display_format = header_display_format_value.get_anonymous_value_string_format();
+            });
+        }
+    }
+
+    /// Paints and handles the draggable column dividers. Called AFTER the header and all rows are drawn so the dividers
+    /// span the full table height and win the pointer over the rows (mirrors the scan results table). `splitter_bottom_y`
+    /// is the bottom of the rows just rendered.
+    fn show_column_splitters(
+        &self,
+        user_interface: &mut Ui,
+        content_rectangle: Rect,
+        splitter_bottom_y: f32,
+        column_splitters: TraceColumnSplitters,
+    ) {
+        let theme = &self.app_context.theme;
+        let bar_thickness = 4.0;
+        let content_min_x = content_rectangle.min.x;
+        let content_width = content_rectangle.width().max(1.0);
+        let (instruction_ratio, address_ratio, value_ratio) = self.column_splitter_ratios();
+        let top_y = content_rectangle.min.y;
+        let bottom_y = splitter_bottom_y.max(top_y + 1.0);
+
+        let splitter_bar = |user_interface: &mut Ui, splitter_position_x: f32, id_suffix: &str| -> Response {
+            let splitter_rectangle = Rect::from_min_max(pos2(splitter_position_x - bar_thickness * 0.5, top_y), pos2(splitter_position_x + bar_thickness * 0.5, bottom_y));
+            let splitter_id = user_interface.id().with(("debugger_trace_column_splitter", id_suffix));
+            let splitter_response = user_interface.interact(splitter_rectangle, splitter_id, Sense::drag());
+            let splitter_color = if splitter_response.hovered() || splitter_response.dragged() {
+                theme.selected_border
+            } else {
+                theme.background_control
+            };
+
+            user_interface.painter().rect_filled(splitter_rectangle, 0.0, splitter_color);
+
+            splitter_response.on_hover_cursor(CursorIcon::ResizeHorizontal)
+        };
+
+        let instruction_response = splitter_bar(user_interface, column_splitters.instruction, "instruction");
+        let address_response = splitter_bar(user_interface, column_splitters.address, "address");
+        let value_response = splitter_bar(user_interface, column_splitters.value, "value");
+
+        let mut new_instruction_ratio = instruction_ratio;
+        let mut new_address_ratio = address_ratio;
+        let mut new_value_ratio = value_ratio;
+        let mut did_drag = false;
+
+        if instruction_response.dragged() {
+            new_instruction_ratio = (column_splitters.instruction + instruction_response.drag_delta().x - content_min_x) / content_width;
+            did_drag = true;
+        }
+        if address_response.dragged() {
+            new_address_ratio = (column_splitters.address + address_response.drag_delta().x - content_min_x) / content_width;
+            did_drag = true;
+        }
+        if value_response.dragged() {
+            new_value_ratio = (column_splitters.value + value_response.drag_delta().x - content_min_x) / content_width;
+            did_drag = true;
+        }
+
+        if did_drag {
+            self.update_column_splitter_ratios(new_instruction_ratio, new_address_ratio, new_value_ratio);
+        }
+    }
+
+    fn update_column_splitter_ratios(
+        &self,
+        instruction_splitter_ratio: f32,
+        address_splitter_ratio: f32,
+        value_splitter_ratio: f32,
+    ) {
+        if let Some(debugger_trace_view_data) = self.debugger_trace_view_data.read("Debugger trace set column splitter ratios") {
+            debugger_trace_view_data.set_column_splitter_ratios(instruction_splitter_ratio, address_splitter_ratio, value_splitter_ratio);
+        }
+    }
+
+    fn trace_column_splitter_positions(
+        content_rectangle: Rect,
+        column_splitter_ratios: (f32, f32, f32),
+    ) -> TraceColumnSplitters {
+        let content_width = content_rectangle.width().max(1.0);
+        let (instruction_ratio, address_ratio, value_ratio) = column_splitter_ratios;
+
+        // The count column needs room for several digits even on narrow windows, so enforce a pixel minimum and cascade
+        // the minimum widths rightward so columns never collapse below something readable.
+        let hit_count = content_rectangle.min.x + 28.0;
+        let minimum_count_width = 42.0;
+        let minimum_column_width = 64.0;
+        let instruction = (content_rectangle.min.x + content_width * instruction_ratio).max(hit_count + minimum_count_width);
+        let address = (content_rectangle.min.x + content_width * address_ratio).max(instruction + minimum_column_width);
+        let value = (content_rectangle.min.x + content_width * value_ratio).max(address + minimum_column_width);
+
+        TraceColumnSplitters {
+            hit_count,
+            instruction,
+            address,
+            value,
+        }
+    }
+
+    fn column_splitter_ratios(&self) -> (f32, f32, f32) {
+        self.debugger_trace_view_data
+            .read("Debugger trace column splitter ratios")
+            .map(|debugger_trace_view_data| debugger_trace_view_data.get_column_splitter_ratios())
+            .unwrap_or((0.14, 0.42, 0.66))
     }
 
     fn show_trace_session_header(
@@ -612,22 +1021,32 @@ impl DebuggerTraceView {
 
         let content_rectangle = user_interface.available_rect_before_wrap();
         self.show_trace_header(user_interface, content_rectangle);
-        let content_width = content_rectangle.width().max(1.0);
-        let hit_count_splitter_position_x = content_rectangle.min.x + 36.0;
-        let instruction_splitter_position_x = content_rectangle.min.x + content_width * 0.18;
-        let address_splitter_position_x = content_rectangle.min.x + content_width * 0.72;
+        let column_splitters = Self::trace_column_splitter_positions(content_rectangle, self.column_splitter_ratios());
+        let record_preview_values = self.read_record_preview_values(instruction_records, trace_session);
 
         for instruction_record in instruction_records {
             let instruction_key = DebuggerTraceInstructionKey::from_record(instruction_record);
             let is_selected = selected_instruction_keys.contains(&instruction_key);
+            // The value at this row's address: the accessed address (instruction-directed) or the watched address
+            // (address-directed). Show "??" while a read for a known address hasn't landed yet; blank if there is no
+            // address at all (e.g. an instruction-directed record whose accessed address could not be resolved).
+            let preview_value = match Self::record_value_address(instruction_record, trace_session) {
+                Some(value_address) => record_preview_values
+                    .get(&value_address)
+                    .cloned()
+                    .unwrap_or_else(|| String::from("??")),
+                None => String::new(),
+            };
             let row_response = user_interface.add(DebuggerTraceEntryView::new(
                 self.app_context.clone(),
                 instruction_record,
                 &instruction_key,
                 is_selected,
-                hit_count_splitter_position_x,
-                instruction_splitter_position_x,
-                address_splitter_position_x,
+                column_splitters.hit_count,
+                column_splitters.instruction,
+                column_splitters.address,
+                column_splitters.value,
+                preview_value,
             ));
 
             if row_response.clicked() {
@@ -657,6 +1076,10 @@ impl DebuggerTraceView {
                 self.add_instruction_record_to_project(instruction_record);
             }
         }
+
+        // Draw + handle the resizable column dividers last, spanning the full available height (not just the rows) so the
+        // bars fill the space and win the pointer over the rows.
+        self.show_column_splitters(user_interface, content_rectangle, content_rectangle.max.y, column_splitters);
     }
 
     fn show_instruction_context_menu(
@@ -787,25 +1210,39 @@ impl DebuggerTraceView {
         &self,
         instruction_record: &DebuggerTraceInstructionRecord,
     ) {
-        let Some(instruction_address) = instruction_record.get_instruction_address() else {
-            log::warn!("Cannot add debugger trace instruction without an instruction address.");
+        // Instruction-directed records: double-clicking an accessed-address row adds that DATA address (the thing the
+        // instruction touched) as a plain address item. Address-directed records add the accessing instruction itself.
+        let is_accessed_address_record = instruction_record.get_accessed_address().is_some();
+        let Some(target_address) = instruction_record
+            .get_accessed_address()
+            .or_else(|| instruction_record.get_instruction_address())
+        else {
+            log::warn!("Cannot add debugger trace record without a resolvable address.");
             return;
         };
         let target_directory_path = ProjectHierarchyViewData::get_selected_directory_path(self.project_hierarchy_view_data.clone()).unwrap_or_default();
         let (project_item_address, project_item_module_name) = ProjectHierarchyModuleAddressResolver::resolve_absolute_address_to_project_item_address(
             &self.app_context.engine_unprivileged_state,
-            instruction_address,
+            target_address,
         );
-        let project_item_name = Self::build_instruction_project_item_name(project_item_address, &project_item_module_name, instruction_record);
+        let (project_item_name, data_type_id, initial_preview_value) = if is_accessed_address_record {
+            (format!("Accessed 0x{:X}", project_item_address), String::from("i32"), None)
+        } else {
+            (
+                Self::build_instruction_project_item_name(project_item_address, &project_item_module_name, instruction_record),
+                self.instruction_data_type_id(instruction_record),
+                Some(Self::instruction_text(instruction_record)),
+            )
+        };
         let project_items_create_request = ProjectItemsCreateRequest {
             parent_directory_path: target_directory_path,
             project_item_name,
             is_directory: false,
             address: Some(project_item_address),
             module_name: Some(project_item_module_name),
-            data_type_id: Some(self.instruction_data_type_id(instruction_record)),
+            data_type_id: Some(data_type_id),
             pointer_offsets: None,
-            initial_preview_value: Some(Self::instruction_text(instruction_record)),
+            initial_preview_value,
         };
         let app_context = self.app_context.clone();
         let project_hierarchy_view_data = self.project_hierarchy_view_data.clone();

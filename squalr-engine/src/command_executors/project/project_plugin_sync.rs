@@ -9,7 +9,7 @@ use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
 
-const PLUGIN_SYNC_TIMEOUT_SECONDS: u64 = 1;
+const PLUGIN_SYNC_TIMEOUT_SECONDS: u64 = 30;
 
 pub struct PluginSnapshot {
     pub plugin_states: Vec<PluginState>,
@@ -49,7 +49,10 @@ pub fn apply_project_plugin_configuration(
     engine_execution_context: &Arc<dyn EngineExecutionContext>,
     plugin_configuration: Option<&PluginConfiguration>,
 ) -> bool {
-    let plugin_configuration = plugin_configuration.cloned().unwrap_or_default();
+    let Some(plugin_configuration) = plugin_configuration.filter(|plugin_configuration| !plugin_configuration.is_empty()) else {
+        return true;
+    };
+    let plugin_configuration = plugin_configuration.clone();
     let initial_plugin_snapshot = match get_plugin_snapshot(engine_execution_context) {
         Some(plugin_snapshot) => plugin_snapshot,
         None => {
@@ -134,6 +137,79 @@ fn set_plugin_order(
             log::error!("Timed out waiting for plugin set-order response: {}", error);
             false
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::apply_project_plugin_configuration;
+    use crate::engine_bindings::executable_command_unprivileged::ExecutableCommandUnprivleged;
+    use crossbeam_channel::{Receiver, unbounded};
+    use squalr_engine_api::commands::{
+        privileged_command::PrivilegedCommand, privileged_command_response::PrivilegedCommandResponse, unprivileged_command::UnprivilegedCommand,
+        unprivileged_command_response::UnprivilegedCommandResponse,
+    };
+    use squalr_engine_api::engine::{
+        engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings, engine_binding_error::EngineBindingError, engine_event_envelope::EngineEventEnvelope,
+        engine_execution_context::EngineExecutionContext,
+    };
+    use squalr_engine_api::plugins::PluginConfiguration;
+    use squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::{Arc, RwLock};
+
+    struct CountingEngineBindings {
+        privileged_dispatch_count: Arc<AtomicUsize>,
+    }
+
+    impl CountingEngineBindings {
+        fn new(privileged_dispatch_count: Arc<AtomicUsize>) -> Self {
+            Self { privileged_dispatch_count }
+        }
+    }
+
+    impl EngineApiUnprivilegedBindings for CountingEngineBindings {
+        fn dispatch_privileged_command(
+            &self,
+            _engine_command: PrivilegedCommand,
+            _callback: Box<dyn FnOnce(PrivilegedCommandResponse) + Send + Sync + 'static>,
+        ) -> Result<(), EngineBindingError> {
+            self.privileged_dispatch_count.fetch_add(1, Ordering::SeqCst);
+
+            Ok(())
+        }
+
+        fn dispatch_unprivileged_command(
+            &self,
+            engine_command: UnprivilegedCommand,
+            engine_execution_context: &Arc<dyn EngineExecutionContext>,
+            callback: Box<dyn FnOnce(UnprivilegedCommandResponse) + Send + Sync + 'static>,
+        ) -> Result<(), EngineBindingError> {
+            callback(engine_command.execute(engine_execution_context));
+
+            Ok(())
+        }
+
+        fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEventEnvelope>, EngineBindingError> {
+            let (_event_sender, event_receiver) = unbounded();
+
+            Ok(event_receiver)
+        }
+    }
+
+    #[test]
+    fn project_plugin_configuration_skips_empty_overrides_without_privileged_dispatch() {
+        let privileged_dispatch_count = Arc::new(AtomicUsize::new(0));
+        let engine_bindings = Arc::new(RwLock::new(CountingEngineBindings::new(privileged_dispatch_count.clone())));
+        let engine_unprivileged_state = EngineUnprivilegedState::new(engine_bindings);
+        let engine_execution_context: Arc<dyn EngineExecutionContext> = engine_unprivileged_state;
+
+        assert!(apply_project_plugin_configuration(&engine_execution_context, None));
+        assert!(apply_project_plugin_configuration(
+            &engine_execution_context,
+            Some(&PluginConfiguration::default())
+        ));
+        assert_eq!(privileged_dispatch_count.load(Ordering::SeqCst), 0);
     }
 }
 

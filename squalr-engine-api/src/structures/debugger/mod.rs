@@ -18,4 +18,4 @@ pub use debugger_register_value::DebuggerRegisterValue;
 pub use debugger_session_state::DebuggerSessionState;
 pub use debugger_trace_event::DebuggerTraceEvent;
 pub use debugger_trace_instruction_record::DebuggerTraceInstructionRecord;
-pub use debugger_trace_session_descriptor::DebuggerTraceSessionDescriptor;
+pub use debugger_trace_session_descriptor::{DebuggerTraceSessionDescriptor, DebuggerTraceTargetKind};

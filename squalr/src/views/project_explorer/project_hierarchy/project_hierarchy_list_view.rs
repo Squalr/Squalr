@@ -105,6 +105,9 @@ impl<'lifetime> ProjectHierarchyListView<'lifetime> {
         let scroll_area_output = ScrollArea::vertical()
             .id_salt("project_hierarchy")
             .auto_shrink([false, false])
+            // Rows are draggable for reordering, so don't let the scroll area swallow drags as scroll gestures (this is
+            // what blocked drag-reorder on touch). Scrolling is via the now finger-width scrollbar.
+            .drag_to_scroll(false)
             .show_rows(
                 user_interface,
                 Self::PROJECT_ITEM_ROW_HEIGHT,
@@ -357,7 +360,10 @@ impl<'lifetime> ProjectHierarchyListView<'lifetime> {
             return;
         };
 
-        let Some(pointer_position) = user_interface.input(|input_state| input_state.pointer.hover_pos()) else {
+        // On touch, hover_pos() is None on the release frame (PointerGone clears it the instant the finger lifts), which
+        // is exactly when the drop commits. interact_pos() is NOT cleared by PointerGone until next frame, so it still
+        // holds the release position here. Only runs during an active drag.
+        let Some(pointer_position) = user_interface.input(|input_state| input_state.pointer.hover_pos().or_else(|| input_state.pointer.interact_pos())) else {
             return;
         };
 
@@ -383,7 +389,8 @@ impl<'lifetime> ProjectHierarchyListView<'lifetime> {
         drag_started_project_item_path: Option<&PathBuf>,
         list_response: &mut ProjectHierarchyListResponse,
     ) {
-        let pointer_position = user_interface.input(|input_state| input_state.pointer.hover_pos());
+        // interact_pos() fallback so an empty-space drop still resolves on the touch release frame (see drop-target note).
+        let pointer_position = user_interface.input(|input_state| input_state.pointer.hover_pos().or_else(|| input_state.pointer.interact_pos()));
         let is_pointer_in_empty_space = pointer_position
             .filter(|pointer_position| scroll_area_rect.contains(*pointer_position))
             .map(|pointer_position| {

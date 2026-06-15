@@ -1,5 +1,5 @@
 use crate::x86_operand_lowering::build_candidate_instructions;
-use iced_x86::{Decoder, DecoderOptions, Encoder, FlowControl, Formatter, IntelFormatter};
+use iced_x86::{Decoder, DecoderOptions, Encoder, FlowControl, Formatter, IntelFormatter, OpKind, Register};
 use squalr_engine_api::{
     plugins::instruction_set::{DisassembledInstruction, InstructionSet, ParsedInstruction, normalize_instruction_text, parse_instruction_sequence},
     structures::memory::bitness::Bitness,
@@ -212,6 +212,42 @@ impl X86InstructionSetBase {
 
         Ok(instruction_lines)
     }
+
+    /// Computes the memory address the instruction accesses, using iced's effective-address resolver fed by the runtime
+    /// register snapshot. RIP/EIP is supplied as the next-instruction pointer (how iced expects it for RIP-relative).
+    fn resolve_accessed_address_impl(
+        &self,
+        instruction_bytes: &[u8],
+        instruction_address: u64,
+        register_value_by_name: &dyn Fn(&str) -> Option<u64>,
+    ) -> Option<u64> {
+        if instruction_bytes.is_empty() {
+            return None;
+        }
+
+        let mut decoder = Decoder::with_ip(
+            bitness_as_u32(self.instruction_bitness),
+            instruction_bytes,
+            instruction_address,
+            DecoderOptions::NONE,
+        );
+        let instruction = decoder.decode();
+
+        if instruction.is_invalid() {
+            return None;
+        }
+
+        let memory_operand_index = (0..instruction.op_count()).find(|operand_index| instruction.op_kind(*operand_index) == OpKind::Memory)?;
+        let next_instruction_pointer = instruction.next_ip();
+
+        instruction.virtual_address(memory_operand_index, 0, |register, _element_index, _element_size| match register {
+            Register::RIP | Register::EIP => Some(next_instruction_pointer),
+            Register::None => Some(0),
+            // Flat memory model: segment bases are zero. (iced queries the segment register for memory operands.)
+            Register::ES | Register::CS | Register::SS | Register::DS | Register::FS | Register::GS => Some(0),
+            other_register => register_value_by_name(&format!("{:?}", other_register).to_ascii_lowercase()),
+        })
+    }
 }
 
 fn resolve_branch_target_address(instruction: &iced_x86::Instruction) -> Option<u64> {
@@ -292,6 +328,15 @@ impl InstructionSet for X86InstructionSet {
     ) -> Result<Vec<DisassembledInstruction>, String> {
         self.inner
             .disassemble_instruction_block(instruction_bytes, base_address)
+    }
+
+    fn resolve_accessed_address(
+        &self,
+        disassembled_instruction: &DisassembledInstruction,
+        register_value_by_name: &dyn Fn(&str) -> Option<u64>,
+    ) -> Option<u64> {
+        self.inner
+            .resolve_accessed_address_impl(&disassembled_instruction.bytes, disassembled_instruction.address, register_value_by_name)
     }
 
     fn build_no_operation_fill(
@@ -555,6 +600,15 @@ impl InstructionSet for X64InstructionSet {
             .disassemble_instruction_block(instruction_bytes, base_address)
     }
 
+    fn resolve_accessed_address(
+        &self,
+        disassembled_instruction: &DisassembledInstruction,
+        register_value_by_name: &dyn Fn(&str) -> Option<u64>,
+    ) -> Option<u64> {
+        self.inner
+            .resolve_accessed_address_impl(&disassembled_instruction.bytes, disassembled_instruction.address, register_value_by_name)
+    }
+
     fn build_no_operation_fill(
         &self,
         byte_count: usize,
@@ -571,5 +625,57 @@ fn bitness_as_u32(instruction_bitness: Bitness) -> u32 {
     match instruction_bitness {
         Bitness::Bit32 => 32,
         Bitness::Bit64 => 64,
+    }
+}
+
+#[cfg(test)]
+mod effective_address_tests {
+    use super::X64InstructionSet;
+    use squalr_engine_api::plugins::instruction_set::{DisassembledInstruction, InstructionSet};
+    use std::collections::HashMap;
+
+    fn registers(pairs: &[(&str, u64)]) -> impl Fn(&str) -> Option<u64> {
+        let map = pairs
+            .iter()
+            .map(|(name, value)| (name.to_string(), *value))
+            .collect::<HashMap<_, _>>();
+
+        move |register_name: &str| map.get(register_name).copied()
+    }
+
+    fn disassemble_one(
+        instruction_set: &X64InstructionSet,
+        assembly: &str,
+        address: u64,
+    ) -> DisassembledInstruction {
+        let bytes = instruction_set
+            .assemble_at_address(assembly, address)
+            .expect("assemble");
+
+        instruction_set
+            .disassemble_block(&bytes, address)
+            .expect("disassemble")
+            .into_iter()
+            .next()
+            .expect("one instruction")
+    }
+
+    #[test]
+    fn resolves_x64_base_index_scale_displacement() {
+        let instruction_set = X64InstructionSet::new();
+        let instruction = disassemble_one(&instruction_set, "mov rax, [rbx+rcx*4+0x10]", 0x1000);
+        let lookup = registers(&[("rbx", 0x1000), ("rcx", 0x4)]);
+
+        // 0x1000 + 0x4*4 + 0x10 == 0x1020.
+        assert_eq!(instruction_set.resolve_accessed_address(&instruction, &lookup), Some(0x1020));
+    }
+
+    #[test]
+    fn no_memory_operand_resolves_to_none() {
+        let instruction_set = X64InstructionSet::new();
+        let instruction = disassemble_one(&instruction_set, "xor rax, rax", 0x2000);
+        let lookup = registers(&[("rax", 0x1234)]);
+
+        assert_eq!(instruction_set.resolve_accessed_address(&instruction, &lookup), None);
     }
 }

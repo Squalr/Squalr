@@ -189,6 +189,7 @@ fn format_breakpoint_kind(kind: &DebuggerBreakpointKind) -> String {
         DebuggerBreakpointKind::HardwareData { access, size_in_bytes } => {
             format!("hardware-data:{}:{} byte(s)", access.get_cli_label(), size_in_bytes)
         }
+        DebuggerBreakpointKind::HardwareExecute => String::from("hardware-execute"),
     }
 }
 
