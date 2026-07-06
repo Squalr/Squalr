@@ -38,6 +38,14 @@ impl App {
             style.spacing.scroll.handle_min_length = 48.0;
             style.spacing.scroll.bar_inner_margin = 4.0;
             style.spacing.scroll.bar_outer_margin = 0.0;
+
+            // Solid scrollbars draw the trough from `extreme_bg_color` and the handle from the interacted widget's
+            // `bg_fill`; egui's defaults render as ugly near-black. Map them onto the Squalr theme so the bar matches the
+            // rest of the UI (the handle brightens on hover and takes the accent colour while being dragged).
+            style.visuals.extreme_bg_color = theme.background_panel;
+            style.visuals.widgets.inactive.bg_fill = theme.background_control;
+            style.visuals.widgets.hovered.bg_fill = theme.background_control_light;
+            style.visuals.widgets.active.bg_fill = theme.selected_border;
         });
         // Create built in docked windows.
         let main_dock_root = DockableWindowSettings::get_dock_layout_settings();

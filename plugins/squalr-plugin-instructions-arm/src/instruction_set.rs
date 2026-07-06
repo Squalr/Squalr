@@ -202,7 +202,7 @@ impl InstructionSet for Arm64InstructionSet {
         disassembled_instruction: &DisassembledInstruction,
         register_value_by_name: &dyn Fn(&str) -> Option<u64>,
     ) -> Option<u64> {
-        resolve_arm64_accessed_address(&disassembled_instruction.text, register_value_by_name)
+        resolve_arm64_accessed_address(&disassembled_instruction.bytes, register_value_by_name)
     }
 
     fn get_first_instruction_length(

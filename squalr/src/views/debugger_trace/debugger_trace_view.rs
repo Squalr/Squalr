@@ -432,9 +432,9 @@ impl DebuggerTraceView {
             .collect()
     }
 
-    /// Interprets the first read field as the active data type and renders it in the active display format. Prefers the
-    /// engine's anonymizer (handles every registered type), falling back to a self-contained byte formatter so values
-    /// always render even if the anonymizer is unavailable for a given type.
+    /// Interprets the first read field as the active data type and renders it in the active display format via the
+    /// engine anonymizer (same path the project explorer uses). Returns None on failure so the row shows the "??"
+    /// placeholder rather than a stale/blank cell.
     fn format_preview_value(
         &self,
         query_result: &VirtualSnapshotQueryResult,
@@ -447,81 +447,14 @@ impl DebuggerTraceView {
         }
 
         let data_value = memory_read_response.valued_struct.get_fields().first()?.get_data_value()?;
+        let anonymous_value_string = self
+            .app_context
+            .engine_unprivileged_state
+            .anonymize_value(data_value, active_display_format)
+            .ok()?;
+        let formatted = anonymous_value_string.get_anonymous_value_string();
 
-        if let Ok(anonymous_value_string) = self.app_context.engine_unprivileged_state.anonymize_value(data_value, active_display_format) {
-            let formatted = anonymous_value_string.get_anonymous_value_string();
-            if !formatted.is_empty() {
-                return Some(formatted.to_string());
-            }
-        }
-
-        Some(Self::format_value_bytes(data_value.get_data_type_id(), data_value.get_value_bytes(), active_display_format))
-    }
-
-    /// Self-contained value formatter: interprets raw bytes as the given scalar data type and renders them in the chosen
-    /// display format. Covers the common integer/float types; unknown types fall back to an unsigned little-endian read.
-    fn format_value_bytes(
-        data_type_id: &str,
-        value_bytes: &[u8],
-        active_display_format: AnonymousValueStringFormat,
-    ) -> String {
-        if value_bytes.is_empty() {
-            return String::new();
-        }
-
-        let is_big_endian = data_type_id.ends_with("be");
-
-        if data_type_id.starts_with("f32") && value_bytes.len() >= 4 {
-            let mut float_bytes = [0u8; 4];
-            float_bytes.copy_from_slice(&value_bytes[..4]);
-            let float_value = if is_big_endian { f32::from_be_bytes(float_bytes) } else { f32::from_le_bytes(float_bytes) };
-
-            return match active_display_format {
-                AnonymousValueStringFormat::Hexadecimal | AnonymousValueStringFormat::Address => format!("0x{:X}", float_value.to_bits()),
-                _ => format!("{}", float_value),
-            };
-        }
-        if data_type_id.starts_with("f64") && value_bytes.len() >= 8 {
-            let mut float_bytes = [0u8; 8];
-            float_bytes.copy_from_slice(&value_bytes[..8]);
-            let float_value = if is_big_endian { f64::from_be_bytes(float_bytes) } else { f64::from_le_bytes(float_bytes) };
-
-            return match active_display_format {
-                AnonymousValueStringFormat::Hexadecimal | AnonymousValueStringFormat::Address => format!("0x{:X}", float_value.to_bits()),
-                _ => format!("{}", float_value),
-            };
-        }
-
-        let is_signed = data_type_id.starts_with('i');
-        let byte_count = value_bytes.len().min(16);
-        let mut little_endian_bytes = [0u8; 16];
-        if is_big_endian {
-            for byte_index in 0..byte_count {
-                little_endian_bytes[byte_index] = value_bytes[byte_count - 1 - byte_index];
-            }
-        } else {
-            little_endian_bytes[..byte_count].copy_from_slice(&value_bytes[..byte_count]);
-        }
-        let unsigned_value = u128::from_le_bytes(little_endian_bytes);
-
-        match active_display_format {
-            AnonymousValueStringFormat::Hexadecimal | AnonymousValueStringFormat::Address => format!("0x{:X}", unsigned_value),
-            AnonymousValueStringFormat::Binary => format!("0b{:b}", unsigned_value),
-            AnonymousValueStringFormat::Bool => (unsigned_value != 0).to_string(),
-            _ => {
-                if is_signed {
-                    let bit_count = (byte_count as u32) * 8;
-                    let signed_value = if bit_count < 128 && (unsigned_value >> (bit_count - 1)) & 1 == 1 {
-                        (unsigned_value as i128) - (1i128 << bit_count)
-                    } else {
-                        unsigned_value as i128
-                    };
-                    signed_value.to_string()
-                } else {
-                    unsigned_value.to_string()
-                }
-            }
-        }
+        if formatted.is_empty() { None } else { Some(formatted.to_string()) }
     }
 
     fn show_attach_prompt(

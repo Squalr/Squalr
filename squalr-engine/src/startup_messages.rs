@@ -48,8 +48,11 @@ pub const STARTUP_MESSAGES: &[&str] = &[
     "\"The Supreme Court has made its decision, now let them enforce it.\" - Andrew Jackson",
     "\"Never interrupt your enemy when he is making a mistake.\" - Napoleon Bonaparte",
     "\"Men are Moved by two levers only: fear and self interest.\" - Napoleon Bonaparte",
+    "\"He who saves his country does not violate any law.\" - Napoleon Bonaparte",
     "\"I saw the crown of France laying on the ground, so I picked it up with my sword.\" - Napoleon Bonaparte",
     "\"Virtue is a woman's honor, but honor is a mans virtue. I am of the race that founds empires.\" - Napoleon Bonaparte",
+    "\"You think you are too intelligent to believe in God. I am not like you.\" - Napoleon Bonaparte",
+    "\"I did not conquer half the world by listening to men who had conquered nothing.\" - Alexander the Great",
     "\"If the rule you followed brought you to this, of what use was the rule?\" - Anton Chigurh, No Country for Old Men",
     "\"Men are not hanged for stealing horses, but that horses may not be stolen.\" - George Savile",
     "\"Nobody is coming to save you. Consequentially, nobody is coming to stop you either.\" - Unknown",
@@ -57,6 +60,9 @@ pub const STARTUP_MESSAGES: &[&str] = &[
     "\"Whatever you think the world is withholding from you, you are withholding from the world.\" - Eckhart Tolle",
     "\"Even the disabled or afflicted can be eugenic if they crawl towards the sun with a knife between their teeth.\" - Jonathan Bowden",
     "\"When I am weaker than you, I ask you for freedom because that is according to your principles; when I am stronger than you, I take away your freedom because that is according to my principles.\" - Frank Herbert",
+    "\"One should always prefer to make mistakes of ambition rather than sloth.\" - Niccolo Machiavelli",
+    "\"If you haven't read hundreds of books, you are functionally illiterate, and you will be incompetent, because your personal experiences alone aren't broad enough to sustain you.\" - James N. Mattis",
+    "\"I come in peace. I didn't bring artillery. But I'm pleading with you, with tears in my eyes: If you fuck with me, I'll kill you all.\" - James N. Mattis",
 ];
 
 /// Picks a random startup message from the engine message bank.

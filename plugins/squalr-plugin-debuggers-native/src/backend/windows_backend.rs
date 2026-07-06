@@ -939,11 +939,14 @@ impl ActiveDbgEngSession {
             backend_message,
         ));
 
+        // Trace breakpoints (both address-directed watchpoints and instruction-directed execute breakpoints) auto-resume
+        // after recording the hit so collection continues. Without resuming the execute-breakpoint case, the target stays
+        // paused forever — which is what deadlocked the target when instruction-directed traces were added.
         if matches!(
             breakpoint_descriptor
                 .as_ref()
                 .map(DebuggerBreakpointDescriptor::get_kind),
-            Some(DebuggerBreakpointKind::HardwareData { .. })
+            Some(DebuggerBreakpointKind::HardwareData { .. } | DebuggerBreakpointKind::HardwareExecute)
         ) {
             self.resume()?;
         }
