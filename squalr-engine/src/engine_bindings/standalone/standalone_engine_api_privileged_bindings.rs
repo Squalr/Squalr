@@ -12,7 +12,7 @@ pub struct StandalonePrivilegedEngine {
     /// The list of subscribers to which we send engine events.
     event_senders: Arc<RwLock<Vec<Sender<EngineEventEnvelope>>>>,
 
-    engine_privileged_state: Option<Arc<EnginePrivilegedState>>,
+    engine_privileged_state: std::sync::Weak<EnginePrivilegedState>,
 }
 
 impl EngineApiPrivilegedBindings for StandalonePrivilegedEngine {
@@ -23,7 +23,7 @@ impl EngineApiPrivilegedBindings for StandalonePrivilegedEngine {
     ) -> Result<(), EngineBindingError> {
         let registry_generation = self
             .engine_privileged_state
-            .as_ref()
+            .upgrade()
             .map(|engine_privileged_state| engine_privileged_state.get_registry_generation())
             .unwrap_or_default();
         let engine_event_envelope = EngineEventEnvelope::new(registry_generation, engine_event);
@@ -45,7 +45,7 @@ impl EngineApiPrivilegedBindings for StandalonePrivilegedEngine {
         callback: Box<dyn FnOnce(PrivilegedCommandResponse) + Send + Sync + 'static>,
     ) -> Result<(), EngineBindingError> {
         // For standalone builds, we can instantly execute the command and return the response.
-        if let Some(engine_privileged_state) = &self.engine_privileged_state {
+        if let Some(engine_privileged_state) = self.engine_privileged_state.upgrade() {
             let response = privileged_command.execute(&engine_privileged_state);
 
             callback(response);
@@ -72,7 +72,7 @@ impl StandalonePrivilegedEngine {
     pub fn new() -> StandalonePrivilegedEngine {
         let instance = StandalonePrivilegedEngine {
             event_senders: Arc::new(RwLock::new(vec![])),
-            engine_privileged_state: None,
+            engine_privileged_state: std::sync::Weak::new(),
         };
 
         instance
@@ -82,7 +82,7 @@ impl StandalonePrivilegedEngine {
         &mut self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> Result<(), EngineBindingError> {
-        self.engine_privileged_state = Some(engine_privileged_state.clone());
+        self.engine_privileged_state = Arc::downgrade(engine_privileged_state);
 
         Ok(())
     }

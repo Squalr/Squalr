@@ -116,6 +116,13 @@ impl Default for EngineOsProviders {
 struct DefaultProcessQueryProvider;
 
 impl ProcessQueryProvider for DefaultProcessQueryProvider {
+    fn is_process_alive(
+        &self,
+        process: &OpenedProcessInfo,
+    ) -> bool {
+        squalr_engine_targets_native::process::process_manager::native_process_is_alive(process.get_process_id())
+    }
+
     fn start_monitoring(&self) -> Result<(), ProcessQueryError> {
         ProcessQuery::start_monitoring()
     }
@@ -250,6 +257,13 @@ impl RoutedProcessQueryProvider {
 }
 
 impl ProcessQueryProvider for RoutedProcessQueryProvider {
+    fn is_process_alive(
+        &self,
+        process: &OpenedProcessInfo,
+    ) -> bool {
+        self.base_provider.is_process_alive(process)
+    }
+
     fn start_monitoring(&self) -> Result<(), ProcessQueryError> {
         self.base_provider.start_monitoring()
     }

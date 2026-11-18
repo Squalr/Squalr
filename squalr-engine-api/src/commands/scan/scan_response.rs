@@ -11,3 +11,17 @@ pub enum ScanResponse {
     CollectValues { scan_value_collector_response: ScanCollectValuesResponse },
     ElementScan { element_scan_response: ElementScanResponse },
 }
+
+impl ScanResponse {
+    pub fn failure_message(&self) -> Option<&str> {
+        match self {
+            Self::New { scan_new_response: reply } if !reply.success => Some("The command failed."),
+            Self::Reset { scan_reset_response: reply } if !reply.success => Some("The command failed."),
+            Self::CollectValues {
+                scan_value_collector_response: reply,
+            } if !reply.success => Some("The command failed."),
+            Self::ElementScan { element_scan_response: reply } if !reply.success => Some("The command failed."),
+            _ => None,
+        }
+    }
+}

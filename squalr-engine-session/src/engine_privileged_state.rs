@@ -31,8 +31,9 @@ use std::sync::{Arc, Mutex, RwLock};
 
 /// Tracks critical privileged engine session state for command execution and event dispatch.
 pub struct EnginePrivilegedState {
+    _freeze_worker: squalr_engine_api::utils::periodic_worker::PeriodicWorker,
     /// The manager for the process to which Squalr is attached, and detecting if that process dies.
-    process_manager: ProcessManager,
+    process_manager: Arc<ProcessManager>,
 
     /// The manager that tracks all running engine tasks.
     task_manager: TrackableTaskManager,
@@ -98,7 +99,6 @@ impl EnginePrivilegedState {
         os_providers: EngineOsProviders,
     ) -> Result<Arc<Self>, ProcessQueryError> {
         let event_emitter = Self::create_event_emitter(engine_bindings.clone());
-        let process_manager = ProcessManager::new(event_emitter.clone());
         let task_manager = TrackableTaskManager::new();
         let snapshot = Arc::new(RwLock::new(Snapshot::new()));
         let pointer_scan_results = Arc::new(RwLock::new(None));
@@ -109,13 +109,38 @@ impl EnginePrivilegedState {
         let debugger_service = Arc::new(DebuggerService::new(plugin_registry.clone(), event_emitter.clone()));
         let patch_service = Arc::new(PatchService::new());
 
-        SnapshotScanResultFreezeTask::start_task(
-            process_manager.get_opened_process_ref(),
-            registries.get_freeze_list_registry().clone(),
-            os_providers.clone(),
-        );
+        let process_manager = {
+            let provider = os_providers.process_query.clone();
+            let release_provider = provider.clone();
+            let snapshot = snapshot.clone();
+            let freeze_list = registries.get_freeze_list_registry();
+            let pointer_results = pointer_scan_results.clone();
+            ProcessManager::with_liveness(
+                event_emitter.clone(),
+                move |process| provider.is_process_alive(process),
+                move |handle| release_provider.close_process(handle),
+                move || {
+                    snapshot
+                        .write()
+                        .unwrap_or_else(|error| error.into_inner())
+                        .set_snapshot_regions(Vec::new());
+                    freeze_list
+                        .write()
+                        .unwrap_or_else(|error| error.into_inner())
+                        .clear();
+                    *pointer_results
+                        .write()
+                        .unwrap_or_else(|error| error.into_inner()) = None;
+                },
+            )
+        };
+
+        let process_manager = Arc::new(process_manager);
+        let freeze_worker =
+            SnapshotScanResultFreezeTask::start_task(process_manager.clone(), registries.get_freeze_list_registry().clone(), os_providers.clone());
 
         let engine_privileged_state = Arc::new(EnginePrivilegedState {
+            _freeze_worker: freeze_worker,
             process_manager,
             task_manager,
             snapshot,
@@ -361,10 +386,13 @@ impl EnginePrivilegedState {
                 return;
             }
         };
-        let engine_privileged_state = self.clone();
+        let engine_privileged_state = Arc::downgrade(self);
 
         std::thread::spawn(move || {
             while let Ok(engine_event_envelope) = event_receiver.recv() {
+                let Some(engine_privileged_state) = engine_privileged_state.upgrade() else {
+                    break;
+                };
                 match engine_event_envelope.into_engine_event() {
                     EngineEvent::Process(ProcessEvent::ProcessChanged { process_changed_event }) => {
                         engine_privileged_state.invalidate_memory_view_runtime_state();
@@ -395,10 +423,12 @@ impl EnginePrivilegedState {
     }
 
     fn install_memory_view_state_changed_notifier(self: &Arc<Self>) {
-        let engine_privileged_state = self.clone();
+        let engine_privileged_state = Arc::downgrade(self);
         self.os_providers
             .set_memory_view_state_changed_notifier(Arc::new(move || {
-                engine_privileged_state.emit_event(PluginsChangedEvent {});
+                if let Some(state) = engine_privileged_state.upgrade() {
+                    state.emit_event(PluginsChangedEvent {});
+                }
             }));
     }
 

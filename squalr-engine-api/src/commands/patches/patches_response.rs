@@ -23,3 +23,20 @@ pub enum PatchesResponse {
         patch_list_response: PatchListResponse,
     },
 }
+
+impl PatchesResponse {
+    pub fn failure_message(&self) -> Option<&str> {
+        match self {
+            Self::Apply { patch_apply_response: reply } if !reply.status.get_success() => Some(reply.status.get_message().unwrap_or("The command failed.")),
+            Self::NoOperation {
+                patch_no_operation_response: reply,
+            } if !reply.status.get_success() => Some(reply.status.get_message().unwrap_or("The command failed.")),
+            Self::Restore { patch_restore_response: reply } if !reply.status.get_success() => Some(reply.status.get_message().unwrap_or("The command failed.")),
+            Self::RestoreAddress {
+                patch_restore_address_response: reply,
+            } if !reply.status.get_success() => Some(reply.status.get_message().unwrap_or("The command failed.")),
+            Self::List { patch_list_response: reply } if !reply.status.get_success() => Some(reply.status.get_message().unwrap_or("The command failed.")),
+            _ => None,
+        }
+    }
+}

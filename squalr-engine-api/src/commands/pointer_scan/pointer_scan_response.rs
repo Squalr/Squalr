@@ -23,3 +23,17 @@ pub enum PointerScanResponse {
         pointer_scan_validate_response: PointerScanValidateResponse,
     },
 }
+
+impl PointerScanResponse {
+    pub fn failure_message(&self) -> Option<&str> {
+        match self {
+            Self::Reset {
+                pointer_scan_reset_response: reply,
+            } if !reply.success => Some("The command failed."),
+            Self::Start {
+                pointer_scan_start_response: reply,
+            } if !reply.success => Some("The command failed."),
+            _ => None,
+        }
+    }
+}

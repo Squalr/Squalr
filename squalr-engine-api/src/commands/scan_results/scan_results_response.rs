@@ -27,3 +27,14 @@ pub enum ScanResultsResponse {
         scan_results_delete_response: ScanResultsDeleteResponse,
     },
 }
+
+impl ScanResultsResponse {
+    pub fn failure_message(&self) -> Option<&str> {
+        match self {
+            Self::Freeze {
+                scan_results_freeze_response: reply,
+            } if !reply.failed_freeze_toggle_scan_result_refs.is_empty() => Some("Some scan results could not be updated."),
+            _ => None,
+        }
+    }
+}

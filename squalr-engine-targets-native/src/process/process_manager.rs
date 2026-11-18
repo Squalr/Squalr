@@ -9,152 +9,196 @@ use squalr_engine_api::{
 };
 use std::{
     sync::{Arc, RwLock},
-    thread,
     time::Duration,
 };
-use sysinfo::System;
 #[cfg(not(target_family = "unix"))]
 use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate};
+
+use super::process_slot::ProcessSlot;
+
+use squalr_engine_api::utils::periodic_worker::PeriodicWorker;
+use squalr_engine_targets::ProcessQueryError;
+use std::sync::{
+    RwLockReadGuard,
+    atomic::{AtomicU64, Ordering},
+};
 
 const OPEN_PROCESS_DEATH_POLL_INTERVAL: Duration = Duration::from_millis(250);
 
 pub struct ProcessManager {
-    opened_process: Arc<RwLock<Option<OpenedProcessInfo>>>,
+    opened_process: Arc<RwLock<ProcessSlot>>,
+    attachment_gate: Arc<RwLock<()>>,
+    generation: Arc<AtomicU64>,
+    invalidate: Arc<dyn Fn() + Send + Sync>,
     event_emitter: Arc<dyn Fn(EngineEvent) + Send + Sync>,
+    _monitor: PeriodicWorker,
 }
 
 impl ProcessManager {
     pub fn new(event_emitter: Arc<dyn Fn(EngineEvent) + Send + Sync>) -> Self {
-        let instance = Self {
-            opened_process: Arc::new(RwLock::new(None)),
-            event_emitter: event_emitter.clone(),
+        Self::with_liveness(
+            event_emitter,
+            |process| native_process_is_alive(process.get_process_id()),
+            crate::process_query::process_queryer::ProcessQuery::close_process,
+            || {},
+        )
+    }
+
+    pub fn with_liveness(
+        event_emitter: Arc<dyn Fn(EngineEvent) + Send + Sync>,
+        is_alive: impl Fn(&OpenedProcessInfo) -> bool + Send + Sync + 'static,
+        release: impl Fn(u64) -> Result<(), ProcessQueryError> + Send + Sync + 'static,
+        invalidate: impl Fn() + Send + Sync + 'static,
+    ) -> Self {
+        let opened_process = Arc::new(RwLock::new(ProcessSlot::new(release)));
+        let attachment_gate = Arc::new(RwLock::new(()));
+        let generation = Arc::new(AtomicU64::new(0));
+        let invalidate = Arc::new(invalidate);
+        let monitor = {
+            let process = opened_process.clone();
+            let generation = generation.clone();
+            let gate = attachment_gate.clone();
+            let invalidate = invalidate.clone();
+            let emit = event_emitter.clone();
+            PeriodicWorker::start(move || {
+                let is_dead = |target: &OpenedProcessInfo| !is_alive(target);
+                let detected_death = process
+                    .read()
+                    .is_ok_and(|current| current.current.as_ref().is_some_and(is_dead));
+                if detected_death
+                    && let Ok(_exclusive) = gate.write()
+                    && let Ok(mut current) = process.write()
+                    && current.current.as_ref().is_some_and(is_dead)
+                {
+                    invalidate();
+                    if let Err(error) = current.close() {
+                        log::warn!("Failed to release exited target: {error}");
+                        current.current = None;
+                    }
+                    generation.fetch_add(1, Ordering::Release);
+                    emit(ProcessChangedEvent { process_info: None }.to_engine_event());
+                }
+                OPEN_PROCESS_DEATH_POLL_INTERVAL
+            })
         };
 
-        Self::listen_for_open_process_death(event_emitter, instance.opened_process.clone());
-
-        instance
+        Self {
+            opened_process,
+            generation,
+            attachment_gate,
+            invalidate,
+            event_emitter,
+            _monitor: monitor,
+        }
     }
 
-    /// Sets the process to which we are currently attached.
+    pub fn generation(&self) -> u64 {
+        self.generation.load(Ordering::Acquire)
+    }
+
+    /// Keeps the attachment stable throughout one command.
+    pub fn attachment_guard(&self) -> Result<RwLockReadGuard<'_, ()>, ProcessQueryError> {
+        self.attachment_gate
+            .read()
+            .map_err(|error| ProcessQueryError::internal("read attachment", error.to_string()))
+    }
+
+    /// Retires the previous attachment and its dependent state before publishing the replacement.
+    pub fn replace_process(
+        &self,
+        replacement: Option<OpenedProcessInfo>,
+        expected_generation: Option<u64>,
+    ) -> Result<Option<OpenedProcessInfo>, ProcessQueryError> {
+        let _exclusive = self
+            .attachment_gate
+            .write()
+            .map_err(|error| ProcessQueryError::internal("change attachment", error.to_string()))?;
+        if expected_generation.is_some_and(|generation| generation != self.generation()) {
+            return Err(ProcessQueryError::internal("change attachment", "Target changed before the command started."));
+        }
+        let mut current = self
+            .opened_process
+            .write()
+            .map_err(|error| ProcessQueryError::internal("change attachment", error.to_string()))?;
+        if current.current.is_none() && replacement.is_none() {
+            return Ok(None);
+        }
+        let previous = current.close()?;
+        (self.invalidate)();
+        current.current = replacement.clone();
+        self.generation.fetch_add(1, Ordering::Release);
+        (self.event_emitter)(ProcessChangedEvent { process_info: replacement }.to_engine_event());
+        Ok(previous)
+    }
+
     pub fn set_opened_process(
         &self,
-        process_info: OpenedProcessInfo,
+        process: OpenedProcessInfo,
     ) {
-        if let Ok(mut process) = self.opened_process.write() {
-            log::info!("Opened process: {}, pid: {}", process_info.get_name(), process_info.get_process_id());
-            *process = Some(process_info.clone());
-
-            (self.event_emitter)(
-                ProcessChangedEvent {
-                    process_info: Some(process_info),
-                }
-                .to_engine_event(),
-            );
+        if let Err(error) = self.replace_process(Some(process), None) {
+            log::error!("Failed to set opened process: {error}");
         }
     }
 
-    /// Clears the process to which we are currently attached.
     pub fn clear_opened_process(&self) {
-        if let Ok(mut process) = self.opened_process.write() {
-            *process = None;
-
-            log::info!("Process closed.");
-
-            (self.event_emitter)(ProcessChangedEvent { process_info: None }.to_engine_event());
+        if let Err(error) = self.replace_process(None, None) {
+            log::error!("Failed to clear opened process: {error}");
         }
     }
 
-    /// Gets the process to which we are currently attached, if any.
     pub fn get_opened_process(&self) -> Option<OpenedProcessInfo> {
-        match self.opened_process.read() {
-            Ok(opened_process) => opened_process.clone(),
-            Err(error) => {
-                log::error!("Failed to access opened process: {}", error);
-                None
-            }
-        }
+        self.opened_process
+            .read()
+            .ok()
+            .and_then(|current| current.current.clone())
     }
 
-    /// Gets a reference to the shared lock containing the currently opened process.
-    pub fn get_opened_process_ref(&self) -> Arc<RwLock<Option<OpenedProcessInfo>>> {
-        self.opened_process.clone()
-    }
-
-    /// Listens for the death of the currently opened process by polling for it repeatedly.
-    fn listen_for_open_process_death(
-        event_emitter: Arc<dyn Fn(EngineEvent) + Send + Sync>,
-        opened_process: Arc<RwLock<Option<OpenedProcessInfo>>>,
+    /// Borrows the current target for an operation that must finish before its handle is released.
+    pub fn with_opened_process(
+        &self,
+        operation: impl FnOnce(&OpenedProcessInfo),
     ) {
-        std::thread::spawn(move || {
-            let mut system = System::new();
-
-            loop {
-                thread::sleep(OPEN_PROCESS_DEATH_POLL_INTERVAL);
-
-                let opened_process_id = {
-                    let read_result = opened_process.read();
-                    if let Ok(guard) = read_result {
-                        if let Some(opened_process_info) = guard.as_ref() {
-                            opened_process_info.get_process_id()
-                        } else {
-                            continue;
-                        }
-                    } else {
-                        continue;
-                    }
-                };
-
-                if !Self::is_process_alive(&mut system, opened_process_id) {
-                    if let Ok(mut opened_process) = opened_process.write() {
-                        *opened_process = None;
-                        log::info!("Process no longer open, detaching.");
-                        (event_emitter)(ProcessChangedEvent { process_info: None }.to_engine_event());
-                    }
+        match self.opened_process.read() {
+            Ok(current) => {
+                if let Some(target) = current.current.as_ref() {
+                    operation(target);
                 }
             }
-        });
-    }
-
-    fn is_process_alive(
-        system: &mut System,
-        process_id: u32,
-    ) -> bool {
-        #[cfg(target_family = "unix")]
-        {
-            let _ = system;
-            let kill_result = unsafe { kill(process_id as i32, 0) };
-
-            if kill_result == 0 {
-                return true;
-            }
-
-            let error_kind = std::io::Error::last_os_error().raw_os_error();
-
-            return error_kind != Some(ESRCH);
-        }
-
-        #[cfg(not(target_family = "unix"))]
-        {
-            let pid = Pid::from_u32(process_id);
-            let monitored_processes = [pid];
-            let refresh_kind = ProcessRefreshKind::nothing().without_tasks();
-
-            system.refresh_processes_specifics(ProcessesToUpdate::Some(&monitored_processes), true, refresh_kind);
-
-            system.process(pid).is_some()
+            Err(error) => log::error!("Failed to borrow opened process: {error}"),
         }
     }
 }
 
+pub fn native_process_is_alive(process_id: u32) -> bool {
+    #[cfg(target_family = "unix")]
+    {
+        let kill_result = unsafe { kill(process_id as i32, 0) };
+
+        if kill_result == 0 {
+            return true;
+        }
+
+        let error_kind = std::io::Error::last_os_error().raw_os_error();
+
+        return error_kind != Some(ESRCH);
+    }
+
+    #[cfg(not(target_family = "unix"))]
+    {
+        let pid = Pid::from_u32(process_id);
+        let monitored_processes = [pid];
+        let refresh_kind = ProcessRefreshKind::nothing().without_tasks();
+
+        let mut system = sysinfo::System::new();
+        system.refresh_processes_specifics(ProcessesToUpdate::Some(&monitored_processes), true, refresh_kind);
+
+        system.process(pid).is_some()
+    }
+}
 #[cfg(test)]
 mod tests {
-    use super::ProcessManager;
-    use sysinfo::System;
-
     #[test]
     fn process_liveness_check_finds_current_process() {
-        let mut system = System::new();
-
-        assert!(ProcessManager::is_process_alive(&mut system, std::process::id()));
+        assert!(super::native_process_is_alive(std::process::id()));
     }
 }

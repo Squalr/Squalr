@@ -1222,7 +1222,7 @@ mod tests {
 
         assert_eq!(
             ProjectItemTypeAddress::get_field_freeze_data_value_interpreter(&mut address_project_item),
-            "inc dword [rax]"
+            "inc dword ptr [rax]"
         );
     }
 

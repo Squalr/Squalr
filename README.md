@@ -27,13 +27,11 @@ Squalr can be used as a desktop app, a terminal tool, an Android app, or as Rust
 ### Standalone App
 Use this when you want the full interactive workflow: process selection, element scans, array/string scans, pointer scans, the memory viewer, project files, symbol layouts, and plugin-backed tooling.
 
-| Platform   | GUI   | CLI   | TUI   | Remote (Host)   | Remote (Shell)   |
-| ---------- | ----- | ----- | ----- | --------------- | ---------------- |
-| Windows    | ✅    | ✅    | ✅    | ✅              | ✅               |
-| Linux    | ✅    | ✅    | ✅    | ✅              | ✅               |
-| Mac    | ✅    | ✅    | ✅    | ✅              | ✅               |
-| Android (Rooted)   | ✅    | ✅    | ✅    | ❌              | ✅               |
-| iPhone (Not Available Yet)     | ✅    | ✅    | ✅     | ❌              | ✅               |
+| Platform | GUI | CLI | TUI | Worker connection |
+| -------- | --- | --- | --- | ----------------- |
+| Windows, Linux, macOS | Yes | Yes | Yes | Local HTTP worker for automation |
+| Rooted Android | Yes | Yes | Yes | Local privileged IPC or forwarded loopback HTTP |
+| iPhone | Planned | Planned | Planned | Planned |
 
 ### Plugins and Extensions
 Plugins are the path for extending Squalr's behavior. Existing plugin crates cover built-in plugins, 24-bit data types, instruction providers, binary symbols, and Dolphin memory-view routing. The medium-term goal is for plugins to extend data types, project item types, virtual modules, middleware, and tools without requiring changes to the core app.
@@ -59,6 +57,8 @@ If you already own the bytes, stay in the byte scanner layer: construct `Snapsho
 If you want to scan a real process, keep target I/O and scanning as separate phases. Use `squalr-engine-targets` for the abstraction, `squalr-engine-targets-native` when you want Squalr's native backend, and feed the collected memory into `squalr-engine-scanning`.
 
 If you want the full Squalr app workflow, use the session/command crates instead of assembling the lower layers yourself. That path is for consumers who want Squalr to coordinate target access, scans, projects, and responses.
+
+A full session owns the active attachment and its workers. Custom target providers can implement `ProcessQueryProvider::is_process_alive` in their own target namespace. Use `ProcessManager::with_opened_process` when an operation must finish before the attachment closes. Typed command callers can use `send_with_result` to observe a transport failure after dispatch. The returned Boolean indicates whether dispatch accepted the request. Packaged interactive applications opt into update checks separately from session initialization.
 
 ## Development Philosophy
 Systems level work demands a systems level language. Rust was chosen because it eliminates entire classes of bugs and is perfectly suited to the job.
@@ -160,23 +160,20 @@ Notes:
 
 ### Headless HTTP IPC
 
-`squalr-cli` can expose a JSON HTTP control surface for automation and integration tests:
+Each HTTP worker owns one attachment, scan state and event history. One controller credential grants access to that session. Use a separate worker for an independent controller. The controller owns project files and executes project commands locally. GUI and TUI network-client selection is planned.
 
-```text
+Set `SQUALR_HTTP_IPC_TOKEN` in the worker environment to a randomly generated secret of at least 32 visible ASCII characters. Send `Authorization: Bearer <token>` with every request. For example, in PowerShell:
+
+```powershell
+$env:SQUALR_HTTP_IPC_TOKEN = python -c "import secrets; print(secrets.token_hex(32))"
 squalr-cli --http-ipc 127.0.0.1:49321
 ```
 
-On Android, run it as root and forward the port from the host:
+The worker binds only to loopback. On Android, set the credential in the rooted worker environment and forward its loopback port with `adb forward tcp:49321 tcp:49321`. The Android smoke script provisions an ephemeral credential for each run.
 
-```text
-adb shell su 0 sh -c "/data/local/tmp/squalr-cli --http-ipc 127.0.0.1:49321"
-adb forward tcp:49321 tcp:49321
-```
-
-The initial endpoints are:
-- `GET /health`
-- `POST /command` with a serialized `PrivilegedCommand` JSON body, returning a `PrivilegedCommandResult`
-- `GET /events?after=<event_id>` for polling engine events
+- `GET /health` returns the protocol version, capabilities and project owner.
+- `POST /command` accepts a serialized `PrivilegedCommand`. Inspect the envelope's `success` and typed `result` for the outcome.
+- `GET /events?after=<event_id>` returns events and `latest_event_id` from the same snapshot. Advance to that cursor after processing the batch. When `cursor_expired` is true, refresh current state and resume at the returned cursor.
 
 To validate the Android debugger path end-to-end through HTTP IPC, run:
 

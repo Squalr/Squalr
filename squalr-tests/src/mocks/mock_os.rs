@@ -21,6 +21,9 @@ pub struct RecordedProcessQueryOptions {
 #[derive(Default)]
 pub struct MockOsState {
     pub process_query_requests: Vec<RecordedProcessQueryOptions>,
+    pub fail_close: bool,
+    pub target_exited: bool,
+    pub liveness_checks: usize,
     pub close_process_handles: Vec<u64>,
     pub open_process_requests: Vec<u32>,
     pub memory_read_addresses: Vec<u64>,
@@ -123,6 +126,16 @@ struct MockProcessQueryProvider {
 }
 
 impl ProcessQueryProvider for MockProcessQueryProvider {
+    fn is_process_alive(
+        &self,
+        _process: &OpenedProcessInfo,
+    ) -> bool {
+        self.state.lock().is_ok_and(|mut state| {
+            state.liveness_checks += 1;
+            !state.target_exited
+        })
+    }
+
     fn start_monitoring(&self) -> Result<(), ProcessQueryError> {
         Ok(())
     }
@@ -181,6 +194,9 @@ impl ProcessQueryProvider for MockProcessQueryProvider {
         match self.state.lock() {
             Ok(mut state_guard) => {
                 state_guard.close_process_handles.push(handle);
+                if state_guard.fail_close {
+                    return Err(ProcessQueryError::CloseProcessFailed { handle });
+                }
                 Ok(())
             }
             Err(error) => Err(ProcessQueryError::internal(

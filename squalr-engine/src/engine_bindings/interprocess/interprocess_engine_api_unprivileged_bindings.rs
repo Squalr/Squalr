@@ -21,7 +21,6 @@ use std::process::Command;
 use std::sync::Mutex;
 use std::sync::{Arc, RwLock};
 use std::thread;
-use std::time::Duration;
 use uuid::Uuid;
 
 #[cfg(target_os = "android")]
@@ -68,14 +67,13 @@ impl EngineApiUnprivilegedBindings for InterprocessEngineApiUnprivilegedBindings
     ) -> Result<(), EngineBindingError> {
         let request_id = Uuid::new_v4();
 
-        Self::insert_request_handle(&self.request_handles, request_id, callback)?;
-
         let ipc_connection_guard = self
             .ipc_connection
             .read()
             .map_err(|error| EngineBindingError::lock_failure("dispatching privileged command to IPC", error.to_string()))?;
 
         if let Some(ipc_connection) = ipc_connection_guard.as_ref() {
+            Self::insert_request_handle(&self.request_handles, request_id, callback)?;
             if let Err(error) = ipc_connection.send(EngineIngress::PrivilegedCommand(privileged_command), request_id) {
                 Self::remove_request_handle(&self.request_handles, &request_id);
 
@@ -84,8 +82,6 @@ impl EngineApiUnprivilegedBindings for InterprocessEngineApiUnprivilegedBindings
 
             return Ok(());
         }
-
-        Self::remove_request_handle(&self.request_handles, &request_id);
 
         Err(EngineBindingError::unavailable("dispatching privileged command over IPC"))
     }
@@ -159,7 +155,7 @@ impl InterprocessEngineApiUnprivilegedBindings {
         request_id: Uuid,
     ) {
         if let Some(callback) = Self::remove_request_handle(request_handles, &request_id) {
-            callback(privileged_command_result.into_privileged_command_response());
+            thread::spawn(move || callback(privileged_command_result.into_privileged_command_response()));
         }
     }
 
@@ -209,42 +205,48 @@ impl InterprocessEngineApiUnprivilegedBindings {
     ) {
         thread::spawn(move || {
             loop {
-                let mut should_stop_listener = false;
-
-                if let Ok(ipc_connection_lock) = ipc_connection.read() {
-                    if let Some(active_ipc_connection) = ipc_connection_lock.as_ref() {
-                        match active_ipc_connection.receive::<EngineEgress>() {
-                            Ok((interprocess_egress, request_id)) => match interprocess_egress {
-                                EngineEgress::PrivilegedCommandResponse(engine_response) => {
-                                    Self::handle_engine_response(&request_handles, engine_response, request_id)
-                                }
-                                EngineEgress::EngineEvent(engine_event) => Self::handle_engine_event(&event_senders, engine_event),
-                            },
-                            Err(receive_error) => {
-                                log::error!(
-                                    "Failed to receive from privileged worker IPC channel; stopping listener thread: {:?}",
-                                    receive_error
-                                );
-                                should_stop_listener = true;
-                            }
-                        }
-                    } else {
-                        log::error!("Privileged worker IPC connection is unavailable; stopping listener thread.");
-                        should_stop_listener = true;
+                let received = match ipc_connection.read() {
+                    Ok(connection) => match connection.as_ref() {
+                        Some(connection) => connection.receive::<EngineEgress>(),
+                        None => break,
+                    },
+                    Err(error) => {
+                        log::error!("Failed to read IPC connection: {error}");
+                        break;
                     }
-                } else {
-                    log::error!("Failed to acquire read lock for privileged worker IPC connection; stopping listener thread.");
-                    should_stop_listener = true;
+                };
+                match received {
+                    Ok((EngineEgress::PrivilegedCommandResponse(result), request_id)) => Self::handle_engine_response(&request_handles, result, request_id),
+                    Ok((EngineEgress::EngineEvent(event), _)) => Self::handle_engine_event(&event_senders, event),
+                    Err(error) => {
+                        log::warn!("Privileged IPC connection closed: {error:?}");
+                        break;
+                    }
                 }
-
-                if should_stop_listener {
-                    break;
-                }
-
-                thread::sleep(Duration::from_millis(1));
             }
+            // Stop accepting new requests before draining every outstanding completion.
+            ipc_connection
+                .write()
+                .unwrap_or_else(|error| error.into_inner())
+                .take();
+            Self::fail_pending_requests(&request_handles);
         });
     }
+    fn fail_pending_requests(request_handles: &Arc<Mutex<HashMap<Uuid, Box<dyn FnOnce(PrivilegedCommandResponse) + Send + Sync>>>>) {
+        let pending = std::mem::take(
+            &mut *request_handles
+                .lock()
+                .unwrap_or_else(|error| error.into_inner()),
+        );
+        for callback in pending.into_values() {
+            thread::spawn(move || {
+                callback(PrivilegedCommandResponse::Failed {
+                    message: "Privileged worker disconnected.".into(),
+                })
+            });
+        }
+    }
+
     fn spawn_privileged_cli(privileged_shell_process: Arc<RwLock<Option<Child>>>) -> io::Result<()> {
         match Self::spawn_squalr_cli_as_root() {
             Ok(child) => {
@@ -444,6 +446,34 @@ impl InterprocessEngineApiUnprivilegedBindings {
     }
 }
 
+impl Drop for InterprocessEngineApiUnprivilegedBindings {
+    fn drop(&mut self) {
+        if let Ok(connection) = self.ipc_connection.read()
+            && let Some(pipe) = connection.as_ref()
+        {
+            pipe.pipe_send.close();
+        }
+        if let Some(mut child) = self
+            .privileged_shell_process
+            .write()
+            .unwrap_or_else(|error| error.into_inner())
+            .take()
+        {
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+            while matches!(child.try_wait(), Ok(None)) && std::time::Instant::now() < deadline {
+                thread::sleep(std::time::Duration::from_millis(20));
+            }
+            if matches!(child.try_wait(), Ok(None)) {
+                if let Err(error) = child.kill() {
+                    log::warn!("Failed to stop privileged worker: {error}");
+                } else if let Err(error) = child.wait() {
+                    log::warn!("Failed to reap privileged worker: {error}");
+                }
+            }
+        }
+    }
+}
+
 #[cfg(target_os = "android")]
 struct AndroidSuSpawnAttempt {
     attempt_label: &'static str,
@@ -457,23 +487,23 @@ mod tests {
     use squalr_engine_api::commands::privileged_command_result::PrivilegedCommandResult;
     use squalr_engine_api::commands::scan::new::scan_new_response::ScanNewResponse;
     use std::collections::HashMap;
-    use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::{Arc, Mutex};
+    use std::time::Duration;
     use uuid::Uuid;
 
     #[test]
     fn response_callback_runs_after_request_handle_lock_is_released() {
         let request_handles = Arc::new(Mutex::new(HashMap::new()));
         let request_id = Uuid::new_v4();
-        let callback_observed_unlocked_map = Arc::new(AtomicBool::new(false));
+        let (completed, result) = std::sync::mpsc::channel();
+        let reader_id = std::thread::current().id();
         let request_handles_for_callback = request_handles.clone();
-        let callback_observed_unlocked_map_for_callback = callback_observed_unlocked_map.clone();
 
         InterprocessEngineApiUnprivilegedBindings::insert_request_handle(
             &request_handles,
             request_id,
             Box::new(move |_response| {
-                callback_observed_unlocked_map_for_callback.store(request_handles_for_callback.try_lock().is_ok(), Ordering::SeqCst);
+                let _ = completed.send((request_handles_for_callback.try_lock().is_ok(), std::thread::current().id()));
             }),
         )
         .expect("Expected test request handle insertion to succeed.");
@@ -484,12 +514,74 @@ mod tests {
             request_id,
         );
 
-        assert!(callback_observed_unlocked_map.load(Ordering::SeqCst));
+        let (map_unlocked, callback_id) = result
+            .recv_timeout(Duration::from_secs(2))
+            .expect("Callback must finish.");
+        assert!(map_unlocked);
+        assert_ne!(reader_id, callback_id);
         assert!(
             request_handles
                 .lock()
                 .expect("Expected request handle map lock to succeed.")
                 .is_empty()
         );
+    }
+
+    #[test]
+    fn disconnect_completes_each_pending_request_once() -> Result<(), Box<dyn std::error::Error>> {
+        let handles = Arc::new(Mutex::new(HashMap::new()));
+        let (completed, results) = std::sync::mpsc::channel();
+        for request_number in 0..3 {
+            let completed = completed.clone();
+            InterprocessEngineApiUnprivilegedBindings::insert_request_handle(
+                &handles,
+                Uuid::new_v4(),
+                Box::new(move |reply| {
+                    let _ = completed.send((request_number, reply.failure_message().is_some()));
+                }),
+            )?;
+        }
+        drop(completed);
+        InterprocessEngineApiUnprivilegedBindings::fail_pending_requests(&handles);
+        InterprocessEngineApiUnprivilegedBindings::fail_pending_requests(&handles);
+        let mut received = Vec::new();
+        for _ in 0..3 {
+            received.push(results.recv_timeout(Duration::from_secs(2))?);
+        }
+        received.sort_unstable();
+        assert_eq!(received, [(0, true), (1, true), (2, true)]);
+        assert!(results.recv_timeout(Duration::from_secs(2)).is_err());
+        Ok(())
+    }
+    #[test]
+    fn reply_reader_can_deliver_a_nested_request_while_the_outer_callback_waits() -> Result<(), Box<dyn std::error::Error>> {
+        let handles = Arc::new(Mutex::new(HashMap::new()));
+        let outer_request = Uuid::new_v4();
+        let nested_request = Uuid::new_v4();
+        let nested_handles = handles.clone();
+        let (ready, registered) = std::sync::mpsc::channel();
+        let (finished, outcome) = std::sync::mpsc::channel();
+        InterprocessEngineApiUnprivilegedBindings::insert_request_handle(
+            &handles,
+            outer_request,
+            Box::new(move |_| {
+                let (reply, completion) = std::sync::mpsc::channel();
+                let registered_nested = InterprocessEngineApiUnprivilegedBindings::insert_request_handle(
+                    &nested_handles,
+                    nested_request,
+                    Box::new(move |_| {
+                        let _ = reply.send(());
+                    }),
+                );
+                let _ = ready.send(registered_nested.is_ok());
+                let _ = finished.send(completion.recv_timeout(Duration::from_secs(2)).is_ok());
+            }),
+        )?;
+        let reply = || PrivilegedCommandResult::new(ScanNewResponse { success: true }.to_engine_response(), None);
+        InterprocessEngineApiUnprivilegedBindings::handle_engine_response(&handles, reply(), outer_request);
+        assert!(registered.recv_timeout(Duration::from_secs(2))?);
+        InterprocessEngineApiUnprivilegedBindings::handle_engine_response(&handles, reply(), nested_request);
+        assert!(outcome.recv_timeout(Duration::from_secs(2))?);
+        Ok(())
     }
 }

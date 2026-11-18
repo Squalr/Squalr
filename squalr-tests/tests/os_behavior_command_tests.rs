@@ -253,7 +253,7 @@ fn memory_read_executor_returns_failure_without_mutating_write_state_when_reader
 #[test]
 fn process_executors_use_injected_process_provider() {
     let (mock_engine_os, engine_privileged_state) = create_test_state();
-    let process_identifier = std::process::id();
+    let process_identifier = 1_000_000_001;
     let process_info = ProcessInfo::new(process_identifier, "calc.exe".to_string(), true, None);
 
     mock_engine_os.set_processes(vec![process_info.clone()]);
@@ -983,4 +983,101 @@ fn scan_results_set_property_freeze_toggle_executor_uses_injected_providers() {
         Err(error) => panic!("failed to lock mock state: {}", error),
     };
     assert_eq!(state_guard.memory_read_addresses, vec![0xA024]);
+}
+
+#[test]
+fn attachment_replacement_retires_results_and_refuses_queued_work() -> Result<(), Box<dyn std::error::Error>> {
+    use squalr_engine::engine_bindings::executable_command_privileged::execute_privileged_command;
+    use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRequest;
+    let (_provider, state) = create_test_state();
+    let manager = state.get_process_manager();
+    manager.set_opened_process(create_opened_process_info());
+    let old_generation = manager.generation();
+    seed_snapshot_with_single_scan_result(&state, 0x2000);
+    state
+        .get_freeze_list_registry()
+        .write()
+        .map_err(|_| "freeze lock")?
+        .set_address_frozen(Pointer::new(0x2000, vec![], String::new()), vec![0]);
+    manager.set_opened_process(OpenedProcessInfo::new(1_000_000_001, "second".into(), 81, Bitness::Bit64, None));
+    assert_eq!(
+        state
+            .get_snapshot()
+            .read()
+            .map_err(|_| "snapshot lock")?
+            .get_region_count(),
+        0
+    );
+    assert!(
+        state
+            .get_freeze_list_registry()
+            .read()
+            .map_err(|_| "freeze lock")?
+            .get_frozen_pointers()
+            .is_empty()
+    );
+    let result = execute_privileged_command(&state, ScanNewRequest {}.to_engine_command(), Some(old_generation));
+    assert!(
+        result
+            .get_privileged_command_response()
+            .failure_message()
+            .is_some()
+    );
+    Ok(())
+}
+
+#[test]
+fn failed_close_preserves_the_attachment_and_reports_failure() -> Result<(), Box<dyn std::error::Error>> {
+    let (provider, state) = create_test_state();
+    state
+        .get_process_manager()
+        .set_opened_process(create_opened_process_info());
+    provider.get_state().lock().map_err(|_| "mock lock")?.fail_close = true;
+    let before = state.get_process_manager().generation();
+    assert!(ProcessCloseRequest {}.execute(&state).process_info.is_none());
+    assert!(state.get_process_manager().get_opened_process().is_some());
+    assert_eq!(state.get_process_manager().generation(), before);
+    Ok(())
+}
+
+#[test]
+fn provider_controls_synthetic_target_lifetime() -> Result<(), Box<dyn std::error::Error>> {
+    use std::time::{Duration, Instant};
+    let (provider, state) = create_test_state();
+    state
+        .get_process_manager()
+        .set_opened_process(OpenedProcessInfo::new(1_000_000_001, "synthetic".into(), 31, Bitness::Bit64, None));
+    let deadline = Instant::now() + Duration::from_secs(4);
+    while provider
+        .get_state()
+        .lock()
+        .map_err(|_| "mock lock")?
+        .liveness_checks
+        == 0
+    {
+        assert!(Instant::now() < deadline, "Provider was never polled.");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(state.get_process_manager().get_opened_process().is_some());
+    provider
+        .get_state()
+        .lock()
+        .map_err(|_| "mock lock")?
+        .target_exited = true;
+    while state.get_process_manager().get_opened_process().is_some() {
+        assert!(Instant::now() < deadline, "Exited target remained attached.");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    Ok(())
+}
+
+#[test]
+fn dropping_an_embedded_session_releases_providers_and_state() {
+    let (provider, state) = create_test_state();
+    let weak_state = std::sync::Arc::downgrade(&state);
+    let weak_provider = std::sync::Arc::downgrade(&provider.get_state());
+    drop(provider);
+    drop(state);
+    assert!(weak_state.upgrade().is_none());
+    assert!(weak_provider.upgrade().is_none());
 }

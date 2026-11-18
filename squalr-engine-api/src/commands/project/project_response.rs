@@ -18,3 +18,26 @@ pub enum ProjectResponse {
     Export { project_export_response: ProjectExportResponse },
     List { project_list_response: ProjectListResponse },
 }
+
+impl ProjectResponse {
+    pub fn failure_message(&self) -> Option<&str> {
+        match self {
+            Self::Create {
+                project_create_response: reply,
+            } if !reply.success => Some("The command failed."),
+            Self::Delete {
+                project_delete_response: reply,
+            } if !reply.success => Some("The command failed."),
+            Self::Open { project_open_response: reply } if !reply.success => Some("The command failed."),
+            Self::Close { project_close_response: reply } if !reply.success => Some("The command failed."),
+            Self::Rename {
+                project_rename_response: reply,
+            } if !reply.success => Some("The command failed."),
+            Self::Save { project_save_response: reply } if !reply.success => Some("The command failed."),
+            Self::Export {
+                project_export_response: reply,
+            } if !reply.success => Some("The command failed."),
+            _ => None,
+        }
+    }
+}

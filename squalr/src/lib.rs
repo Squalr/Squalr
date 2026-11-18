@@ -104,6 +104,7 @@ fn run_gui_with_native_options(
                 );
 
                 squalr_engine.initialize();
+                SqualrEngine::check_for_app_updates();
 
                 Ok(Box::new(app))
             } else {

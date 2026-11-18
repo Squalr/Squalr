@@ -106,8 +106,27 @@ impl SqualrEngine {
             Vectors::get_hardware_vector_name(),
         );
         log::info!("{}", get_random_startup_message());
+    }
 
+    /// Starts update checks for a packaged Squalr application.
+    pub fn check_for_app_updates() {
         AppUpdater::run_update(ProgressTracker::new());
+    }
+
+    /// Waits for the host to disconnect from a privileged IPC worker.
+    pub fn wait_for_host_disconnect(&self) -> anyhow::Result<()> {
+        let state = self
+            .engine_privileged_state
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("No privileged worker state."))?;
+        let stopped = state
+            .get_engine_bindings()
+            .read()
+            .map_err(|error| anyhow::anyhow!("Worker bindings unavailable: {error}"))?
+            .worker_lifetime()
+            .ok_or_else(|| anyhow::anyhow!("No worker transport."))?;
+        let _ = stopped.recv();
+        Ok(())
     }
 
     /// Gets the engine execution context to allow for API access to the engine privileged state.

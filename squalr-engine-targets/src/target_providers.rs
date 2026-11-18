@@ -7,6 +7,15 @@ use squalr_engine_api::structures::structs::valued_struct::ValuedStruct;
 use crate::process_query::{process_query_error::ProcessQueryError, process_query_options::ProcessQueryOptions};
 
 pub trait ProcessQueryProvider: Send + Sync {
+    /// Reports whether an attachment still exists in this provider's target namespace.
+    /// Providers without a liveness signal retain the attachment until explicit detachment.
+    fn is_process_alive(
+        &self,
+        _process: &OpenedProcessInfo,
+    ) -> bool {
+        true
+    }
+
     fn start_monitoring(&self) -> Result<(), ProcessQueryError>;
 
     fn get_processes(

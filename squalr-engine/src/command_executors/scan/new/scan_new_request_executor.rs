@@ -14,15 +14,6 @@ impl PrivilegedCommandRequestExecutor for ScanNewRequest {
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
-        let freeze_list_registry = engine_privileged_state.get_freeze_list_registry();
-        let mut freeze_list_registry_guard = match freeze_list_registry.write() {
-            Ok(registry) => registry,
-            Err(error) => {
-                log::error!("Failed to acquire write lock on FreezeListRegistry: {}", error);
-
-                return ScanNewResponse::default();
-            }
-        };
         let opened_process_info = engine_privileged_state
             .get_process_manager()
             .get_opened_process();
@@ -45,7 +36,16 @@ impl PrivilegedCommandRequestExecutor for ScanNewRequest {
             }
         };
 
-        // Best-effort to clear the freeze list.
+        let freeze_list_registry = engine_privileged_state.get_freeze_list_registry();
+        let mut freeze_list_registry_guard = match freeze_list_registry.write() {
+            Ok(registry) => registry,
+            Err(error) => {
+                log::error!("Failed to acquire write lock on FreezeListRegistry: {}", error);
+
+                return ScanNewResponse::default();
+            }
+        };
+        // Reset frozen results under the same lock order used by result commands.
         freeze_list_registry_guard.clear();
 
         // Query all memory pages for the process from the OS.
@@ -60,11 +60,8 @@ impl PrivilegedCommandRequestExecutor for ScanNewRequest {
         // This prevents issues where one page may deallocate, which would otherwise cause the read for an adjacent page to fail!
         let merged_snapshot_regions = merge_memory_regions_into_snapshot_regions(memory_pages);
 
-        if !merged_snapshot_regions.is_empty() {
-            snapshot.set_snapshot_regions(merged_snapshot_regions);
-
-            engine_privileged_state.emit_event(ScanResultsUpdatedEvent { is_new_scan: true });
-        }
+        snapshot.set_snapshot_regions(merged_snapshot_regions);
+        engine_privileged_state.emit_event(ScanResultsUpdatedEvent { is_new_scan: true });
 
         log::info!("Started new scan.");
 
