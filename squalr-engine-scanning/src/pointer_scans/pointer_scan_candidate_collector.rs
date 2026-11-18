@@ -107,6 +107,11 @@ impl PointerScanCandidateCollector {
         retain_heap_candidates: bool,
         collected_level: &mut PointerScanCollectedLevel,
     ) {
+        match snapshot_region_scan_task.task_kind {
+            SnapshotRegionScanTaskKind::Heap if !retain_heap_candidates => return,
+            SnapshotRegionScanTaskKind::Static { .. } if !retain_static_candidates => return,
+            _ => {}
+        }
         range_search_kernel.scan_region_with_visitor(
             pointer_scan_search_kernel_context,
             snapshot_region_scan_task.scan_base_address,
@@ -122,7 +127,7 @@ impl PointerScanCandidateCollector {
                     SnapshotRegionScanTaskKind::Static {
                         module_index,
                         module_base_address,
-                    } if retain_static_candidates => {
+                    } => {
                         collected_level
                             .static_candidates
                             .push(PointerScanCollectedCandidate {
@@ -132,7 +137,7 @@ impl PointerScanCandidateCollector {
                                 module_offset: pointer_address.saturating_sub(module_base_address),
                             });
                     }
-                    SnapshotRegionScanTaskKind::Heap if retain_heap_candidates => {
+                    SnapshotRegionScanTaskKind::Heap => {
                         collected_level
                             .heap_candidates
                             .push(PointerScanCollectedCandidate {
@@ -142,9 +147,56 @@ impl PointerScanCandidateCollector {
                                 module_offset: 0,
                             });
                     }
-                    _ => {}
                 }
             },
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::pointer_scans::structures::pointer_scan_region_match::PointerScanRegionMatch;
+    use std::sync::Mutex;
+
+    #[derive(Default)]
+    struct RecordingKernel(Mutex<Vec<u64>>);
+
+    impl PointerScanSearchKernel for RecordingKernel {
+        fn scan_region_with_visitor(
+            &self,
+            _context: &PointerScanSearchKernelContext<'_>,
+            base_address: u64,
+            _values: &[u8],
+            _visit: &mut dyn FnMut(PointerScanRegionMatch),
+        ) {
+            self.0.lock().expect("Recorded calls").push(base_address);
+        }
+    }
+
+    #[test]
+    fn final_discovery_level_only_invokes_kernel_for_static_tasks() {
+        let ranges = PointerScanTargetRangeSet::from_target_addresses(&[0x3000], 0x20);
+        let context = PointerScanSearchKernelContext::new(&ranges, PointerScanPointerSize::Pointer64);
+        let kernel = RecordingKernel::default();
+        let tasks = [
+            SnapshotRegionScanTask {
+                scan_base_address: 0x1000,
+                scan_end_address: 0x1008,
+                current_values: &[0; 8],
+                task_kind: SnapshotRegionScanTaskKind::Static {
+                    module_index: 0,
+                    module_base_address: 0x1000,
+                },
+            },
+            SnapshotRegionScanTask {
+                scan_base_address: 0x2000,
+                scan_end_address: 0x2008,
+                current_values: &[0; 8],
+                task_kind: SnapshotRegionScanTaskKind::Heap,
+            },
+        ];
+        PointerScanCandidateCollector::collect_candidates_with_kernel(&tasks, &kernel, &context, true, false);
+        assert_eq!(*kernel.0.lock().expect("Recorded calls"), vec![0x1000]);
     }
 }

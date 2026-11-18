@@ -8,7 +8,9 @@ use squalr_engine_api::commands::pointer_scan::pointer_scan_response::PointerSca
 use squalr_engine_api::commands::pointer_scan::reset::pointer_scan_reset_request::PointerScanResetRequest;
 use squalr_engine_api::commands::pointer_scan::start::pointer_scan_start_request::PointerScanStartRequest;
 use squalr_engine_api::commands::pointer_scan::summary::pointer_scan_summary_request::PointerScanSummaryRequest;
+use squalr_engine_api::commands::pointer_scan::validate::pointer_scan_compare_request::PointerScanCompareRequest;
 use squalr_engine_api::commands::pointer_scan::validate::pointer_scan_validate_request::PointerScanValidateRequest;
+use squalr_engine_api::commands::pointer_scan::validate::pointer_scan_validate_response::PointerScanValidateResponse;
 use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRequest;
 use squalr_engine_api::commands::privileged_command_response::PrivilegedCommandResponse;
 use squalr_engine_api::commands::project_items::create::project_items_create_request::ProjectItemsCreateRequest;
@@ -345,7 +347,7 @@ impl PointerScannerViewData {
         };
 
         if should_validate_scan {
-            Self::validate_address_scan(pointer_scanner_view_data, engine_unprivileged_state);
+            Self::validate_address_scan(pointer_scanner_view_data, engine_unprivileged_state, false);
 
             return;
         }
@@ -653,9 +655,10 @@ impl PointerScannerViewData {
         }
     }
 
-    fn validate_address_scan(
+    pub fn validate_address_scan(
         pointer_scanner_view_data: Dependency<Self>,
         engine_unprivileged_state: Arc<EngineUnprivilegedState>,
+        compare: bool,
     ) {
         let (session_id, validation_target_address_input, session_request_revision) = {
             let mut pointer_scanner_view_data_guard = match pointer_scanner_view_data.write("Pointer scanner validate scan") {
@@ -679,8 +682,17 @@ impl PointerScannerViewData {
 
             pointer_scanner_view_data_guard.is_validating_scan = true;
             let session_request_revision = pointer_scanner_view_data_guard.begin_session_request();
-            pointer_scanner_view_data_guard.status_message =
-                Self::format_validating_scan_status(session_id, &pointer_scanner_view_data_guard.validation_target_address_input);
+            pointer_scanner_view_data_guard.status_message = if compare {
+                format!(
+                    "Comparing session {} with {}.",
+                    session_id,
+                    pointer_scanner_view_data_guard
+                        .validation_target_address_input
+                        .get_anonymous_value_string()
+                )
+            } else {
+                Self::format_validating_scan_status(session_id, &pointer_scanner_view_data_guard.validation_target_address_input)
+            };
             pointer_scanner_view_data_guard.request_repaint();
 
             (
@@ -699,7 +711,7 @@ impl PointerScannerViewData {
         let pointer_scanner_view_data_for_dispatch = pointer_scanner_view_data.clone();
 
         let did_spawn_thread = Self::spawn_request_thread("pointer-scan-validate", move || {
-            let did_dispatch = pointer_scan_validate_request.send(&engine_unprivileged_state, move |pointer_scan_validate_response| {
+            let apply_response = move |pointer_scan_validate_response: PointerScanValidateResponse| {
                 let pointer_scan_summary = pointer_scan_validate_response.pointer_scan_summary.clone();
 
                 if let Some(mut pointer_scanner_view_data_guard) = pointer_scanner_view_data_clone.write("Pointer scanner validate scan response") {
@@ -731,7 +743,12 @@ impl PointerScannerViewData {
 
                     pointer_scanner_view_data_guard.request_repaint();
                 }
-            });
+            };
+            let did_dispatch = if compare {
+                PointerScanCompareRequest(pointer_scan_validate_request).send(&engine_unprivileged_state, apply_response)
+            } else {
+                pointer_scan_validate_request.send(&engine_unprivileged_state, apply_response)
+            };
 
             if !did_dispatch {
                 Self::clear_validate_scan_request_state(pointer_scanner_view_data_for_dispatch, "Pointer scanner validate scan dispatch failure");

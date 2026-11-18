@@ -25,6 +25,9 @@ impl PrivilegedCommandExecutor for PointerScanCommand {
             PointerScanCommand::Expand { pointer_scan_expand_request } => pointer_scan_expand_request
                 .execute(engine_privileged_state)
                 .to_engine_response(),
+            PointerScanCommand::Compare { pointer_scan_compare_request } => pointer_scan_compare_request
+                .execute(engine_privileged_state)
+                .to_engine_response(),
             PointerScanCommand::Validate { pointer_scan_validate_request } => pointer_scan_validate_request
                 .execute(engine_privileged_state)
                 .to_engine_response(),

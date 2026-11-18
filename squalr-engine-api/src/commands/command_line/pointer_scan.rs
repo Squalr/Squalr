@@ -72,6 +72,9 @@ pub(crate) struct CommandLinePointerScanExpandRequest {
 
 #[derive(Clone, StructOpt, Debug)]
 pub(crate) struct CommandLinePointerScanValidateRequest {
+    /// Show roots exclusive to the primary target first, keeping all roots available.
+    #[structopt(long)]
+    pub compare: bool,
     #[structopt(short = "i", long)]
     pub session_id: u64,
     #[structopt(flatten)]
@@ -103,9 +106,19 @@ impl From<CommandLinePointerScanCommand> for api::commands::pointer_scan::pointe
             CommandLinePointerScanCommand::Expand { pointer_scan_expand_request } => Self::Expand {
                 pointer_scan_expand_request: pointer_scan_expand_request.into(),
             },
-            CommandLinePointerScanCommand::Validate { pointer_scan_validate_request } => Self::Validate {
-                pointer_scan_validate_request: pointer_scan_validate_request.into(),
-            },
+            CommandLinePointerScanCommand::Validate { pointer_scan_validate_request } => {
+                let compare = pointer_scan_validate_request.compare;
+                let request = pointer_scan_validate_request.into();
+                if compare {
+                    Self::Compare {
+                        pointer_scan_compare_request: api::commands::pointer_scan::validate::pointer_scan_compare_request::PointerScanCompareRequest(request),
+                    }
+                } else {
+                    Self::Validate {
+                        pointer_scan_validate_request: request,
+                    }
+                }
+            }
         }
     }
 }
@@ -153,5 +166,38 @@ impl From<CommandLinePointerScanValidateRequest> for api::commands::pointer_scan
             session_id: request.session_id,
             target: request.target.into(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use structopt::StructOpt;
+
+    #[test]
+    fn comparison_is_opt_in() {
+        let mut arguments = vec![
+            "validate",
+            "--session-id",
+            "42",
+            "--target-address",
+            "0x3000;address;",
+        ];
+        let validate = CommandLinePointerScanValidateRequest::from_iter_safe(&arguments).expect("Validation arguments");
+        let command = |pointer_scan_validate_request| {
+            api::commands::pointer_scan::pointer_scan_command::PointerScanCommand::from(CommandLinePointerScanCommand::Validate {
+                pointer_scan_validate_request,
+            })
+        };
+        assert!(matches!(
+            command(validate),
+            api::commands::pointer_scan::pointer_scan_command::PointerScanCommand::Validate { .. }
+        ));
+        arguments.push("--compare");
+        let compare = CommandLinePointerScanValidateRequest::from_iter_safe(&arguments).expect("Comparison arguments");
+        assert!(matches!(
+            command(compare),
+            api::commands::pointer_scan::pointer_scan_command::PointerScanCommand::Compare { .. }
+        ));
     }
 }
