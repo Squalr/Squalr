@@ -102,7 +102,6 @@ impl Widget for PointerScannerToolbarView {
         );
 
         let mut should_start_scan = false;
-        let mut should_compare = false;
         let mut should_reset_scan = false;
         let mut should_start_value_scan = false;
         let mut should_add_to_project = false;
@@ -338,12 +337,6 @@ impl Widget for PointerScannerToolbarView {
                             }
                             should_start_scan = true;
                         }
-                        if has_active_pointer_scan_session {
-                            should_compare = user_interface
-                                .add_enabled(!are_session_actions_disabled && has_opened_process, eframe::egui::Button::new("Compare"))
-                                .on_hover_text("Show roots exclusive to the primary target first. Shared roots remain available.")
-                                .clicked();
-                        }
 
                         if self
                             .draw_icon_button(
@@ -430,9 +423,6 @@ impl Widget for PointerScannerToolbarView {
             PointerScannerViewData::reset_scan(self.pointer_scanner_view_data.clone(), self.app_context.engine_unprivileged_state.clone());
         }
 
-        if should_compare {
-            PointerScannerViewData::validate_address_scan(self.pointer_scanner_view_data.clone(), self.app_context.engine_unprivileged_state.clone(), true);
-        }
         if should_start_scan {
             PointerScannerViewData::start_scan(self.pointer_scanner_view_data.clone(), self.app_context.engine_unprivileged_state.clone());
         }

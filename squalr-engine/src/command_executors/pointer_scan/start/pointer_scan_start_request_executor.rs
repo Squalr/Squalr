@@ -350,7 +350,33 @@ mod tests {
 
     #[test]
     fn execute_uses_fresh_usermode_snapshot_when_global_snapshot_is_empty() {
-        let engine_privileged_state = pointer_test_state(build_pointer_scan_memory_map());
+        let engine_bindings: Arc<RwLock<dyn EngineApiPrivilegedBindings>> = Arc::new(RwLock::new(TestEngineBindings));
+        let os_providers = EngineOsProviders::new(
+            Arc::new(TestProcessQueryProvider),
+            Arc::new(TestMemoryQueryProvider {
+                module_descriptors: vec![(String::from("game.exe"), 0x1000, 0x100)],
+                usermode_memory_regions: vec![
+                    NormalizedRegion::new(0x1000, 0x40),
+                    NormalizedRegion::new(0x2000, 0x40),
+                    NormalizedRegion::new(0x3000, 0x40),
+                ],
+            }),
+            Arc::new(TestMemoryReadProvider {
+                memory_bytes_by_address: build_pointer_scan_memory_map(),
+            }),
+            Arc::new(TestMemoryWriteProvider),
+        );
+        let engine_privileged_state = EnginePrivilegedState::new(engine_bindings, os_providers).expect("Expected the test engine state to initialize.");
+
+        engine_privileged_state
+            .get_process_manager()
+            .set_opened_process(OpenedProcessInfo::new(
+                std::process::id(),
+                String::from("pointer-test"),
+                1,
+                Bitness::Bit64,
+                None,
+            ));
 
         assert_eq!(
             engine_privileged_state
@@ -388,102 +414,6 @@ mod tests {
                 .expect("Expected the shared snapshot lock.")
                 .get_region_count(),
             0
-        );
-    }
-
-    fn pointer_test_state(memory_bytes_by_address: HashMap<u64, u8>) -> Arc<EnginePrivilegedState> {
-        let engine_bindings: Arc<RwLock<dyn EngineApiPrivilegedBindings>> = Arc::new(RwLock::new(TestEngineBindings));
-        let os_providers = EngineOsProviders::new(
-            Arc::new(TestProcessQueryProvider),
-            Arc::new(TestMemoryQueryProvider {
-                module_descriptors: vec![(String::from("game.exe"), 0x1000, 0x100)],
-                usermode_memory_regions: vec![
-                    NormalizedRegion::new(0x1000, 0x40),
-                    NormalizedRegion::new(0x2000, 0x40),
-                    NormalizedRegion::new(0x3000, 0x40),
-                ],
-            }),
-            Arc::new(TestMemoryReadProvider { memory_bytes_by_address }),
-            Arc::new(TestMemoryWriteProvider),
-        );
-        let engine_privileged_state = EnginePrivilegedState::new(engine_bindings, os_providers).expect("Expected the test engine state to initialize.");
-
-        engine_privileged_state
-            .get_process_manager()
-            .set_opened_process(OpenedProcessInfo::new(
-                std::process::id(),
-                String::from("pointer-test"),
-                1,
-                Bitness::Bit64,
-                None,
-            ));
-
-        engine_privileged_state
-    }
-
-    #[test]
-    fn comparison_preserves_primary_paths_and_validation_reports_root_loss_when_heap_grows() {
-        use squalr_engine_api::commands::pointer_scan::validate::pointer_scan_compare_request::PointerScanCompareRequest;
-        use squalr_engine_api::commands::pointer_scan::validate::pointer_scan_validate_request::PointerScanValidateRequest;
-
-        let mut memory = build_pointer_scan_memory_map();
-        write_pointer_bytes(&mut memory, 0x2030, 0x3050);
-        write_pointer_bytes(&mut memory, 0x2038, 0x3050);
-        let state = pointer_test_state(memory);
-        let target = |address: &str| {
-            PointerScanTargetRequest::address(AnonymousValueString::new(
-                address.to_string(),
-                AnonymousValueStringFormat::Hexadecimal,
-                ContainerType::None,
-            ))
-        };
-        let primary = PointerScanStartRequest {
-            target: target("0x3010"),
-            pointer_size: PointerScanPointerSize::Pointer64,
-            max_depth: 3,
-            offset_radius: 0x20,
-            address_space: PointerScanAddressSpace::EmulatorMemory,
-        }
-        .execute(&state)
-        .pointer_scan_summary
-        .expect("Primary scan summary");
-        let session_id = primary.get_session_id();
-        let store = state.get_pointer_scan_results();
-        {
-            let mut guard = store.write().expect("Pointer scan store");
-            let graph = guard.as_mut().expect("Primary graph");
-            let first = graph.get_expanded_node_page(None, 0, 1).0;
-            assert_eq!(first[0].get_pointer_address(), 0x1030);
-        }
-
-        let request = PointerScanValidateRequest {
-            session_id,
-            target: target("0x3038"),
-        };
-        let comparison = PointerScanCompareRequest(request.clone()).execute(&state);
-        assert_eq!(comparison.exclusive_root_count, Some(1));
-        assert_eq!(comparison.pointer_scan_summary, Some(primary));
-        {
-            let mut guard = store.write().expect("Pointer scan store");
-            let graph = guard.as_mut().expect("Primary graph");
-            let exclusive = graph.get_expanded_node_page(None, 0, 1).0;
-            let shared = graph.get_expanded_node_page(None, 1, 1).0;
-            assert_eq!(exclusive[0].get_pointer_address(), 0x1010);
-            assert_eq!(shared[0].get_pointer_address(), 0x1030);
-            let children = graph.get_expanded_nodes(Some(exclusive[0].get_node_id()));
-            let leaves = graph.get_expanded_nodes(Some(children[0].get_node_id()));
-            assert_eq!(leaves[0].get_resolved_target_address(), 0x3010);
-        }
-        let validation = request.execute(&state);
-        assert!(validation.validation_performed);
-        assert_eq!(validation.pruned_node_count, 0);
-        assert_eq!(validation.pruned_static_root_count, 1);
-        assert_eq!(
-            validation
-                .pointer_scan_summary
-                .expect("Validated summary")
-                .get_total_heap_node_count(),
-            2
         );
     }
 

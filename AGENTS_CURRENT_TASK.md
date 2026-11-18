@@ -1,6 +1,6 @@
 # Agentic Current Task
 Our current task, from `README.md`, is:
-`pr/pointer-scan-validation`
+`pr/session-architecture`
 
 # Notes from Owner
 - Assume any unstaged/uncommitted file changes are from a previous iteration, or from the human author giving guidance. Keep them if they look good; do not ask about them by default.
@@ -8,7 +8,7 @@ Our current task, from `README.md`, is:
 - Do not declare behavior as fixed. Use "needs human verification" after implementation and validation.
 
 ## Current Tasklist
-- Validate pointer scans from stored static roots, skip terminal heap scans, and compare another target without replacing the primary graph. All 1,035 Windows workspace tests passed, including comparison paging, root-pruning counts, and terminal task selection. The desktop workflow needs human verification.
+- PR #53 shares heap candidate storage during validation and skips terminal heap scan tasks during discovery.
 - Implement the architecture audit findings for session ownership, command completion, and HTTP worker access. Windows and Android compilation validated. The Android device flow needs human verification.
 
 ## Important Information

@@ -1,4 +1,3 @@
-use super::pointer_scan_validation_input::PointerScanValidationInput;
 use crate::pointer_scans::pointer_scan_candidate_collector::PointerScanCandidateCollector;
 use crate::pointer_scans::pointer_scan_results_builder::PointerScanResultsBuilder;
 use crate::pointer_scans::pointer_scan_task_builder::PointerScanTaskBuilder;
@@ -10,12 +9,12 @@ use crate::pointer_scans::structures::snapshot_region_scan_task::SnapshotRegionS
 use crate::scanners::scan_control::ScanControl;
 use rayon::prelude::*;
 use squalr_engine_api::structures::memory::normalized_module::NormalizedModule;
+use squalr_engine_api::structures::pointer_scans::pointer_scan_candidate::PointerScanCandidate;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_results::PointerScanResults;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_target_descriptor::PointerScanTargetDescriptor;
 use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
 use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
-use std::collections::HashSet;
 use std::time::Instant;
 
 const POINTER_VALIDATION_ROOT_CHUNK_SIZE: usize = 64;
@@ -37,7 +36,7 @@ struct PointerValidationContext<'a> {
 
 impl<'a> PointerValidationContext<'a> {
     fn new(
-        input: &'a PointerScanValidationInput,
+        original_pointer_scan_results: &'a PointerScanResults,
         validation_target_addresses: &'a [u64],
         validation_snapshot: &'a Snapshot,
         modules: &'a [NormalizedModule],
@@ -53,8 +52,8 @@ impl<'a> PointerValidationContext<'a> {
             validation_snapshot_regions: validation_snapshot.get_snapshot_regions().as_slice(),
             current_modules_by_name,
             validation_target_addresses,
-            offset_radius: input.summary.get_offset_radius(),
-            pointer_size: input.summary.get_pointer_size(),
+            offset_radius: original_pointer_scan_results.get_offset_radius(),
+            pointer_size: original_pointer_scan_results.get_pointer_size(),
             scan_control,
         }
     }
@@ -72,56 +71,42 @@ impl PointerScanValidator {
         scan_control: &ScanControl,
         with_logging: bool,
     ) -> PointerScanResults {
-        Self::validate_from_roots(
-            &PointerScanValidationInput::from(pointer_scan_results),
-            validation_target_descriptor,
-            validation_target_addresses,
-            validation_snapshot,
-            modules,
-            scan_control,
-            with_logging,
-        )
-    }
-
-    pub fn validate_from_roots(
-        input: &PointerScanValidationInput,
-        validation_target_descriptor: PointerScanTargetDescriptor,
-        validation_target_addresses: Vec<u64>,
-        validation_snapshot: &Snapshot,
-        modules: &[NormalizedModule],
-        scan_control: &ScanControl,
-        with_logging: bool,
-    ) -> PointerScanResults {
         let total_start_time = Instant::now();
 
         if with_logging {
             log::info!(
                 "Validating pointer scan session {} against target {}.",
-                input.summary.get_session_id(),
+                pointer_scan_results.get_session_id(),
                 validation_target_descriptor,
             );
         }
 
-        if input.roots_by_level.is_empty() {
-            return Self::create_empty_results(input, validation_target_descriptor, validation_target_addresses);
+        if pointer_scan_results.get_pointer_scan_levels().is_empty() {
+            return Self::create_empty_results(pointer_scan_results, validation_target_descriptor, validation_target_addresses);
         }
 
-        let mut validated_pointer_levels = Vec::new();
-        Self::visit_validated_levels(
-            input,
-            &validation_target_addresses,
+        let validation_context = PointerValidationContext::new(
+            pointer_scan_results,
+            validation_target_addresses.as_slice(),
             validation_snapshot,
             modules,
             scan_control,
-            with_logging,
-            |level| validated_pointer_levels.push(level),
         );
+        let validation_heap_scan_tasks =
+            PointerScanTaskBuilder::build_heap_scan_tasks(validation_context.validation_snapshot_regions, modules, validation_context.pointer_size);
+        let mut validated_pointer_levels = Self::validate_pointer_levels(pointer_scan_results, &validation_context, &validation_heap_scan_tasks, with_logging);
+
         Self::truncate_empty_trailing_levels(&mut validated_pointer_levels);
 
         let validated_pointer_scan_results = if validated_pointer_levels.is_empty() {
-            Self::create_empty_results(input, validation_target_descriptor, validation_target_addresses)
+            Self::create_empty_results(pointer_scan_results, validation_target_descriptor, validation_target_addresses)
         } else {
-            Self::build_pointer_scan_results(input, validation_target_descriptor, validation_target_addresses, validated_pointer_levels)
+            Self::build_pointer_scan_results(
+                pointer_scan_results,
+                validation_target_descriptor,
+                validation_target_addresses,
+                validated_pointer_levels,
+            )
         };
 
         if with_logging {
@@ -140,45 +125,24 @@ impl PointerScanValidator {
         validated_pointer_scan_results
     }
 
-    /// Compare root identities while retaining only the current heap frontier.
-    pub fn shared_roots(
-        input: &PointerScanValidationInput,
-        targets: &[u64],
-        snapshot: &Snapshot,
-        modules: &[NormalizedModule],
-        scan_control: &ScanControl,
-    ) -> Vec<HashSet<(usize, u64)>> {
-        let mut shared = Vec::new();
-        Self::visit_validated_levels(input, targets, snapshot, modules, scan_control, false, |level| {
-            shared.push(
-                level
-                    .static_candidates
-                    .iter()
-                    .map(|root| (root.module_index, root.module_offset))
-                    .collect(),
-            );
-        });
-        shared
-    }
-
-    fn visit_validated_levels(
-        input: &PointerScanValidationInput,
-        validation_target_addresses: &[u64],
-        validation_snapshot: &Snapshot,
-        modules: &[NormalizedModule],
-        scan_control: &ScanControl,
+    fn validate_pointer_levels(
+        pointer_scan_results: &PointerScanResults,
+        validation_context: &PointerValidationContext<'_>,
+        validation_heap_scan_tasks: &[SnapshotRegionScanTask<'_>],
         with_logging: bool,
-        mut visit: impl FnMut(PointerScanCollectedLevel),
-    ) {
-        let validation_context = PointerValidationContext::new(input, validation_target_addresses, validation_snapshot, modules, scan_control);
-        let validation_heap_scan_tasks =
-            PointerScanTaskBuilder::build_heap_scan_tasks(validation_context.validation_snapshot_regions, modules, validation_context.pointer_size);
-        let level_count = input.roots_by_level.len();
+    ) -> Vec<PointerScanCollectedLevel> {
+        let level_count = pointer_scan_results.get_pointer_scan_level_candidates().len();
+        let mut validated_pointer_levels = Vec::with_capacity(level_count);
+
         // Validation mirrors the old rebase flow: frontier -> rebuild heaps -> prune stored statics -> next frontier.
         let mut frontier_target_ranges =
             PointerScanTargetRangeSet::from_target_addresses(validation_context.validation_target_addresses, validation_context.offset_radius);
 
-        for (level_index, pointer_scan_level_candidates) in input.roots_by_level.iter().enumerate() {
+        for (level_index, pointer_scan_level_candidates) in pointer_scan_results
+            .get_pointer_scan_level_candidates()
+            .iter()
+            .enumerate()
+        {
             if validation_context.scan_control.should_cancel() || frontier_target_ranges.is_empty() {
                 break;
             }
@@ -196,17 +160,21 @@ impl PointerScanValidator {
                     validation_progress.current_level_number,
                     validation_progress.total_level_count,
                     frontier_target_ranges.get_source_target_count(),
-                    pointer_scan_level_candidates.len(),
+                    pointer_scan_level_candidates.get_static_node_count(),
                 );
             }
 
             let validated_heap_candidates = if retain_heap_candidates {
-                Self::collect_validated_heap_candidates(&validation_heap_scan_tasks, &frontier_target_ranges, validation_context.pointer_size)
+                Self::collect_validated_heap_candidates(validation_heap_scan_tasks, &frontier_target_ranges, validation_context.pointer_size)
             } else {
                 Vec::new()
             };
-            let validated_static_candidates =
-                Self::collect_validated_static_candidates(input, pointer_scan_level_candidates, &validation_context, &frontier_target_ranges);
+            let validated_static_candidates = Self::collect_validated_static_candidates(
+                pointer_scan_results,
+                pointer_scan_level_candidates.get_static_candidates(),
+                validation_context,
+                &frontier_target_ranges,
+            );
 
             if with_logging {
                 log::info!(
@@ -219,17 +187,23 @@ impl PointerScanValidator {
                 );
             }
 
-            frontier_target_ranges = PointerScanTargetRangeSet::from_sorted_target_addresses_iter(
-                validated_heap_candidates
-                    .iter()
-                    .map(|candidate| candidate.pointer_address),
-                validation_context.offset_radius,
-            );
-            visit(PointerScanCollectedLevel {
+            validated_pointer_levels.push(PointerScanCollectedLevel {
                 static_candidates: validated_static_candidates,
                 heap_candidates: validated_heap_candidates,
             });
+
+            if let Some(validated_pointer_level) = validated_pointer_levels.last() {
+                frontier_target_ranges = PointerScanTargetRangeSet::from_sorted_target_addresses_iter(
+                    validated_pointer_level
+                        .heap_candidates
+                        .iter()
+                        .map(|validated_pointer_candidate| validated_pointer_candidate.pointer_address),
+                    validation_context.offset_radius,
+                );
+            }
         }
+
+        validated_pointer_levels
     }
 
     fn collect_validated_heap_candidates(
@@ -248,8 +222,8 @@ impl PointerScanValidator {
     }
 
     fn collect_validated_static_candidates(
-        input: &PointerScanValidationInput,
-        static_pointer_scan_candidates: &[(usize, u64)],
+        pointer_scan_results: &PointerScanResults,
+        static_pointer_scan_candidates: &[PointerScanCandidate],
         validation_context: &PointerValidationContext<'_>,
         frontier_target_ranges: &PointerScanTargetRangeSet,
     ) -> Vec<PointerScanCollectedCandidate> {
@@ -258,12 +232,13 @@ impl PointerScanValidator {
             .map(|static_pointer_scan_candidate_chunk| {
                 let mut validated_static_candidates = Vec::with_capacity(static_pointer_scan_candidate_chunk.len());
 
-                for &(module_index, module_offset) in static_pointer_scan_candidate_chunk {
+                for static_pointer_scan_candidate in static_pointer_scan_candidate_chunk {
                     if validation_context.scan_control.should_cancel() {
                         break;
                     }
 
-                    let Some(current_pointer_address) = Self::resolve_current_static_pointer_address(input, module_index, module_offset, validation_context)
+                    let Some(current_pointer_address) =
+                        Self::resolve_current_static_pointer_address(pointer_scan_results, static_pointer_scan_candidate, validation_context)
                     else {
                         continue;
                     };
@@ -282,8 +257,8 @@ impl PointerScanValidator {
                     validated_static_candidates.push(PointerScanCollectedCandidate {
                         pointer_address: current_pointer_address,
                         pointer_value: current_pointer_value,
-                        module_index,
-                        module_offset,
+                        module_index: static_pointer_scan_candidate.get_module_index(),
+                        module_offset: static_pointer_scan_candidate.get_module_offset(),
                     });
                 }
 
@@ -312,15 +287,14 @@ impl PointerScanValidator {
     }
 
     fn resolve_current_static_pointer_address(
-        input: &PointerScanValidationInput,
-        module_index: usize,
-        module_offset: u64,
+        pointer_scan_results: &PointerScanResults,
+        static_pointer_scan_candidate: &PointerScanCandidate,
         validation_context: &PointerValidationContext<'_>,
     ) -> Option<u64> {
-        let module_name = input.module_names.get(module_index)?;
+        let module_name = pointer_scan_results.get_module_name(static_pointer_scan_candidate.get_module_index())?;
         let current_module_base_address = Self::find_current_module_base_address(&validation_context.current_modules_by_name, module_name)?;
 
-        Some(current_module_base_address.saturating_add(module_offset))
+        Some(current_module_base_address.saturating_add(static_pointer_scan_candidate.get_module_offset()))
     }
 
     fn find_current_module_base_address(
@@ -412,42 +386,42 @@ impl PointerScanValidator {
     }
 
     fn build_pointer_scan_results(
-        input: &PointerScanValidationInput,
+        original_pointer_scan_results: &PointerScanResults,
         validation_target_descriptor: PointerScanTargetDescriptor,
         validation_target_addresses: Vec<u64>,
         validated_pointer_levels: Vec<PointerScanCollectedLevel>,
     ) -> PointerScanResults {
         PointerScanResultsBuilder::build_results_with_module_names(
-            input.summary.get_session_id(),
+            original_pointer_scan_results.get_session_id(),
             &squalr_engine_api::structures::scanning::plans::pointer_scan::pointer_scan_parameters::PointerScanParameters::new(
-                input.summary.get_pointer_size(),
-                input.summary.get_offset_radius(),
-                input.summary.get_max_depth(),
+                original_pointer_scan_results.get_pointer_size(),
+                original_pointer_scan_results.get_offset_radius(),
+                original_pointer_scan_results.get_max_depth(),
                 false,
                 false,
             ),
             validation_target_descriptor,
             validation_target_addresses,
-            input.summary.get_address_space(),
-            input.module_names.clone(),
+            original_pointer_scan_results.get_address_space(),
+            original_pointer_scan_results.get_module_names().clone(),
             &validated_pointer_levels,
             false,
         )
     }
 
     fn create_empty_results(
-        input: &PointerScanValidationInput,
+        original_pointer_scan_results: &PointerScanResults,
         validation_target_descriptor: PointerScanTargetDescriptor,
         validation_target_addresses: Vec<u64>,
     ) -> PointerScanResults {
         PointerScanResults::new(
-            input.summary.get_session_id(),
+            original_pointer_scan_results.get_session_id(),
             validation_target_descriptor,
             validation_target_addresses,
-            input.summary.get_address_space(),
-            input.summary.get_pointer_size(),
-            input.summary.get_max_depth(),
-            input.summary.get_offset_radius(),
+            original_pointer_scan_results.get_address_space(),
+            original_pointer_scan_results.get_pointer_size(),
+            original_pointer_scan_results.get_max_depth(),
+            original_pointer_scan_results.get_offset_radius(),
             Vec::new(),
             Vec::new(),
             Vec::new(),

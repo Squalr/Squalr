@@ -1,4 +1,3 @@
-use super::compared_root_position::ComparedRootPosition;
 use crate::structures::pointer_scans::pointer_scan_address_space::PointerScanAddressSpace;
 use crate::structures::pointer_scans::pointer_scan_candidate::PointerScanCandidate;
 use crate::structures::pointer_scans::pointer_scan_level::PointerScanLevel;
@@ -10,8 +9,7 @@ use crate::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPoin
 use crate::structures::pointer_scans::pointer_scan_summary::PointerScanSummary;
 use crate::structures::pointer_scans::pointer_scan_target_descriptor::PointerScanTargetDescriptor;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
+use std::collections::HashMap;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 struct MaterializedPointerScanPageKey {
@@ -34,10 +32,6 @@ fn default_next_materialized_node_id() -> u64 {
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 pub struct PointerScanResults {
-    #[serde(skip)]
-    graph_identity: Arc<()>,
-    #[serde(skip)]
-    compared_root_order: Vec<ComparedRootPosition>,
     session_id: u64,
     target_descriptor: PointerScanTargetDescriptor,
     target_addresses: Vec<u64>,
@@ -85,8 +79,6 @@ impl PointerScanResults {
         let root_node_count = Self::calculate_root_node_count(&target_descriptor, &pointer_scan_level_candidates, &target_addresses, offset_radius);
 
         Self {
-            graph_identity: Arc::default(),
-            compared_root_order: Vec::new(),
             session_id,
             target_descriptor,
             target_addresses,
@@ -105,49 +97,6 @@ impl PointerScanResults {
             materialized_pointer_scan_nodes: HashMap::new(),
             next_materialized_node_id: 1,
         }
-    }
-
-    /// Identifies the captured graph across changes to the display cache.
-    pub fn graph_identity(&self) -> Arc<()> {
-        self.graph_identity.clone()
-    }
-
-    /// Put exclusive roots first across all depths while expanding against the primary graph.
-    pub fn prioritize_exclusive_roots(
-        &mut self,
-        shared_by_level: &[HashSet<(usize, u64)>],
-    ) -> u64 {
-        let mut exclusive = Vec::new();
-        let mut shared = Vec::new();
-        for (level_index, level) in self.pointer_scan_level_candidates.iter().enumerate() {
-            for (candidate_index, root) in level.get_static_candidates().iter().enumerate() {
-                let display_count = Self::count_root_display_nodes(self, root.get_discovery_depth(), root.get_pointer_value());
-                let position = ComparedRootPosition {
-                    level_index,
-                    candidate_index,
-                    display_end: display_count,
-                };
-                if shared_by_level
-                    .get(level_index)
-                    .is_some_and(|roots| roots.contains(&(root.get_module_index(), root.get_module_offset())))
-                {
-                    shared.push(position);
-                } else {
-                    exclusive.push(position);
-                }
-            }
-        }
-        let exclusive_count = exclusive.len() as u64;
-        exclusive.append(&mut shared);
-        let mut display_end = 0_u64;
-        for position in &mut exclusive {
-            display_end = display_end.saturating_add(position.display_end);
-            position.display_end = display_end;
-        }
-        self.compared_root_order = exclusive;
-        self.materialized_node_ids_by_page_key.clear();
-        self.materialized_pointer_scan_nodes.clear();
-        exclusive_count
     }
 
     pub fn get_session_id(&self) -> u64 {
@@ -212,10 +161,6 @@ impl PointerScanResults {
 
     /// Gets mutable level candidates for privileged-side materialization.
     pub fn get_pointer_scan_level_candidates_mut(&mut self) -> &mut Vec<PointerScanLevelCandidates> {
-        self.compared_root_order.clear();
-        self.materialized_node_ids_by_page_key.clear();
-        self.materialized_pointer_scan_nodes.clear();
-        self.graph_identity = Arc::default();
         &mut self.pointer_scan_level_candidates
     }
 
@@ -318,9 +263,7 @@ impl PointerScanResults {
 
         let page_start_index = bounded_page_index.saturating_mul(page_size);
         let page_node_count = total_node_count.saturating_sub(page_start_index).min(page_size);
-        let materialized_node_ids = if !self.compared_root_order.is_empty() {
-            self.materialize_compared_roots(page_start_index, page_node_count)
-        } else if Self::uses_single_display_root_materialization(self) {
+        let materialized_node_ids = if Self::uses_single_display_root_materialization(self) {
             self.materialize_root_node_page_single_display(page_start_index, page_node_count)
         } else {
             self.materialize_root_node_page_multi_display(page_start_index, page_node_count)
@@ -334,33 +277,6 @@ impl PointerScanResults {
             total_node_count,
             node_ids: materialized_node_ids,
         }
-    }
-
-    fn materialize_compared_roots(
-        &mut self,
-        page_start: u64,
-        count: u64,
-    ) -> Vec<u64> {
-        let page_end = page_start.saturating_add(count);
-        let first = self
-            .compared_root_order
-            .partition_point(|position| position.display_end <= page_start);
-        let mut root_start = first
-            .checked_sub(1)
-            .map_or(0, |previous| self.compared_root_order[previous].display_end);
-        let mut node_ids = Vec::new();
-        for root_index in first..self.compared_root_order.len() {
-            if root_start >= page_end {
-                break;
-            }
-            let position = self.compared_root_order[root_index];
-            let display_start = root_start.max(page_start);
-            let count = position.display_end.min(page_end).saturating_sub(display_start);
-            let root = self.pointer_scan_level_candidates[position.level_index].get_static_candidates()[position.candidate_index].clone();
-            node_ids.extend(self.materialize_root_pointer_scan_nodes(&root, display_start - root_start, count));
-            root_start = position.display_end;
-        }
-        node_ids
     }
 
     fn materialize_root_node_page_single_display(
@@ -392,8 +308,30 @@ impl PointerScanResults {
                 .min(remaining_page_capacity) as usize;
 
             for static_candidate_index in static_candidate_start_index..static_candidate_start_index.saturating_add(static_candidate_page_count) {
-                let root = self.pointer_scan_level_candidates[pointer_scan_level_index].get_static_candidates()[static_candidate_index].clone();
-                materialized_node_ids.extend(self.materialize_root_pointer_scan_nodes(&root, 0, 1));
+                let (candidate_id, discovery_depth, pointer_scan_node_type, pointer_address, pointer_value, module_index, module_offset) = {
+                    let static_candidate = &self.get_pointer_scan_level_candidates()[pointer_scan_level_index].get_static_candidates()[static_candidate_index];
+
+                    (
+                        static_candidate.get_candidate_id(),
+                        static_candidate.get_discovery_depth(),
+                        static_candidate.get_pointer_scan_node_type(),
+                        static_candidate.get_pointer_address(),
+                        static_candidate.get_pointer_value(),
+                        static_candidate.get_module_index(),
+                        static_candidate.get_module_offset(),
+                    )
+                };
+                materialized_node_ids.extend(self.materialize_root_pointer_scan_nodes(
+                    candidate_id,
+                    discovery_depth,
+                    pointer_scan_node_type,
+                    pointer_address,
+                    pointer_value,
+                    module_index,
+                    module_offset,
+                    0,
+                    1,
+                ));
             }
 
             remaining_nodes_to_skip = 0;
@@ -422,8 +360,20 @@ impl PointerScanResults {
                     return materialized_node_ids;
                 }
 
-                let root = self.pointer_scan_level_candidates[pointer_scan_level_index].get_static_candidates()[static_candidate_index].clone();
-                let root_display_node_count = Self::count_root_display_nodes(self, root.get_discovery_depth(), root.get_pointer_value());
+                let (candidate_id, discovery_depth, pointer_scan_node_type, pointer_address, pointer_value, module_index, module_offset) = {
+                    let static_candidate = &self.get_pointer_scan_level_candidates()[pointer_scan_level_index].get_static_candidates()[static_candidate_index];
+
+                    (
+                        static_candidate.get_candidate_id(),
+                        static_candidate.get_discovery_depth(),
+                        static_candidate.get_pointer_scan_node_type(),
+                        static_candidate.get_pointer_address(),
+                        static_candidate.get_pointer_value(),
+                        static_candidate.get_module_index(),
+                        static_candidate.get_module_offset(),
+                    )
+                };
+                let root_display_node_count = Self::count_root_display_nodes(self, discovery_depth, pointer_value);
 
                 if remaining_nodes_to_skip >= root_display_node_count {
                     remaining_nodes_to_skip = remaining_nodes_to_skip.saturating_sub(root_display_node_count);
@@ -435,7 +385,17 @@ impl PointerScanResults {
                     .saturating_sub(candidate_page_start_index)
                     .min(remaining_page_capacity);
 
-                materialized_node_ids.extend(self.materialize_root_pointer_scan_nodes(&root, candidate_page_start_index, candidate_page_node_count));
+                materialized_node_ids.extend(self.materialize_root_pointer_scan_nodes(
+                    candidate_id,
+                    discovery_depth,
+                    pointer_scan_node_type,
+                    pointer_address,
+                    pointer_value,
+                    module_index,
+                    module_offset,
+                    candidate_page_start_index,
+                    candidate_page_node_count,
+                ));
 
                 remaining_nodes_to_skip = 0;
                 remaining_page_capacity = remaining_page_capacity.saturating_sub(candidate_page_node_count);
@@ -713,7 +673,13 @@ impl PointerScanResults {
 
     fn materialize_root_pointer_scan_nodes(
         &mut self,
-        root: &PointerScanCandidate,
+        candidate_id: u64,
+        discovery_depth: u64,
+        pointer_scan_node_type: PointerScanNodeType,
+        pointer_address: u64,
+        pointer_value: u64,
+        module_index: usize,
+        module_offset: u64,
         page_start_index: u64,
         page_node_count: u64,
     ) -> Vec<u64> {
@@ -721,13 +687,6 @@ impl PointerScanResults {
             return Vec::new();
         }
 
-        let candidate_id = root.get_candidate_id();
-        let discovery_depth = root.get_discovery_depth();
-        let pointer_scan_node_type = root.get_pointer_scan_node_type();
-        let pointer_address = root.get_pointer_address();
-        let pointer_value = root.get_pointer_value();
-        let module_index = root.get_module_index();
-        let module_offset = root.get_module_offset();
         let Some(module_name) = self.get_module_name(module_index).map(str::to_string) else {
             return Vec::new();
         };
@@ -893,7 +852,7 @@ impl PointerScanResults {
     ) -> Option<&mut PointerScanLevelCandidates> {
         discovery_depth.checked_sub(1).and_then(|level_index| {
             pointer_scan_results
-                .pointer_scan_level_candidates
+                .get_pointer_scan_level_candidates_mut()
                 .get_mut(level_index as usize)
         })
     }
@@ -1146,18 +1105,6 @@ mod tests {
         let deserialized_results: PointerScanResults = serde_json::from_str(&serialized_results).expect("Pointer scan results should deserialize.");
 
         assert_eq!(deserialized_results, pointer_scan_results);
-    }
-
-    #[test]
-    fn comparison_keeps_all_display_rows_of_a_multi_target_root() {
-        let mut results = create_multi_target_leaf_pointer_scan_results();
-        let original = results.get_expanded_nodes(None);
-        assert_eq!(results.prioritize_exclusive_roots(&[[(0, 0x10)].into_iter().collect()]), 0);
-        for (page_index, expected) in original.iter().enumerate() {
-            let (nodes, _, last_page, count) = results.get_expanded_node_page(None, page_index as u64, 1);
-            assert_eq!((last_page, count), (1, 2));
-            assert_eq!(nodes[0].get_resolved_target_address(), expected.get_resolved_target_address());
-        }
     }
 
     #[test]

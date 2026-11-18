@@ -1,4 +1,3 @@
-use super::validate::pointer_scan_compare_request::PointerScanCompareRequest;
 use crate::commands::pointer_scan::expand::pointer_scan_expand_request::PointerScanExpandRequest;
 use crate::commands::pointer_scan::reset::pointer_scan_reset_request::PointerScanResetRequest;
 use crate::commands::pointer_scan::start::pointer_scan_start_request::PointerScanStartRequest;
@@ -22,8 +21,5 @@ pub enum PointerScanCommand {
     },
     Validate {
         pointer_scan_validate_request: PointerScanValidateRequest,
-    },
-    Compare {
-        pointer_scan_compare_request: PointerScanCompareRequest,
     },
 }

@@ -1,11 +1,12 @@
 use crate::structures::pointer_scans::pointer_scan_candidate::PointerScanCandidate;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct PointerScanLevelCandidates {
     discovery_depth: u64,
     static_candidates: Vec<PointerScanCandidate>,
-    heap_candidates: Vec<PointerScanCandidate>,
+    heap_candidates: Arc<Vec<PointerScanCandidate>>,
     #[serde(skip, default)]
     heap_candidates_sorted: bool,
 }
@@ -22,7 +23,7 @@ impl PointerScanLevelCandidates {
         Self {
             discovery_depth,
             static_candidates,
-            heap_candidates,
+            heap_candidates: Arc::new(heap_candidates),
             heap_candidates_sorted: false,
         }
     }
@@ -35,7 +36,7 @@ impl PointerScanLevelCandidates {
         Self {
             discovery_depth,
             static_candidates,
-            heap_candidates,
+            heap_candidates: Arc::new(heap_candidates),
             heap_candidates_sorted: true,
         }
     }
@@ -109,7 +110,7 @@ impl PointerScanLevelCandidates {
             return;
         }
 
-        self.heap_candidates
+        Arc::make_mut(&mut self.heap_candidates)
             .sort_unstable_by_key(PointerScanCandidate::get_pointer_address);
         self.heap_candidates_sorted = true;
     }
@@ -120,6 +121,15 @@ mod tests {
     use super::PointerScanLevelCandidates;
     use crate::structures::pointer_scans::pointer_scan_candidate::PointerScanCandidate;
     use crate::structures::pointer_scans::pointer_scan_node_type::PointerScanNodeType;
+
+    #[test]
+    fn cloned_levels_share_heap_storage_until_an_unsorted_copy_is_sorted() {
+        let level = PointerScanLevelCandidates::new(1, Vec::new(), vec![PointerScanCandidate::default()]);
+        let mut cloned_level = level.clone();
+        assert!(std::sync::Arc::ptr_eq(&level.heap_candidates, &cloned_level.heap_candidates));
+        cloned_level.ensure_heap_candidates_sorted();
+        assert!(!std::sync::Arc::ptr_eq(&level.heap_candidates, &cloned_level.heap_candidates));
+    }
 
     #[test]
     fn new_sorts_static_candidates_for_binary_search() {

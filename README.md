@@ -33,10 +33,6 @@ Use this when you want the full interactive workflow: process selection, element
 | Rooted Android | Yes | Yes | Yes | Local privileged IPC or forwarded loopback HTTP |
 | iPhone | Planned | Planned | Planned | Planned |
 
-### Comparing pointer scan targets
-
-With an active pointer scan, enter a comparison address and click **Compare**. The scanner lists static roots exclusive to the primary target first, followed by roots that also reach the comparison target at the same depth. Both groups expand against the original target. The CLI accepts `pscan validate --session-id 1 --target-address "0x3000;address;" --compare`. Ordinary validation updates the graph and reports static roots removed and the old and new heap counts.
-
 ### Plugins and Extensions
 Plugins are the path for extending Squalr's behavior. Existing plugin crates cover built-in plugins, 24-bit data types, instruction providers, binary symbols, and Dolphin memory-view routing. The medium-term goal is for plugins to extend data types, project item types, virtual modules, middleware, and tools without requiring changes to the core app.
 

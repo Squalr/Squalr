@@ -9,11 +9,6 @@ pub struct PointerScanValidateResponse {
     pub validation_performed: bool,
     pub validation_target_address: Option<u64>,
     pub pruned_node_count: u64,
-    #[serde(default)]
-    pub pruned_static_root_count: u64,
-    /// Exclusive static root entries, grouped by module slot and depth.
-    #[serde(default)]
-    pub exclusive_root_count: Option<u64>,
     pub status_message: String,
     pub pointer_scan_summary: Option<PointerScanSummary>,
 }
