@@ -34,9 +34,10 @@ impl PrivilegedCommandRequestExecutor for PointerScanValidateRequest {
             };
         };
 
-        let pointer_scan_results = match engine_privileged_state.get_pointer_scan_results().read() {
+        let results_store = engine_privileged_state.get_pointer_scan_results();
+        let primary_summary = match results_store.read() {
             Ok(pointer_scan_results_guard) => match pointer_scan_results_guard.as_ref() {
-                Some(pointer_scan_results) => pointer_scan_results.clone(),
+                Some(pointer_scan_results) => pointer_scan_results.summarize(),
                 None => {
                     return PointerScanValidateResponse {
                         validation_performed: false,
@@ -60,7 +61,7 @@ impl PrivilegedCommandRequestExecutor for PointerScanValidateRequest {
             }
         };
 
-        if pointer_scan_results.get_session_id() != self.session_id {
+        if primary_summary.get_session_id() != self.session_id {
             return PointerScanValidateResponse {
                 validation_performed: false,
                 validation_target_address: None,
@@ -70,7 +71,7 @@ impl PrivilegedCommandRequestExecutor for PointerScanValidateRequest {
             };
         }
 
-        let modules = match pointer_scan_results.get_address_space() {
+        let modules = match primary_summary.get_address_space() {
             PointerScanAddressSpace::Auto => engine_privileged_state
                 .get_os_providers()
                 .memory_query_raw
@@ -115,7 +116,7 @@ impl PrivilegedCommandRequestExecutor for PointerScanValidateRequest {
                 _ => trimmed_target_address.parse::<u64>().ok(),
             }
         });
-        let memory_regions = match pointer_scan_results.get_address_space() {
+        let memory_regions = match primary_summary.get_address_space() {
             PointerScanAddressSpace::Auto => engine_privileged_state
                 .get_os_providers()
                 .memory_query_raw
@@ -135,7 +136,7 @@ impl PrivilegedCommandRequestExecutor for PointerScanValidateRequest {
                 validation_target_address: None,
                 pruned_node_count: 0,
                 status_message: "No readable memory regions were available for pointer validation.".to_string(),
-                pointer_scan_summary: Some(pointer_scan_results.summarize()),
+                pointer_scan_summary: Some(primary_summary),
             };
         }
         let mut validation_snapshot = Snapshot::new();
@@ -152,7 +153,7 @@ impl PrivilegedCommandRequestExecutor for PointerScanValidateRequest {
             PointerScanTargetResolver::resolve_targets(
                 &self.target,
                 symbol_registry,
-                pointer_scan_results.get_pointer_size(),
+                primary_summary.get_pointer_size(),
                 validation_snapshot.clone(),
                 ScanSettingsStore::get_memory_alignment().unwrap_or(MemoryAlignment::Alignment1),
                 ScanSettingsStore::get_floating_point_tolerance(),
@@ -168,7 +169,7 @@ impl PrivilegedCommandRequestExecutor for PointerScanValidateRequest {
                     validation_target_address: None,
                     pruned_node_count: 0,
                     status_message: error,
-                    pointer_scan_summary: Some(pointer_scan_results.summarize()),
+                    pointer_scan_summary: Some(primary_summary),
                 };
             }
         };
@@ -184,12 +185,28 @@ impl PrivilegedCommandRequestExecutor for PointerScanValidateRequest {
                     validation_target_address: None,
                     pruned_node_count: 0,
                     status_message: "Failed to access the validation snapshot.".to_string(),
-                    pointer_scan_summary: Some(pointer_scan_results.summarize()),
+                    pointer_scan_summary: Some(primary_summary),
                 };
             }
         };
+        // Borrow the current graph only after collecting memory and resolving the target.
+        let Ok(mut results) = results_store.write() else {
+            return PointerScanValidateResponse {
+                status_message: "Failed to access the active pointer scan results.".into(),
+                ..Default::default()
+            };
+        };
+        let Some(pointer_scan_results) = results
+            .as_ref()
+            .filter(|graph| graph.get_session_id() == self.session_id)
+        else {
+            return PointerScanValidateResponse {
+                status_message: format!("Pointer scan results {} are no longer active.", self.session_id),
+                ..Default::default()
+            };
+        };
         let validated_pointer_scan_results = PointerScanValidator::validate_scan(
-            &pointer_scan_results,
+            pointer_scan_results,
             resolved_targets.target_descriptor,
             resolved_targets.target_addresses,
             &validation_snapshot_guard,
@@ -202,14 +219,7 @@ impl PrivilegedCommandRequestExecutor for PointerScanValidateRequest {
             .get_total_node_count()
             .saturating_sub(validated_pointer_scan_results.get_total_node_count());
 
-        match engine_privileged_state.get_pointer_scan_results().write() {
-            Ok(mut pointer_scan_results_guard) => {
-                *pointer_scan_results_guard = Some(validated_pointer_scan_results);
-            }
-            Err(error) => {
-                log::error!("Failed to acquire write lock on pointer scan results store: {}", error);
-            }
-        }
+        *results = Some(validated_pointer_scan_results);
         PointerScanValidateResponse {
             validation_performed: true,
             validation_target_address,

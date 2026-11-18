@@ -107,6 +107,10 @@ impl PointerScanCandidateCollector {
         retain_heap_candidates: bool,
         collected_level: &mut PointerScanCollectedLevel,
     ) {
+        if !retain_heap_candidates && matches!(snapshot_region_scan_task.task_kind, SnapshotRegionScanTaskKind::Heap) {
+            return;
+        }
+
         range_search_kernel.scan_region_with_visitor(
             pointer_scan_search_kernel_context,
             snapshot_region_scan_task.scan_base_address,
