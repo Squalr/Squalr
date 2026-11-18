@@ -9,37 +9,20 @@ impl PrivilegedCommandRequestExecutor for ProcessCloseRequest {
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
-        if let Some(process_info) = engine_privileged_state
-            .get_process_manager()
-            .get_opened_process()
-        {
-            log::info!(
-                "Closing process {} with handle {}",
-                process_info.get_process_id_raw(),
-                process_info.get_handle()
-            );
-
-            match engine_privileged_state
-                .get_os_providers()
-                .process_query
-                .close_process(process_info.get_handle())
-            {
-                Ok(_) => {
-                    engine_privileged_state
-                        .get_process_manager()
-                        .clear_opened_process();
-                }
-                Err(error) => {
-                    log::error!("Failed to close process handle {}: {}", process_info.get_handle(), error);
-                }
-            }
-
-            ProcessCloseResponse {
-                process_info: Some(process_info),
-            }
-        } else {
-            log::error!("No process to close");
-            ProcessCloseResponse { process_info: None }
-        }
+        close_process(engine_privileged_state, None)
     }
+}
+
+pub(crate) fn close_process(
+    engine_privileged_state: &Arc<EnginePrivilegedState>,
+    expected_generation: Option<u64>,
+) -> ProcessCloseResponse {
+    let process_info = engine_privileged_state
+        .get_process_manager()
+        .replace_process(None, expected_generation)
+        .unwrap_or_else(|error| {
+            log::error!("Failed to close process: {error}");
+            None
+        });
+    ProcessCloseResponse { process_info }
 }

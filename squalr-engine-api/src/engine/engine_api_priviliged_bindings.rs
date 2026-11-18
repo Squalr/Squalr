@@ -7,6 +7,11 @@ use crossbeam_channel::Receiver;
 
 /// Defines functionality that can be invoked by the engine for the GUI or CLI to handle (engine -> gui).
 pub trait EngineApiPrivilegedBindings: Send + Sync {
+    /// Returns a channel that disconnects when the worker transport stops.
+    fn worker_lifetime(&self) -> Option<Receiver<()>> {
+        None
+    }
+
     /// Emits an event from the engine, sending it to all listeners that are currently subscribed.
     fn emit_event(
         &self,

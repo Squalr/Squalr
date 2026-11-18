@@ -1,11 +1,10 @@
-use crate::engine_bindings::executable_command_privileged::ExecutableCommandPrivileged;
+use crate::engine_bindings::executable_command_privileged::execute_privileged_command;
 use crate::engine_bindings::executable_command_unprivileged::ExecutableCommandUnprivleged;
 use crate::engine_privileged_state::EnginePrivilegedState;
 use crate::general_settings_config::GeneralSettingsConfig;
 use crossbeam_channel::Receiver;
 use squalr_engine_api::commands::privileged_command::PrivilegedCommand;
 use squalr_engine_api::commands::privileged_command_response::PrivilegedCommandResponse;
-use squalr_engine_api::commands::privileged_command_result::PrivilegedCommandResult;
 use squalr_engine_api::commands::unprivileged_command::UnprivilegedCommand;
 use squalr_engine_api::commands::unprivileged_command_response::UnprivilegedCommandResponse;
 use squalr_engine_api::engine::engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings;
@@ -37,12 +36,13 @@ impl EngineApiUnprivilegedBindings for StandaloneEngineApiUnprivilegedBindings {
         let engine_request_delay = GeneralSettingsConfig::get_debug_engine_request_delay_ms();
         let engine_privileged_state = self.engine_privileged_state.clone();
 
+        let generation = engine_privileged_state.get_process_manager().generation();
         std::thread::spawn(move || {
             if engine_request_delay > 0 {
                 std::thread::sleep(std::time::Duration::from_millis(engine_request_delay as u64));
             }
 
-            let privileged_command_result = Self::create_privileged_command_result(&engine_privileged_state, privileged_command);
+            let privileged_command_result = execute_privileged_command(&engine_privileged_state, privileged_command, Some(generation));
             callback(privileged_command_result.into_privileged_command_response());
         });
 
@@ -66,23 +66,6 @@ impl EngineApiUnprivilegedBindings for StandaloneEngineApiUnprivilegedBindings {
     /// Requests to listen to all engine events.
     fn subscribe_to_engine_events(&self) -> Result<Receiver<squalr_engine_api::engine::engine_event_envelope::EngineEventEnvelope>, EngineBindingError> {
         self.engine_privileged_state.subscribe_to_engine_events()
-    }
-}
-
-impl StandaloneEngineApiUnprivilegedBindings {
-    fn create_privileged_command_result(
-        engine_privileged_state: &Arc<EnginePrivilegedState>,
-        privileged_command: PrivilegedCommand,
-    ) -> PrivilegedCommandResult {
-        let should_include_privileged_registry_catalog = privileged_command.should_include_privileged_registry_catalog();
-        let privileged_command_response = privileged_command.execute(engine_privileged_state);
-        let privileged_registry_catalog = if should_include_privileged_registry_catalog {
-            Some(engine_privileged_state.get_privileged_registry_catalog())
-        } else {
-            None
-        };
-
-        PrivilegedCommandResult::new(privileged_command_response, privileged_registry_catalog)
     }
 }
 

@@ -1,6 +1,7 @@
+use crate::http_ipc_access::HttpIpcAccess;
 use anyhow::{Context, Result, anyhow};
 use serde::{Deserialize, Serialize};
-use squalr_engine::engine_bindings::executable_command_privileged::ExecutableCommandPrivileged;
+use squalr_engine::engine_bindings::executable_command_privileged::execute_privileged_command;
 use squalr_engine::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::{
     commands::{privileged_command::PrivilegedCommand, privileged_command_result::PrivilegedCommandResult},
@@ -10,14 +11,13 @@ use std::{
     collections::{HashMap, VecDeque},
     io::{BufRead, BufReader, Read, Write},
     net::{TcpListener, TcpStream},
-    sync::{
-        Arc, Mutex,
-        atomic::{AtomicU64, Ordering},
-    },
+    sync::{Arc, Mutex},
     thread,
     time::Duration,
 };
 
+const MAX_HEADER_BYTES: u64 = 16 * 1024;
+const MAX_ACTIVE_CONNECTIONS: usize = 32;
 const MAX_REQUEST_BODY_BYTES: usize = 1024 * 1024;
 const MAX_RETAINED_EVENTS: usize = 4096;
 
@@ -26,7 +26,7 @@ pub struct HttpIpcServer {
     engine_privileged_state: Arc<EnginePrivilegedState>,
     event_store: Arc<Mutex<VecDeque<HttpIpcEvent>>>,
     command_execution_lock: Arc<Mutex<()>>,
-    next_event_id: Arc<AtomicU64>,
+    access: Arc<HttpIpcAccess>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -40,6 +40,7 @@ struct HttpRequest {
     method: String,
     path: String,
     body: Vec<u8>,
+    authorization: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -52,6 +53,9 @@ struct HttpErrorResponse {
 struct HealthResponse {
     success: bool,
     service: &'static str,
+    protocol_version: u32,
+    capabilities: [&'static str; 2],
+    project_owner: &'static str,
 }
 
 #[derive(Debug, Serialize)]
@@ -65,40 +69,47 @@ struct EventsResponse {
     success: bool,
     events: Vec<HttpIpcEvent>,
     latest_event_id: u64,
+    cursor_expired: bool,
 }
 
 impl HttpIpcServer {
     pub fn new(
         bind_address: String,
         engine_privileged_state: Arc<EnginePrivilegedState>,
-    ) -> Self {
-        Self {
+    ) -> Result<Self> {
+        Ok(Self {
             bind_address,
             engine_privileged_state,
             event_store: Arc::new(Mutex::new(VecDeque::new())),
             command_execution_lock: Arc::new(Mutex::new(())),
-            next_event_id: Arc::new(AtomicU64::new(1)),
-        }
+            access: Arc::new(HttpIpcAccess::from_environment()?),
+        })
     }
 
     pub fn run(&self) -> Result<()> {
-        self.spawn_event_collector();
-
-        let listener = TcpListener::bind(&self.bind_address).with_context(|| format!("Failed to bind HTTP IPC server to '{}'.", self.bind_address))?;
+        let address = HttpIpcAccess::loopback_address(&self.bind_address)?;
+        let listener = TcpListener::bind(address).with_context(|| format!("Failed to bind HTTP IPC server to '{}'.", self.bind_address))?;
         log::info!("HTTP IPC server listening on {}.", self.bind_address);
 
+        self.spawn_event_collector();
+        let (slots, used_slots) = crossbeam_channel::bounded(MAX_ACTIVE_CONNECTIONS);
         for incoming_connection in listener.incoming() {
             match incoming_connection {
                 Ok(stream) => {
+                    if slots.try_send(()).is_err() {
+                        continue;
+                    }
+                    let used_slots = used_slots.clone();
                     let engine_privileged_state = self.engine_privileged_state.clone();
                     let event_store = self.event_store.clone();
                     let command_execution_lock = self.command_execution_lock.clone();
-                    let next_event_id = self.next_event_id.clone();
+                    let access = self.access.clone();
 
                     thread::spawn(move || {
-                        if let Err(error) = Self::handle_connection(engine_privileged_state, event_store, command_execution_lock, next_event_id, stream) {
+                        if let Err(error) = Self::handle_connection(engine_privileged_state, event_store, command_execution_lock, access, stream) {
                             log::warn!("HTTP IPC request failed: {}", error);
                         }
+                        let _ = used_slots.try_recv();
                     });
                 }
                 Err(error) => {
@@ -119,14 +130,12 @@ impl HttpIpcServer {
             }
         };
         let event_store = self.event_store.clone();
-        let next_event_id = self.next_event_id.clone();
 
         thread::spawn(move || {
             while let Ok(event) = event_receiver.recv() {
-                let event_id = next_event_id.fetch_add(1, Ordering::SeqCst);
-
                 match event_store.lock() {
                     Ok(mut event_store) => {
+                        let event_id = event_store.back().map_or(1, |last| last.event_id + 1);
                         event_store.push_back(HttpIpcEvent { event_id, event });
                         while event_store.len() > MAX_RETAINED_EVENTS {
                             event_store.pop_front();
@@ -145,13 +154,21 @@ impl HttpIpcServer {
         engine_privileged_state: Arc<EnginePrivilegedState>,
         event_store: Arc<Mutex<VecDeque<HttpIpcEvent>>>,
         command_execution_lock: Arc<Mutex<()>>,
-        next_event_id: Arc<AtomicU64>,
+        access: Arc<HttpIpcAccess>,
         mut stream: TcpStream,
     ) -> Result<()> {
         stream
             .set_read_timeout(Some(Duration::from_secs(30)))
             .context("Failed to set HTTP IPC read timeout.")?;
-        let request = Self::read_request(&mut stream)?;
+        stream.set_write_timeout(Some(Duration::from_secs(30)))?;
+        let request = match Self::read_request(&mut stream) {
+            Ok(request) => request,
+            Err(error) => return Self::write_error(&mut stream, 400, error.to_string()),
+        };
+
+        if !access.authorizes(request.authorization.as_deref()) {
+            return Self::write_error(&mut stream, 401, "Invalid controller credential.");
+        }
 
         match (request.method.as_str(), request.path_without_query().as_str()) {
             ("GET", "/health") => Self::write_json(
@@ -160,6 +177,9 @@ impl HttpIpcServer {
                 &HealthResponse {
                     success: true,
                     service: "squalr-http-ipc",
+                    protocol_version: 1,
+                    capabilities: ["privileged_commands", "event_polling"],
+                    project_owner: "client",
                 },
             ),
             ("POST", "/command") => {
@@ -170,7 +190,7 @@ impl HttpIpcServer {
                 }
             }
             ("GET", "/events") => {
-                if let Err(error) = Self::handle_events(event_store, next_event_id, &mut stream, request) {
+                if let Err(error) = Self::handle_events(event_store, &mut stream, request) {
                     Self::write_error(&mut stream, 400, error.to_string())
                 } else {
                     Ok(())
@@ -188,56 +208,65 @@ impl HttpIpcServer {
     ) -> Result<()> {
         let privileged_command: PrivilegedCommand =
             serde_json::from_slice(&request.body).map_err(|error| anyhow!("Invalid PrivilegedCommand JSON: {}", error))?;
-        let should_include_privileged_registry_catalog = privileged_command.should_include_privileged_registry_catalog();
-        let _command_execution_guard = command_execution_lock
+        let generation = engine_privileged_state.get_process_manager().generation();
+        let command_execution_guard = command_execution_lock
             .lock()
             .map_err(|error| anyhow!("Failed to lock HTTP IPC command executor: {}", error))?;
-        let privileged_command_response = privileged_command.execute(&engine_privileged_state);
-        let privileged_registry_catalog = if should_include_privileged_registry_catalog {
-            Some(engine_privileged_state.get_privileged_registry_catalog())
-        } else {
-            None
-        };
-        let result = PrivilegedCommandResult::new(privileged_command_response, privileged_registry_catalog);
-
-        Self::write_json(stream, 200, &CommandResponse { success: true, result })
+        let result = execute_privileged_command(&engine_privileged_state, privileged_command, Some(generation));
+        drop(command_execution_guard);
+        let success = result
+            .get_privileged_command_response()
+            .failure_message()
+            .is_none();
+        Self::write_json(stream, 200, &CommandResponse { success, result })
     }
 
     fn handle_events(
         event_store: Arc<Mutex<VecDeque<HttpIpcEvent>>>,
-        next_event_id: Arc<AtomicU64>,
         stream: &mut TcpStream,
         request: HttpRequest,
     ) -> Result<()> {
         let after_event_id = request
             .query_parameters()
             .get("after")
-            .and_then(|after_event_id| after_event_id.parse::<u64>().ok())
+            .map(|cursor| cursor.parse::<u64>())
+            .transpose()?
             .unwrap_or(0);
-        let events = event_store
-            .lock()
-            .map_err(|error| anyhow!("Failed to lock HTTP IPC event store: {}", error))?
-            .iter()
-            .filter(|event| event.event_id > after_event_id)
-            .cloned()
-            .collect::<Vec<_>>();
-        let latest_event_id = next_event_id.load(Ordering::SeqCst).saturating_sub(1);
+        let batch = {
+            let store = event_store
+                .lock()
+                .map_err(|error| anyhow!("Failed to lock event store: {error}"))?;
+            Self::event_batch(&store, after_event_id)
+        };
+        Self::write_json(stream, 200, &batch)
+    }
 
-        Self::write_json(
-            stream,
-            200,
-            &EventsResponse {
-                success: true,
-                events,
-                latest_event_id,
-            },
-        )
+    fn event_batch(
+        store: &VecDeque<HttpIpcEvent>,
+        after_event_id: u64,
+    ) -> EventsResponse {
+        let latest_event_id = store.back().map_or(0, |entry| entry.event_id);
+        let cursor_expired = after_event_id > latest_event_id
+            || store
+                .front()
+                .is_some_and(|oldest| oldest.event_id.saturating_sub(1) > after_event_id);
+        EventsResponse {
+            success: true,
+            events: store
+                .iter()
+                .filter(|entry| entry.event_id > after_event_id)
+                .cloned()
+                .collect(),
+            latest_event_id,
+            cursor_expired,
+        }
     }
 
     fn read_request(stream: &mut TcpStream) -> Result<HttpRequest> {
         let mut reader = BufReader::new(stream);
+        let mut headers_reader = (&mut reader).take(MAX_HEADER_BYTES);
         let mut request_line = String::new();
-        reader
+        headers_reader
             .read_line(&mut request_line)
             .context("Failed to read HTTP IPC request line.")?;
         let request_line_parts = request_line
@@ -252,9 +281,12 @@ impl HttpIpcServer {
         let mut headers = HashMap::new();
         loop {
             let mut header_line = String::new();
-            reader
+            headers_reader
                 .read_line(&mut header_line)
                 .context("Failed to read HTTP IPC request header.")?;
+            if !header_line.ends_with('\n') {
+                return Err(anyhow!("Incomplete or oversized HTTP headers."));
+            }
             let trimmed_header_line = header_line.trim_end_matches(['\r', '\n']);
 
             if trimmed_header_line.is_empty() {
@@ -262,13 +294,19 @@ impl HttpIpcServer {
             }
 
             if let Some((header_name, header_value)) = trimmed_header_line.split_once(':') {
-                headers.insert(header_name.trim().to_ascii_lowercase(), header_value.trim().to_string());
+                if headers
+                    .insert(header_name.trim().to_ascii_lowercase(), header_value.trim().to_string())
+                    .is_some()
+                {
+                    return Err(anyhow!("Duplicate HTTP header."));
+                }
             }
         }
 
         let content_length = headers
             .get("content-length")
-            .and_then(|content_length| content_length.parse::<usize>().ok())
+            .map(|content_length| content_length.parse::<usize>())
+            .transpose()?
             .unwrap_or(0);
 
         if content_length > MAX_REQUEST_BODY_BYTES {
@@ -287,6 +325,7 @@ impl HttpIpcServer {
         }
 
         Ok(HttpRequest {
+            authorization: headers.remove("authorization"),
             method: request_line_parts[0].clone(),
             path: request_line_parts[1].clone(),
             body,
@@ -334,6 +373,7 @@ impl HttpIpcServer {
     fn status_reason(status_code: u16) -> &'static str {
         match status_code {
             200 => "OK",
+            401 => "Unauthorized",
             400 => "Bad Request",
             404 => "Not Found",
             500 => "Internal Server Error",
@@ -360,5 +400,32 @@ impl HttpRequest {
             .filter_map(|parameter| parameter.split_once('='))
             .map(|(key, value)| (key.to_string(), value.to_string()))
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use squalr_engine_api::events::{engine_event::EngineEventRequest, plugins::changed::plugins_changed_event::PluginsChangedEvent};
+
+    #[test]
+    fn event_cursor_reports_eviction_and_the_last_event_in_the_batch() {
+        let event = EngineEventEnvelope::new(0, PluginsChangedEvent {}.to_engine_event());
+        let store = VecDeque::from([
+            HttpIpcEvent {
+                event_id: 5,
+                event: event.clone(),
+            },
+            HttpIpcEvent { event_id: 6, event },
+        ]);
+        let batch = HttpIpcServer::event_batch(&store, 2);
+        assert!(batch.cursor_expired);
+        assert_eq!(batch.latest_event_id, 6);
+        assert_eq!(batch.events.len(), 2);
+        let batch = HttpIpcServer::event_batch(&store, 5);
+        assert!(!batch.cursor_expired);
+        assert_eq!(batch.events[0].event_id, batch.latest_event_id);
+        assert!(HttpIpcServer::event_batch(&store, 6).events.is_empty());
+        assert!(HttpIpcServer::event_batch(&store, 9).cursor_expired);
     }
 }

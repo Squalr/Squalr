@@ -5161,6 +5161,7 @@ dependencies = [
  "squalr-engine",
  "squalr-engine-api",
  "squalr-engine-session",
+ "subtle",
 ]
 
 [[package]]

@@ -158,6 +158,14 @@ impl InterprocessPipeUnidirectional {
         })
     }
 
+    /// Closes this direction of the pipe and wakes the peer's reader.
+    pub fn close(&self) {
+        self.socket_stream
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .take();
+    }
+
     /// Sends a value of generic type `T` (which must implement `Serialize`) over the IPC connection.
     /// Returns the serialized bytes on success.
     pub fn ipc_send<T: Serialize>(

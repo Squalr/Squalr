@@ -106,7 +106,15 @@ impl PluginListViewData {
         Self::set_loading(plugin_list_view_data.clone(), true);
         let plugin_list_view_data_for_response = plugin_list_view_data.clone();
         let plugin_list_request = PluginListRequest::default();
-        let did_dispatch = plugin_list_request.send(&app_context.engine_unprivileged_state, move |plugin_list_response| {
+        let did_dispatch = plugin_list_request.send_with_result(&app_context.engine_unprivileged_state, move |result| {
+            let plugin_list_response = match result {
+                Ok(response) => response,
+                Err(error) => {
+                    log::error!("Plugin request failed: {error:?}");
+                    Self::set_loading(plugin_list_view_data_for_response, false);
+                    return;
+                }
+            };
             Self::apply_snapshot(
                 plugin_list_view_data_for_response,
                 plugin_list_response.plugins,
@@ -177,7 +185,15 @@ impl PluginListViewData {
         let plugin_list_view_data_for_response = plugin_list_view_data.clone();
         let app_context_for_response = app_context.clone();
         let plugin_set_enabled_request = PluginSetEnabledRequest { plugin_id, is_enabled };
-        let did_dispatch = plugin_set_enabled_request.send(&app_context.engine_unprivileged_state, move |plugin_set_enabled_response| {
+        let did_dispatch = plugin_set_enabled_request.send_with_result(&app_context.engine_unprivileged_state, move |result| {
+            let plugin_set_enabled_response = match result {
+                Ok(response) => response,
+                Err(error) => {
+                    log::error!("Plugin request failed: {error:?}");
+                    Self::set_loading(plugin_list_view_data_for_response, false);
+                    return;
+                }
+            };
             let persisted_plugin_states = plugin_set_enabled_response.plugins.clone();
 
             Self::apply_snapshot(
@@ -247,7 +263,15 @@ impl PluginListViewData {
         let plugin_list_view_data_for_response = plugin_list_view_data.clone();
         let app_context_for_response = app_context.clone();
         let plugin_set_order_request = PluginSetOrderRequest { plugin_ids };
-        let did_dispatch = plugin_set_order_request.send(&app_context.engine_unprivileged_state, move |plugin_set_order_response| {
+        let did_dispatch = plugin_set_order_request.send_with_result(&app_context.engine_unprivileged_state, move |result| {
+            let plugin_set_order_response = match result {
+                Ok(response) => response,
+                Err(error) => {
+                    log::error!("Plugin request failed: {error:?}");
+                    Self::set_loading(plugin_list_view_data_for_response, false);
+                    return;
+                }
+            };
             let persisted_plugin_states = plugin_set_order_response.plugins.clone();
             let persisted_default_plugin_ids = plugin_set_order_response.default_plugin_ids.clone();
 

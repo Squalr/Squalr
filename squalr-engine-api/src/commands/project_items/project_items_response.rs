@@ -52,3 +52,44 @@ pub enum ProjectItemsResponse {
         project_items_write_value_response: ProjectItemsWriteValueResponse,
     },
 }
+
+impl ProjectItemsResponse {
+    pub fn failure_message(&self) -> Option<&str> {
+        match self {
+            Self::Add {
+                project_items_add_response: reply,
+            } if !reply.success => Some("The command failed."),
+            Self::Create {
+                project_items_create_response: reply,
+            } if !reply.success => Some("The command failed."),
+            Self::Delete {
+                project_items_delete_response: reply,
+            } if !reply.success => Some("The command failed."),
+            Self::Duplicate {
+                project_items_duplicate_response: reply,
+            } if !reply.success => Some("The command failed."),
+            Self::Move {
+                project_items_move_response: reply,
+            } if !reply.success => Some("The command failed."),
+            Self::PromoteSymbol {
+                project_items_promote_symbol_response: reply,
+            } if !reply.success => Some("The command failed."),
+            Self::Rename {
+                project_items_rename_response: reply,
+            } if !reply.success => Some("The command failed."),
+            Self::Reorder {
+                project_items_reorder_response: reply,
+            } if !reply.success => Some("The command failed."),
+            Self::StripSymbol {
+                project_items_strip_symbol_response: reply,
+            } if !reply.success => Some(reply.error.as_deref().unwrap_or("The command failed.")),
+            Self::UpdateDetails {
+                project_items_update_details_response: reply,
+            } if !reply.success => Some(reply.error.as_deref().unwrap_or("The command failed.")),
+            Self::WriteValue {
+                project_items_write_value_response: reply,
+            } if !reply.success => Some(reply.error.as_deref().unwrap_or("The command failed.")),
+            _ => None,
+        }
+    }
+}

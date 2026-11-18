@@ -56,3 +56,47 @@ pub enum ProjectSymbolsResponse {
         project_symbols_write_value_response: ProjectSymbolsWriteValueResponse,
     },
 }
+
+impl ProjectSymbolsResponse {
+    pub fn failure_message(&self) -> Option<&str> {
+        match self {
+            Self::Create {
+                project_symbols_create_response: reply,
+            } if !reply.success => Some("The command failed."),
+            Self::CreateModule {
+                project_symbols_create_module_response: reply,
+            } if !reply.success => Some("The command failed."),
+            Self::Delete {
+                project_symbols_delete_response: reply,
+            } if !reply.success => Some("The command failed."),
+            Self::DeleteLayout {
+                project_symbols_delete_layout_response: reply,
+            } if !reply.success => Some(reply.error.as_deref().unwrap_or("The command failed.")),
+            Self::DeleteResolver {
+                project_symbols_delete_resolver_response: reply,
+            } if !reply.success => Some(reply.error.as_deref().unwrap_or("The command failed.")),
+            Self::ExecutePluginAction {
+                project_symbols_execute_plugin_action_response: reply,
+            } if !reply.success => Some(reply.error.as_deref().unwrap_or("The command failed.")),
+            Self::Rename {
+                project_symbols_rename_response: reply,
+            } if !reply.success => Some("The command failed."),
+            Self::RenameModule {
+                project_symbols_rename_module_response: reply,
+            } if !reply.success => Some("The command failed."),
+            Self::Update {
+                project_symbols_update_response: reply,
+            } if !reply.success => Some("The command failed."),
+            Self::UpsertLayout {
+                project_symbols_upsert_layout_response: reply,
+            } if !reply.success => Some(reply.error.as_deref().unwrap_or("The command failed.")),
+            Self::UpsertResolver {
+                project_symbols_upsert_resolver_response: reply,
+            } if !reply.success => Some(reply.error.as_deref().unwrap_or("The command failed.")),
+            Self::WriteValue {
+                project_symbols_write_value_response: reply,
+            } if !reply.success => Some(reply.error.as_deref().unwrap_or("The command failed.")),
+            _ => None,
+        }
+    }
+}

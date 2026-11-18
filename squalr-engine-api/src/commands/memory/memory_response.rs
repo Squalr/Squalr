@@ -11,3 +11,15 @@ pub enum MemoryResponse {
     Read { memory_read_response: MemoryReadResponse },
     Write { memory_write_response: MemoryWriteResponse },
 }
+
+impl MemoryResponse {
+    pub fn failure_message(&self) -> Option<&str> {
+        match self {
+            Self::Freeze { memory_freeze_response: reply } if reply.failed_freeze_target_count > 0 => Some("Some freeze targets failed."),
+            Self::Query { memory_query_response: reply } if !reply.success => Some("The command failed."),
+            Self::Read { memory_read_response: reply } if !reply.success => Some("The command failed."),
+            Self::Write { memory_write_response: reply } if !reply.success => Some(reply.error.as_deref().unwrap_or("The command failed.")),
+            _ => None,
+        }
+    }
+}

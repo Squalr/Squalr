@@ -30,6 +30,7 @@ use squalr_engine_api::commands::unprivileged_command_response::UnprivilegedComm
 
 pub fn handle_privileged_engine_response(response: PrivilegedCommandResponse) {
     match response {
+        PrivilegedCommandResponse::Failed { message } => log::error!("{message}"),
         PrivilegedCommandResponse::Debugger(response) => {
             handle_debugger_response(response);
         }
@@ -55,6 +56,7 @@ pub fn handle_privileged_engine_response(response: PrivilegedCommandResponse) {
 
 pub fn handle_unprivileged_engine_response(response: UnprivilegedCommandResponse) {
     match response {
+        UnprivilegedCommandResponse::Failed { message } => log::error!("{message}"),
         UnprivilegedCommandResponse::Project(response) => handle_project_response(response),
         UnprivilegedCommandResponse::ProjectItems(response) => handle_project_items_response(response),
         UnprivilegedCommandResponse::ProjectSymbols(response) => handle_project_symbols_response(response),

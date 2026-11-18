@@ -195,6 +195,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p .ci-logs
+          export JAVA_HOME="${JAVA_HOME_17_X64:?JDK 17 is required for Gradle 7.5.1}"
           python ./scripts/build_and_deploy.py --compile-check --debug 2>&1 | tee .ci-logs/android-compile-check.log
 
       - name: Upload Android compile-check logs

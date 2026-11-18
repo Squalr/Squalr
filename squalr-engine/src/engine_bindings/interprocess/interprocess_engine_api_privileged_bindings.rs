@@ -1,13 +1,12 @@
 use crate::engine_bindings::engine_egress::EngineEgress;
 use crate::engine_bindings::engine_ingress::EngineIngress;
-use crate::engine_bindings::executable_command_privileged::ExecutableCommandPrivileged;
+use crate::engine_bindings::executable_command_privileged::execute_privileged_command;
 use crate::engine_bindings::interprocess::pipes::interprocess_pipe_bidirectional::InterprocessPipeBidirectional;
 use crate::engine_privileged_state::EnginePrivilegedState;
 use crossbeam_channel::Receiver;
 use crossbeam_channel::Sender;
 use squalr_engine_api::commands::privileged_command::PrivilegedCommand;
 use squalr_engine_api::commands::privileged_command_response::PrivilegedCommandResponse;
-use squalr_engine_api::commands::privileged_command_result::PrivilegedCommandResult;
 use squalr_engine_api::engine::engine_api_priviliged_bindings::EngineApiPrivilegedBindings;
 use squalr_engine_api::engine::engine_binding_error::EngineBindingError;
 use squalr_engine_api::engine::engine_event_envelope::EngineEventEnvelope;
@@ -15,21 +14,16 @@ use squalr_engine_api::events::engine_event::EngineEvent;
 use squalr_engine_api::events::logging::log_recorded_event::LogRecordedEvent;
 use squalr_engine_api::events::logging::logging_event::LoggingEvent;
 use squalr_engine_session::RemoteLogEventAppender;
-use std::collections::HashMap;
-use std::sync::Mutex;
 use std::sync::{Arc, RwLock};
 use std::thread;
-use std::time::Duration;
 use uuid::Uuid;
 
 pub struct InterprocessEngineApiPrivilegedBindings {
-    engine_privileged_state: Option<Arc<EnginePrivilegedState>>,
+    engine_privileged_state: std::sync::Weak<EnginePrivilegedState>,
+    worker_lifetime: Option<Receiver<()>>,
 
     /// The bidirectional connection to the host process.
     ipc_connection: Arc<RwLock<Option<InterprocessPipeBidirectional>>>,
-
-    /// A map of outgoing requests that are awaiting an engine response.
-    request_handles: Arc<Mutex<HashMap<Uuid, Box<dyn FnOnce(PrivilegedCommandResponse) + Send + Sync>>>>,
 
     /// The list of subscribers to which we send engine events.
     event_senders: Arc<RwLock<Vec<Sender<EngineEventEnvelope>>>>,
@@ -42,7 +36,7 @@ impl EngineApiPrivilegedBindings for InterprocessEngineApiPrivilegedBindings {
     ) -> Result<(), EngineBindingError> {
         let registry_generation = self
             .engine_privileged_state
-            .as_ref()
+            .upgrade()
             .map(|engine_privileged_state| engine_privileged_state.get_registry_generation())
             .unwrap_or_default();
         let engine_event_envelope = EngineEventEnvelope::new(registry_generation, engine_event);
@@ -65,20 +59,16 @@ impl EngineApiPrivilegedBindings for InterprocessEngineApiPrivilegedBindings {
         engine_command: PrivilegedCommand,
         callback: Box<dyn FnOnce(PrivilegedCommandResponse) + Send + Sync + 'static>,
     ) -> Result<(), EngineBindingError> {
-        let request_id = Uuid::new_v4();
+        let state = self
+            .engine_privileged_state
+            .upgrade()
+            .ok_or_else(|| EngineBindingError::unavailable("dispatching internal worker command"))?;
+        callback(execute_privileged_command(&state, engine_command, None).into_privileged_command_response());
+        Ok(())
+    }
 
-        if let Ok(mut request_handles) = self.request_handles.lock() {
-            request_handles.insert(request_id, Box::new(callback));
-        }
-
-        if let Some(engine_privileged_state) = &self.engine_privileged_state {
-            let interprocess_response =
-                EngineEgress::PrivilegedCommandResponse(Self::create_privileged_command_result(&engine_privileged_state, engine_command));
-
-            Self::dispatch_response(self.ipc_connection.clone(), interprocess_response, request_id)
-        } else {
-            Err(EngineBindingError::unavailable("dispatching privileged command in IPC mode"))
-        }
+    fn worker_lifetime(&self) -> Option<Receiver<()>> {
+        self.worker_lifetime.clone()
     }
 
     fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEventEnvelope>, EngineBindingError> {
@@ -96,9 +86,9 @@ impl EngineApiPrivilegedBindings for InterprocessEngineApiPrivilegedBindings {
 impl InterprocessEngineApiPrivilegedBindings {
     pub fn new() -> InterprocessEngineApiPrivilegedBindings {
         let instance = InterprocessEngineApiPrivilegedBindings {
-            engine_privileged_state: None,
+            engine_privileged_state: std::sync::Weak::new(),
+            worker_lifetime: None,
             ipc_connection: Arc::new(RwLock::new(None)),
-            request_handles: Arc::new(Mutex::new(HashMap::new())),
             event_senders: Arc::new(RwLock::new(vec![])),
         };
 
@@ -118,7 +108,8 @@ impl InterprocessEngineApiPrivilegedBindings {
         *ipc_connection_guard = Some(new_connection);
         drop(ipc_connection_guard);
         Self::install_privileged_log_forwarder(self.ipc_connection.clone());
-        self.listen_for_host_requests(&engine_privileged_state);
+        self.engine_privileged_state = Arc::downgrade(engine_privileged_state);
+        self.worker_lifetime = Some(self.listen_for_host_requests());
 
         Ok(())
     }
@@ -163,64 +154,56 @@ impl InterprocessEngineApiPrivilegedBindings {
         Ok(())
     }
 
-    fn listen_for_host_requests(
-        &self,
-        engine_privileged_state: &Arc<EnginePrivilegedState>,
-    ) {
+    fn listen_for_host_requests(&self) -> Receiver<()> {
         let ipc_connection = self.ipc_connection.clone();
-        let engine_privileged_state = engine_privileged_state.clone();
-
+        let state = self.engine_privileged_state.clone();
+        let (running, stopped) = crossbeam_channel::bounded::<()>(0);
         thread::spawn(move || {
             loop {
-                let ipc_connection = ipc_connection.clone();
-                let engine_privileged_state = engine_privileged_state.clone();
-
-                if let Ok(ipc_connection_guard) = ipc_connection.read() {
-                    if let Some(ipc_connection_pipe) = ipc_connection_guard.as_ref() {
-                        match ipc_connection_pipe.receive::<EngineIngress>() {
-                            Ok((interprocess_command, request_id)) => match interprocess_command {
-                                EngineIngress::PrivilegedCommand(engine_command) => {
-                                    let interprocess_response = EngineEgress::PrivilegedCommandResponse(Self::create_privileged_command_result(
-                                        &engine_privileged_state,
-                                        engine_command,
-                                    ));
-                                    let _ = Self::dispatch_response(ipc_connection.clone(), interprocess_response, request_id);
-                                }
-                            },
-                            Err(receive_error) => {
-                                log::error!(
-                                    "Privileged worker failed receiving host IPC request; exiting worker process: {:?}",
-                                    receive_error
-                                );
-                                std::process::exit(1);
-                            }
-                        }
-                    } else {
-                        log::error!("Privileged worker IPC connection became unavailable; exiting worker process.");
-                        std::process::exit(1);
+                let received = match ipc_connection.read() {
+                    Ok(connection) => match connection.as_ref() {
+                        Some(pipe) => pipe.receive::<EngineIngress>(),
+                        None => break,
+                    },
+                    Err(error) => {
+                        log::error!("Failed to acquire worker connection: {error}");
+                        break;
                     }
-                } else {
-                    log::error!("Privileged worker failed acquiring IPC read lock; exiting worker process.");
-                    std::process::exit(1);
+                };
+                match received {
+                    Ok((EngineIngress::PrivilegedCommand(command), request_id)) => {
+                        let Some(state) = state.upgrade() else {
+                            break;
+                        };
+                        let reply = EngineEgress::PrivilegedCommandResponse(execute_privileged_command(&state, command, None));
+                        if let Err(error) = Self::dispatch_response(ipc_connection.clone(), reply, request_id) {
+                            log::warn!("Worker connection closed while sending a reply: {error}");
+                            break;
+                        }
+                    }
+                    Err(error) => {
+                        log::info!("Worker connection closed: {error:?}");
+                        break;
+                    }
                 }
-
-                thread::sleep(Duration::from_millis(1));
             }
+            RemoteLogEventAppender::set_sender(None);
+            ipc_connection
+                .write()
+                .unwrap_or_else(|error| error.into_inner())
+                .take();
+            drop(running);
         });
+        stopped
     }
+}
 
-    fn create_privileged_command_result(
-        engine_privileged_state: &Arc<EnginePrivilegedState>,
-        privileged_command: PrivilegedCommand,
-    ) -> PrivilegedCommandResult {
-        let should_include_privileged_registry_catalog = privileged_command.should_include_privileged_registry_catalog();
-        let privileged_command_response = privileged_command.execute(engine_privileged_state);
-        let privileged_registry_catalog = if should_include_privileged_registry_catalog {
-            Some(engine_privileged_state.get_privileged_registry_catalog())
-        } else {
-            None
-        };
-
-        PrivilegedCommandResult::new(privileged_command_response, privileged_registry_catalog)
+impl Drop for InterprocessEngineApiPrivilegedBindings {
+    fn drop(&mut self) {
+        if let Ok(connection) = self.ipc_connection.read()
+            && let Some(pipe) = connection.as_ref()
+        {
+            pipe.pipe_send.close();
+        }
     }
 }

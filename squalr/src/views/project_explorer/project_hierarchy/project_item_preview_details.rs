@@ -367,7 +367,7 @@ mod tests {
             &virtual_snapshot_query_result,
         );
 
-        assert_eq!(preview_value, "inc dword [rax]");
+        assert_eq!(preview_value, "inc dword ptr [rax]");
     }
 
     fn create_engine_unprivileged_state() -> Arc<EngineUnprivilegedState> {

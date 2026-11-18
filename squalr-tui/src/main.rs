@@ -34,11 +34,12 @@ fn main() -> Result<()> {
     } else if engine_mode == EngineMode::UnprivilegedHost {
         log::info!("TUI running in unprivileged host mode.");
     } else if engine_mode == EngineMode::PrivilegedShell {
-        log::info!("TUI running as a privileged IPC shell.");
+        return squalr_engine.wait_for_host_disconnect();
     } else {
         bail!("Unsupported TUI state.");
     }
 
+    SqualrEngine::check_for_app_updates();
     let mut terminal_guard = TerminalGuard::new()?;
     let mut app_shell = AppShell::new(Duration::from_millis(100));
     app_shell.run(&mut terminal_guard, engine_mode, &mut squalr_engine)?;

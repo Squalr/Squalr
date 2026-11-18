@@ -656,6 +656,10 @@ impl EngineUnprivilegedState {
                     self.publish_command_response(command_invocation, EngineCommandResponse::Privileged(response))
                 {
                     callback(response);
+                } else {
+                    callback(PrivilegedCommandResponse::Failed {
+                        message: "Session middleware suppressed or replaced the reply.".into(),
+                    });
                 }
 
                 return true;
@@ -696,6 +700,10 @@ impl EngineUnprivilegedState {
                             command_response_publisher(invocation_for_callback, EngineCommandResponse::Privileged(response))
                         {
                             callback(response);
+                        } else {
+                            callback(PrivilegedCommandResponse::Failed {
+                                message: "Session middleware suppressed or replaced the reply.".into(),
+                            });
                         }
                     }),
                 ) {
@@ -728,6 +736,10 @@ impl EngineUnprivilegedState {
                     self.publish_command_response(command_invocation, EngineCommandResponse::Unprivileged(response))
                 {
                     callback(response);
+                } else {
+                    callback(UnprivilegedCommandResponse::Failed {
+                        message: "Session middleware suppressed or replaced the reply.".into(),
+                    });
                 }
 
                 return true;
@@ -769,6 +781,10 @@ impl EngineUnprivilegedState {
                             command_response_publisher(invocation_for_callback, EngineCommandResponse::Unprivileged(response))
                         {
                             callback(response);
+                        } else {
+                            callback(UnprivilegedCommandResponse::Failed {
+                                message: "Session middleware suppressed or replaced the reply.".into(),
+                            });
                         }
                     }),
                 ) {
@@ -897,12 +913,17 @@ impl EngineUnprivilegedState {
                 return;
             }
         };
-        let engine_unprivileged_state = self.clone();
+        let engine_unprivileged_state = Arc::downgrade(self);
 
         std::thread::spawn(move || {
             loop {
                 match event_receiver.recv() {
-                    Ok(engine_event_envelope) => Self::route_engine_event(&engine_unprivileged_state, engine_event_envelope),
+                    Ok(engine_event_envelope) => {
+                        let Some(state) = engine_unprivileged_state.upgrade() else {
+                            break;
+                        };
+                        Self::route_engine_event(&state, engine_event_envelope);
+                    }
                     Err(error) => {
                         log::error!("Fatal error listening for engine events: {}", error);
                         return;

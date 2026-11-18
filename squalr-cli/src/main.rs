@@ -1,4 +1,5 @@
 mod cli;
+mod http_ipc_access;
 mod http_ipc_server;
 mod response_handlers;
 
@@ -29,6 +30,9 @@ fn main() -> Result<()> {
 
     // Start the log event sending now that both the CLI and engine are ready to receive log messages.
     squalr_engine.initialize();
+    if http_ipc_bind_address.is_none() && one_shot_command_text.is_none() && engine_mode == EngineMode::Standalone {
+        SqualrEngine::check_for_app_updates();
+    }
 
     if let Some(http_ipc_bind_address) = http_ipc_bind_address {
         let engine_privileged_state = squalr_engine
@@ -36,7 +40,7 @@ fn main() -> Result<()> {
             .as_ref()
             .context("Engine privileged state was unavailable for HTTP IPC mode.")?;
 
-        HttpIpcServer::new(http_ipc_bind_address, engine_privileged_state.clone()).run()?;
+        HttpIpcServer::new(http_ipc_bind_address, engine_privileged_state.clone())?.run()?;
     } else if engine_mode == EngineMode::Standalone {
         let engine_unprivileged_state = squalr_engine
             .get_engine_unprivileged_state()
@@ -54,8 +58,7 @@ fn main() -> Result<()> {
     } else if engine_mode == EngineMode::PrivilegedShell {
         log::info!("CLI running as a privileged IPC shell.");
 
-        // Keep the CLI alive, exiting on any user input. Generally this is an invisible process, so it's just a way to keep the app running.
-        Cli::stay_alive();
+        squalr_engine.wait_for_host_disconnect()?;
     } else {
         bail!("Unsupported CLI state.");
     }

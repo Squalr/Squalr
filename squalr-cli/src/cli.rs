@@ -8,7 +8,6 @@ use squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState;
 use std::io;
 use std::io::Write;
 use std::sync::{Arc, mpsc};
-use std::thread;
 
 pub struct Cli {}
 
@@ -42,21 +41,6 @@ impl Cli {
         }
     }
 
-    pub fn stay_alive() {
-        let mut stdout = io::stdout();
-
-        if let Err(error) = stdout.flush() {
-            log::error!("Error flushing stdout {}", error);
-            return;
-        }
-
-        // IPC-mode workers can be spawned without a readable stdin, especially through Android `su`.
-        // Keep the process alive until another thread exits.
-        loop {
-            thread::park();
-        }
-    }
-
     /// Executes a single command and blocks until the engine response arrives.
     pub fn run_one_shot(
         engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
@@ -72,14 +56,20 @@ impl Cli {
         match parsed_input {
             ParsedInput::PrivilegedCommand(engine_command) => {
                 engine_unprivileged_state.dispatch_command(engine_command, move |engine_response| {
+                    let status = engine_response
+                        .failure_message()
+                        .map_or(Ok(()), |message| Err(anyhow!(message.to_owned())));
                     handle_privileged_engine_response(engine_response);
-                    let _ = response_sender.send(());
+                    let _ = response_sender.send(status);
                 });
             }
             ParsedInput::UnprivilegedCommand(engine_command) => {
                 engine_unprivileged_state.dispatch_unprivileged_command(engine_command, move |engine_response| {
+                    let status = engine_response
+                        .failure_message()
+                        .map_or(Ok(()), |message| Err(anyhow!(message.to_owned())));
                     handle_unprivileged_engine_response(engine_response);
-                    let _ = response_sender.send(());
+                    let _ = response_sender.send(status);
                 });
             }
             ParsedInput::DisplayedHelpOrVersion => {}
@@ -87,9 +77,7 @@ impl Cli {
 
         response_receiver
             .recv()
-            .map_err(|error| anyhow!("Failed waiting for one-shot command response: {}", error))?;
-
-        Ok(())
+            .map_err(|error| anyhow!("Failed waiting for one-shot command response: {}", error))?
     }
 
     fn handle_input(

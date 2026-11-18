@@ -55,3 +55,53 @@ pub enum DebuggerResponse {
         debugger_trace_list_response: DebuggerTraceListResponse,
     },
 }
+
+impl DebuggerResponse {
+    pub fn failure_message(&self) -> Option<&str> {
+        match self {
+            Self::Attach {
+                debugger_attach_response: reply,
+            } if !reply.status.get_success() => Some(reply.status.get_message().unwrap_or("The command failed.")),
+            Self::Detach {
+                debugger_detach_response: reply,
+            } if !reply.status.get_success() => Some(reply.status.get_message().unwrap_or("The command failed.")),
+            Self::Pause {
+                debugger_pause_response: reply,
+            } if !reply.status.get_success() => Some(reply.status.get_message().unwrap_or("The command failed.")),
+            Self::Resume {
+                debugger_resume_response: reply,
+            } if !reply.status.get_success() => Some(reply.status.get_message().unwrap_or("The command failed.")),
+            Self::BreakpointSet {
+                debugger_breakpoint_set_response: reply,
+            } if !reply.status.get_success() => Some(reply.status.get_message().unwrap_or("The command failed.")),
+            Self::BreakpointRemove {
+                debugger_breakpoint_remove_response: reply,
+            } if !reply.status.get_success() => Some(reply.status.get_message().unwrap_or("The command failed.")),
+            Self::BreakpointList {
+                debugger_breakpoint_list_response: reply,
+            } if !reply.status.get_success() => Some(reply.status.get_message().unwrap_or("The command failed.")),
+            Self::RegistersRead {
+                debugger_registers_read_response: reply,
+            } if !reply.status.get_success() => Some(reply.status.get_message().unwrap_or("The command failed.")),
+            Self::RegisterWrite {
+                debugger_register_write_response: reply,
+            } if !reply.status.get_success() => Some(reply.status.get_message().unwrap_or("The command failed.")),
+            Self::TraceStart {
+                debugger_trace_start_response: reply,
+            } if !reply.status.get_success() => Some(reply.status.get_message().unwrap_or("The command failed.")),
+            Self::TraceStop {
+                debugger_trace_stop_response: reply,
+            } if !reply.status.get_success() => Some(reply.status.get_message().unwrap_or("The command failed.")),
+            Self::TracePause {
+                debugger_trace_pause_response: reply,
+            } if !reply.status.get_success() => Some(reply.status.get_message().unwrap_or("The command failed.")),
+            Self::TraceResume {
+                debugger_trace_resume_response: reply,
+            } if !reply.status.get_success() => Some(reply.status.get_message().unwrap_or("The command failed.")),
+            Self::TraceList {
+                debugger_trace_list_response: reply,
+            } if !reply.status.get_success() => Some(reply.status.get_message().unwrap_or("The command failed.")),
+            _ => None,
+        }
+    }
+}

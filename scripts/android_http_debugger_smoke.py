@@ -5,6 +5,8 @@ import http.client
 import json
 import pathlib
 import re
+import secrets
+import shlex
 import subprocess
 import sys
 import time
@@ -15,6 +17,8 @@ import urllib.request
 WORKSPACE_ROOT = pathlib.Path(__file__).resolve().parents[1]
 ANDROID_TARGET = "aarch64-linux-android"
 HTTP_BIND_ADDRESS = "127.0.0.1:49321"
+HTTP_TOKEN = secrets.token_hex(32)
+HTTP_AUTHORIZATION = {"Authorization": f"Bearer {HTTP_TOKEN}"}
 HTTP_BASE_URL = f"http://{HTTP_BIND_ADDRESS}"
 REMOTE_CLI_PATH = "/data/local/tmp/squalr-cli"
 REMOTE_TARGET_PATH = "/data/local/tmp/squalr-debugger-watch-target"
@@ -51,9 +55,10 @@ def run_host_command(command_arguments, *, timeout_seconds=120):
     return completed_process.stdout
 
 
-def run_adb_shell(command_text, *, timeout_seconds=30, allow_failure=False):
+def run_adb_shell(command_text, *, timeout_seconds=30, allow_failure=False, stdin_text=None):
     completed_process = subprocess.run(
-        ["adb", "shell", "su", "0", "sh", "-c", command_text],
+        ["adb", "shell", "su", "0", "sh", "-c", shlex.quote(command_text)],
+        input=stdin_text,
         cwd=WORKSPACE_ROOT,
         text=True,
         stdout=subprocess.PIPE,
@@ -114,7 +119,11 @@ def reset_remote_processes():
 
 
 def launch_http_ipc_server():
-    run_adb_shell(f"{REMOTE_CLI_PATH} --http-ipc {HTTP_BIND_ADDRESS} >{REMOTE_HTTP_LOG_PATH} 2>&1 &")
+    run_adb_shell(
+        f"read -r SQUALR_HTTP_IPC_TOKEN && export SQUALR_HTTP_IPC_TOKEN && "
+        f"{{ {REMOTE_CLI_PATH} --http-ipc {HTTP_BIND_ADDRESS} </dev/null >{REMOTE_HTTP_LOG_PATH} 2>&1 & }}",
+        stdin_text=HTTP_TOKEN + "\n",
+    )
     run_host_command(["adb", "forward", "tcp:49321", "tcp:49321"], timeout_seconds=30)
 
     deadline = time.monotonic() + 15
@@ -153,7 +162,7 @@ def launch_watch_target(target_mode):
 
 
 def http_get_json(path, *, timeout_seconds=10):
-    request = urllib.request.Request(f"{HTTP_BASE_URL}{path}", method="GET")
+    request = urllib.request.Request(f"{HTTP_BASE_URL}{path}", method="GET", headers=HTTP_AUTHORIZATION)
     with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
         return json.loads(response.read().decode("utf-8"))
 
@@ -164,7 +173,7 @@ def http_post_command(command_payload, *, timeout_seconds=30):
         f"{HTTP_BASE_URL}/command",
         data=request_body,
         method="POST",
-        headers={"Content-Type": "application/json"},
+        headers={**HTTP_AUTHORIZATION, "Content-Type": "application/json"},
     )
 
     try:
