@@ -25,14 +25,13 @@ SU_INVOCATION_ATTEMPTS = [
 ]
 
 
-def run_command(command_segments, working_directory, environment=None):
+def run_command(command_segments, working_directory):
     """Run a command and stream output to stdout/stderr."""
     command_display = " ".join(command_segments)
     print(f"\n> {command_display}")
     process = subprocess.Popen(
         command_segments,
         cwd=working_directory,
-        env=environment,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
@@ -439,12 +438,9 @@ def build_game_activity_apk(workspace_directory, gui_library_path, prefer_releas
     gradle_command = ensure_gradle_runtime(workspace_directory)
     gradle_project_directory = prepare_game_activity_gradle_project(workspace_directory, gui_library_path)
     gradle_task_name = "assembleRelease" if prefer_release else "assembleDebug"
-    gradle_environment = os.environ.copy()
-    gradle_environment.pop("JAVA_HOME", None)
     exit_code, build_output = run_command(
         [*gradle_command, "--no-daemon", gradle_task_name],
         gradle_project_directory,
-        environment=gradle_environment,
     )
     if exit_code != 0 and prefer_release:
         print("\nRelease APK assembly failed. Falling back to debug APK assembly.")
@@ -452,7 +448,6 @@ def build_game_activity_apk(workspace_directory, gui_library_path, prefer_releas
         exit_code, build_output = run_command(
             [*gradle_command, "--no-daemon", gradle_task_name],
             gradle_project_directory,
-            environment=gradle_environment,
         )
 
     if exit_code != 0:
@@ -466,7 +461,6 @@ def build_game_activity_apk(workspace_directory, gui_library_path, prefer_releas
         exit_code, build_output = run_command(
             [*gradle_command, "--no-daemon", gradle_task_name],
             gradle_project_directory,
-            environment=gradle_environment,
         )
         if exit_code != 0:
             fail("Failed to build fallback debug GameActivity APK.")
