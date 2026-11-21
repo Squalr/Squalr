@@ -168,3 +168,34 @@ fn agrees_with_exhaustive_two_hop_routes() -> Result<()> {
     }
     Ok(())
 }
+
+fn walk_paired_root(
+    previous: &mut PointerScanResults,
+    current: &mut PointerScanResults,
+    module: &str,
+    rva: u64,
+    depth: usize,
+    limit: usize,
+) -> Result<PairedWalkResult> {
+    Ok(PairedPointerWalk::new(previous, current, module, depth)?.walk_root(rva, limit))
+}
+
+#[test]
+fn indexes_roots_in_capture_order_independently_of_module_index() -> Result<()> {
+    let mut first = graph(0, 0x2000, &[(0x2000, 0x3000)], 0x3000);
+    let mut second = graph(1, 0x5000, &[(0x5000, 0x6000)], 0x6000);
+    let current_root = second.get_pointer_scan_level_candidates()[1].get_static_candidates()[0].clone();
+    let other = PointerScanCandidate::new(2, 2, PointerScanNodeType::Static, 0x9000, 0, 0, 0);
+    second.get_pointer_scan_level_candidates_mut()[1] = PointerScanLevelCandidates::with_sorted_heap_slots(2, vec![current_root, other], 3, vec![]);
+    let mut walk = PairedPointerWalk::new(&mut first, &mut second, "game", 2)?;
+    assert_eq!(walk.baseline_root_offsets().collect::<Vec<_>>(), [0x28]);
+    assert_eq!(walk.walk_root(0x28, 64), PairedWalkResult::Matched(vec![0, 0]));
+    Ok(())
+}
+
+#[test]
+fn a_missing_module_is_an_input_error() {
+    let mut first = graph(0, 1, &[], 2);
+    let mut second = graph(1, 1, &[], 2);
+    assert!(PairedPointerWalk::new(&mut first, &mut second, "other", 2).is_err());
+}

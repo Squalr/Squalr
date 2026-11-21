@@ -11,7 +11,7 @@ use squalr_engine_api::{
     structures::{
         data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
         pointer_scans::{
-            paired_pointer_walk::{PairedWalkResult, walk_paired_root},
+            paired_pointer_walk::{PairedPointerWalk, PairedWalkResult},
             pointer_scan_address_space::PointerScanAddressSpace,
             pointer_scan_results::PointerScanResults,
             pointer_scan_target_request::PointerScanTargetRequest,
@@ -72,27 +72,14 @@ fn main() -> Result<()> {
             let mut current = read_graph(current_file)?;
             let depth: usize = depth.parse()?;
             let limit = limit.parse()?;
+            let mut walk = PairedPointerWalk::new(&mut previous, &mut current, module, depth)?;
             let offsets = if root == "all" {
-                ensure!(
-                    depth > 0 && depth as u64 <= previous.get_max_depth().min(current.get_max_depth()),
-                    "depth must be within both scans"
-                );
-                let module_index = previous
-                    .get_module_index_by_name(module)
-                    .context("module missing from baseline")?;
-                previous
-                    .get_pointer_scan_level_candidates()
-                    .get(depth - 1)
-                    .into_iter()
-                    .flat_map(|level| level.get_static_candidates())
-                    .filter(|candidate| candidate.get_module_index() == module_index)
-                    .map(|candidate| candidate.get_module_offset())
-                    .collect()
+                walk.baseline_root_offsets().collect()
             } else {
                 vec![hex_address(root)?]
             };
             for module_offset in offsets {
-                let result = walk_paired_root(&mut previous, &mut current, module, module_offset, depth, limit)?;
+                let result = walk.walk_root(module_offset, limit);
                 match result {
                     PairedWalkResult::Matched(offsets) => println!("{module}+{module_offset:#x} matched {offsets:?}"),
                     PairedWalkResult::NoMatch => println!("{module}+{module_offset:#x} no match"),
