@@ -144,6 +144,13 @@ impl PointerScanLevelCandidates {
         self.heap_candidates.address(slot_index)
     }
 
+    pub(super) fn heap_slot_value(
+        &self,
+        slot_index: usize,
+    ) -> u64 {
+        self.heap_candidates.candidate(slot_index).get_pointer_value()
+    }
+
     fn ensure_heap_candidates_sorted(&mut self) {
         if self.heap_candidates_sorted {
             return;
