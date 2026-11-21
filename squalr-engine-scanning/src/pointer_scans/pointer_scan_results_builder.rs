@@ -2,6 +2,7 @@ use crate::pointer_scans::structures::pointer_scan_collected_level::PointerScanC
 use squalr_engine_api::structures::memory::normalized_module::NormalizedModule;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_address_space::PointerScanAddressSpace;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_candidate::PointerScanCandidate;
+use squalr_engine_api::structures::pointer_scans::pointer_scan_heap_slot::PointerScanHeapSlot;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_level::PointerScanLevel;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_level_candidates::PointerScanLevelCandidates;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_node_type::PointerScanNodeType;
@@ -154,21 +155,16 @@ impl PointerScanResultsBuilder {
             *next_candidate_id = next_candidate_id.saturating_add(1);
         }
 
-        let mut heap_candidates = Vec::with_capacity(collected_pointer_level.heap_candidates.len());
-
-        for collected_pointer_candidate in &collected_pointer_level.heap_candidates {
-            heap_candidates.push(PointerScanCandidate::new(
-                *next_candidate_id,
-                discovery_depth,
-                PointerScanNodeType::Heap,
-                collected_pointer_candidate.pointer_address,
-                collected_pointer_candidate.pointer_value,
-                0,
-                0,
-            ));
-            *next_candidate_id = next_candidate_id.saturating_add(1);
-        }
-
-        PointerScanLevelCandidates::new_presorted(discovery_depth, static_candidates, heap_candidates)
+        let first_heap_id = *next_candidate_id;
+        let heap_slots: Vec<_> = collected_pointer_level
+            .heap_candidates
+            .iter()
+            .map(|candidate| PointerScanHeapSlot {
+                pointer_address: candidate.pointer_address,
+                pointer_value: candidate.pointer_value,
+            })
+            .collect();
+        *next_candidate_id = first_heap_id.saturating_add(heap_slots.len() as u64);
+        PointerScanLevelCandidates::with_sorted_heap_slots(discovery_depth, static_candidates, first_heap_id, heap_slots)
     }
 }

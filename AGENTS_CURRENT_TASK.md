@@ -8,7 +8,6 @@ Our current task, from `README.md`, is:
 - Do not declare behavior as fixed. Use "needs human verification" after implementation and validation.
 
 ## Current Tasklist
-- PR #53 borrows the active graph during validation and skips terminal heap scan tasks during discovery.
 - Implement the architecture audit findings for session ownership, command completion, and HTTP worker access. Windows and Android compilation validated. The Android device flow needs human verification.
 
 ## Important Information

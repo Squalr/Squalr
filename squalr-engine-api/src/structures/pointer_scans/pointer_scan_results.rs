@@ -1,5 +1,4 @@
 use crate::structures::pointer_scans::pointer_scan_address_space::PointerScanAddressSpace;
-use crate::structures::pointer_scans::pointer_scan_candidate::PointerScanCandidate;
 use crate::structures::pointer_scans::pointer_scan_level::PointerScanLevel;
 use crate::structures::pointer_scans::pointer_scan_level_candidates::PointerScanLevelCandidates;
 use crate::structures::pointer_scans::pointer_scan_level_summary::PointerScanLevelSummary;
@@ -426,9 +425,7 @@ impl PointerScanResults {
         }
 
         let Some(heap_candidate) = Self::find_level_candidates_mut(self, child_discovery_depth).and_then(|pointer_scan_level_candidates| {
-            pointer_scan_level_candidates
-                .find_heap_candidate_by_address(parent_materialized_node.get_resolved_target_address())
-                .cloned()
+            pointer_scan_level_candidates.heap_candidate_at_address(parent_materialized_node.get_resolved_target_address())
         }) else {
             return MaterializedPointerScanNodePage::default();
         };
@@ -612,14 +609,11 @@ impl PointerScanResults {
         let Some(next_pointer_scan_level_candidates) = Self::find_level_candidates_mut(self, discovery_depth.saturating_sub(1)) else {
             return Vec::new();
         };
-        let matching_child_candidates = next_pointer_scan_level_candidates.find_heap_candidates_in_range(lower_bound, upper_bound);
-        let page_start_index = page_start_index as usize;
-        let page_end_index = page_start_index
-            .saturating_add(page_node_count as usize)
-            .min(matching_child_candidates.len());
-        let resolved_target_addresses = matching_child_candidates[page_start_index..page_end_index]
-            .iter()
-            .map(PointerScanCandidate::get_pointer_address)
+        let resolved_target_addresses = next_pointer_scan_level_candidates
+            .heap_candidate_range(lower_bound, upper_bound)
+            .skip(page_start_index as usize)
+            .take(page_node_count as usize)
+            .map(|slot_index| next_pointer_scan_level_candidates.heap_address(slot_index))
             .collect::<Vec<_>>();
 
         resolved_target_addresses
@@ -665,7 +659,7 @@ impl PointerScanResults {
         Self::find_level_candidates_mut(self, discovery_depth.saturating_sub(1))
             .map(|next_pointer_scan_level_candidates| {
                 next_pointer_scan_level_candidates
-                    .find_heap_candidates_in_range(lower_bound, upper_bound)
+                    .heap_candidate_range(lower_bound, upper_bound)
                     .len() as u64
             })
             .unwrap_or(0)
@@ -1113,5 +1107,22 @@ mod tests {
 
         assert_eq!(pointer_scan_results.get_root_node_count(), 2);
         assert_eq!(pointer_scan_results.get_total_node_count(), 1);
+    }
+
+    #[test]
+    fn expanding_packed_heap_uses_the_original_graph_node_id() -> Result<(), &'static str> {
+        let mut graph = create_pointer_scan_results();
+        let roots = graph.get_expanded_nodes(None);
+        let root = roots
+            .iter()
+            .find(|root| root.get_graph_node_id() == 3)
+            .ok_or("missing two-hop root")?;
+        let children = graph.get_expanded_nodes(Some(root.get_node_id()));
+        let child = children.first().ok_or("missing heap child")?;
+        let leaves = graph.get_expanded_nodes(Some(child.get_node_id()));
+        let leaf = leaves.first().ok_or("missing terminal node")?;
+        assert_eq!(leaf.get_graph_node_id(), 2);
+        assert_eq!(leaf.get_resolved_target_address(), 0x3010);
+        Ok(())
     }
 }
