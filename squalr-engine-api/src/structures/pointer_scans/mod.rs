@@ -1,4 +1,5 @@
 mod heap_candidates;
+pub mod paired_pointer_walk;
 pub mod pointer_scan_address_space;
 pub mod pointer_scan_candidate;
 pub mod pointer_scan_heap_slot;
